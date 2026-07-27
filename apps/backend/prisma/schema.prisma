@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  inviteUsed   InviteCode? @relation("InviteUsedBy")
+  inviteCreated InviteCode[] @relation("InviteCreatedBy")
+  profile      Profile?
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid @map("user_id")
+  displayName String?  @map("display_name")
+  bio         String?
+  avatar      String?
+  banner      String?
+  location    String?
+  website     String?
+  socialLinks Json?    @map("social_links")
+  theme       Json?
+  isPublic    Boolean  @default(true) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model InviteCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  code      String    @unique
+  createdById String  @db.Uuid @map("created_by_id")
+  usedById  String?   @unique @db.Uuid @map("used_by_id")
+  usedAt    DateTime? @map("used_at")
+  expiresAt DateTime? @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  createdBy User    @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  usedBy    User?   @relation("InviteUsedBy", fields: [usedById], references: [id])
+
+  @@index([code])
+  @@map("invite_codes")
+}

@@ -1,0 +1,23 @@
+{
+  "name": "bioplatform",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @bioplatform/backend dev\" \"pnpm --filter @bioplatform/frontend dev\"",
+    "dev:backend": "pnpm --filter @bioplatform/backend dev",
+    "dev:frontend": "pnpm --filter @bioplatform/frontend dev",
+    "build": "pnpm --filter @bioplatform/shared build && pnpm --filter @bioplatform/backend build && pnpm --filter @bioplatform/frontend build",
+    "build:shared": "pnpm --filter @bioplatform/shared build",
+    "build:backend": "pnpm --filter @bioplatform/backend build",
+    "build:frontend": "pnpm --filter @bioplatform/frontend build",
+    "lint": "pnpm --filter @bioplatform/backend lint && pnpm --filter @bioplatform/frontend lint",
+    "typecheck": "pnpm --filter @bioplatform/shared build && pnpm --filter @bioplatform/backend typecheck && pnpm --filter @bioplatform/frontend typecheck",
+    "db:generate": "pnpm --filter @bioplatform/backend db:generate",
+    "db:push": "pnpm --filter @bioplatform/backend db:push",
+    "db:migrate": "pnpm --filter @bioplatform/backend db:migrate",
+    "db:studio": "pnpm --filter @bioplatform/backend db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
