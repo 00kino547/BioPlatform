@@ -7,14 +7,17 @@ Una plataforma moderna de enlaces para creadores, desarrolladores y cualquier pe
 ## Características
 
 - Perfiles personalizados con avatares, banners y biografías
-- Integración de enlaces sociales
-- Reproductor de música
-- Personalización de temas
-- Analíticas integradas
+- Enlaces sociales con iconos de plataforma (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email)
+- Soporte para nombres de usuario de Discord y enlaces de invitación
+- Enlaces de correo electrónico `mailto:`
+- 8 temas predefinidos (Midnight, Ocean, Sunset, Forest, Lavender, Rose, Arctic, Minimal)
+- Personalización de temas con colores de acento
 - Acceso exclusivo por invitación
 - Auto-hospedable con Docker
-- Subida de archivos segura (compatible con S3)
-- Rendimiento ultrarrápido
+- Panel de administración (gestión de usuarios, códigos de invitación, edición de perfiles)
+- Subida de archivos segura (almacenamiento local, compatible con S3)
+- Sanitización de entrada y validación de plataformas
+- Páginas de Política de Privacidad y Términos de Servicio
 - Diseño moderno y responsivo
 
 ## Capturas de pantalla
@@ -38,8 +41,8 @@ Una plataforma moderna de enlaces para creadores, desarrolladores y cualquier pe
 ## Instalación
 
 ```bash
-git clone https://github.com/kinotes/bio.git
-cd bio
+git clone https://github.com/00kino547/BioPlatform.git
+cd BioPlatform
 cp .env.example .env
 ```
 
@@ -53,6 +56,9 @@ pnpm install
 # Generar cliente Prisma
 pnpm db:generate
 
+# Sembrar usuario admin y códigos de invitación
+pnpm db:seed
+
 # Iniciar servidores de desarrollo
 pnpm dev
 ```
@@ -63,10 +69,10 @@ Abre http://localhost:5173 (frontend) y http://localhost:3000/api/health (backen
 
 ```bash
 # Stack completo con Nginx
-docker compose --profile nginx up -d
+docker compose --profile nginx up -d --build
 
 # Sin Nginx (acceso directo)
-docker compose up -d
+docker compose up -d --build
 ```
 
 La aplicación estará disponible en http://localhost:80.
@@ -79,41 +85,26 @@ Servicios:
 - `frontend` — SPA React servida por Nginx (puerto 80)
 - `nginx` — Proxy inverso (opcional, requiere `--profile nginx`)
 
-## Ejemplos de Proxy Inverso
-
-### Nginx
-
-```nginx
-server {
-    listen 80;
-    server_name tudominio.com;
-
-    location / {
-        proxy_pass http://localhost:80;
-    }
-}
-```
-
-### Cloudflare Tunnel
-
-```bash
-cloudflared tunnel --url http://localhost:80
-```
-
 ## Variables de Entorno
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
 | `APP_NAME` | Nombre de la aplicación | `BioPlatform` |
-| `APP_TAGLINE` | Lema corto | `Tu identidad digital, bellamente diseñada.` |
-| `APP_DESCRIPTION` | Descripción completa | `Crea una página de perfil impresionante...` |
+| `APP_TAGLINE` | Lema corto | `Your digital identity, beautifully crafted.` |
+| `APP_DESCRIPTION` | Descripción completa | `Create a stunning profile page...` |
 | `APP_URL` | URL pública | `http://localhost:80` |
-| `APP_GITHUB_URL` | URL del repositorio GitHub | `https://github.com/kinotes/bio` |
-| `VITE_API_URL` | URL del API backend | `http://localhost:3000/api` |
+| `APP_GITHUB_URL` | URL del repositorio GitHub | `https://github.com/00kino547/BioPlatform` |
+| `VITE_API_URL` | URL del API backend (relativa para proxy Nginx) | `/api` |
+| `VITE_CONTACT_URL` | URL de contacto/soporte | `https://github.com/00kino547/BioPlatform/issues` |
+| `VITE_STATUS_URL` | URL de página de estado | _(vacío)_ |
+| `VITE_DOCS_URL` | URL de documentación | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 | `PORT` | Puerto del backend | `3000` |
 | `DATABASE_URL` | Cadena de conexión PostgreSQL | — |
 | `JWT_SECRET` | Secreto JWT | — |
+| `JWT_EXPIRES_IN` | Expiración JWT | `7d` |
+| `CORS_ORIGIN` | Orígenes permitidos (separados por comas) | `http://localhost:5173` |
 | `STORAGE_PROVIDER` | Backend de almacenamiento (`local`, `r2`, `b2`, `s3`) | `local` |
+| `LOCAL_STORAGE_PATH` | Directorio de subidas local | `./uploads` |
 
 Ver `.env.example` para la lista completa.
 
@@ -126,6 +117,26 @@ Toda la marca es configurable mediante variables de entorno. Cambia `APP_NAME`, 
 - Datos estructurados (JSON-LD)
 - Título del navegador
 - Contenido del FAQ
+- Pie de página del perfil público
+- Páginas de Política de Privacidad y Términos de Servicio
+
+## Plataformas Soportadas
+
+Los enlaces sociales soportan las siguientes plataformas con iconos SVG personalizados:
+
+| Plataforma | Formato de Entrada | Visualización |
+|-----------|-------------------|---------------|
+| Twitter / X | URL | Enlace clickeable |
+| GitHub | URL | Enlace clickeable |
+| YouTube | URL | Enlace clickeable |
+| Twitch | URL | Enlace clickeable |
+| Discord | Nombre de usuario o enlace de invitación | Usuario: solo visualización. Invitación: clickeable |
+| TikTok | URL | Enlace clickeable |
+| Instagram | URL | Enlace clickeable |
+| Facebook | URL | Enlace clickeable |
+| LinkedIn | URL | Enlace clickeable |
+| Spotify | URL | Enlace clickeable |
+| Email | Dirección de correo | Abre cliente de correo |
 
 ## Actualización
 
@@ -150,16 +161,26 @@ docker compose --profile nginx up -d --build
 - Establece `NODE_ENV=production`
 - Usa una instancia dedicada de PostgreSQL
 
+## Seguridad
+
+- Toda la entrada del usuario se sanitiza antes de almacenar (caracteres tipo HTML eliminados)
+- Nombres de plataforma validados contra una lista permitida
+- URLs validadas para protocolo correcto (sin `javascript:` etc.)
+- Subidas de archivos limitadas a extensiones de imagen (JPEG, PNG, GIF, WebP)
+- Hashing de contraseñas con bcrypt a 12 rondas
+- Autenticación JWT con expiración configurable
+- Sin `dangerouslySetInnerHTML` en el frontend (React escapa todo el contenido por defecto)
+
 ## Estructura de Carpetas
 
 ```
-bio/
+BioPlatform/
 ├── apps/
 │   ├── frontend/          # SPA React
 │   └── backend/           # API Express
 ├── packages/
 │   └── shared/            # Tipos compartidos + almacenamiento
-├── docs/                  # Documentación
+├── docs/                  # Documentación (Inglés + Español)
 ├── nginx/                 # Configuración Nginx
 ├── docker-compose.yml
 ├── .env.example
@@ -167,7 +188,8 @@ bio/
 ├── PROJECT_MAP.md         # Ubicación de archivos
 ├── DECISIONS.md           # Decisiones de arquitectura
 ├── TASKS.md               # Seguimiento de tareas
-└── PROMPTS.md             # Prompts reutilizables para AI
+├── PROMPTS.md             # Prompts reutilizables para AI
+└── CHANGELOG.md           # Historial de versiones
 ```
 
 ## Documentación
@@ -180,8 +202,11 @@ bio/
 1. Haz fork del repositorio
 2. Crea una rama de características
 3. Haz tus cambios
-4. Ejecuta `pnpm typecheck` y `pnpm lint`
-5. Envía un pull request
+4. Verifica TypeScript: `pnpm --filter frontend exec tsc --noEmit`
+5. Verifica Docker: `docker compose --profile nginx up -d --build`
+6. Envía un pull request
+
+Ver [Guía de Contribución](../es/contributing.md) para detalles.
 
 ## Seguridad
 
@@ -190,10 +215,6 @@ Reporta vulnerabilidades de seguridad a los mantenedores. No abras issues públi
 ## Licencia
 
 Licencia MIT. Ver [LICENSE](../LICENSE) para detalles.
-
-## Créditos
-
-Creado con cuidado para creadores en todas partes.
 
 ## Preguntas Frecuentes
 
@@ -204,4 +225,4 @@ Sí. Es totalmente de código abierto y compatible con Docker.
 La plataforma central es gratuita. Las funciones premium están disponibles por suscripción.
 
 **¿Cómo obtengo una invitación?**
-BioPlatform es exclusivo por invitación. Contacta a miembros existentes o comunícate con nuestro equipo.
+BioPlatform es exclusivo por invitación. Contacta a miembros existentes o comunícate a través de [GitHub Issues](https://github.com/00kino547/BioPlatform/issues).

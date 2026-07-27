@@ -17,6 +17,7 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 - Admin panel (user management, invite codes, profile editing)
 - Secure file uploads (local storage, S3-compatible)
 - Input sanitization and platform validation
+- Privacy Policy and Terms of Service pages
 - Modern, responsive design
 
 ## Screenshots
@@ -40,8 +41,8 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 ## Installation
 
 ```bash
-git clone https://github.com/kinotes/bio.git
-cd bio
+git clone https://github.com/00kino547/BioPlatform.git
+cd BioPlatform
 cp .env.example .env
 ```
 
@@ -91,13 +92,16 @@ The app will be available at http://localhost:80.
 | `APP_TAGLINE` | Short tagline | `Your digital identity, beautifully crafted.` |
 | `APP_DESCRIPTION` | Full description | `Create a stunning profile page...` |
 | `APP_URL` | Public URL | `http://localhost:80` |
-| `APP_GITHUB_URL` | GitHub repository URL | `https://github.com/kinotes/bio` |
+| `APP_GITHUB_URL` | GitHub repository URL | `https://github.com/00kino547/BioPlatform` |
 | `VITE_API_URL` | Backend API URL (relative for Nginx proxy) | `/api` |
+| `VITE_CONTACT_URL` | Contact/support URL | `https://github.com/00kino547/BioPlatform/issues` |
+| `VITE_STATUS_URL` | Status page URL | _(empty)_ |
+| `VITE_DOCS_URL` | Documentation URL | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 | `PORT` | Backend port | `3000` |
 | `DATABASE_URL` | PostgreSQL connection string | — |
 | `JWT_SECRET` | JWT signing secret | — |
 | `JWT_EXPIRES_IN` | Token expiration | `7d` |
-| `CORS_ORIGIN` | Allowed origins (comma-separated) | `http://localhost:80,http://localhost:5173` |
+| `CORS_ORIGIN` | Allowed origins (comma-separated) | `http://localhost:5173` |
 | `STORAGE_PROVIDER` | Storage backend (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Local upload directory | `./uploads` |
 
@@ -113,6 +117,7 @@ All branding is configurable via environment variables. Change `APP_NAME`, `APP_
 - Browser title
 - FAQ content
 - Public profile footer
+- Privacy Policy and Terms of Service pages
 
 ## Supported Platforms
 
@@ -126,7 +131,7 @@ Social links support the following platforms with custom SVG icons:
 | Twitch | URL | Clickable link |
 | Discord | Username or invite link | Username: display only. Invite: clickable |
 | TikTok | URL | Clickable link |
-| Instagram | URL | Clickible link |
+| Instagram | URL | Clickable link |
 | Facebook | URL | Clickable link |
 | LinkedIn | URL | Clickable link |
 | Spotify | URL | Clickable link |
@@ -159,6 +164,7 @@ docker compose --profile nginx up -d --build
 
 - All user input sanitized before storage (HTML-like characters stripped)
 - Platform names validated against an allowlist
+- URLs validated for correct protocol (no `javascript:` etc.)
 - File uploads limited to image extensions only (JPEG, PNG, GIF, WebP)
 - bcrypt password hashing at 12 rounds
 - JWT authentication with configurable expiration
@@ -167,13 +173,13 @@ docker compose --profile nginx up -d --build
 ## Folder Overview
 
 ```
-bio/
+BioPlatform/
 ├── apps/
 │   ├── frontend/          # React SPA
 │   └── backend/           # Express API
 ├── packages/
 │   └── shared/            # Shared types + storage
-├── docs/                  # Documentation
+├── docs/                  # Documentation (English + Spanish)
 ├── nginx/                 # Nginx config
 ├── docker-compose.yml
 ├── .env.example
@@ -181,7 +187,8 @@ bio/
 ├── PROJECT_MAP.md         # File locations
 ├── DECISIONS.md           # Architecture decisions
 ├── TASKS.md               # Task tracking
-└── PROMPTS.md             # Reusable AI prompts
+├── PROMPTS.md             # Reusable AI prompts
+└── CHANGELOG.md           # Version history
 ```
 
 ## Documentation
@@ -194,8 +201,11 @@ bio/
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run `pnpm typecheck` and `pnpm lint`
-5. Submit a pull request
+4. Run TypeScript check: `pnpm --filter frontend exec tsc --noEmit`
+5. Verify Docker build: `docker compose --profile nginx up -d --build`
+6. Submit a pull request
+
+See [Contributing Guide](docs/en/contributing.md) for details.
 
 ## License
 
@@ -210,7 +220,7 @@ A: Yes. It's fully open source and Docker-compatible.
 A: The core platform is free. Premium features are available via subscription.
 
 **Q: How do I get an invite?**
-A: BioPlatform is invite-only. Contact existing members or reach out to our team.
+A: BioPlatform is invite-only. Contact existing members or reach out via [GitHub Issues](https://github.com/00kino547/BioPlatform/issues).
 
 **Q: Can I use Discord usernames instead of links?**
 A: Yes. Enter your new Discord username (no discriminator) or a discord.gg invite link.

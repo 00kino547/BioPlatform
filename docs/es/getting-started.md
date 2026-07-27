@@ -9,7 +9,7 @@
 ## Inicio Rápido
 
 ```bash
-git clone https://github.com/kinotes/bio.git
+git clone https://github.com/00kino547/BioPlatform.git
 cd bio
 cp .env.example .env
 corepack enable

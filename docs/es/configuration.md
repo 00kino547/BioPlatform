@@ -1,13 +1,21 @@
-# Variables de Entorno
+# Configuración
+
+## Resumen
+
+BioPlatform se configura completamente a través de variables de entorno. Copia `.env.example` a `.env` y modifica los valores.
+
+```bash
+cp .env.example .env
+```
 
 ## Aplicación
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
-| `APP_NAME` | Nombre de la aplicación | `BioPlatform` |
-| `APP_TAGLINE` | Lema corto | `Your digital identity, beautifully crafted.` |
-| `APP_DESCRIPTION` | Descripción completa | `Create a stunning profile page...` |
-| `APP_URL` | URL pública | `http://localhost:80` |
+| `APP_NAME` | Nombre de la aplicación en navbar, footer, emails | `BioPlatform` |
+| `APP_TAGLINE` | Lema corto para la landing page | `Your digital identity, beautifully crafted.` |
+| `APP_DESCRIPTION` | Descripción completa para SEO y meta tags | `Create a stunning profile page...` |
+| `APP_URL` | URL pública de tu instancia | `http://localhost:80` |
 | `APP_GITHUB_URL` | URL del repositorio GitHub | `https://github.com/00kino547/BioPlatform` |
 
 ## Frontend
@@ -20,11 +28,11 @@
 | `VITE_APP_DESCRIPTION` | Descripción del frontend | `Create a stunning profile page...` |
 | `VITE_APP_URL` | URL pública del frontend | `http://localhost:80` |
 | `VITE_APP_GITHUB_URL` | URL de GitHub del frontend | `https://github.com/00kino547/BioPlatform` |
-| `VITE_CONTACT_URL` | URL de contacto/soporte | `https://github.com/00kino547/BioPlatform/issues` |
-| `VITE_STATUS_URL` | URL de página de estado | _(vacío)_ |
-| `VITE_DOCS_URL` | URL de documentación | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
+| `VITE_CONTACT_URL` | URL de contacto/soporte (footer, páginas legales) | `https://github.com/00kino547/BioPlatform/issues` |
+| `VITE_STATUS_URL` | URL de página de estado (enlace en footer) | _(vacío)_ |
+| `VITE_DOCS_URL` | URL de documentación (enlace en footer) | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 
-> Las variables del frontend deben tener el prefijo `VITE_` para ser accesibles en código React vía `import.meta.env.VITE_*`.
+> **Importante:** Las variables del frontend deben tener el prefijo `VITE_` para ser accesibles en código React vía `import.meta.env.VITE_*`.
 
 ## Backend
 
@@ -50,11 +58,15 @@
 | `JWT_SECRET` | Secreto para firmar tokens JWT | — (requerido) |
 | `JWT_EXPIRES_IN` | Expiración del token JWT | `7d` |
 
+> Usa una cadena aleatoria fuerte (32+ caracteres) para `JWT_SECRET` en producción.
+
 ## CORS
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
 | `CORS_ORIGIN` | Orígenes permitidos (separados por comas) | `http://localhost:5173` |
+
+> Al usar Nginx, el frontend usa URLs relativas del API (`/api`), así que CORS no es necesario. Esto es solo un respaldo para desarrollo local.
 
 ## Nginx
 
@@ -73,7 +85,7 @@
 
 ## Marca
 
-Todas las variables de marca (`APP_NAME`, `APP_TAGLINE`, etc.) se usan en:
+Todas las variables de marca (`APP_NAME`, `APP_TAGLINE`, etc.) se propagan a:
 
 - Navbar, Hero, Footer (componentes React)
 - Meta tags SEO, OpenGraph, Twitter cards
@@ -83,4 +95,4 @@ Todas las variables de marca (`APP_NAME`, `APP_TAGLINE`, etc.) se usan en:
 - Enlace "Powered by" en perfiles públicos
 - Páginas de Política de Privacidad y Términos de Servicio
 
-Ver [Configuración](./configuration.md) para descripciones detalladas de cada variable.
+Para reformar toda la aplicación, cambia estos valores en `.env` y reconstruye.
