@@ -70,3 +70,7 @@ Before changing code, read:
 1. `AGENTS.md` — coding rules and security
 2. `PROJECT_MAP.md` — file locations
 3. `DECISIONS.md` — architectural context
+
+---
+
+← [Deployment](./deployment.md) · [Back to Top](#contributing)

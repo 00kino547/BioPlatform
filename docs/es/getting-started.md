@@ -32,6 +32,4 @@ Ver [Variables de Entorno](./environment-variables.md) para la referencia comple
 
 ## Próximos Pasos
 
-- [Configuración](./configuration.md)
-- [Despliegue](./deployment.md)
-- [Contribuir](./contributing.md)
+→ [Variables de Entorno](./environment-variables.md)

@@ -115,3 +115,7 @@ docker compose --profile nginx up -d --build
 - **Database:** `pg_dump` or Docker volume backup
 - **Uploads:** Regular file backup of `./uploads`
 - **Environment:** Keep `.env` in a secure location
+
+---
+
+← [Configuration](./configuration.md) · [Contributing](./contributing.md) →

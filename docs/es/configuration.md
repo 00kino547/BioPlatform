@@ -96,3 +96,7 @@ Todas las variables de marca (`APP_NAME`, `APP_TAGLINE`, etc.) se propagan a:
 - Páginas de Política de Privacidad y Términos de Servicio
 
 Para reformar toda la aplicación, cambia estos valores en `.env` y reconstruye.
+
+---
+
+← [Variables de Entorno](./environment-variables.md) · [Despliegue](./deployment.md) →

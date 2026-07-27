@@ -115,3 +115,7 @@ docker compose --profile nginx up -d --build
 - **Base de datos:** `pg_dump` o respaldo de volumen Docker
 - **Subidas:** Respaldo regular de `./uploads`
 - **Entorno:** Mantén `.env` en una ubicación segura
+
+---
+
+← [Configuración](./configuration.md) · [Contribuir](./contributing.md) →

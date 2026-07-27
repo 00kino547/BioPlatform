@@ -96,3 +96,7 @@ All branding variables (`APP_NAME`, `APP_TAGLINE`, etc.) propagate to:
 - Privacy Policy and Terms of Service pages
 
 To rebrand the entire application, change these values in `.env` and rebuild.
+
+---
+
+← [Environment Variables](./environment-variables.md) · [Deployment](./deployment.md) →

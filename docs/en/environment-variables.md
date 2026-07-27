@@ -84,3 +84,7 @@ All branding variables (`APP_NAME`, `APP_TAGLINE`, etc.) are used in:
 - Privacy Policy and Terms of Service pages
 
 See [Configuration](./configuration.md) for detailed descriptions of each variable.
+
+---
+
+← [Getting Started](./getting-started.md) · [Configuration](./configuration.md) →

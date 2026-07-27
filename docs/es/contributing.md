@@ -70,3 +70,7 @@ Antes de cambiar código, lee:
 1. `AGENTS.md` — reglas de código y seguridad
 2. `PROJECT_MAP.md` — ubicación de archivos
 3. `DECISIONS.md` — contexto de arquitectura
+
+---
+
+← [Despliegue](./deployment.md) · [Volver Arriba](#contribuir)

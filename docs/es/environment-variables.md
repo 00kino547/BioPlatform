@@ -84,3 +84,7 @@ Todas las variables de marca (`APP_NAME`, `APP_TAGLINE`, etc.) se usan en:
 - Páginas de Política de Privacidad y Términos de Servicio
 
 Ver [Configuración](./configuration.md) para descripciones detalladas de cada variable.
+
+---
+
+← [Inicio Rápido](./getting-started.md) · [Configuración](./configuration.md) →
