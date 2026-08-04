@@ -1,7 +1,7 @@
 {
   "name": "@bioplatform/frontend",
   "private": true,
-  "version": "1.0.1-dev-beta.2",
+  "version": "1.0.1-dev-beta.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,8 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.27.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.18.1",

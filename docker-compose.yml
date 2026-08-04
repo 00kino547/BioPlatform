@@ -30,6 +30,9 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER}
       LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost:80}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-BioPlatform}
     volumes:
       - uploads_data:/app/uploads
     ports:
