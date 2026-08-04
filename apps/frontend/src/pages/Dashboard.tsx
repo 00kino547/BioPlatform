@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { PlatformIcon, platformDisplayNames } from "@/components/ui/PlatformIcon";
+import { SecurityTab } from "@/components/auth/SecurityTab";
 import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack } from "@/lib/api";
 import {
   Camera,
@@ -116,7 +117,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profile" | "links" | "appearance" | "analytics" | "email" | "music">("profile");
+  const [tab, setTab] = useState<"profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security">("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
 
@@ -524,7 +525,7 @@ export function Dashboard() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
-          {(["profile", "links", "appearance", "analytics", "email", "music"] as const).map((t) => (
+          {(["profile", "links", "appearance", "analytics", "email", "music", "security"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -534,7 +535,7 @@ export function Dashboard() {
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : "Music"}
+              {t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : "Security"}
             </button>
           ))}
         </div>
@@ -1369,6 +1370,10 @@ export function Dashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {tab === "security" && (
+          <SecurityTab />
         )}
 
         {tab === "email" && (

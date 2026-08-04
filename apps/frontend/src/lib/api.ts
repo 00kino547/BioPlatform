@@ -1,3 +1,8 @@
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from "@simplewebauthn/browser";
+
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 interface ApiResponse<T = unknown> {
@@ -49,6 +54,33 @@ export interface AuthUser {
   role: string;
   tier: "FREE" | "PRO" | "ENTERPRISE";
   trackLimit: number | null;
+  totpEnabled: boolean;
+}
+
+export interface LoginMethods {
+  password: boolean;
+  passkey: boolean;
+  totp: boolean;
+}
+
+export interface TwoFactorRequired {
+  requiresTwoFactor: true;
+  methods: { totp: boolean; passkey: boolean };
+  twoFactorToken: string;
+}
+
+export interface Passkey {
+  id: string;
+  name: string;
+  credentialId: string;
+  residentKey: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface TotpSetupData {
+  secret: string;
+  otpauthUrl: string;
 }
 
 export type MusicProvider = "local" | "spotify" | "youtube";
@@ -169,9 +201,82 @@ export const api = {
   }),
 
   login: (data: { email: string; password: string }) =>
-    request<AuthResponse>("/auth/login", {
+    request<AuthResponse | TwoFactorRequired>("/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  loginStart: (identifier: string) =>
+    request<{ found: boolean; methods?: LoginMethods }>("/auth/login/start", {
+      method: "POST",
+      body: JSON.stringify({ identifier }),
+    }),
+
+  loginPasskeyOptions: (identifier: string) =>
+    request<PublicKeyCredentialRequestOptionsJSON>("/auth/login/passkey/options", {
+      method: "POST",
+      body: JSON.stringify({ identifier }),
+    }),
+
+  loginPasskeyVerify: (identifier: string, response: unknown) =>
+    request<AuthResponse>("/auth/login/passkey/verify", {
+      method: "POST",
+      body: JSON.stringify({ identifier, response }),
+    }),
+
+  verifyTotp: (token: string, code: string) =>
+    request<AuthResponse>("/auth/2fa/totp", {
+      method: "POST",
+      body: JSON.stringify({ token, code }),
+    }),
+
+  twoFactorPasskeyOptions: (token: string) =>
+    request<PublicKeyCredentialRequestOptionsJSON>("/auth/2fa/passkey/options", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+
+  twoFactorPasskeyVerify: (token: string, response: unknown) =>
+    request<AuthResponse>("/auth/2fa/passkey/verify", {
+      method: "POST",
+      body: JSON.stringify({ token, response }),
+    }),
+
+  registerPasskeyOptions: (residentKey: "resident" | "nonResident") =>
+    request<PublicKeyCredentialCreationOptionsJSON>("/auth/passkeys/options", {
+      method: "POST",
+      body: JSON.stringify({ residentKey }),
+    }),
+
+  registerPasskey: (response: unknown, name: string, residentKey: "resident" | "nonResident") =>
+    request<{ passkey: Passkey }>("/auth/passkeys/register", {
+      method: "POST",
+      body: JSON.stringify({ response, name, residentKey }),
+    }),
+
+  getPasskeys: () => request<Passkey[]>("/auth/passkeys"),
+
+  deletePasskey: (id: string) =>
+    request(`/auth/passkeys/${id}`, { method: "DELETE" }),
+
+  setupTotp: () => request<TotpSetupData>("/auth/totp/setup", { method: "POST" }),
+
+  enableTotp: (code: string) =>
+    request<{ totpEnabled: boolean }>("/auth/totp/enable", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
+  disableTotp: (code: string) =>
+    request<{ totpEnabled: boolean }>("/auth/totp/disable", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
   me: () => request<AuthUser>("/auth/me"),
