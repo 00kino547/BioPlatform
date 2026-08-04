@@ -9,15 +9,19 @@ apps/backend/src/
 ├── index.ts              # Entry point
 ├── app.ts                # Express setup, middleware, routes
 ├── config/env.ts         # Zod-validated env vars
-├── lib/prisma.ts         # Prisma client singleton
+├── lib/
+│   ├── prisma.ts         # Prisma client singleton
+│   └── email.ts          # Email service (nodemailer, Gmail preset, custom SMTP)
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
 └── routes/
     ├── auth.ts           # Register, login, me, change-password
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
-    ├── profile.ts        # Profile CRUD, avatar/banner upload+delete, public profile
-    └── admin.ts          # Admin: list users, update user, reset password, edit profiles
+│   ├── profile.ts        # Profile CRUD, avatar/banner upload+delete, public profile, click tracking
+    ├── admin.ts          # Admin: list users, update user, reset password, edit profiles
+    ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown)
+    └── email.ts          # Email notification settings (SMTP config, test endpoint)
 apps/backend/prisma/
-├── schema.prisma         # User, Profile, InviteCode models
+├── schema.prisma         # User, Profile (with emailSettings JSON), InviteCode, PageView, LinkClick models
 └── seed.ts               # Bootstrap admin + invite codes
 ```
 
@@ -32,7 +36,7 @@ apps/frontend/src/
 ├── contexts/
 │   └── AuthContext.tsx    # Auth state (login, register, logout)
 ├── lib/
-│   ├── api.ts            # API client with auth headers (register, login, profile, upload, remove)
+│   ├── api.ts            # API client (auth, profile, upload, analytics, email)
 │   └── utils.ts          # cn() utility
 ├── components/
 │   ├── ui/
@@ -56,7 +60,7 @@ apps/frontend/src/
 ├── pages/
 │   ├── Login.tsx         # Login form
 │   ├── Register.tsx      # Register form (invite code required)
-│   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance tabs)
+│   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance, Analytics, Email tabs)
 │   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users tabs, profile editing modal)
 │   ├── PublicProfile.tsx # Themed public profile page (/:username)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)

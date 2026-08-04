@@ -80,6 +80,7 @@ export interface PublicProfile {
   username: string;
   createdAt: string;
   id: string;
+  userId: string;
   displayName: string | null;
   bio: string | null;
   avatar: string | null;
@@ -95,6 +96,29 @@ export interface PublicProfile {
     fontFamily?: string;
   } | null;
   isPublic: boolean;
+}
+
+export interface AnalyticsData {
+  total: { views: number; clicks: number };
+  last30d: { views: number; clicks: number };
+  last7d: { views: number; clicks: number };
+  last24h: { views: number; clicks: number };
+  viewsByDay: { date: string; count: number }[];
+  clicksByDay: { date: string; count: number }[];
+  clicksByPlatform: { platform: string; count: number }[];
+  topReferrers: { referer: string; count: number }[];
+}
+
+export interface EmailSettings {
+  enabled: boolean;
+  provider: "gmail" | "custom";
+  gmailUser?: string;
+  gmailAppPassword?: string;
+  customHost?: string;
+  customPort?: number;
+  customUser?: string;
+  customPassword?: string;
+  customSecure?: boolean;
 }
 
 export const api = {
@@ -169,4 +193,22 @@ export const api = {
     const res = await fetch(`${API_URL}/profiles/${username}`, { headers });
     return res.json() as Promise<{ success: boolean; data?: PublicProfile; error?: string }>;
   },
+
+  trackClick: (profileId: string, platform: string) =>
+    request("/profiles/click", {
+      method: "POST",
+      body: JSON.stringify({ profileId, platform }),
+    }),
+
+  getAnalytics: () => request<AnalyticsData>("/analytics/me"),
+
+  getEmailSettings: () => request<EmailSettings>("/email/me"),
+
+  updateEmailSettings: (data: EmailSettings) =>
+    request<EmailSettings>("/email/me", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  testEmail: () => request("/email/test", { method: "POST" }),
 };

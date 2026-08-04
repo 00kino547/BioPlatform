@@ -285,6 +285,17 @@ router.get("/:username", async (req, res) => {
 
   const profile = user.profile;
 
+  if (profile && user.id !== viewerId) {
+    prisma.pageView.create({
+      data: {
+        profileId: profile.id,
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+        userAgent: req.headers["user-agent"] || null,
+        referer: (Array.isArray(req.headers["referer"]) ? req.headers["referer"][0] : req.headers["referer"]) ?? (Array.isArray(req.headers["referrer"]) ? req.headers["referrer"][0] : req.headers["referrer"]) ?? null,
+      },
+    }).catch(() => {});
+  }
+
   res.json({
     success: true,
     data: {
@@ -304,6 +315,24 @@ router.get("/:username", async (req, res) => {
       updatedAt: profile?.updatedAt ?? user.createdAt,
     },
   });
+});
+
+router.post("/click", requireAuth, async (req, res) => {
+  const { profileId, platform } = req.body as { profileId?: string; platform?: string };
+  if (!profileId || !platform) {
+    return res.status(400).json({ success: false, error: "profileId and platform are required" });
+  }
+
+  prisma.linkClick.create({
+    data: {
+      profileId,
+      platform,
+      ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+      userAgent: req.headers["user-agent"] || null,
+    },
+  }).catch(() => {});
+
+  res.json({ success: true });
 });
 
 export default router;

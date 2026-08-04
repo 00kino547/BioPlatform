@@ -29,23 +29,55 @@ model User {
 }
 
 model Profile {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @unique @db.Uuid @map("user_id")
-  displayName String?  @map("display_name")
-  bio         String?
-  avatar      String?
-  banner      String?
-  location    String?
-  website     String?
-  socialLinks Json?    @map("social_links")
-  theme       Json?
-  isPublic    Boolean  @default(true) @map("is_public")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @db.Uuid @map("user_id")
+  displayName   String?  @map("display_name")
+  bio           String?
+  avatar        String?
+  banner        String?
+  location      String?
+  website       String?
+  socialLinks   Json?    @map("social_links")
+  theme         Json?
+  emailSettings Json?    @map("email_settings")
+  isPublic      Boolean  @default(true) @map("is_public")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pageViews  PageView[]
+  linkClicks LinkClick[]
 
   @@map("profiles")
+}
+
+model PageView {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @db.Uuid @map("profile_id")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  referer   String?
+  country   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+  @@map("page_views")
+}
+
+model LinkClick {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @db.Uuid @map("profile_id")
+  platform  String
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+  @@map("link_clicks")
 }
 
 model InviteCode {

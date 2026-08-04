@@ -23,6 +23,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "nodemailer": "^9.0.4",
     "zod": "^3.24.4"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.15.3",
+    "@types/nodemailer": "^8.0.1",
     "eslint": "^9.28.0",
     "prisma": "^6.9.0",
     "tsx": "^4.19.4",

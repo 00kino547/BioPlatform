@@ -142,3 +142,20 @@
 - 8 built-in presets selectable in Dashboard Appearance tab
 - PublicProfile applies theme via inline styles
 - Default theme (Midnight) applied when no theme is set
+
+## Analytics: PageView and LinkClick models
+
+- Separate models for page views and link clicks (not combined)
+- Indexed on `(profileId, createdAt)` for fast time-range queries
+- Fire-and-forget writes (`.catch(() => {})`) to avoid blocking responses
+- IP and UserAgent stored for basic analytics (no full request logging)
+- 30-day, 7-day, 24-hour breakdowns in the stats API
+- Bar charts rendered with pure CSS (no chart library)
+
+## Email notifications: per-user SMTP settings
+
+- Email settings stored as JSON in Profile model (not env vars)
+- Supports Gmail preset (service: "gmail" with App Password) and custom SMTP
+- nodemailer for transport (widely used, battle-tested)
+- Test endpoint sends a real email to verify configuration
+- Settings are per-user, not global — each user configures their own SMTP

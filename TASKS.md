@@ -5,7 +5,6 @@
 ## High Priority
 
 - [ ] Music player integration
-- [ ] Analytics dashboard
 - [ ] Custom domain support
 
 ## Medium Priority
@@ -13,7 +12,6 @@
 - [ ] API documentation
 - [ ] REST API for third-party integrations
 - [ ] S3/R2/B2 storage providers
-- [ ] Email notifications
 - [ ] Rate limiting on auth endpoints
 
 ## Low Priority
@@ -83,3 +81,9 @@
 - [x] CHANGELOG.md (starting from 1.0.0-beta.1)
 - [x] Landing page buttons fully functional (Hero CTA, nav, pricing, footer links)
 - [x] Footer links configurable via env (Changelog, Docs, Status, Privacy, Terms, Contact)
+- [x] Analytics dashboard (PageView + LinkClick models, stats API, Dashboard Analytics tab with bar charts)
+- [x] Email notifications via SMTP (Gmail preset + custom SMTP, Dashboard Email tab with test button)
+- [x] Link click tracking on public profiles
+- [x] Analytics dashboard (PageView + LinkClick models, stats API, Dashboard Analytics tab with bar charts)
+- [x] Email notifications via SMTP (Gmail preset + custom SMTP, Dashboard Email tab with test button)
+- [x] Link click tracking on public profiles

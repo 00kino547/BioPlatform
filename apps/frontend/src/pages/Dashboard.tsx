@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { PlatformIcon, platformDisplayNames } from "@/components/ui/PlatformIcon";
-import { api, type Profile } from "@/lib/api";
+import { api, type Profile, type AnalyticsData, type EmailSettings } from "@/lib/api";
 import {
   Camera,
   Save,
@@ -14,6 +14,12 @@ import {
   EyeOff,
   MapPin,
   Globe,
+  BarChart3,
+  Eye as EyeIcon,
+  MousePointerClick,
+  Send,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 const platforms = [
@@ -104,7 +110,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profile" | "links" | "appearance">("profile");
+  const [tab, setTab] = useState<"profile" | "links" | "appearance" | "analytics" | "email">("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
 
@@ -118,6 +124,18 @@ export function Dashboard() {
 
   const [newPlatform, setNewPlatform] = useState("Twitter");
   const [newUrl, setNewUrl] = useState("");
+
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>({
+    enabled: false,
+    provider: "gmail",
+  });
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<"success" | "error" | null>(null);
 
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
@@ -146,6 +164,28 @@ export function Dashboard() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (tab === "analytics" && !analytics) {
+      setAnalyticsLoading(true);
+      api.getAnalytics().then((res) => {
+        if (res.success && res.data) {
+          setAnalytics(res.data);
+        }
+        setAnalyticsLoading(false);
+      });
+    }
+  }, [tab, analytics]);
+
+  useEffect(() => {
+    if (tab === "email") {
+      api.getEmailSettings().then((res) => {
+        if (res.success && res.data) {
+          setEmailSettings(res.data);
+        }
+      });
+    }
+  }, [tab]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -264,6 +304,26 @@ export function Dashboard() {
     setSocialLinks(socialLinks.filter((_, i) => i !== index));
   };
 
+  const handleSaveEmail = async () => {
+    setEmailSaving(true);
+    setEmailSaved(false);
+    const res = await api.updateEmailSettings(emailSettings);
+    setEmailSaving(false);
+    if (res.success) {
+      setEmailSaved(true);
+      setTimeout(() => setEmailSaved(false), 2000);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    setEmailTesting(true);
+    setEmailTestResult(null);
+    const res = await api.testEmail();
+    setEmailTesting(false);
+    setEmailTestResult(res.success ? "success" : "error");
+    setTimeout(() => setEmailTestResult(null), 3000);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -327,18 +387,18 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="flex gap-1 mb-6 border-b border-zinc-800/80">
-          {(["profile", "links", "appearance"] as const).map((t) => (
+        <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
+          {(["profile", "links", "appearance", "analytics", "email"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === t
                   ? "text-violet-400 border-b-2 border-violet-400"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {t === "profile" ? "Profile" : t === "links" ? "Links" : "Appearance"}
+              {t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : "Email"}
             </button>
           ))}
         </div>
@@ -628,6 +688,305 @@ export function Dashboard() {
               <p className="text-xs text-zinc-500 text-center">
                 Selected: {selectedTheme} — click Save to apply
               </p>
+            )}
+          </div>
+        )}
+
+        {tab === "analytics" && (
+          <div className="space-y-6">
+            {analyticsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
+              </div>
+            ) : analytics ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { label: "Total Views", value: analytics.total.views, icon: EyeIcon },
+                    { label: "Total Clicks", value: analytics.total.clicks, icon: MousePointerClick },
+                    { label: "Views (7d)", value: analytics.last7d.views, icon: BarChart3 },
+                    { label: "Clicks (7d)", value: analytics.last7d.clicks, icon: BarChart3 },
+                  ].map((stat) => (
+                    <div key={stat.label} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <stat.icon className="h-4 w-4 text-zinc-500" />
+                        <span className="text-xs text-zinc-500">{stat.label}</span>
+                      </div>
+                      <p className="text-2xl font-bold text-white">{stat.value.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                  <h3 className="text-sm font-medium text-white mb-4">Views — Last 30 Days</h3>
+                  {analytics.viewsByDay.length > 0 ? (
+                    <div className="flex items-end gap-1 h-32">
+                      {(() => {
+                        const max = Math.max(...analytics.viewsByDay.map((d) => d.count), 1);
+                        const allDays: { date: string; count: number }[] = [];
+                        const now = new Date();
+                        for (let i = 29; i >= 0; i--) {
+                          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                          const dateStr = d.toISOString().split("T")[0];
+                          const existing = analytics.viewsByDay.find((v) => v.date === dateStr);
+                          allDays.push({ date: dateStr, count: existing?.count ?? 0 });
+                        }
+                        return allDays.map((day, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 rounded-t bg-violet-500/60 hover:bg-violet-400 transition-colors relative group"
+                            style={{ height: `${(day.count / max) * 100}%`, minHeight: day.count > 0 ? "4px" : "0" }}
+                          >
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {day.date}: {day.count}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 text-center py-8">No views yet</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                    <h3 className="text-sm font-medium text-white mb-4">Clicks by Platform</h3>
+                    {analytics.clicksByPlatform.length > 0 ? (
+                      <div className="space-y-3">
+                        {analytics.clicksByPlatform.map((item) => {
+                          const max = analytics.clicksByPlatform[0]?.count ?? 1;
+                          return (
+                            <div key={item.platform}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-zinc-400">{platformDisplayNames[item.platform.toLowerCase()] ?? item.platform}</span>
+                                <span className="text-xs text-zinc-500">{item.count}</span>
+                              </div>
+                              <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-violet-500/60"
+                                  style={{ width: `${(item.count / max) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-zinc-500 text-center py-4">No clicks yet</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                    <h3 className="text-sm font-medium text-white mb-4">Top Referrers</h3>
+                    {analytics.topReferrers.length > 0 ? (
+                      <div className="space-y-2">
+                        {analytics.topReferrers.map((item) => (
+                          <div key={item.referer} className="flex items-center justify-between py-1.5 border-b border-zinc-800/60 last:border-0">
+                            <span className="text-xs text-zinc-400 truncate max-w-[200px]">{item.referer}</span>
+                            <span className="text-xs text-zinc-500">{item.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-zinc-500 text-center py-4">No referrers yet</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                  <h3 className="text-sm font-medium text-white mb-4">Clicks — Last 30 Days</h3>
+                  {analytics.clicksByDay.length > 0 ? (
+                    <div className="flex items-end gap-1 h-32">
+                      {(() => {
+                        const max = Math.max(...analytics.clicksByDay.map((d) => d.count), 1);
+                        const allDays: { date: string; count: number }[] = [];
+                        const now = new Date();
+                        for (let i = 29; i >= 0; i--) {
+                          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                          const dateStr = d.toISOString().split("T")[0];
+                          const existing = analytics.clicksByDay.find((v) => v.date === dateStr);
+                          allDays.push({ date: dateStr, count: existing?.count ?? 0 });
+                        }
+                        return allDays.map((day, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 rounded-t bg-emerald-500/60 hover:bg-emerald-400 transition-colors relative group"
+                            style={{ height: `${(day.count / max) * 100}%`, minHeight: day.count > 0 ? "4px" : "0" }}
+                          >
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {day.date}: {day.count}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 text-center py-8">No clicks yet</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500 text-center py-12">No analytics data available</p>
+            )}
+          </div>
+        )}
+
+        {tab === "email" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-white">Email Notifications</h3>
+                <p className="text-xs text-zinc-500 mt-1">Get notified when someone views your profile or clicks a link.</p>
+              </div>
+              <button
+                onClick={() => setEmailSettings({ ...emailSettings, enabled: !emailSettings.enabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  emailSettings.enabled ? "bg-violet-600" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    emailSettings.enabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {emailSettings.enabled && (
+              <>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                  <h4 className="text-sm font-medium text-white mb-4">Provider</h4>
+                  <div className="flex gap-3">
+                    {(["gmail", "custom"] as const).map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setEmailSettings({ ...emailSettings, provider: p })}
+                        className={`flex-1 rounded-lg border p-3 text-left transition-all ${
+                          emailSettings.provider === p
+                            ? "border-violet-500 bg-violet-500/10"
+                            : "border-zinc-800 hover:border-zinc-600"
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-white">{p === "gmail" ? "Gmail" : "Custom SMTP"}</p>
+                        <p className="text-xs text-zinc-500 mt-1">
+                          {p === "gmail" ? "Use Gmail App Password" : "Configure your own SMTP server"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {emailSettings.provider === "gmail" ? (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Gmail Address</label>
+                      <input
+                        type="email"
+                        value={emailSettings.gmailUser ?? ""}
+                        onChange={(e) => setEmailSettings({ ...emailSettings, gmailUser: e.target.value })}
+                        placeholder="you@gmail.com"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">App Password</label>
+                      <input
+                        type="password"
+                        value={emailSettings.gmailAppPassword ?? ""}
+                        onChange={(e) => setEmailSettings({ ...emailSettings, gmailAppPassword: e.target.value })}
+                        placeholder="xxxx xxxx xxxx xxxx"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Generate at{" "}
+                        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300">
+                          myaccount.google.com/apppasswords
+                        </a>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-300 mb-1.5">SMTP Host</label>
+                        <input
+                          type="text"
+                          value={emailSettings.customHost ?? ""}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, customHost: e.target.value })}
+                          placeholder="smtp.example.com"
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-300 mb-1.5">Port</label>
+                        <input
+                          type="number"
+                          value={emailSettings.customPort ?? 587}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, customPort: parseInt(e.target.value) || 587 })}
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Username</label>
+                      <input
+                        type="text"
+                        value={emailSettings.customUser ?? ""}
+                        onChange={(e) => setEmailSettings({ ...emailSettings, customUser: e.target.value })}
+                        placeholder="your-email@example.com"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Password</label>
+                      <input
+                        type="password"
+                        value={emailSettings.customPassword ?? ""}
+                        onChange={(e) => setEmailSettings({ ...emailSettings, customPassword: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="secure"
+                        checked={emailSettings.customSecure ?? false}
+                        onChange={(e) => setEmailSettings({ ...emailSettings, customSecure: e.target.checked })}
+                        className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-violet-500 focus:ring-violet-500"
+                      />
+                      <label htmlFor="secure" className="text-sm text-zinc-300">
+                        Use TLS/SSL (port 465)
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <Button onClick={handleSaveEmail} disabled={emailSaving}>
+                    <Save className="h-4 w-4" />
+                    {emailSaving ? "Saving..." : emailSaved ? "Saved!" : "Save Settings"}
+                  </Button>
+                  <Button variant="secondary" onClick={handleTestEmail} disabled={emailTesting}>
+                    <Send className="h-4 w-4" />
+                    {emailTesting ? "Sending..." : "Send Test Email"}
+                  </Button>
+                </div>
+
+                {emailTestResult === "success" && (
+                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
+                    <CheckCircle className="h-4 w-4" />
+                    Test email sent successfully!
+                  </div>
+                )}
+                {emailTestResult === "error" && (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                    <XCircle className="h-4 w-4" />
+                    Failed to send test email. Check your settings.
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
