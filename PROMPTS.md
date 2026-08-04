@@ -1,6 +1,7 @@
 # PROMPTS.md
 
 > Reusable prompts. Every prompt begins by reading: AGENTS.md, PROJECT_MAP.md, DECISIONS.md, TASKS.md.
+> Principal use for this file its for contributors that want to use AI, i tested this on another file of the project and its working very very well
 
 ## Implement Feature
 
