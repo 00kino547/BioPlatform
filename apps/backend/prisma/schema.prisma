@@ -26,12 +26,16 @@ model User {
   role         Role      @default(USER)
   tier         UserTier  @default(FREE)
   trackLimit   Int?      @map("track_limit")
+  totpSecret   String?   @map("totp_secret")
+  totpEnabled  Boolean   @default(false) @map("totp_enabled")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   inviteUsed   InviteCode? @relation("InviteUsedBy")
   inviteCreated InviteCode[] @relation("InviteCreatedBy")
   profile      Profile?
+  passkeys     Passkey[]
+  webauthnChallenges WebAuthnChallenge[]
 
   @@map("users")
 }
@@ -128,4 +132,35 @@ model InviteCode {
 
   @@index([code])
   @@map("invite_codes")
+}
+
+model Passkey {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid @map("user_id")
+  credentialId String   @unique @map("credential_id")
+  publicKey    String   @map("public_key")
+  counter      BigInt   @default(0)
+  transports   String[] @default([])
+  name         String
+  residentKey  Boolean  @default(false) @map("resident_key")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  challenge String
+  purpose   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("web_authn_challenges")
 }

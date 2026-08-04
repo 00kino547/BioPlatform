@@ -5,6 +5,14 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getEnv } from "../config/env.js";
 import { requireAuth } from "../middleware/auth.js";
+import { generateTotpSecret, verifyTotpCode } from "../lib/totp.js";
+import {
+  cleanupExpiredChallenges,
+  generateLoginOptions,
+  generateRegisterOptions,
+  verifyLogin,
+  verifyRegister,
+} from "../lib/webauthn.js";
 
 const router = Router();
 
@@ -15,8 +23,12 @@ const registerSchema = z.object({
   inviteCode: z.string().min(1),
 });
 
+const identifierSchema = z.object({
+  identifier: z.string().min(1).max(128),
+});
+
 const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1).max(128),
   password: z.string().min(1),
 });
 
@@ -24,6 +36,82 @@ const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8).max(128),
 });
+
+const registrationResponseSchema = z.object({
+  id: z.string().min(1),
+  rawId: z.string().min(1),
+  type: z.literal("public-key"),
+  response: z.record(z.string(), z.unknown()),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+  authenticatorAttachment: z.string().optional(),
+});
+
+const authenticationResponseSchema = z.object({
+  id: z.string().min(1),
+  rawId: z.string().min(1),
+  type: z.literal("public-key"),
+  response: z.record(z.string(), z.unknown()),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+  authenticatorAttachment: z.string().optional(),
+});
+
+const totpCodeSchema = z.object({
+  code: z.string().min(6).max(6),
+});
+
+const twoFactorTokenSchema = z.object({
+  token: z.string().min(1),
+});
+
+interface TwoFactorPayload {
+  userId: string;
+  purpose: "twofactor";
+}
+
+function signToken(userId: string, expiresIn: string) {
+  return jwt.sign({ userId }, getEnv().JWT_SECRET, { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] });
+}
+
+function signTwoFactorToken(userId: string) {
+  return jwt.sign({ userId, purpose: "twofactor" }, getEnv().JWT_SECRET, { expiresIn: "5m" });
+}
+
+function verifyTwoFactorToken(token: string): string | null {
+  try {
+    const payload = jwt.verify(token, getEnv().JWT_SECRET) as TwoFactorPayload;
+    if (payload.purpose !== "twofactor") return null;
+    return payload.userId;
+  } catch {
+    return null;
+  }
+}
+
+function userPublic(user: {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  tier: string;
+  trackLimit: number | null;
+  totpEnabled: boolean;
+}) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    tier: user.tier,
+    trackLimit: user.trackLimit,
+    totpEnabled: user.totpEnabled,
+  };
+}
+
+async function findUserByIdentifier(identifier: string) {
+  const lower = identifier.toLowerCase();
+  return prisma.user.findFirst({
+    where: { OR: [{ email: lower }, { username: lower }] },
+  });
+}
 
 router.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
@@ -85,21 +173,35 @@ router.post("/register", async (req, res) => {
   });
 
   const env = getEnv();
-  const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
-  });
+  const token = signToken(user.id, env.JWT_EXPIRES_IN);
 
   res.status(201).json({
     success: true,
+    data: { token, user: userPublic(user) },
+  });
+});
+
+router.post("/login/start", async (req, res) => {
+  const parsed = identifierSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await findUserByIdentifier(parsed.data.identifier);
+  if (!user) {
+    return res.json({ success: true, data: { found: false } });
+  }
+
+  const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
+
+  res.json({
+    success: true,
     data: {
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        tier: user.tier,
-        trackLimit: user.trackLimit,
+      found: true,
+      methods: {
+        password: true,
+        passkey: passkeyCount > 0,
+        totp: user.totpEnabled,
       },
     },
   });
@@ -114,9 +216,9 @@ router.post("/login", async (req, res) => {
     });
   }
 
-  const { email, password } = parsed.data;
+  const { identifier, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await findUserByIdentifier(identifier);
   if (!user) {
     return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
@@ -126,31 +228,350 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
+  const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
+  const requiresTwoFactor = user.totpEnabled || passkeyCount > 0;
+
+  if (requiresTwoFactor) {
+    return res.json({
+      success: true,
+      data: {
+        requiresTwoFactor: true,
+        methods: {
+          totp: user.totpEnabled,
+          passkey: passkeyCount > 0,
+        },
+        twoFactorToken: signTwoFactorToken(user.id),
+      },
+    });
+  }
+
   const env = getEnv();
-  const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+
+  res.json({
+    success: true,
+    data: { token, user: userPublic(user) },
+  });
+});
+
+router.post("/login/passkey/options", async (req, res) => {
+  const parsed = identifierSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await findUserByIdentifier(parsed.data.identifier);
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  const passkeys = await prisma.passkey.findMany({ where: { userId: user.id } });
+  if (passkeys.length === 0) {
+    return res.status(404).json({ success: false, error: "No passkeys registered" });
+  }
+
+  const options = await generateLoginOptions({
+    userId: user.id,
+    allowCredentials: passkeys.map((p) => ({ id: p.credentialId, transports: p.transports })),
+    userVerification: "preferred",
+  });
+
+  res.json({ success: true, data: { options, identifier: parsed.data.identifier } });
+});
+
+router.post("/login/passkey/verify", async (req, res) => {
+  const parsed = z
+    .object({
+      identifier: z.string().min(1),
+      response: authenticationResponseSchema,
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await findUserByIdentifier(parsed.data.identifier);
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  const result = await verifyLogin(
+    user.id,
+    parsed.data.response as never,
+    "login",
+    async (credentialId) =>
+      prisma.passkey.findFirst({ where: { userId: user.id, credentialId } })
+  );
+
+  if (!result.verified) {
+    return res.status(401).json({ success: false, error: "Passkey authentication failed" });
+  }
+
+  const env = getEnv();
+  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+
+  res.json({
+    success: true,
+    data: { token, user: userPublic(user) },
+  });
+});
+
+router.post("/2fa/totp", async (req, res) => {
+  const parsed = z.object({ token: z.string().min(1), code: z.string().min(6).max(6) }).safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const userId = verifyTwoFactorToken(parsed.data.token);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: "Invalid or expired session" });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.totpEnabled || !user.totpSecret) {
+    return res.status(401).json({ success: false, error: "TOTP is not enabled" });
+  }
+
+  if (!(await verifyTotpCode(user.totpSecret, parsed.data.code))) {
+    return res.status(401).json({ success: false, error: "Invalid verification code" });
+  }
+
+  const env = getEnv();
+  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+
+  res.json({ success: true, data: { token, user: userPublic(user) } });
+});
+
+router.post("/2fa/passkey/options", async (req, res) => {
+  const parsed = twoFactorTokenSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const userId = verifyTwoFactorToken(parsed.data.token);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: "Invalid or expired session" });
+  }
+
+  const passkeys = await prisma.passkey.findMany({ where: { userId } });
+  if (passkeys.length === 0) {
+    return res.status(404).json({ success: false, error: "No passkeys registered" });
+  }
+
+  const options = await generateLoginOptions({
+    userId,
+    allowCredentials: passkeys.map((p) => ({ id: p.credentialId, transports: p.transports })),
+    userVerification: "discouraged",
+    purpose: "twofactor",
+  });
+
+  res.json({ success: true, data: { options } });
+});
+
+router.post("/2fa/passkey/verify", async (req, res) => {
+  const parsed = z
+    .object({ token: z.string().min(1), response: authenticationResponseSchema })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const userId = verifyTwoFactorToken(parsed.data.token);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: "Invalid or expired session" });
+  }
+
+  const result = await verifyLogin(
+    userId,
+    parsed.data.response as never,
+    "twofactor",
+    async (credentialId) =>
+      prisma.passkey.findFirst({ where: { userId, credentialId } })
+  );
+
+  if (!result.verified) {
+    return res.status(401).json({ success: false, error: "Passkey authentication failed" });
+  }
+
+  const env = getEnv();
+  const token = signToken(userId, env.JWT_EXPIRES_IN);
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  res.json({ success: true, data: { token, user: userPublic(user) } });
+});
+
+router.post("/passkeys/options", requireAuth, async (req, res) => {
+  const parsed = z
+    .object({ residentKey: z.enum(["resident", "nonResident"]).default("nonResident") })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  const existing = await prisma.passkey.findMany({ where: { userId: user.id } });
+
+  const options = await generateRegisterOptions({
+    userId: user.id,
+    username: user.username,
+    displayName: user.username,
+    residentKey: parsed.data.residentKey,
+    excludeCredentials: existing.map((p) => p.credentialId),
+  });
+
+  res.json({ success: true, data: options });
+});
+
+router.post("/passkeys/register", requireAuth, async (req, res) => {
+  const parsed = z
+    .object({
+      response: registrationResponseSchema,
+      name: z.string().trim().min(1).max(64).default("Passkey"),
+      residentKey: z.enum(["resident", "nonResident"]).default("nonResident"),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const result = await verifyRegister(req.userId!, parsed.data.response as never);
+  if (!result.verified) {
+    return res.status(401).json({ success: false, error: "Passkey registration failed" });
+  }
+
+  const passkey = await prisma.passkey.create({
+    data: {
+      userId: req.userId!,
+      credentialId: result.credential.id,
+      publicKey: result.credential.publicKey,
+      counter: BigInt(result.credential.counter),
+      transports: result.credential.transports,
+      name: parsed.data.name,
+      residentKey: parsed.data.residentKey === "resident",
+    },
   });
 
   res.json({
     success: true,
     data: {
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        tier: user.tier,
-        trackLimit: user.trackLimit,
+      passkey: {
+        id: passkey.id,
+        name: passkey.name,
+        credentialId: passkey.credentialId,
+        residentKey: passkey.residentKey,
+        createdAt: passkey.createdAt,
+        lastUsedAt: passkey.lastUsedAt,
       },
     },
   });
 });
 
+router.get("/passkeys", requireAuth, async (req, res) => {
+  const passkeys = await prisma.passkey.findMany({
+    where: { userId: req.userId! },
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json({
+    success: true,
+    data: passkeys.map((p) => ({
+      id: p.id,
+      name: p.name,
+      credentialId: p.credentialId,
+      residentKey: p.residentKey,
+      createdAt: p.createdAt,
+      lastUsedAt: p.lastUsedAt,
+    })),
+  });
+});
+
+router.delete("/passkeys/:id", requireAuth, async (req, res) => {
+  const passkey = await prisma.passkey.findFirst({
+    where: { id: req.params.id as string, userId: req.userId! },
+  });
+
+  if (!passkey) {
+    return res.status(404).json({ success: false, error: "Passkey not found" });
+  }
+
+  await prisma.passkey.delete({ where: { id: passkey.id } });
+  res.json({ success: true });
+});
+
+router.post("/totp/setup", requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  const { secret, otpauthUrl } = generateTotpSecret(user.username, getEnv().WEBAUTHN_RP_NAME);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpSecret: secret },
+  });
+
+  res.json({ success: true, data: { secret, otpauthUrl } });
+});
+
+router.post("/totp/enable", requireAuth, async (req, res) => {
+  const parsed = totpCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user || !user.totpSecret) {
+    return res.status(400).json({ success: false, error: "TOTP setup not started" });
+  }
+
+  if (!(await verifyTotpCode(user.totpSecret, parsed.data.code))) {
+    return res.status(401).json({ success: false, error: "Invalid verification code" });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpEnabled: true },
+  });
+
+  res.json({ success: true, data: { totpEnabled: true } });
+});
+
+router.post("/totp/disable", requireAuth, async (req, res) => {
+  const parsed = totpCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user || !user.totpSecret || !user.totpEnabled) {
+    return res.status(400).json({ success: false, error: "TOTP is not enabled" });
+  }
+
+  if (!(await verifyTotpCode(user.totpSecret, parsed.data.code))) {
+    return res.status(401).json({ success: false, error: "Invalid verification code" });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpSecret: null, totpEnabled: false },
+  });
+
+  res.json({ success: true, data: { totpEnabled: false } });
+});
+
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId! },
-    select: { id: true, username: true, email: true, role: true, tier: true, trackLimit: true, createdAt: true },
+    select: { id: true, username: true, email: true, role: true, tier: true, trackLimit: true, createdAt: true, totpEnabled: true },
   });
 
   if (!user) {
@@ -190,5 +611,9 @@ router.post("/change-password", requireAuth, async (req, res) => {
 
   res.json({ success: true, message: "Password changed successfully" });
 });
+
+setInterval(() => {
+  void cleanupExpiredChallenges();
+}, 30 * 60 * 1000);
 
 export default router;

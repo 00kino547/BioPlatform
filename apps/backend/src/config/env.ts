@@ -19,6 +19,9 @@ const envSchema = z.object({
   SMTP_FROM_EMAIL: z.string().default(""),
   ADMIN_EMAIL: z.string().default("admin@bioplatform.com"),
   ADMIN_PASSWORD: z.string().default("admin123456"),
+  WEBAUTHN_RP_ID: z.string().default("localhost"),
+  WEBAUTHN_ORIGIN: z.string().default("http://localhost:80"),
+  WEBAUTHN_RP_NAME: z.string().default("BioPlatform"),
 });
 
 export type Env = z.infer<typeof envSchema>;
