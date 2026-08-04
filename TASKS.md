@@ -5,6 +5,8 @@
 ## High Priority
 
 - [ ] Custom domain support
+- [ ] Affiliate/referral program — referrers earn a discount on their own plan and invited users also get a discount (e.g., % off PRO/ENTERPRISE for both parties)
+- [ ] Affiliate rewards/new plans — affiliate-specific plan perks (e.g., additional tracks, advanced analytics, priority support) unlocked by referrals
 
 ## Medium Priority
 
