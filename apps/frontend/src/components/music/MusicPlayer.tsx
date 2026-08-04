@@ -135,7 +135,7 @@ function TrackPlayer({ track, accent }: { track: MusicTrack; accent: string }) {
   if (track.provider === "youtube" && track.url) {
     return (
       <iframe
-        src={withParams(track.url, { rel: "0", autoplay: "1", mute: "1" })}
+        src={withParams(track.url, { rel: "0", autoplay: "1" })}
         width="100%"
         height="auto"
         frameBorder="0"
