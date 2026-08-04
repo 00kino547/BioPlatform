@@ -98,6 +98,8 @@ router.post("/register", async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        tier: user.tier,
+        trackLimit: user.trackLimit,
       },
     },
   });
@@ -138,6 +140,8 @@ router.post("/login", async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        tier: user.tier,
+        trackLimit: user.trackLimit,
       },
     },
   });
@@ -146,7 +150,7 @@ router.post("/login", async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId! },
-    select: { id: true, username: true, email: true, role: true, createdAt: true },
+    select: { id: true, username: true, email: true, role: true, tier: true, trackLimit: true, createdAt: true },
   });
 
   if (!user) {

@@ -4,7 +4,6 @@
 
 ## High Priority
 
-- [ ] Music player integration
 - [ ] Custom domain support
 
 ## Medium Priority
@@ -84,6 +83,13 @@
 - [x] Analytics dashboard (PageView + LinkClick models, stats API, Dashboard Analytics tab with bar charts)
 - [x] Email notifications via SMTP (Gmail preset + custom SMTP, Dashboard Email tab with test button)
 - [x] Link click tracking on public profiles
-- [x] Analytics dashboard (PageView + LinkClick models, stats API, Dashboard Analytics tab with bar charts)
-- [x] Email notifications via SMTP (Gmail preset + custom SMTP, Dashboard Email tab with test button)
-- [x] Link click tracking on public profiles
+- [x] Global SMTP config via .env (SMTP_PROVIDER, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM_*)
+- [x] Per-user email notification preferences (notifyOnView, notifyOnClick) with Dashboard toggles
+- [x] Anti-spam email headers (HELO, List-Unsubscribe, X-Mailer, X-Priority, Precedence, envelope)
+- [x] Admin credentials via .env (ADMIN_EMAIL, ADMIN_PASSWORD)
+- [x] Unique view/click tracking (visitor_id from IP + User-Agent + bp_vid cookie)
+- [x] Owner view/click exclusion (owner's own activity not counted)
+- [x] Non-auth link click tracking (POST /click works for anonymous visitors)
+- [x] Enhanced analytics graphs (dual total/unique bars, hover tooltips with date, platform colors)
+- [x] Privacy policy update (bp_vid cookie, analytics data collection, 90-day retention)
+- [x] Music player integration (local audio uploads + Spotify + YouTube embeds, tier-based track limits, admin trackLimit control)

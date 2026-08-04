@@ -31,18 +31,70 @@ router.get("/me", requireAuth, async (req, res) => {
       prisma.linkClick.count({ where: { profileId: profile.id, createdAt: { gte: twentyFourHoursAgo } } }),
     ]);
 
+  const [uniqueViewsAll, uniqueClicksAll, uniqueViews30d, uniqueClicks30d, uniqueViews7d, uniqueClicks7d, uniqueViews24h, uniqueClicks24h] =
+    await Promise.all([
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM page_views WHERE profile_id = ${profile.id}::uuid
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM link_clicks WHERE profile_id = ${profile.id}::uuid
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM page_views WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM link_clicks WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM page_views WHERE profile_id = ${profile.id}::uuid AND created_at >= ${sevenDaysAgo}
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM link_clicks WHERE profile_id = ${profile.id}::uuid AND created_at >= ${sevenDaysAgo}
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM page_views WHERE profile_id = ${profile.id}::uuid AND created_at >= ${twentyFourHoursAgo}
+      `,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM link_clicks WHERE profile_id = ${profile.id}::uuid AND created_at >= ${twentyFourHoursAgo}
+      `,
+    ]);
+
   const viewsByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
-    SELECT DATE(created_at) as date, COUNT(*) as count
+    SELECT DATE(created_at)::text as date, COUNT(*) as count
     FROM page_views
-    WHERE profile_id = ${profile.id} AND created_at >= ${thirtyDaysAgo}
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  `;
+
+  const uniqueViewsByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
+    SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+    FROM page_views
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
     GROUP BY DATE(created_at)
     ORDER BY date ASC
   `;
 
   const clicksByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
-    SELECT DATE(created_at) as date, COUNT(*) as count
+    SELECT DATE(created_at)::text as date, COUNT(*) as count
     FROM link_clicks
-    WHERE profile_id = ${profile.id} AND created_at >= ${thirtyDaysAgo}
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  `;
+
+  const uniqueClicksByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
+    SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+    FROM link_clicks
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
     GROUP BY DATE(created_at)
     ORDER BY date ASC
   `;
@@ -50,7 +102,15 @@ router.get("/me", requireAuth, async (req, res) => {
   const clicksByPlatform = await prisma.$queryRaw<{ platform: string; count: bigint }[]>`
     SELECT platform, COUNT(*) as count
     FROM link_clicks
-    WHERE profile_id = ${profile.id} AND created_at >= ${thirtyDaysAgo}
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+    GROUP BY platform
+    ORDER BY count DESC
+  `;
+
+  const uniqueClicksByPlatform = await prisma.$queryRaw<{ platform: string; count: bigint }[]>`
+    SELECT platform, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+    FROM link_clicks
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
     GROUP BY platform
     ORDER BY count DESC
   `;
@@ -58,7 +118,7 @@ router.get("/me", requireAuth, async (req, res) => {
   const topReferrers = await prisma.$queryRaw<{ referer: string; count: bigint }[]>`
     SELECT COALESCE(referer, 'Direct') as referer, COUNT(*) as count
     FROM page_views
-    WHERE profile_id = ${profile.id} AND created_at >= ${thirtyDaysAgo}
+    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
     GROUP BY referer
     ORDER BY count DESC
     LIMIT 5
@@ -67,14 +127,17 @@ router.get("/me", requireAuth, async (req, res) => {
   res.json({
     success: true,
     data: {
-      total: { views: totalViews, clicks: totalClicks },
-      last30d: { views: viewsLast30d, clicks: clicksLast30d },
-      last7d: { views: viewsLast7d, clicks: clicksLast7d },
-      last24h: { views: viewsLast24h, clicks: clicksLast24h },
-      viewsByDay: viewsByDay.map((r) => ({ date: r.date, count: Number(r.count) })),
-      clicksByDay: clicksByDay.map((r) => ({ date: r.date, count: Number(r.count) })),
-      clicksByPlatform: clicksByPlatform.map((r) => ({ platform: r.platform, count: Number(r.count) })),
-      topReferrers: topReferrers.map((r) => ({ referer: r.referer, count: Number(r.count) })),
+      total: { views: totalViews, uniqueViews: Number(uniqueViewsAll[0]?.count ?? 0), clicks: totalClicks, uniqueClicks: Number(uniqueClicksAll[0]?.count ?? 0) },
+      last30d: { views: viewsLast30d, uniqueViews: Number(uniqueViews30d[0]?.count ?? 0), clicks: clicksLast30d, uniqueClicks: Number(uniqueClicks30d[0]?.count ?? 0) },
+      last7d: { views: viewsLast7d, uniqueViews: Number(uniqueViews7d[0]?.count ?? 0), clicks: clicksLast7d, uniqueClicks: Number(uniqueClicks7d[0]?.count ?? 0) },
+      last24h: { views: viewsLast24h, uniqueViews: Number(uniqueViews24h[0]?.count ?? 0), clicks: clicksLast24h, uniqueClicks: Number(uniqueClicks24h[0]?.count ?? 0) },
+      viewsByDay: viewsByDay.map((r: { date: string; count: bigint }) => ({ date: r.date, count: Number(r.count) })),
+      uniqueViewsByDay: uniqueViewsByDay.map((r: { date: string; count: bigint }) => ({ date: r.date, count: Number(r.count) })),
+      clicksByDay: clicksByDay.map((r: { date: string; count: bigint }) => ({ date: r.date, count: Number(r.count) })),
+      uniqueClicksByDay: uniqueClicksByDay.map((r: { date: string; count: bigint }) => ({ date: r.date, count: Number(r.count) })),
+      clicksByPlatform: clicksByPlatform.map((r: { platform: string; count: bigint }) => ({ platform: r.platform, count: Number(r.count) })),
+      uniqueClicksByPlatform: uniqueClicksByPlatform.map((r: { platform: string; count: bigint }) => ({ platform: r.platform, count: Number(r.count) })),
+      topReferrers: topReferrers.map((r: { referer: string; count: bigint }) => ({ referer: r.referer, count: Number(r.count) })),
     },
   });
 });

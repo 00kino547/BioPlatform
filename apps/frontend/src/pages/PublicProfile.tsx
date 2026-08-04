@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api, type PublicProfile } from "@/lib/api";
 import { branding } from "@/config/branding";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
+import { MusicPlayer } from "@/components/music/MusicPlayer";
 import {
   MapPin,
   Globe,
@@ -136,6 +137,22 @@ export function PublicProfilePage() {
           )}
         </div>
 
+        {profile.musicTracks && profile.musicTracks.length > 0 && (
+          <div className="mb-6">
+            <h2
+              className="text-[11px] font-semibold uppercase tracking-widest mb-2.5 text-center"
+              style={{ color: mutedColor }}
+            >
+              Music
+            </h2>
+            <MusicPlayer
+              tracks={profile.musicTracks}
+              accent={accent}
+              textColor={textColor}
+            />
+          </div>
+        )}
+
         {profile.socialLinks && profile.socialLinks.length > 0 && (
           <div className="flex flex-col items-center gap-2">
             {profile.socialLinks.map((link, i) => {
@@ -174,6 +191,9 @@ export function PublicProfilePage() {
                     color: accent,
                     border: `1px solid ${accent}25`,
                   }}
+                  onClick={isClickable && profile.id ? () => {
+                    api.trackClick(profile.id, link.platform).catch(() => {});
+                  } : undefined}
                 >
                   <PlatformIcon
                     platform={link.platform}

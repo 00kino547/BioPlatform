@@ -159,3 +159,40 @@
 - nodemailer for transport (widely used, battle-tested)
 - Test endpoint sends a real email to verify configuration
 - Settings are per-user, not global — each user configures their own SMTP
+
+## Music player: embeds over API keys
+
+- No API keys for Spotify/YouTube — URLs are parsed server-side into embed URLs
+- Spotify: open/embed URLs and `spotify:` URIs → `open.spotify.com/embed/...`
+- YouTube: watch/shorts/youtu.be/embed URLs → `www.youtube-nocookie.com/embed` (privacy-enhanced — no third-party cookies; embeds never set tracking cookies on the visitor)
+- Local uploads: extension-only filter (`.mp3 .opus .ogg .wav .m4a .flac .aac .webm .oga`), 25MB limit
+
+## Music: full-version streaming source (`MusicTrack.fullUrl`)
+
+- Spotify embeds only play 30-second previews unless the viewer has Premium — an inherent platform restriction
+- Creators may supply an optional `fullUrl` so visitors can hear the full song, at the creator's own risk
+- `fullUrl` accepted for ALL providers (local, Spotify, YouTube); rendered as a "Play full version" player/button when present
+- Full-version URL accepts http/https only; YouTube URLs normalized via `parseYouTubeUrl`; direct audio file URLs (`.mp3 .opus .ogg .wav .m4a .flac .aac .webm .oga`) and any http(s) URL kept as-is
+- Stored in `MusicTrack.fullUrl String? @map("full_url")`; nullable, cleared with explicit `null` on PATCH
+- Terms of Service (section 5) discloses that a "full version" source relying on the creator's own account/session may violate the third-party platform's TOS — creator assumes full responsibility
+- Spotify player UI renders a full-width accent "Open in Spotify" button under the embed (embed URL → open URL by replacing `/embed/` with `/`)
+
+## Tier-based track limits
+
+- `UserTier` enum: FREE (2 tracks), PRO (5), ENTERPRISE (10) in `DEFAULT_LIMITS`
+- Admin can override per-user via `trackLimit` (int 0-100, nullable)
+- Enforcement on the backend in the music routes (create/upload), not just UI
+
+## MusicTracks ordered by position
+
+- `position` integer column for ordering, `@@index([profileId])`
+- Reorder via transaction (`POST /music/reorder`)
+- Public profile includes `musicTracks` ordered by position, inserted below bio and above links
+- Public music player re-sorts for playback: YouTube tracks first, then Spotify, then local (user's saved order is preserved in the DB)
+- Local file cleanup on delete (unlink from disk when track removed)
+
+## Music: autoplay behavior
+
+- Active track autoplays on all three providers: local `<audio autoPlay>`, Spotify embed `autoplay=true`, YouTube embed `autoplay=1&mute=1`
+- YouTube uses muted autoplay because browsers block unmuted autoplay without user interaction; Spotify's embed accepts autoplay only where the platform allows it
+- Full-version player does NOT autoplay (avoids double playback with the main player)

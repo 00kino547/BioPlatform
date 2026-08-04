@@ -12,14 +12,22 @@ enum Role {
   ADMIN
 }
 
+enum UserTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  username     String   @unique
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid()) @db.Uuid
+  username     String    @unique
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         Role      @default(USER)
+  tier         UserTier  @default(FREE)
+  trackLimit   Int?      @map("track_limit")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   inviteUsed   InviteCode? @relation("InviteUsedBy")
   inviteCreated InviteCode[] @relation("InviteCreatedBy")
@@ -37,16 +45,18 @@ model Profile {
   banner        String?
   location      String?
   website       String?
-  socialLinks   Json?    @map("social_links")
-  theme         Json?
-  emailSettings Json?    @map("email_settings")
-  isPublic      Boolean  @default(true) @map("is_public")
+  socialLinks         Json?    @map("social_links")
+  theme               Json?
+  notifyOnView        Boolean  @default(false) @map("notify_on_view")
+  notifyOnClick       Boolean  @default(false) @map("notify_on_click")
+  isPublic            Boolean  @default(true) @map("is_public")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   pageViews  PageView[]
   linkClicks LinkClick[]
+  musicTracks MusicTrack[]
 
   @@map("profiles")
 }
@@ -56,6 +66,7 @@ model PageView {
   profileId String   @db.Uuid @map("profile_id")
   ip        String?
   userAgent String?  @map("user_agent")
+  visitorId String?  @map("visitor_id")
   referer   String?
   country   String?
   createdAt DateTime @default(now()) @map("created_at")
@@ -63,6 +74,7 @@ model PageView {
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([profileId, createdAt])
+  @@index([profileId, visitorId])
   @@map("page_views")
 }
 
@@ -72,12 +84,33 @@ model LinkClick {
   platform  String
   ip        String?
   userAgent String?  @map("user_agent")
+  visitorId String?  @map("visitor_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([profileId, createdAt])
+  @@index([profileId, visitorId])
   @@map("link_clicks")
+}
+
+model MusicTrack {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @db.Uuid @map("profile_id")
+  provider  String
+  title     String?
+  artist    String?
+  url       String?
+  filePath  String?  @map("file_path")
+  fullUrl   String?  @map("full_url")
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("music_tracks")
 }
 
 model InviteCode {

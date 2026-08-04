@@ -19,6 +19,8 @@ const updateUserSchema = z.object({
   username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/).optional(),
   email: z.string().email().optional(),
   role: z.enum(["USER", "ADMIN"]).optional(),
+  tier: z.enum(["FREE", "PRO", "ENTERPRISE"]).optional(),
+  trackLimit: z.number().int().min(0).max(100).nullable().optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -35,6 +37,8 @@ router.get("/users", async (_req, res) => {
       username: true,
       email: true,
       role: true,
+      tier: true,
+      trackLimit: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -77,7 +81,7 @@ router.patch("/users/:id", async (req: Request<{ id: string }>, res) => {
   const user = await prisma.user.update({
     where: { id },
     data: updates,
-    select: { id: true, username: true, email: true, role: true, createdAt: true, updatedAt: true },
+    select: { id: true, username: true, email: true, role: true, tier: true, trackLimit: true, createdAt: true, updatedAt: true },
   });
 
   res.json({ success: true, data: user });

@@ -49,35 +49,48 @@ export function Terms() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">5. Service Availability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">5. Music, Embeds and Third-Party Sources</h2>
+            <p className="text-zinc-400">
+              {branding.name} allows you to link or embed music from third-party services such as Spotify and YouTube, upload your own audio files, and optionally provide an additional "full version" streaming source for your tracks. You are solely responsible for any content you link, upload, or stream, including ensuring you have the right to share it.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Some services (for example Spotify) restrict playback of full tracks unless the listener has an account with them. Any "full version" source you provide — including streams that may rely on your own account, credentials, or session — is done at your own risk. You acknowledge that such use may violate the terms of service of the third-party platform, and you agree to comply with those terms yourself and to assume full responsibility for them.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              {branding.name} does not host, authorize, or endorse the "full version" sources you provide, and we are not liable for any claims, losses, or actions arising from your use of third-party services, including any violation of their terms.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">6. Service Availability</h2>
             <p className="text-zinc-400">
               We strive to keep {branding.name} available at all times, but we do not guarantee uninterrupted access. We may perform maintenance, updates, or experience downtime without prior notice.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">6. Termination</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">7. Termination</h2>
             <p className="text-zinc-400">
               We reserve the right to suspend or terminate your account at our discretion, with or without cause, including for violations of these Terms. Upon termination, your right to use the service ceases immediately.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">7. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">8. Limitation of Liability</h2>
             <p className="text-zinc-400">
               {branding.name} is provided &quot;as is&quot; without warranties of any kind. We shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">8. Changes to Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Changes to Terms</h2>
             <p className="text-zinc-400">
               We may modify these Terms at any time. Continued use of the service after changes constitutes acceptance of the modified Terms. We will notify you of material changes through the service or by email.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Contact</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">10. Contact</h2>
             <p className="text-zinc-400">
               For questions about these Terms, please{" "}
               <a href={branding.contactUrl} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 transition-colors">

@@ -47,6 +47,30 @@ export interface AuthUser {
   username: string;
   email: string;
   role: string;
+  tier: "FREE" | "PRO" | "ENTERPRISE";
+  trackLimit: number | null;
+}
+
+export type MusicProvider = "local" | "spotify" | "youtube";
+
+export interface MusicTrack {
+  id: string;
+  profileId: string;
+  provider: MusicProvider;
+  title: string | null;
+  artist: string | null;
+  url: string | null;
+  filePath: string | null;
+  fullUrl: string | null;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MusicSettings {
+  tracks: MusicTrack[];
+  limit: number;
+  tier: "FREE" | "PRO" | "ENTERPRISE";
 }
 
 export interface AuthResponse {
@@ -74,6 +98,7 @@ export interface Profile {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
+  musicTracks?: MusicTrack[];
 }
 
 export interface PublicProfile {
@@ -96,16 +121,20 @@ export interface PublicProfile {
     fontFamily?: string;
   } | null;
   isPublic: boolean;
+  musicTracks?: MusicTrack[];
 }
 
 export interface AnalyticsData {
-  total: { views: number; clicks: number };
-  last30d: { views: number; clicks: number };
-  last7d: { views: number; clicks: number };
-  last24h: { views: number; clicks: number };
+  total: { views: number; uniqueViews: number; clicks: number; uniqueClicks: number };
+  last30d: { views: number; uniqueViews: number; clicks: number; uniqueClicks: number };
+  last7d: { views: number; uniqueViews: number; clicks: number; uniqueClicks: number };
+  last24h: { views: number; uniqueViews: number; clicks: number; uniqueClicks: number };
   viewsByDay: { date: string; count: number }[];
+  uniqueViewsByDay: { date: string; count: number }[];
   clicksByDay: { date: string; count: number }[];
+  uniqueClicksByDay: { date: string; count: number }[];
   clicksByPlatform: { platform: string; count: number }[];
+  uniqueClicksByPlatform: { platform: string; count: number }[];
   topReferrers: { referer: string; count: number }[];
 }
 
@@ -119,6 +148,13 @@ export interface EmailSettings {
   customUser?: string;
   customPassword?: string;
   customSecure?: boolean;
+}
+
+export interface EmailNotificationSettings {
+  smtpConfigured: boolean;
+  fromEmail: string | null;
+  notifyOnView: boolean;
+  notifyOnClick: boolean;
 }
 
 export const api = {
@@ -202,13 +238,57 @@ export const api = {
 
   getAnalytics: () => request<AnalyticsData>("/analytics/me"),
 
-  getEmailSettings: () => request<EmailSettings>("/email/me"),
+  getEmailSettings: () => request<EmailNotificationSettings>("/email/settings"),
 
-  updateEmailSettings: (data: EmailSettings) =>
-    request<EmailSettings>("/email/me", {
+  updateEmailSettings: (data: { notifyOnView: boolean; notifyOnClick: boolean }) =>
+    request("/email/settings", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
   testEmail: () => request("/email/test", { method: "POST" }),
+
+  getMusic: () => request<MusicSettings>("/music/me"),
+
+  addMusicTrack: (data: {
+    provider: MusicProvider;
+    title?: string;
+    artist?: string;
+    url?: string;
+    fullUrl?: string;
+  }) => request<MusicTrack>("/music/me", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }),
+
+  uploadMusicTrack: async (file: File, title?: string, artist?: string, fullUrl?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (title) form.append("title", title);
+    if (artist) form.append("artist", artist);
+    if (fullUrl) form.append("fullUrl", fullUrl);
+    const headers: Record<string, string> = {};
+    if (_token) headers["Authorization"] = `Bearer ${_token}`;
+    const res = await fetch(`${API_URL}/music/me/upload`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    return res.json() as Promise<{ success: boolean; data?: MusicTrack; error?: string }>;
+  },
+
+  updateMusicTrack: (id: string, data: { title?: string; artist?: string; position?: number; fullUrl?: string | null }) =>
+    request<MusicTrack>(`/music/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  reorderMusicTracks: (ids: string[]) =>
+    request("/music/reorder", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+
+  deleteMusicTrack: (id: string) =>
+    request(`/music/${id}`, { method: "DELETE" }),
 };

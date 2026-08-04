@@ -1,7 +1,7 @@
 {
   "name": "bioplatform",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.1-dev-beta.1",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @bioplatform/backend dev\" \"pnpm --filter @bioplatform/frontend dev\"",
     "dev:backend": "pnpm --filter @bioplatform/backend dev",
@@ -15,7 +15,9 @@
     "db:generate": "pnpm --filter @bioplatform/backend db:generate",
     "db:push": "pnpm --filter @bioplatform/backend db:push",
     "db:migrate": "pnpm --filter @bioplatform/backend db:migrate",
-    "db:studio": "pnpm --filter @bioplatform/backend db:studio"
+    "db:studio": "pnpm --filter @bioplatform/backend db:studio",
+    "docker:build": "sh scripts/build.sh",
+    "docker:prune": "docker image prune -af && docker builder prune -af"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

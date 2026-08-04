@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { PlatformIcon, platformDisplayNames } from "@/components/ui/PlatformIcon";
-import { api, type Profile, type AnalyticsData, type EmailSettings } from "@/lib/api";
+import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack } from "@/lib/api";
 import {
   Camera,
   Save,
@@ -20,6 +20,12 @@ import {
   Send,
   CheckCircle,
   XCircle,
+  Music,
+  Upload,
+  ChevronUp,
+  ChevronDown,
+  Pencil,
+  ExternalLink,
 } from "lucide-react";
 
 const platforms = [
@@ -110,7 +116,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profile" | "links" | "appearance" | "analytics" | "email">("profile");
+  const [tab, setTab] = useState<"profile" | "links" | "appearance" | "analytics" | "email" | "music">("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
 
@@ -128,14 +134,31 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
-  const [emailSettings, setEmailSettings] = useState<EmailSettings>({
-    enabled: false,
-    provider: "gmail",
+  const [emailSettings, setEmailSettings] = useState<EmailNotificationSettings>({
+    smtpConfigured: false,
+    fromEmail: null,
+    notifyOnView: false,
+    notifyOnClick: false,
   });
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailTesting, setEmailTesting] = useState(false);
   const [emailTestResult, setEmailTestResult] = useState<"success" | "error" | null>(null);
+
+  const [music, setMusic] = useState<MusicSettings | null>(null);
+  const [musicLoading, setMusicLoading] = useState(false);
+  const [musicError, setMusicError] = useState("");
+  const [musicProvider, setMusicProvider] = useState<MusicProvider>("local");
+  const [musicUrl, setMusicUrl] = useState("");
+  const [musicTitle, setMusicTitle] = useState("");
+  const [musicArtist, setMusicArtist] = useState("");
+  const [musicFullUrl, setMusicFullUrl] = useState("");
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [musicBusy, setMusicBusy] = useState(false);
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editArtist, setEditArtist] = useState("");
+  const [editFullUrl, setEditFullUrl] = useState("");
 
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
@@ -186,6 +209,18 @@ export function Dashboard() {
       });
     }
   }, [tab]);
+
+  useEffect(() => {
+    if (tab === "music" && !music) {
+      setMusicLoading(true);
+      api.getMusic().then((res) => {
+        if (res.success && res.data) {
+          setMusic(res.data);
+        }
+        setMusicLoading(false);
+      });
+    }
+  }, [tab, music]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -307,7 +342,10 @@ export function Dashboard() {
   const handleSaveEmail = async () => {
     setEmailSaving(true);
     setEmailSaved(false);
-    const res = await api.updateEmailSettings(emailSettings);
+    const res = await api.updateEmailSettings({
+      notifyOnView: emailSettings.notifyOnView,
+      notifyOnClick: emailSettings.notifyOnClick,
+    });
     setEmailSaving(false);
     if (res.success) {
       setEmailSaved(true);
@@ -322,6 +360,104 @@ export function Dashboard() {
     setEmailTesting(false);
     setEmailTestResult(res.success ? "success" : "error");
     setTimeout(() => setEmailTestResult(null), 3000);
+  };
+
+  const handleAddMusic = async () => {
+    setMusicError("");
+    if (!music) return;
+
+    if (music.tracks.length >= music.limit) {
+      setMusicError(`Track limit reached (${music.limit}). Upgrade your tier to add more tracks.`);
+      return;
+    }
+
+    setMusicBusy(true);
+    let res;
+    if (musicProvider === "local") {
+      if (!musicFile) {
+        setMusicError("Choose an audio file to upload.");
+        setMusicBusy(false);
+        return;
+      }
+      res = await api.uploadMusicTrack(musicFile, musicTitle || undefined, musicArtist || undefined, musicFullUrl || undefined);
+    } else {
+      if (!musicUrl.trim()) {
+        setMusicError(`Enter a ${musicProvider} URL.`);
+        setMusicBusy(false);
+        return;
+      }
+      res = await api.addMusicTrack({
+        provider: musicProvider,
+        title: musicTitle || undefined,
+        artist: musicArtist || undefined,
+        url: musicUrl.trim(),
+        fullUrl: musicFullUrl.trim() || undefined,
+      });
+    }
+    setMusicBusy(false);
+
+    if (res.success && res.data) {
+      setMusic((prev) => {
+        if (!prev) return prev;
+        return { ...prev, tracks: [...prev.tracks, res.data as MusicTrack] };
+      });
+      setMusicTitle("");
+      setMusicArtist("");
+      setMusicUrl("");
+      setMusicFullUrl("");
+      setMusicFile(null);
+      const fileInput = document.getElementById("music-file-input") as HTMLInputElement | null;
+      if (fileInput) fileInput.value = "";
+    } else {
+      setMusicError(res.error ?? "Failed to add track");
+    }
+  };
+
+  const handleMoveTrack = async (index: number, dir: -1 | 1) => {
+    if (!music) return;
+    const target = index + dir;
+    if (target < 0 || target >= music.tracks.length) return;
+
+    const next = [...music.tracks];
+    [next[index], next[target]] = [next[target], next[index]];
+    next.forEach((t, i) => (t.position = i));
+    setMusic({ ...music, tracks: next });
+    await api.reorderMusicTracks(next.map((t) => t.id)).catch(() => {});
+  };
+
+  const handleDeleteTrack = async (id: string) => {
+    if (!music) return;
+    const res = await api.deleteMusicTrack(id);
+    if (res.success) {
+      setMusic({ ...music, tracks: music.tracks.filter((t) => t.id !== id) });
+    } else {
+      setMusicError(res.error ?? "Failed to remove track");
+    }
+  };
+
+  const startEditTrack = (track: MusicTrack) => {
+    setEditingTrackId(track.id);
+    setEditTitle(track.title ?? "");
+    setEditArtist(track.artist ?? "");
+    setEditFullUrl(track.fullUrl ?? "");
+  };
+
+  const saveEditTrack = async (id: string) => {
+    if (!music) return;
+    const res = await api.updateMusicTrack(id, {
+      title: editTitle || undefined,
+      artist: editArtist || undefined,
+      fullUrl: editFullUrl.trim() || null,
+    });
+    if (res.success && res.data) {
+      setMusic({
+        ...music,
+        tracks: music.tracks.map((t) => (t.id === id ? res.data as MusicTrack : t)),
+      });
+    } else {
+      setMusicError(res.error ?? "Failed to update track");
+    }
+    setEditingTrackId(null);
   };
 
   if (loading) {
@@ -388,7 +524,7 @@ export function Dashboard() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
-          {(["profile", "links", "appearance", "analytics", "email"] as const).map((t) => (
+          {(["profile", "links", "appearance", "analytics", "email", "music"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -398,7 +534,7 @@ export function Dashboard() {
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : "Email"}
+              {t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : "Music"}
             </button>
           ))}
         </div>
@@ -702,43 +838,90 @@ export function Dashboard() {
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
-                    { label: "Total Views", value: analytics.total.views, icon: EyeIcon },
-                    { label: "Total Clicks", value: analytics.total.clicks, icon: MousePointerClick },
-                    { label: "Views (7d)", value: analytics.last7d.views, icon: BarChart3 },
-                    { label: "Clicks (7d)", value: analytics.last7d.clicks, icon: BarChart3 },
+                    { label: "Total Views", sub: `${analytics.total.uniqueViews} unique`, value: analytics.total.views, icon: EyeIcon },
+                    { label: "Total Clicks", sub: `${analytics.total.uniqueClicks} unique`, value: analytics.total.clicks, icon: MousePointerClick },
+                    { label: "Views (7d)", sub: `${analytics.last7d.uniqueViews} unique`, value: analytics.last7d.views, icon: BarChart3 },
+                    { label: "Clicks (7d)", sub: `${analytics.last7d.uniqueClicks} unique`, value: analytics.last7d.clicks, icon: BarChart3 },
                   ].map((stat) => (
-                    <div key={stat.label} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <stat.icon className="h-4 w-4 text-zinc-500" />
-                        <span className="text-xs text-zinc-500">{stat.label}</span>
+                    <div key={stat.label} className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 group hover:border-zinc-700 transition-colors">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{stat.label}</span>
+                        <stat.icon className="h-5 w-5 text-violet-400/80 group-hover:text-violet-400 transition-colors" />
                       </div>
-                      <p className="text-2xl font-bold text-white">{stat.value.toLocaleString()}</p>
+                      <p className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{stat.value.toLocaleString()}</p>
+                      <p className="text-xs text-zinc-500 mt-1.5">{stat.sub}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-                  <h3 className="text-sm font-medium text-white mb-4">Views — Last 30 Days</h3>
-                  {analytics.viewsByDay.length > 0 ? (
-                    <div className="flex items-end gap-1 h-32">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-sm font-medium text-white">Views — Last 30 Days</h3>
+                    <div className="flex items-center gap-4 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-violet-500" />Total</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-400" />Unique</span>
+                    </div>
+                  </div>
+                  {analytics.viewsByDay.length > 0 || analytics.uniqueViewsByDay.length > 0 ? (
+                    <div className="relative flex items-end gap-1 h-72 sm:h-80">
+                      <div className="absolute left-0 right-0 top-0 bottom-6 flex flex-col justify-between pointer-events-none">
+                        {[25, 50, 75].map((p) => (
+                          <div key={p} className="border-t border-dashed border-zinc-800/80" />
+                        ))}
+                      </div>
                       {(() => {
-                        const max = Math.max(...analytics.viewsByDay.map((d) => d.count), 1);
-                        const allDays: { date: string; count: number }[] = [];
+                        const allCounts = [...analytics.viewsByDay.map((d) => d.count), ...analytics.uniqueViewsByDay.map((d) => d.count)];
+                        const max = Math.max(...allCounts, 1);
+                        const allDays: { date: string; total: number; unique: number }[] = [];
                         const now = new Date();
                         for (let i = 29; i >= 0; i--) {
                           const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
                           const dateStr = d.toISOString().split("T")[0];
-                          const existing = analytics.viewsByDay.find((v) => v.date === dateStr);
-                          allDays.push({ date: dateStr, count: existing?.count ?? 0 });
+                          allDays.push({
+                            date: dateStr,
+                            total: analytics.viewsByDay.find((v) => v.date === dateStr)?.count ?? 0,
+                            unique: analytics.uniqueViewsByDay.find((v) => v.date === dateStr)?.count ?? 0,
+                          });
                         }
                         return allDays.map((day, i) => (
                           <div
                             key={i}
-                            className="flex-1 rounded-t bg-violet-500/60 hover:bg-violet-400 transition-colors relative group"
-                            style={{ height: `${(day.count / max) * 100}%`, minHeight: day.count > 0 ? "4px" : "0" }}
+                            className="flex-1 flex flex-col h-full relative group"
                           >
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              {day.date}: {day.count}
+                            <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
+                                <p className="text-[11px] font-semibold text-white">{new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                                <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
+                                <p className="text-xs"><span className="text-sky-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
+                              </div>
+                              <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
+                            </div>
+                            <div className="flex-1 flex items-end gap-0.5">
+                              <div
+                                className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
+                                style={{
+                                  height: `${(day.total / max) * 100}%`,
+                                  minHeight: day.total > 0 ? "6px" : "2px",
+                                  background: `linear-gradient(to top, #7c3aed, #a78bfa)`,
+                                  opacity: day.total > 0 ? 0.85 : 0.25,
+                                }}
+                              />
+                              <div
+                                className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
+                                style={{
+                                  height: `${(day.unique / max) * 100}%`,
+                                  minHeight: day.unique > 0 ? "6px" : "2px",
+                                  background: `linear-gradient(to top, #0ea5e9, #38bdf8)`,
+                                  opacity: day.unique > 0 ? 0.85 : 0.25,
+                                }}
+                              />
+                            </div>
+                            <div className="h-6 flex items-end justify-center">
+                              {i % 5 === 0 && (
+                                <span className="text-[9px] text-zinc-600 whitespace-nowrap">
+                                  {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ));
@@ -750,22 +933,28 @@ export function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-                    <h3 className="text-sm font-medium text-white mb-4">Clicks by Platform</h3>
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
+                    <h3 className="text-sm font-medium text-white mb-5">Clicks by Platform</h3>
                     {analytics.clicksByPlatform.length > 0 ? (
-                      <div className="space-y-3">
-                        {analytics.clicksByPlatform.map((item) => {
+                      <div className="space-y-5">
+                        {analytics.clicksByPlatform.map((item, idx) => {
                           const max = analytics.clicksByPlatform[0]?.count ?? 1;
+                          const unique = analytics.uniqueClicksByPlatform.find((u) => u.platform === item.platform)?.count ?? 0;
+                          const colors = ["#a78bfa", "#22d3ee", "#34d399", "#fbbf24", "#f472b6", "#fb7185", "#60a5fa", "#c084fc"];
+                          const barColor = colors[idx % colors.length];
                           return (
                             <div key={item.platform}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-zinc-400">{platformDisplayNames[item.platform.toLowerCase()] ?? item.platform}</span>
-                                <span className="text-xs text-zinc-500">{item.count}</span>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="flex items-center gap-2.5 text-sm text-zinc-200 font-medium">
+                                  <PlatformIcon platform={item.platform} className="h-5 w-5" color={barColor} />
+                                  {platformDisplayNames[item.platform.toLowerCase()] ?? item.platform}
+                                </span>
+                                <span className="text-sm text-zinc-300">{item.count} <span className="text-zinc-600">· {unique} unique</span></span>
                               </div>
-                              <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                              <div className="h-4 rounded-full bg-zinc-800 overflow-hidden">
                                 <div
-                                  className="h-full rounded-full bg-violet-500/60"
-                                  style={{ width: `${(item.count / max) * 100}%` }}
+                                  className="h-full rounded-full transition-all duration-300 hover:brightness-125"
+                                  style={{ width: `${(item.count / max) * 100}%`, background: `linear-gradient(to right, ${barColor}99, ${barColor})` }}
                                 />
                               </div>
                             </div>
@@ -777,14 +966,14 @@ export function Dashboard() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
                     <h3 className="text-sm font-medium text-white mb-4">Top Referrers</h3>
                     {analytics.topReferrers.length > 0 ? (
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         {analytics.topReferrers.map((item) => (
-                          <div key={item.referer} className="flex items-center justify-between py-1.5 border-b border-zinc-800/60 last:border-0">
-                            <span className="text-xs text-zinc-400 truncate max-w-[200px]">{item.referer}</span>
-                            <span className="text-xs text-zinc-500">{item.count}</span>
+                          <div key={item.referer} className="flex items-center justify-between py-2 border-b border-zinc-800/60 last:border-0">
+                            <span className="text-sm text-zinc-300 truncate max-w-[220px]">{item.referer}</span>
+                            <span className="text-sm font-medium text-zinc-400">{item.count}</span>
                           </div>
                         ))}
                       </div>
@@ -794,28 +983,74 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-                  <h3 className="text-sm font-medium text-white mb-4">Clicks — Last 30 Days</h3>
-                  {analytics.clicksByDay.length > 0 ? (
-                    <div className="flex items-end gap-1 h-32">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-sm font-medium text-white">Clicks — Last 30 Days</h3>
+                    <div className="flex items-center gap-4 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" />Total</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" />Unique</span>
+                    </div>
+                  </div>
+                  {analytics.clicksByDay.length > 0 || analytics.uniqueClicksByDay.length > 0 ? (
+                    <div className="relative flex items-end gap-1 h-72 sm:h-80">
+                      <div className="absolute left-0 right-0 top-0 bottom-6 flex flex-col justify-between pointer-events-none">
+                        {[25, 50, 75].map((p) => (
+                          <div key={p} className="border-t border-dashed border-zinc-800/80" />
+                        ))}
+                      </div>
                       {(() => {
-                        const max = Math.max(...analytics.clicksByDay.map((d) => d.count), 1);
-                        const allDays: { date: string; count: number }[] = [];
+                        const allCounts = [...analytics.clicksByDay.map((d) => d.count), ...analytics.uniqueClicksByDay.map((d) => d.count)];
+                        const max = Math.max(...allCounts, 1);
+                        const allDays: { date: string; total: number; unique: number }[] = [];
                         const now = new Date();
                         for (let i = 29; i >= 0; i--) {
                           const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
                           const dateStr = d.toISOString().split("T")[0];
-                          const existing = analytics.clicksByDay.find((v) => v.date === dateStr);
-                          allDays.push({ date: dateStr, count: existing?.count ?? 0 });
+                          allDays.push({
+                            date: dateStr,
+                            total: analytics.clicksByDay.find((v) => v.date === dateStr)?.count ?? 0,
+                            unique: analytics.uniqueClicksByDay.find((v) => v.date === dateStr)?.count ?? 0,
+                          });
                         }
                         return allDays.map((day, i) => (
                           <div
                             key={i}
-                            className="flex-1 rounded-t bg-emerald-500/60 hover:bg-emerald-400 transition-colors relative group"
-                            style={{ height: `${(day.count / max) * 100}%`, minHeight: day.count > 0 ? "4px" : "0" }}
+                            className="flex-1 flex flex-col h-full relative group"
                           >
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              {day.date}: {day.count}
+                            <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
+                                <p className="text-[11px] font-semibold text-white">{new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                                <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
+                                <p className="text-xs"><span className="text-amber-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
+                              </div>
+                              <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
+                            </div>
+                            <div className="flex-1 flex items-end gap-0.5">
+                              <div
+                                className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
+                                style={{
+                                  height: `${(day.total / max) * 100}%`,
+                                  minHeight: day.total > 0 ? "6px" : "2px",
+                                  background: `linear-gradient(to top, #059669, #34d399)`,
+                                  opacity: day.total > 0 ? 0.85 : 0.25,
+                                }}
+                              />
+                              <div
+                                className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
+                                style={{
+                                  height: `${(day.unique / max) * 100}%`,
+                                  minHeight: day.unique > 0 ? "6px" : "2px",
+                                  background: `linear-gradient(to top, #d97706, #fbbf24)`,
+                                  opacity: day.unique > 0 ? 0.85 : 0.25,
+                                }}
+                              />
+                            </div>
+                            <div className="h-6 flex items-end justify-center">
+                              {i % 5 === 0 && (
+                                <span className="text-[9px] text-zinc-600 whitespace-nowrap">
+                                  {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ));
@@ -832,161 +1067,386 @@ export function Dashboard() {
           </div>
         )}
 
-        {tab === "email" && (
+        {tab === "music" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-white">Email Notifications</h3>
-                <p className="text-xs text-zinc-500 mt-1">Get notified when someone views your profile or clicks a link.</p>
+            {musicLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
               </div>
-              <button
-                onClick={() => setEmailSettings({ ...emailSettings, enabled: !emailSettings.enabled })}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  emailSettings.enabled ? "bg-violet-600" : "bg-zinc-700"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    emailSettings.enabled ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            {emailSettings.enabled && (
+            ) : music ? (
               <>
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-                  <h4 className="text-sm font-medium text-white mb-4">Provider</h4>
-                  <div className="flex gap-3">
-                    {(["gmail", "custom"] as const).map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setEmailSettings({ ...emailSettings, provider: p })}
-                        className={`flex-1 rounded-lg border p-3 text-left transition-all ${
-                          emailSettings.provider === p
-                            ? "border-violet-500 bg-violet-500/10"
-                            : "border-zinc-800 hover:border-zinc-600"
-                        }`}
-                      >
-                        <p className="text-sm font-medium text-white">{p === "gmail" ? "Gmail" : "Custom SMTP"}</p>
-                        <p className="text-xs text-zinc-500 mt-1">
-                          {p === "gmail" ? "Use Gmail App Password" : "Configure your own SMTP server"}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {emailSettings.provider === "gmail" ? (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Gmail Address</label>
-                      <input
-                        type="email"
-                        value={emailSettings.gmailUser ?? ""}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, gmailUser: e.target.value })}
-                        placeholder="you@gmail.com"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">App Password</label>
-                      <input
-                        type="password"
-                        value={emailSettings.gmailAppPassword ?? ""}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, gmailAppPassword: e.target.value })}
-                        placeholder="xxxx xxxx xxxx xxxx"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      />
-                      <p className="text-xs text-zinc-500 mt-1">
-                        Generate at{" "}
-                        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300">
-                          myaccount.google.com/apppasswords
-                        </a>
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1.5">SMTP Host</label>
-                        <input
-                          type="text"
-                          value={emailSettings.customHost ?? ""}
-                          onChange={(e) => setEmailSettings({ ...emailSettings, customHost: e.target.value })}
-                          placeholder="smtp.example.com"
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1.5">Port</label>
-                        <input
-                          type="number"
-                          value={emailSettings.customPort ?? 587}
-                          onChange={(e) => setEmailSettings({ ...emailSettings, customPort: parseInt(e.target.value) || 587 })}
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Username</label>
-                      <input
-                        type="text"
-                        value={emailSettings.customUser ?? ""}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, customUser: e.target.value })}
-                        placeholder="your-email@example.com"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Password</label>
-                      <input
-                        type="password"
-                        value={emailSettings.customPassword ?? ""}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, customPassword: e.target.value })}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      />
-                    </div>
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="secure"
-                        checked={emailSettings.customSecure ?? false}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, customSecure: e.target.checked })}
-                        className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-violet-500 focus:ring-violet-500"
-                      />
-                      <label htmlFor="secure" className="text-sm text-zinc-300">
-                        Use TLS/SSL (port 465)
-                      </label>
+                      <Music className="h-5 w-5 text-violet-400" />
+                      <div>
+                        <h3 className="text-sm font-medium text-white">Music Player</h3>
+                        <p className="text-xs text-zinc-500">
+                          {music.tracks.length}/{music.limit} tracks used · {music.tier} tier
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {music.tracks.length === 0 ? (
+                    <p className="text-sm text-zinc-500 text-center py-8">
+                      No tracks yet. Add local files, Spotify, or YouTube tracks below.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {music.tracks.map((track, i) => (
+                        <div
+                          key={track.id}
+                          className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+                        >
+                          <div className="flex flex-col">
+                            <button
+                              onClick={() => handleMoveTrack(i, -1)}
+                              disabled={i === 0}
+                              className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleMoveTrack(i, 1)}
+                              disabled={i === music.tracks.length - 1}
+                              className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            {editingTrackId === track.id ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  placeholder="Title"
+                                  className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                                />
+                                <input
+                                  type="text"
+                                  value={editArtist}
+                                  onChange={(e) => setEditArtist(e.target.value)}
+                                  placeholder="Artist"
+                                  className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                                />
+                                <input
+                                  type="text"
+                                  value={editFullUrl}
+                                  onChange={(e) => setEditFullUrl(e.target.value)}
+                                  placeholder="Full version URL (optional)"
+                                  className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => saveEditTrack(track.id)}
+                                    className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingTrackId(null)}
+                                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm font-medium text-white truncate">
+                                  {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
+                                </p>
+                                <p className="text-xs text-zinc-500 truncate">
+                                  {track.artist ? `${track.artist} · ` : ""}
+                                  <span className="uppercase text-[10px]">{track.provider}</span>
+                                </p>
+                              </>
+                            )}
+                          </div>
+
+                          {editingTrackId !== track.id && (
+                            <>
+                              <button
+                                onClick={() => startEditTrack(track)}
+                                className="text-zinc-500 hover:text-violet-400 transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <a
+                                href={track.provider === "local" ? track.filePath ?? undefined : track.url ?? undefined}
+                                target={track.provider === "local" ? undefined : "_blank"}
+                                rel="noopener noreferrer"
+                                className="text-zinc-500 hover:text-violet-400 transition-colors"
+                                title="Open"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                              <button
+                                onClick={() => handleDeleteTrack(track.id)}
+                                className="text-zinc-500 hover:text-red-400 transition-colors"
+                                title="Remove"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {music.tracks.length < music.limit && (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                    <h3 className="text-sm font-medium text-white mb-4">Add Track</h3>
+
+                    <div className="flex gap-2 mb-4">
+                      {(["local", "spotify", "youtube"] as const).map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            setMusicProvider(p);
+                            setMusicError("");
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                            musicProvider === p
+                              ? "bg-violet-600 text-white"
+                              : "bg-zinc-800 text-zinc-400 hover:text-white"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+
+                    {musicProvider === "local" ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                            Audio File <span className="text-zinc-500">(MP3, OGG, OPUS, WAV, M4A, FLAC, AAC — max 25MB)</span>
+                          </label>
+                          <input
+                            id="music-file-input"
+                            type="file"
+                            accept=".mp3,.opus,.ogg,.wav,.m4a,.flac,.aac,.webm,.oga,audio/*"
+                            onChange={(e) => setMusicFile(e.target.files?.[0] ?? null)}
+                            className="w-full text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-violet-500 file:cursor-pointer cursor-pointer"
+                          />
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Title</label>
+                            <input
+                              type="text"
+                              value={musicTitle}
+                              onChange={(e) => setMusicTitle(e.target.value)}
+                              placeholder="Track title"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Artist</label>
+                            <input
+                              type="text"
+                              value={musicArtist}
+                              onChange={(e) => setMusicArtist(e.target.value)}
+                              placeholder="Artist name"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                            Full version URL <span className="text-zinc-500">(optional)</span>
+                          </label>
+                          <input
+                            type="url"
+                            value={musicFullUrl}
+                            onChange={(e) => setMusicFullUrl(e.target.value)}
+                            placeholder="https://... (audio file, YouTube, or other stream)"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                          />
+                          <p className="mt-1 text-[11px] text-zinc-500">
+                            Optional full streaming source for visitors. You are solely responsible for the content and any
+                            terms of service of the source you link. See the{" "}
+                            <a href="/terms" className="text-violet-400 hover:text-violet-300">Terms of Service</a>.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                            {musicProvider === "spotify" ? "Spotify URL" : "YouTube / YouTube Music URL"}
+                          </label>
+                          <input
+                            type="url"
+                            value={musicUrl}
+                            onChange={(e) => setMusicUrl(e.target.value)}
+                            placeholder={
+                              musicProvider === "spotify"
+                                ? "https://open.spotify.com/track/..."
+                                : "https://www.youtube.com/watch?v=... or https://music.youtube.com/watch?v=..."
+                            }
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                              Title <span className="text-zinc-500">(optional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={musicTitle}
+                              onChange={(e) => setMusicTitle(e.target.value)}
+                              placeholder="Track title"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                              Artist <span className="text-zinc-500">(optional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={musicArtist}
+                              onChange={(e) => setMusicArtist(e.target.value)}
+                              placeholder="Artist name"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        {musicProvider === "spotify" && (
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                              Full version URL <span className="text-zinc-500">(optional)</span>
+                            </label>
+                            <input
+                              type="url"
+                              value={musicFullUrl}
+                              onChange={(e) => setMusicFullUrl(e.target.value)}
+                              placeholder="https://... (audio file, YouTube, or other stream)"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            />
+                            <p className="mt-1 text-[11px] text-zinc-500">
+                              Spotify embeds only play previews. Provide an optional full streaming source here — you are
+                              solely responsible for the content and any terms of service of the source. See the{" "}
+                              <a href="/terms" className="text-violet-400 hover:text-violet-300">Terms of Service</a>.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-4">
+                      <Button onClick={handleAddMusic} disabled={musicBusy}>
+                        <Upload className="h-4 w-4" />
+                        {musicBusy ? "Adding..." : "Add Track"}
+                      </Button>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-3">
-                  <Button onClick={handleSaveEmail} disabled={emailSaving}>
-                    <Save className="h-4 w-4" />
-                    {emailSaving ? "Saving..." : emailSaved ? "Saved!" : "Save Settings"}
-                  </Button>
-                  <Button variant="secondary" onClick={handleTestEmail} disabled={emailTesting}>
-                    <Send className="h-4 w-4" />
-                    {emailTesting ? "Sending..." : "Send Test Email"}
-                  </Button>
-                </div>
-
-                {emailTestResult === "success" && (
-                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
-                    <CheckCircle className="h-4 w-4" />
-                    Test email sent successfully!
-                  </div>
-                )}
-                {emailTestResult === "error" && (
-                  <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
-                    <XCircle className="h-4 w-4" />
-                    Failed to send test email. Check your settings.
-                  </div>
+                {music.tracks.length >= music.limit && (
+                  <p className="text-xs text-zinc-500 text-center">
+                    Track limit reached ({music.limit}). Upgrade to a higher tier for more tracks.
+                  </p>
                 )}
               </>
+            ) : (
+              <p className="text-sm text-zinc-500 text-center py-12">No music settings available</p>
+            )}
+
+            {musicError && (
+              <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                {musicError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "email" && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`h-2.5 w-2.5 rounded-full ${emailSettings.smtpConfigured ? "bg-emerald-500" : "bg-zinc-600"}`} />
+                <h4 className="text-sm font-medium text-white">
+                  {emailSettings.smtpConfigured ? "SMTP Configured" : "SMTP Not Configured"}
+                </h4>
+              </div>
+              {emailSettings.smtpConfigured ? (
+                <p className="text-xs text-zinc-400">
+                  Emails are sent from <span className="text-zinc-300">{emailSettings.fromEmail}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-500">
+                  Configure SMTP in your server's <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">.env</code> file to enable email notifications.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-white">Notification Preferences</h3>
+              <p className="text-xs text-zinc-500">Choose which events trigger an email notification.</p>
+
+              {[
+                { key: "notifyOnView" as const, label: "Profile Views", desc: "Get notified when someone visits your profile page." },
+                { key: "notifyOnClick" as const, label: "Link Clicks", desc: "Get notified when someone clicks one of your social links." },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-5 py-4"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-white">{item.label}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{item.desc}</p>
+                  </div>
+                  <button
+                    onClick={() => setEmailSettings({ ...emailSettings, [item.key]: !emailSettings[item.key] })}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                      emailSettings[item.key] ? "bg-violet-600" : "bg-zinc-700"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        emailSettings[item.key] ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={handleSaveEmail} disabled={emailSaving}>
+                <Save className="h-4 w-4" />
+                {emailSaving ? "Saving..." : emailSaved ? "Saved!" : "Save Preferences"}
+              </Button>
+              {emailSettings.smtpConfigured && (
+                <Button variant="secondary" onClick={handleTestEmail} disabled={emailTesting}>
+                  <Send className="h-4 w-4" />
+                  {emailTesting ? "Sending..." : "Send Test Email"}
+                </Button>
+              )}
+            </div>
+
+            {emailTestResult === "success" && (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
+                <CheckCircle className="h-4 w-4" />
+                Test email sent successfully!
+              </div>
+            )}
+            {emailTestResult === "error" && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                <XCircle className="h-4 w-4" />
+                Failed to send test email. Check server SMTP config.
+              </div>
             )}
           </div>
         )}

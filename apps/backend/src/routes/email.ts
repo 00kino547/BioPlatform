@@ -1,57 +1,64 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
-import { sendEmail, testEmailConnection, type EmailSettings } from "../lib/email.js";
+import { isEmailEnabled, testConnection, sendEmail, getFromAddress } from "../lib/email.js";
+import { getEnv } from "../config/env.js";
 
 const router = Router();
 
-const emailSettingsSchema = z.object({
-  enabled: z.boolean(),
-  provider: z.enum(["gmail", "custom"]),
-  gmailUser: z.string().email().optional(),
-  gmailAppPassword: z.string().optional(),
-  customHost: z.string().optional(),
-  customPort: z.number().int().min(1).max(65535).optional(),
-  customUser: z.string().optional(),
-  customPassword: z.string().optional(),
-  customSecure: z.boolean().optional(),
+const prefsSchema = z.object({
+  notifyOnView: z.boolean(),
+  notifyOnClick: z.boolean(),
 });
 
-router.get("/me", requireAuth, async (req, res) => {
+router.get("/settings", requireAuth, async (req, res) => {
   const profile = await prisma.profile.findUnique({
     where: { userId: req.userId! },
-    select: { emailSettings: true },
+    select: { notifyOnView: true, notifyOnClick: true },
   });
 
-  res.json({ success: true, data: profile?.emailSettings ?? null });
+  res.json({
+    success: true,
+    data: {
+      smtpConfigured: isEmailEnabled(),
+      fromEmail: isEmailEnabled() ? getFromAddress() : null,
+      notifyOnView: profile?.notifyOnView ?? false,
+      notifyOnClick: profile?.notifyOnClick ?? false,
+    },
+  });
 });
 
-router.put("/me", requireAuth, async (req, res) => {
-  const parsed = emailSettingsSchema.safeParse(req.body);
+router.put("/settings", requireAuth, async (req, res) => {
+  const parsed = prefsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
   }
 
   await prisma.profile.upsert({
     where: { userId: req.userId! },
-    update: { emailSettings: parsed.data as unknown as Prisma.InputJsonValue },
-    create: { userId: req.userId!, emailSettings: parsed.data as unknown as Prisma.InputJsonValue },
+    update: {
+      notifyOnView: parsed.data.notifyOnView,
+      notifyOnClick: parsed.data.notifyOnClick,
+    },
+    create: {
+      userId: req.userId!,
+      notifyOnView: parsed.data.notifyOnView,
+      notifyOnClick: parsed.data.notifyOnClick,
+    },
   });
 
   res.json({ success: true, data: parsed.data });
 });
 
 router.post("/test", requireAuth, async (req, res) => {
-  const profile = await prisma.profile.findUnique({
-    where: { userId: req.userId! },
-    select: { emailSettings: true },
-  });
+  if (!isEmailEnabled()) {
+    return res.status(400).json({ success: false, error: "SMTP is not configured in .env" });
+  }
 
-  const settings = profile?.emailSettings as EmailSettings | null;
-  if (!settings?.enabled) {
-    return res.status(400).json({ success: false, error: "Email notifications are disabled" });
+  const conn = await testConnection();
+  if (!conn.success) {
+    return res.status(400).json({ success: false, error: conn.error });
   }
 
   const user = await prisma.user.findUnique({
@@ -60,22 +67,39 @@ router.post("/test", requireAuth, async (req, res) => {
   });
 
   if (!user?.email) {
-    return res.status(400).json({ success: false, error: "No email address on account" });
+    return res.status(400).json({ success: false, error: "No email on account" });
   }
 
-  const result = await testEmailConnection(settings);
-  if (!result.success) {
-    return res.status(400).json({ success: false, error: result.error });
-  }
-
-  const sendResult = await sendEmail(settings, {
+  const env = getEnv();
+  const result = await sendEmail({
     to: user.email,
-    subject: `Test email from ${process.env.APP_NAME || "BioPlatform"}`,
-    html: `<p>This is a test email. If you received this, your email settings are configured correctly.</p>`,
+    subject: `Test email from ${env.SMTP_FROM_NAME}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="margin:0;padding:0;background-color:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <div style="max-width:480px;margin:40px auto;background:#18181b;border-radius:12px;border:1px solid #27272a;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#7c3aed,#0ea5e9);padding:24px;text-align:center;">
+            <h1 style="color:#fff;margin:0;font-size:18px;">${env.SMTP_FROM_NAME}</h1>
+          </div>
+          <div style="padding:24px;">
+            <h2 style="color:#e4e4e7;font-size:16px;margin:0 0 12px;">Email Configured!</h2>
+            <p style="color:#a1a1aa;font-size:14px;line-height:1.6;margin:0;">
+              This is a test email. If you received this, your SMTP settings are working correctly.
+            </p>
+          </div>
+          <div style="padding:16px 24px;border-top:1px solid #27272a;text-align:center;">
+            <p style="color:#52525b;font-size:11px;margin:0;">Sent from ${env.SMTP_FROM_NAME}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
   });
 
-  if (!sendResult.success) {
-    return res.status(400).json({ success: false, error: sendResult.error });
+  if (!result.success) {
+    return res.status(400).json({ success: false, error: result.error });
   }
 
   res.json({ success: true });

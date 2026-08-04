@@ -21,6 +21,8 @@ interface User {
   username: string;
   email: string;
   role: string;
+  tier: string;
+  trackLimit: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +63,8 @@ export function AdminDashboard() {
   });
   const [editLoading, setEditLoading] = useState(false);
   const [editSaved, setEditSaved] = useState(false);
+  const [editTier, setEditTier] = useState<"FREE" | "PRO" | "ENTERPRISE">("FREE");
+  const [editTrackLimit, setEditTrackLimit] = useState("");
 
   const fetchCodes = async () => {
     const token = getToken();
@@ -134,6 +138,8 @@ export function AdminDashboard() {
     setEditingUser(u);
     setEditSaved(false);
     setEditLoading(true);
+    setEditTier(u.tier === "PRO" ? "PRO" : u.tier === "ENTERPRISE" ? "ENTERPRISE" : "FREE");
+    setEditTrackLimit(u.trackLimit !== null && u.trackLimit !== undefined ? String(u.trackLimit) : "");
     const token = getToken();
     const res = await fetch(`/api/admin/users/${u.id}/profile`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -186,8 +192,28 @@ export function AdminDashboard() {
         isPublic: editProfile.isPublic,
       }),
     });
+
+    const trackLimitValue = editTrackLimit === "" ? null : Number(editTrackLimit);
+    const userRes = await fetch(`/api/admin/users/${editingUser.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        tier: editTier,
+        trackLimit: trackLimitValue,
+      }),
+    });
+    const userData = await userRes.json();
+
     setEditLoading(false);
     setEditSaved(true);
+    if (userData.success) {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === editingUser.id ? { ...u, tier: userData.data.tier, trackLimit: userData.data.trackLimit } : u))
+      );
+    }
     setTimeout(() => setEditSaved(false), 2000);
   };
 
@@ -368,6 +394,7 @@ export function AdminDashboard() {
                       <th className="pb-3 font-medium">Username</th>
                       <th className="pb-3 font-medium">Email</th>
                       <th className="pb-3 font-medium">Role</th>
+                      <th className="pb-3 font-medium">Tier</th>
                       <th className="pb-3 font-medium">Joined</th>
                       <th className="pb-3 font-medium"></th>
                     </tr>
@@ -382,6 +409,22 @@ export function AdminDashboard() {
                             <span className="text-violet-400 text-xs font-semibold">Admin</span>
                           ) : (
                             <span className="text-zinc-500 text-xs">User</span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <span
+                            className={`text-xs font-semibold ${
+                              u.tier === "PRO"
+                                ? "text-emerald-400"
+                                : u.tier === "ENTERPRISE"
+                                ? "text-amber-400"
+                                : "text-zinc-500"
+                            }`}
+                          >
+                            {u.tier}
+                          </span>
+                          {u.trackLimit !== null && u.trackLimit !== undefined && (
+                            <span className="text-[10px] text-zinc-600 ml-1">({u.trackLimit})</span>
                           )}
                         </td>
                         <td className="py-3 text-zinc-500">
@@ -477,6 +520,34 @@ export function AdminDashboard() {
                       onChange={(e) =>
                         setEditProfile({ ...editProfile, website: e.target.value })
                       }
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Tier</label>
+                    <select
+                      value={editTier}
+                      onChange={(e) => setEditTier(e.target.value as "FREE" | "PRO" | "ENTERPRISE")}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    >
+                      <option value="FREE">Free</option>
+                      <option value="PRO">Pro</option>
+                      <option value="ENTERPRISE">Enterprise</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                      Track Limit <span className="text-zinc-500">(optional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={editTrackLimit}
+                      onChange={(e) => setEditTrackLimit(e.target.value)}
+                      placeholder="Tier default"
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>

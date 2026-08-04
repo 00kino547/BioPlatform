@@ -51,14 +51,28 @@ export function Privacy() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">5. Cookies and Tracking</h2>
             <p className="text-zinc-400">
-              {branding.name} uses essential cookies for authentication and session management. We do not use third-party tracking cookies or analytics services that track you across websites.
+              {branding.name} uses essential cookies for authentication, session management, and analytics. We set a single analytics cookie (<code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">bp_vid</code>) to distinguish unique visitors. This cookie is anonymous — it contains no personal information and is used solely to count unique profile views and link clicks. We do not use third-party tracking cookies or analytics services that track you across websites.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5a. Analytics Data</h2>
+            <p className="text-zinc-400">
+              Profile owners can view aggregated analytics for their public profiles, including total and unique views, link clicks, referrer URLs, and browser types. This data is derived from IP addresses, user-agent strings, and the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">bp_vid</code> cookie. Individual visitor identities are never exposed — analytics are shown only as aggregate counts and trends. All analytics data is retained for 90 days and then automatically deleted.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5b. Third-Party Embedded Content</h2>
+            <p className="text-zinc-400">
+              Profiles may embed music from third-party providers such as Spotify and YouTube. YouTube embeds use the privacy-enhanced <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">youtube-nocookie.com</code> domain, which does not set tracking cookies on your visit. Spotify and other providers set their own cookies in the embedded player; those providers operate under their own privacy policies, which we do not control. We are not responsible for the privacy practices of third-party platforms.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">6. Data Retention</h2>
             <p className="text-zinc-400">
-              We retain your account data for as long as your account is active. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period.
+              We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period.
             </p>
           </section>
 

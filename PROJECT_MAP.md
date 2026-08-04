@@ -11,7 +11,8 @@ apps/backend/src/
 ├── config/env.ts         # Zod-validated env vars
 ├── lib/
 │   ├── prisma.ts         # Prisma client singleton
-│   └── email.ts          # Email service (nodemailer, Gmail preset, custom SMTP)
+│   ├── email.ts          # Email service (nodemailer, Gmail preset, custom SMTP)
+│   └── music.ts          # Track limits per tier, Spotify/YouTube URL parsing → embed URLs, fullUrl parsing
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
 └── routes/
     ├── auth.ts           # Register, login, me, change-password
@@ -19,9 +20,10 @@ apps/backend/src/
 │   ├── profile.ts        # Profile CRUD, avatar/banner upload+delete, public profile, click tracking
     ├── admin.ts          # Admin: list users, update user, reset password, edit profiles
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown)
-    └── email.ts          # Email notification settings (SMTP config, test endpoint)
+    ├── email.ts          # Email notification settings (SMTP config, test endpoint)
+    └── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete)
 apps/backend/prisma/
-├── schema.prisma         # User, Profile (with emailSettings JSON), InviteCode, PageView, LinkClick models
+├── schema.prisma         # User (tier, trackLimit), Profile, InviteCode, PageView, LinkClick, MusicTrack models
 └── seed.ts               # Bootstrap admin + invite codes
 ```
 
@@ -36,7 +38,7 @@ apps/frontend/src/
 ├── contexts/
 │   └── AuthContext.tsx    # Auth state (login, register, logout)
 ├── lib/
-│   ├── api.ts            # API client (auth, profile, upload, analytics, email)
+│   ├── api.ts            # API client (auth, profile, upload, analytics, email, music)
 │   └── utils.ts          # cn() utility
 ├── components/
 │   ├── ui/
@@ -47,6 +49,8 @@ apps/frontend/src/
 │   │   └── PlatformIcon.tsx  # SVG icons for social platforms (11 platforms)
 │   ├── auth/
 │   │   └── ProtectedRoute.tsx # Redirect to /login if unauthenticated
+│   ├── music/
+│   │   └── MusicPlayer.tsx   # Playlist picker + embedded player (local/Spotify/YouTube, full version + Open in Spotify)
 │   ├── layout/
 │   │   ├── Container.tsx     # Max-width container (3 sizes)
 │   │   └── Navbar.tsx        # Sticky navbar, scroll-aware glass
@@ -60,9 +64,9 @@ apps/frontend/src/
 ├── pages/
 │   ├── Login.tsx         # Login form
 │   ├── Register.tsx      # Register form (invite code required)
-│   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance, Analytics, Email tabs)
-│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users tabs, profile editing modal)
-│   ├── PublicProfile.tsx # Themed public profile page (/:username)
+│   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance, Analytics, Email, Music tabs)
+│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users tabs, profile editing modal, tier control)
+│   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)
 │   └── Terms.tsx         # Terms of Service page (/terms)
 ```

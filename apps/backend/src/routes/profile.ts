@@ -3,11 +3,48 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getEnv } from "../config/env.js";
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+  for (const pair of header.split(";")) {
+    const idx = pair.indexOf("=");
+    if (idx === -1) continue;
+    const key = pair.slice(0, idx).trim();
+    const val = pair.slice(idx + 1).trim();
+    if (key) cookies[key] = decodeURIComponent(val);
+  }
+  return cookies;
+}
+
+function getViewerId(req: Request): string | undefined {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return undefined;
+  try {
+    const payload = jwt.verify(header.slice(7), getEnv().JWT_SECRET) as { userId: string };
+    return payload.userId;
+  } catch {
+    return undefined;
+  }
+}
+
+function getVisitorId(req: Request): string {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  const ua = req.headers["user-agent"] || "unknown";
+  const cookies = parseCookies(req.headers.cookie);
+  const bpVid = cookies["bp_vid"] || "";
+  return crypto.createHash("sha256").update(`${ip}|${ua}|${bpVid}`).digest("hex").slice(0, 32);
+}
+
+function getClientIp(req: Request): string {
+  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+}
 
 const router = Router();
 
@@ -80,7 +117,7 @@ function isValidDiscordUsername(value: string): boolean {
       return false;
     }
   }
-  return /^[a-z0-9_.]{2,32}$/.test(value) && !/\.\./.test(value) && !/^\./.test(value) && !/\.$/.test(value);
+  return /^[a-z0-9_.]{2,32}$/i.test(value) && !/\.\./.test(value) && !/^\./.test(value) && !/\.$/.test(value);
 }
 
 function isValidSocialUrl(platform: string, value: string): boolean {
@@ -255,15 +292,7 @@ router.delete("/me/banner", requireAuth, async (req, res) => {
 });
 
 router.get("/:username", async (req, res) => {
-  let viewerId: string | undefined;
-  const header = req.headers.authorization;
-  if (header?.startsWith("Bearer ")) {
-    try {
-      const jwt = await import("jsonwebtoken");
-      const payload = jwt.default.verify(header.slice(7), getEnv().JWT_SECRET) as { userId: string };
-      viewerId = payload.userId;
-    } catch {}
-  }
+  const viewerId = getViewerId(req);
 
   const user = await prisma.user.findUnique({
     where: { username: req.params.username },
@@ -271,7 +300,7 @@ router.get("/:username", async (req, res) => {
       id: true,
       username: true,
       createdAt: true,
-      profile: true,
+      profile: { include: { musicTracks: { orderBy: { position: "asc" } } } },
     },
   });
 
@@ -286,14 +315,50 @@ router.get("/:username", async (req, res) => {
   const profile = user.profile;
 
   if (profile && user.id !== viewerId) {
+    const ip = getClientIp(req);
+    const ua = req.headers["user-agent"] || null;
+    const cookies = parseCookies(req.headers.cookie);
+    const bpVid = cookies["bp_vid"] || crypto.randomBytes(16).toString("hex");
+
+    const visitorId = crypto.createHash("sha256").update(`${ip}|${ua}|${bpVid}`).digest("hex").slice(0, 32);
+
     prisma.pageView.create({
       data: {
         profileId: profile.id,
-        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
-        userAgent: req.headers["user-agent"] || null,
+        ip,
+        userAgent: ua,
+        visitorId,
         referer: (Array.isArray(req.headers["referer"]) ? req.headers["referer"][0] : req.headers["referer"]) ?? (Array.isArray(req.headers["referrer"]) ? req.headers["referrer"][0] : req.headers["referrer"]) ?? null,
       },
     }).catch(() => {});
+
+    if (profile.notifyOnView) {
+      import("../lib/email.js").then(({ isEmailEnabled, sendEmail, buildViewNotification }) => {
+        if (isEmailEnabled()) {
+          prisma.user.findUnique({ where: { id: user.id }, select: { email: true } }).then((owner) => {
+            if (owner?.email) {
+              sendEmail({
+                to: owner.email,
+                subject: `Someone viewed your profile`,
+                html: buildViewNotification({
+                  appName: process.env.SMTP_FROM_NAME || "BioPlatform",
+                  profileUrl: `${process.env.APP_URL || "http://localhost:80"}/${user.username}`,
+                  viewerIp: ip ?? undefined,
+                }),
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
+    const oneYear = 365 * 24 * 60 * 60 * 1000;
+    res.cookie("bp_vid", bpVid, {
+      maxAge: oneYear,
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
   }
 
   res.json({
@@ -312,25 +377,64 @@ router.get("/:username", async (req, res) => {
       socialLinks: profile?.socialLinks ?? null,
       theme: profile?.theme ?? null,
       isPublic: profile?.isPublic ?? true,
+      musicTracks: profile?.musicTracks ?? [],
       updatedAt: profile?.updatedAt ?? user.createdAt,
     },
   });
 });
 
-router.post("/click", requireAuth, async (req, res) => {
+router.post("/click", async (req, res) => {
   const { profileId, platform } = req.body as { profileId?: string; platform?: string };
   if (!profileId || !platform) {
     return res.status(400).json({ success: false, error: "profileId and platform are required" });
   }
 
-  prisma.linkClick.create({
-    data: {
-      profileId,
-      platform,
-      ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
-      userAgent: req.headers["user-agent"] || null,
-    },
-  }).catch(() => {});
+  const viewerId = getViewerId(req);
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId },
+    select: { userId: true, notifyOnClick: true },
+  });
+
+  if (!profile) {
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+
+  if (profile.userId !== viewerId) {
+    const ip = getClientIp(req);
+    const ua = req.headers["user-agent"] || null;
+    const visitorId = getVisitorId(req);
+
+    prisma.linkClick.create({
+      data: {
+        profileId,
+        platform,
+        ip,
+        userAgent: ua,
+        visitorId,
+      },
+    }).catch(() => {});
+
+    if (profile.notifyOnClick) {
+      import("../lib/email.js").then(({ isEmailEnabled, sendEmail, buildClickNotification }) => {
+        if (isEmailEnabled()) {
+          prisma.user.findUnique({ where: { id: profile.userId }, select: { email: true, username: true } }).then((owner) => {
+            if (owner?.email) {
+              sendEmail({
+                to: owner.email,
+                subject: `Someone clicked your ${platform} link`,
+                html: buildClickNotification({
+                  appName: process.env.SMTP_FROM_NAME || "BioPlatform",
+                  platform,
+                  profileUrl: `${process.env.APP_URL || "http://localhost:80"}/${owner.username}`,
+                }),
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }
 
   res.json({ success: true });
 });

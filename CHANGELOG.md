@@ -41,4 +41,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
+## [1.0.1-dev-beta.1] - 2026-08-04
+
+### Added
+- Music player integration: local audio uploads (25MB, MP3/OGG/OPUS/WAV/M4A/FLAC/AAC/WebM) plus Spotify and YouTube embeds
+- Tier-based track limits (FREE: 2, PRO: 5, ENTERPRISE: 10) with admin `trackLimit` override
+- Spotify/YouTube URL parsing to privacy-enhanced embed URLs (no API keys required) — YouTube uses `youtube-nocookie.com`, supports `/shorts/`
+- Music tab in Dashboard (add, edit, reorder, delete, upload)
+- MusicPlayer component on public profiles (below bio, above links)
+- Track reordering via transaction (`POST /music/reorder`)
+- Local file cleanup on track deletion
+- Optional full-version streaming source (`MusicTrack.fullUrl`) with "Play full version" player/button
+- "Open in Spotify" button rendered under Spotify embeds (previews only)
+- Terms of Service section covering creator-supplied full-streaming sources and third-party TOS liability
+- Discord username validation case-insensitive (matches frontend, fixes false "invalid URL or username" save error)
+- Autoplay on all three music providers (local, Spotify, YouTube) for the active track
+- YouTube tracks sorted first in the public music player
+- Privacy Policy section on third-party embedded content (Spotify/YouTube cookies, nocookie embeds)
+
+### Changed
+- Nginx `client_max_body_size` raised from 10M to 25M for audio uploads
+- YouTube embeds use `youtube-nocookie.com` (no third-party cookies on visitors)
+- Analytics dashboard redesigned: larger stat cards, taller gradient bar charts with gridlines, date axis labels, and improved hover tooltips
+
 [1.0.0-beta.1]: https://github.com/00kino547/BioPlatform/releases/tag/v1.0.0-beta.1
+[1.0.1-dev-beta.1]: https://github.com/00kino547/BioPlatform/releases/tag/v1.0.1-dev-beta.1

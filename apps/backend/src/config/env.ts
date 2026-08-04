@@ -9,6 +9,16 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default("7d"),
   STORAGE_PROVIDER: z.enum(["local", "r2", "b2", "s3"]).default("local"),
   LOCAL_STORAGE_PATH: z.string().default("./uploads"),
+  SMTP_ENABLED: z.coerce.boolean().default(false),
+  SMTP_PROVIDER: z.enum(["gmail", "custom"]).default("gmail"),
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  SMTP_FROM_NAME: z.string().default("BioPlatform"),
+  SMTP_FROM_EMAIL: z.string().default(""),
+  ADMIN_EMAIL: z.string().default("admin@bioplatform.com"),
+  ADMIN_PASSWORD: z.string().default("admin123456"),
 });
 
 export type Env = z.infer<typeof envSchema>;

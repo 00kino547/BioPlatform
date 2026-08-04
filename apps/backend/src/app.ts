@@ -8,6 +8,7 @@ import adminRoutes from "./routes/admin.js";
 import profileRoutes from "./routes/profile.js";
 import analyticsRoutes from "./routes/analytics.js";
 import emailRoutes from "./routes/email.js";
+import musicRoutes from "./routes/music.js";
 
 const env = getEnv();
 const app = express();
@@ -28,5 +29,6 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/profiles", profileRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/music", musicRoutes);
 
 export default app;
