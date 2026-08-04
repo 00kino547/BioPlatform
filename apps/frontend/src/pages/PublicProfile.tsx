@@ -12,6 +12,15 @@ import {
 
 const GITHUB_URL = "https://github.com/00kino547/BioPlatform";
 
+function isSafeHref(href: string): boolean {
+  try {
+    const url = new URL(href);
+    return ["http:", "https:", "mailto:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
 function fallbackInitial(name: string) {
   return name.charAt(0).toUpperCase();
 }
@@ -120,7 +129,7 @@ export function PublicProfilePage() {
               {profile.location}
             </span>
           )}
-          {profile.website && (
+          {profile.website && isSafeHref(profile.website) && (
             <a
               href={profile.website}
               target="_blank"
@@ -131,7 +140,7 @@ export function PublicProfilePage() {
               onMouseLeave={(e) => (e.currentTarget.style.color = mutedColor)}
             >
               <Globe className="h-3.5 w-3.5" />
-              {new URL(profile.website).hostname}
+              {new URL(profile.website).hostname || profile.website}
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
@@ -159,12 +168,13 @@ export function PublicProfilePage() {
               const platformLower = link.platform.toLowerCase();
               const isEmail = platformLower === "email";
               const isDiscordUsername = platformLower === "discord" && !/^https?:\/\//i.test(link.url);
-              const isClickable = !isDiscordUsername;
 
               let href = link.url;
               if (isEmail && !link.url.startsWith("mailto:")) {
                 href = `mailto:${link.url}`;
               }
+
+              const isClickable = !isDiscordUsername && isSafeHref(href);
 
               const displayText = isEmail
                 ? link.url.startsWith("mailto:") ? link.url.slice(7) : link.url

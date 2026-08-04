@@ -1,9 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcrypt";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { updateProfileSchema, toPrismaJson } from "../lib/validation.js";
 
 const router = Router();
 
@@ -113,40 +113,6 @@ router.post("/users/:id/reset-password", async (req: Request<{ id: string }>, re
 
   res.json({ success: true, message: "Password reset successfully" });
 });
-
-const updateProfileSchema = z.object({
-  displayName: z.string().max(64).nullable().optional(),
-  bio: z.string().max(500).nullable().optional(),
-  location: z.string().max(100).nullable().optional(),
-  website: z.string().url().max(256).nullable().optional(),
-  socialLinks: z
-    .array(
-      z.object({
-        platform: z.string().max(32),
-        url: z.string().url().max(256),
-      })
-    )
-    .max(10)
-    .nullable()
-    .optional(),
-  theme: z
-    .object({
-      bg: z.string().optional(),
-      cardBg: z.string().optional(),
-      text: z.string().optional(),
-      accent: z.string().optional(),
-      fontFamily: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-  isPublic: z.boolean().optional(),
-});
-
-function toPrismaJson(val: unknown) {
-  if (val === null) return Prisma.JsonNull;
-  if (val === undefined) return undefined;
-  return val as Prisma.InputJsonValue;
-}
 
 router.get("/users/:id/profile", async (req: Request<{ id: string }>, res) => {
   const user = await prisma.user.findUnique({

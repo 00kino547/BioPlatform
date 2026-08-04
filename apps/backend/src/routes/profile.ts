@@ -4,11 +4,10 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { Prisma } from "@prisma/client";
-import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getEnv } from "../config/env.js";
+import { ALLOWED_PLATFORMS, updateProfileSchema, toPrismaJson } from "../lib/validation.js";
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -18,7 +17,12 @@ function parseCookies(header: string | undefined): Record<string, string> {
     if (idx === -1) continue;
     const key = pair.slice(0, idx).trim();
     const val = pair.slice(idx + 1).trim();
-    if (key) cookies[key] = decodeURIComponent(val);
+    if (!key) continue;
+    try {
+      cookies[key] = decodeURIComponent(val);
+    } catch {
+      cookies[key] = val;
+    }
   }
   return cookies;
 }
@@ -52,15 +56,6 @@ const uploadsDir = path.resolve(getEnv().LOCAL_STORAGE_PATH);
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const ALLOWED_EXTS = new Set([".jpeg", ".jpg", ".png", ".gif", ".webp"]);
-
-const ALLOWED_PLATFORMS = new Set([
-  "twitter", "x", "github", "youtube", "twitch", "discord",
-  "tiktok", "instagram", "facebook", "linkedin", "spotify", "email",
-]);
-
-function stripHtml(input: string): string {
-  return input.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim();
-}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -101,79 +96,6 @@ function handleUpload(field: string) {
       next();
     });
   };
-}
-
-function isValidDiscordUsername(value: string): boolean {
-  if (/^https?:\/\//i.test(value)) {
-    try {
-      const url = new URL(value);
-      const h = url.hostname.toLowerCase();
-      return (
-        (h === "discord.gg" || h.endsWith(".discord.gg") || h === "discord.com" || h === "discordapp.com") &&
-        /^\/invite\/.+/.test(url.pathname) ||
-        (h === "discord.gg" && /^\/.+/.test(url.pathname) && !url.pathname.startsWith("/invite"))
-      );
-    } catch {
-      return false;
-    }
-  }
-  return /^[a-z0-9_.]{2,32}$/i.test(value) && !/\.\./.test(value) && !/^\./.test(value) && !/\.$/.test(value);
-}
-
-function isValidSocialUrl(platform: string, value: string): boolean {
-  if (platform.toLowerCase() === "email") {
-    const v = value.startsWith("mailto:") ? value.slice(7) : value;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) && v.length <= 256;
-  }
-  if (platform.toLowerCase() === "discord") {
-    return isValidDiscordUsername(value);
-  }
-  try {
-    const url = new URL(value);
-    return ["http:", "https:", "mailto:"].includes(url.protocol) && value.length <= 256;
-  } catch {
-    return false;
-  }
-}
-
-const updateProfileSchema = z.object({
-  displayName: z.string().max(64).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
-  bio: z.string().max(500).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
-  location: z.string().max(100).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
-  website: z.string().url().max(256).nullable().optional(),
-  socialLinks: z
-    .array(
-      z.object({
-        platform: z.string().max(32).refine((p) => ALLOWED_PLATFORMS.has(p.toLowerCase()), {
-          message: "Unsupported platform",
-        }),
-        url: z.string().max(256).transform((v) => stripHtml(v)),
-      })
-    )
-    .max(10)
-    .nullable()
-    .optional()
-    .refine(
-      (links) => !links || links.every((l) => isValidSocialUrl(l.platform, l.url)),
-      { message: "One or more links have an invalid URL or username" }
-    ),
-  theme: z
-    .object({
-      bg: z.string().optional(),
-      cardBg: z.string().optional(),
-      text: z.string().optional(),
-      accent: z.string().optional(),
-      fontFamily: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-  isPublic: z.boolean().optional(),
-});
-
-function toPrismaJson(val: unknown) {
-  if (val === null) return Prisma.JsonNull;
-  if (val === undefined) return undefined;
-  return val as Prisma.InputJsonValue;
 }
 
 router.get("/me", requireAuth, async (req, res) => {
@@ -389,6 +311,11 @@ router.post("/click", async (req, res) => {
     return res.status(400).json({ success: false, error: "profileId and platform are required" });
   }
 
+  const platformLower = String(platform).toLowerCase();
+  if (!ALLOWED_PLATFORMS.has(platformLower)) {
+    return res.status(400).json({ success: false, error: "Unsupported platform" });
+  }
+
   const viewerId = getViewerId(req);
 
   const profile = await prisma.profile.findUnique({
@@ -408,7 +335,7 @@ router.post("/click", async (req, res) => {
     prisma.linkClick.create({
       data: {
         profileId,
-        platform,
+        platform: platformLower,
         ip,
         userAgent: ua,
         visitorId,

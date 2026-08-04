@@ -8,6 +8,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getEnv } from "../config/env.js";
 import { ALLOWED_PROVIDERS, getTrackLimit, parseMusicUrl, parseFullUrl } from "../lib/music.js";
+import { stripHtml } from "../lib/validation.js";
 import type { UserTier } from "@prisma/client";
 
 const router = Router();
@@ -60,17 +61,17 @@ const addTrackSchema = z.object({
   provider: z.string().refine((p) => ALLOWED_PROVIDERS.has(p.toLowerCase()), {
     message: "Unsupported music provider",
   }),
-  title: z.string().max(120).optional().transform((v) => (v ? v.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim() : v)),
-  artist: z.string().max(120).optional().transform((v) => (v ? v.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim() : v)),
+  title: z.string().max(120).optional().transform((v) => (v ? stripHtml(v) : v)),
+  artist: z.string().max(120).optional().transform((v) => (v ? stripHtml(v) : v)),
   url: z.string().max(512).optional(),
-  fullUrl: z.string().max(512).optional().transform((v) => (v ? v.replace(/[<>{}]/g, "").trim() : v)),
+  fullUrl: z.string().max(512).optional().transform((v) => (v ? stripHtml(v) : v)),
 });
 
 const updateTrackSchema = z.object({
-  title: z.string().max(120).optional().transform((v) => (v ? v.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim() : v)),
-  artist: z.string().max(120).optional().transform((v) => (v ? v.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim() : v)),
+  title: z.string().max(120).optional().transform((v) => (v ? stripHtml(v) : v)),
+  artist: z.string().max(120).optional().transform((v) => (v ? stripHtml(v) : v)),
   position: z.number().int().min(0).optional(),
-  fullUrl: z.string().max(512).nullable().optional().transform((v) => (v ? v.replace(/[<>{}]/g, "").trim() : v)),
+  fullUrl: z.string().max(512).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
 });
 
 const reorderSchema = z.object({
@@ -141,7 +142,13 @@ router.post("/me", requireAuth, async (req, res) => {
 
   let urlValue: string | null = null;
   if (providerLower === "local") {
-    urlValue = url ?? null;
+    if (url) {
+      const parsedUrl = parseFullUrl(url);
+      if (!parsedUrl) {
+        return res.status(400).json({ success: false, error: "Invalid track URL" });
+      }
+      urlValue = parsedUrl.embedUrl;
+    }
   } else {
     if (!url) {
       return res.status(400).json({ success: false, error: `A valid ${provider} URL is required` });
@@ -203,8 +210,8 @@ router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
   const rawTitle = typeof req.body.title === "string" ? req.body.title : undefined;
   const rawArtist = typeof req.body.artist === "string" ? req.body.artist : undefined;
   const rawFullUrl = typeof req.body.fullUrl === "string" ? req.body.fullUrl : undefined;
-  const title = rawTitle?.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim() || null;
-  const artist = rawArtist?.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim() || null;
+  const title = rawTitle ? stripHtml(rawTitle) || null : null;
+  const artist = rawArtist ? stripHtml(rawArtist) || null : null;
   let fullUrlValue: string | null = null;
   if (rawFullUrl) {
     const parsedFull = parseFullUrl(rawFullUrl.replace(/[<>{}]/g, "").trim());

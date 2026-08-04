@@ -1,6 +1,15 @@
 import nodemailer from "nodemailer";
 import { getEnv } from "../config/env.js";
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 let _transporter: nodemailer.Transporter | null = null;
 
 function getTransporter(): nodemailer.Transporter {
@@ -124,7 +133,7 @@ export function buildViewNotification(opts: {
         <div style="padding:24px;">
           <h2 style="color:#e4e4e7;font-size:16px;margin:0 0 12px;">New Profile View</h2>
           <p style="color:#a1a1aa;font-size:14px;line-height:1.6;margin:0 0 20px;">
-            Someone viewed your profile${opts.viewerIp ? ` from <code style="background:#27272a;padding:2px 6px;border-radius:4px;font-size:12px;">${opts.viewerIp}</code>` : ""}.
+            Someone viewed your profile${opts.viewerIp ? ` from <code style="background:#27272a;padding:2px 6px;border-radius:4px;font-size:12px;">${escapeHtml(opts.viewerIp)}</code>` : ""}.
           </p>
           <a href="${opts.profileUrl}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:500;">View Profile</a>
         </div>
@@ -154,7 +163,7 @@ export function buildClickNotification(opts: {
         <div style="padding:24px;">
           <h2 style="color:#e4e4e7;font-size:16px;margin:0 0 12px;">New Link Click</h2>
           <p style="color:#a1a1aa;font-size:14px;line-height:1.6;margin:0 0 20px;">
-            Someone clicked your <strong style="color:#e4e4e7;">${opts.platform}</strong> link.
+            Someone clicked your <strong style="color:#e4e4e7;">${escapeHtml(opts.platform)}</strong> link.
           </p>
           <a href="${opts.profileUrl}" style="display:inline-block;background:#22c55e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:500;">View Profile</a>
         </div>
