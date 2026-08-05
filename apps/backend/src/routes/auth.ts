@@ -127,6 +127,7 @@ router.post("/register", async (req, res) => {
   }
 
   const { username, email, password, inviteCode } = parsed.data;
+  const normalizedEmail = email.toLowerCase();
 
   const code = await prisma.inviteCode.findUnique({
     where: { code: inviteCode },
@@ -149,45 +150,58 @@ router.post("/register", async (req, res) => {
   }
 
   const existingUser = await prisma.user.findFirst({
-    where: { OR: [{ email }, { username }] },
+    where: { OR: [{ email: normalizedEmail }, { username }] },
   });
 
   if (existingUser) {
-    const field = existingUser.email === email ? "email" : "username";
+    const field = existingUser.email === normalizedEmail ? "email" : "username";
     return res.status(409).json({ success: false, error: `Username or ${field} already taken` });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const u = await tx.user.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-        registeredIp: req.authFingerprint?.ip ?? null,
-      },
+  try {
+    const user = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          username,
+          email: normalizedEmail,
+          passwordHash,
+          registeredIp: req.authFingerprint?.ip ?? null,
+        },
+      });
+
+      await tx.profile.create({
+        data: { userId: u.id },
+      });
+
+      const consumed = await tx.inviteCode.updateMany({
+        where: { id: code.id, usedById: null, revokedAt: null },
+        data: { usedById: u.id, usedAt: new Date() },
+      });
+      if (consumed.count !== 1) {
+        throw new Error("INVITE_ALREADY_USED");
+      }
+
+      return u;
     });
 
-    await tx.profile.create({
-      data: { userId: u.id },
+    const env = getEnv();
+    const token = signToken(user.id, env.JWT_EXPIRES_IN);
+
+    res.status(201).json({
+      success: true,
+      data: { token, user: userPublic(user) },
     });
-
-    await tx.inviteCode.update({
-      where: { id: code.id },
-      data: { usedById: u.id, usedAt: new Date() },
-    });
-
-    return u;
-  });
-
-  const env = getEnv();
-  const token = signToken(user.id, env.JWT_EXPIRES_IN);
-
-  res.status(201).json({
-    success: true,
-    data: { token, user: userPublic(user) },
-  });
+  } catch (err) {
+    if (err instanceof Error && err.message === "INVITE_ALREADY_USED") {
+      return res.status(409).json({ success: false, error: "Invite code already used" });
+    }
+    if (err instanceof Error && "code" in err && err.code === "P2002") {
+      return res.status(409).json({ success: false, error: "Username or email already taken" });
+    }
+    throw err;
+  }
 });
 
 router.post("/login/start", async (req, res) => {

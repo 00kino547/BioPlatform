@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getEnv } from "../config/env.js";
-import { ALLOWED_PLATFORMS, updateProfileSchema, toPrismaJson } from "../lib/validation.js";
+import { ALLOWED_PLATFORMS, updateProfileSchema, toPrismaJson, stripHtml } from "../lib/validation.js";
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -39,7 +39,7 @@ function getViewerId(req: Request): string | undefined {
 }
 
 function getVisitorId(req: Request): string {
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  const ip = req.ip ?? "unknown";
   const ua = req.headers["user-agent"] || "unknown";
   const cookies = parseCookies(req.headers.cookie);
   const bpVid = cookies["bp_vid"] || "";
@@ -47,8 +47,38 @@ function getVisitorId(req: Request): string {
 }
 
 function getClientIp(req: Request): string {
-  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  return req.ip ?? "unknown";
 }
+
+const PUBLIC_LIMIT_MAX = 60;
+const PUBLIC_LIMIT_WINDOW_MS = 60 * 1000;
+const publicHits = new Map<string, number[]>();
+
+function publicRateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip ?? "unknown";
+  const now = Date.now();
+  const cutoff = now - PUBLIC_LIMIT_WINDOW_MS;
+  const hits = (publicHits.get(ip) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= PUBLIC_LIMIT_MAX) {
+    publicHits.set(ip, hits);
+    return res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
+  }
+  hits.push(now);
+  publicHits.set(ip, hits);
+  next();
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - PUBLIC_LIMIT_WINDOW_MS;
+  for (const [ip, hits] of publicHits) {
+    const remaining = hits.filter((t) => t > cutoff);
+    if (remaining.length === 0) {
+      publicHits.delete(ip);
+    } else {
+      publicHits.set(ip, remaining);
+    }
+  }
+}, PUBLIC_LIMIT_WINDOW_MS);
 
 const router = Router();
 
@@ -213,7 +243,7 @@ router.delete("/me/banner", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.get("/:username", async (req, res) => {
+router.get("/:username", publicRateLimit, async (req: Request<{ username: string }>, res) => {
   const viewerId = getViewerId(req);
 
   const user = await prisma.user.findUnique({
@@ -241,6 +271,11 @@ router.get("/:username", async (req, res) => {
     const ua = req.headers["user-agent"] || null;
     const cookies = parseCookies(req.headers.cookie);
     const bpVid = cookies["bp_vid"] || crypto.randomBytes(16).toString("hex");
+    const rawReferer =
+      (Array.isArray(req.headers["referer"]) ? req.headers["referer"][0] : req.headers["referer"]) ??
+      (Array.isArray(req.headers["referrer"]) ? req.headers["referrer"][0] : req.headers["referrer"]) ??
+      null;
+    const referer = rawReferer ? stripHtml(rawReferer) || null : null;
 
     const visitorId = crypto.createHash("sha256").update(`${ip}|${ua}|${bpVid}`).digest("hex").slice(0, 32);
 
@@ -250,7 +285,7 @@ router.get("/:username", async (req, res) => {
         ip,
         userAgent: ua,
         visitorId,
-        referer: (Array.isArray(req.headers["referer"]) ? req.headers["referer"][0] : req.headers["referer"]) ?? (Array.isArray(req.headers["referrer"]) ? req.headers["referrer"][0] : req.headers["referrer"]) ?? null,
+        referer,
       },
     }).catch(() => {});
 
@@ -305,7 +340,7 @@ router.get("/:username", async (req, res) => {
   });
 });
 
-router.post("/click", async (req, res) => {
+router.post("/click", publicRateLimit, async (req, res) => {
   const { profileId, platform } = req.body as { profileId?: string; platform?: string };
   if (!profileId || !platform) {
     return res.status(400).json({ success: false, error: "profileId and platform are required" });

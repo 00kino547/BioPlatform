@@ -31,6 +31,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TOTP codes verified server-side with a ±30 second window
 - Passkey public keys stored base64url-encoded; counters updated after every authentication
 - Successful auth resets failure counters and records the last-login IP; registration records the registered IP
+- Seed admin credentials now come from `ADMIN_EMAIL` / `ADMIN_USERNAME` / `ADMIN_PASSWORD` (validated, refuses weak defaults) instead of a hardcoded `admin123456` account
+- Invite-code creation is admin-only (`POST /api/invites` now requires `requireAdmin`), closing the invite-gate bypass
+- Public profile view + click tracking rate-limited per IP (60 req/min) to prevent email-bombing and analytics flooding
+- Registration consumes invite codes atomically and normalizes emails to lowercase — closes a double-use race and case-variant duplicate accounts
+- Profile analytics use the trusted `req.ip` and sanitize the `Referer` header before storage
+- Nginx hardening: `Content-Security-Policy`, `Permissions-Policy`, `server_tokens off`
+
+### Changed
+- `ADMIN_USERNAME` environment variable added (seed only); `ADMIN_PASSWORD` must be ≥ 12 chars and not the known default
+- PostgreSQL port in `docker-compose.yml` bound to loopback only (`127.0.0.1:5432:5432`)
 
 ## [1.0.1-dev-beta.2] - 2026-08-04
 

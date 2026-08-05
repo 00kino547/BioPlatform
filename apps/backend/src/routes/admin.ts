@@ -1,23 +1,16 @@
-import { Router, type Request, type Response, type NextFunction } from "express";
+import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin } from "../middleware/admin.js";
 import { updateProfileSchema, toPrismaJson } from "../lib/validation.js";
 
 const router = Router();
 
-async function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
-  if (!user || user.role !== "ADMIN") {
-    return res.status(403).json({ success: false, error: "Admin access required" });
-  }
-  next();
-}
-
 const updateUserSchema = z.object({
   username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/).optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().transform((v) => v.toLowerCase()).optional(),
   role: z.enum(["USER", "ADMIN"]).optional(),
   tier: z.enum(["FREE", "PRO", "ENTERPRISE"]).optional(),
   trackLimit: z.number().int().min(0).max(100).nullable().optional(),
