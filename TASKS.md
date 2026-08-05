@@ -97,3 +97,5 @@
 - [x] WebAuthn passkeys (passwordless login + passkey as 2FA, resident/non-resident choice, Security tab management, server-side challenge store)
 - [x] Multi-step login flow (username/email → passwordless or password → TOTP/passkey 2FA)
 - [x] Anti-brute-force auth rate limiting (fingerprint 2-of-3 blocks, per-account lockouts, escalation tiers, permanent bans, trusted-IP cap, admin unban panel)
+- [x] Configurable auth lock policy (AUTH_LOCK_POLICY: block / trusted_ip / email with email unlock link) and lock duration (AUTH_LOCK_DURATION_MINUTES, -1 = permanent)
+- [x] Auth log table + admin Logs tab (failed attempts, reason, penalty, trigger) with cron cleanup of expired/retention-aged entries

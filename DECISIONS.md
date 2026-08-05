@@ -218,15 +218,21 @@
 - Disabling requires the current code
 - Secret is a Base32 string generated with `otplib`; QR encodes a standard `otpauth://totp/{rpName}:{username}` URI
 
-## Auth anti-brute-force: fingerprint + account escalation
+## Auth anti-brute-force: fingerprint + account locking
 
 - Three fingerprints per request: client IP (`req.ip` with `TRUST_PROXY`), a server-signed HttpOnly cookie (`bio_sid`, random UUID, sha256-hashed in the DB), and the User-Agent header
 - **2-of-3 rule:** a request is blocked only when ≥2 of its 3 fingerprints are locked or permanently banned — a single banned fingerprint is allowed through (protects CG-NAT users and shared browsers)
-- **Escalation tiers (per fingerprint and per account):** 3 failed attempts are free; failures 4–5 add +10 min each; failures 6–10 add +1h each on top; the 11th failure is a permanent blacklist
-- Failures are counted only on *responses*: a locked request is rejected before the route runs, so counters climb only as lockouts expire (an attacker must persist for hours to reach a permanent ban)
-- A successful auth (token issued, or password verified into the 2FA step) resets the fingerprint and account counters; success also records `User.lastLoginIp`
+- **Free attempts:** 3 failed attempts per fingerprint and per account are free; the 4th failure applies the lock
+- **Lock duration is uniform and configurable:** `AUTH_LOCK_DURATION_MINUTES` (default `-1` = permanent). There are no escalating tiers — a lock is either permanent or lasts exactly the configured duration; `-1` means a lock persists until a successful auth, an email unlock, or an admin unban
+- Failures are counted only on *responses*: a locked request is rejected before the route runs, so counters climb only as lockouts expire
+- A successful auth (token issued, or password verified into the 2FA step) resets the fingerprint and account counters and deletes the account's failed auth-log entries; success also records `User.lastLoginIp`
 - `User.registeredIp` is captured at registration
-- **Trusted-IP cap:** when the failing IP equals the account's `registeredIp` or `lastLoginIp`, the account lockout is capped at 1h and can never become permanent — protection is never disabled, but a user who simply keeps mistyping their password can't permanently lock their own account (or let an attacker DoS the account via its own IP)
+- **Account lock policy (`AUTH_LOCK_POLICY`)** decides how a locked account can be used again:
+  - `block` — a locked account rejects every sign-in attempt until the lock ends or an admin unbans
+  - `trusted_ip` (default) — the account's `registeredIp` or `lastLoginIp` can still sign in **without** unlocking; a successful trusted-IP sign-in clears the lock, so a user who mistypes their password repeatedly can't permanently lock themselves out (and an attacker can't DoS the account from its own IP)
+  - `email` — a locked account can only be recovered via a signed unlock link emailed to the account address (`POST /auth/unlock` → email → `POST /auth/unlock/verify`); requires SMTP, and trusted IPs provide no bypass (strongest protection)
+- **Auth log:** every rejected/failed attempt is recorded in `AuthLog` (timestamp, username, IP, hashed User-Agent, cookie fingerprint, reason, penalty minutes / permanent, trigger) and surfaced in the admin panel
+- **Storage hygiene:** successful auth deletes the account's failed entries immediately; a background job prunes expired (`expiresAt < now`) and retention-aged entries on `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` — the middleware never computes expiry on request
 - **App-level enforcement:** bans live in the `AuthBan` table and are enforced in the API layer (403 for permanent, 429 + `Retry-After` for temporary) — no host firewall/iptables, since the backend is a Docker container; only admins can unban via the admin panel
 - The rate limiter fails **open** on DB errors so an outage can never lock everyone out
-- Block messages are generic and identical regardless of the reason, avoiding account-enumeration feedback
+- Block messages are generic and identical regardless of the reason, avoiding account-enumeration feedback; `/unlock` also returns success for unknown accounts so it can't be used to probe for valid usernames

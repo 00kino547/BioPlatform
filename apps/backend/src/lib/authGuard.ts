@@ -7,10 +7,6 @@ import { getEnv } from "../config/env.js";
 export const AUTH_COOKIE = "bio_sid";
 
 export const MAX_FREE_ATTEMPTS = 3;
-export const PERMANENT_AFTER_FAILS = 10;
-export const LOCKOUT_STEP_MS = 10 * 60 * 1000;
-export const LOCKOUT_HOUR_STEP_MS = 60 * 60 * 1000;
-export const TRUSTED_IP_MAX_LOCKOUT_MS = 60 * 60 * 1000;
 export const AUTH_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type FingerprintKind = "IP" | "COOKIE" | "UA" | "ACCOUNT";
@@ -24,6 +20,20 @@ export interface Fingerprint {
 export interface BlockResult {
   permanent: boolean;
   retryAfterSeconds: number | null;
+  failCount: number;
+}
+
+export interface PenaltyInfo {
+  permanent: boolean;
+  penaltyMinutes: number | null;
+  expiresAt: Date | null;
+  failCount: number;
+}
+
+export interface AuthAccount {
+  id: string;
+  username: string | null;
+  trustedIp: boolean;
 }
 
 declare global {
@@ -76,16 +86,14 @@ export function fingerprintFromRequest(req: Request, res: Response): Fingerprint
   return { ip, cookie: sha256(value), userAgent };
 }
 
-export function lockoutDuration(failCount: number): number | null {
-  if (failCount <= MAX_FREE_ATTEMPTS) return 0;
-  if (failCount > PERMANENT_AFTER_FAILS) return null;
-  const extra = failCount - MAX_FREE_ATTEMPTS;
-  const stepTen = Math.min(extra, 2) * LOCKOUT_STEP_MS;
-  const stepHour = Math.max(extra - 2, 0) * LOCKOUT_HOUR_STEP_MS;
-  return stepTen + stepHour;
+function lockDurationMs(): number | null {
+  const minutes = getEnv().AUTH_LOCK_DURATION_MINUTES;
+  if (minutes <= 0) return null;
+  return minutes * 60 * 1000;
 }
 
 interface BlockRow {
+  failCount: number;
   permanent: boolean;
   lockedUntil: Date | null;
 }
@@ -109,54 +117,58 @@ function retryAfterSeconds(rows: BlockRow[]): number | null {
 async function applyLockout(
   kind: FingerprintKind,
   value: string,
-  failCount: number,
-  capMs?: number
-): Promise<void> {
-  let duration = lockoutDuration(failCount);
+  failCount: number
+): Promise<PenaltyInfo> {
   let permanent = false;
+  let lockedUntil: Date | null = null;
 
-  if (duration === null) {
-    if (capMs) {
-      permanent = false;
-      duration = capMs;
-    } else {
+  if (failCount > MAX_FREE_ATTEMPTS) {
+    const durationMs = lockDurationMs();
+    if (durationMs === null) {
       permanent = true;
+    } else {
+      lockedUntil = new Date(Date.now() + durationMs);
     }
-  } else if (capMs) {
-    duration = Math.min(duration, capMs);
   }
-
-  const finalDuration = duration ?? 0;
-  const lockedUntil = permanent ? null : finalDuration > 0 ? new Date(Date.now() + finalDuration) : null;
 
   await prisma.authBan.upsert({
     where: { kind_value: { kind, value } },
     update: { failCount, permanent, lockedUntil },
     create: { kind, value, failCount, permanent, lockedUntil },
   });
+
+  const locked = failCount > MAX_FREE_ATTEMPTS;
+  return {
+    permanent,
+    penaltyMinutes: locked && !permanent ? getEnv().AUTH_LOCK_DURATION_MINUTES : null,
+    expiresAt: lockedUntil,
+    failCount,
+  };
 }
 
 export async function recordFailure(
   fingerprint: Fingerprint,
-  account?: { id: string; trustedIp: boolean } | null
-): Promise<void> {
+  account?: AuthAccount | null
+): Promise<PenaltyInfo[]> {
   const [ipCount, cookieCount, uaCount] = await Promise.all([
     prisma.authBan.findUnique({ where: { kind_value: { kind: "IP", value: fingerprint.ip } } }),
     prisma.authBan.findUnique({ where: { kind_value: { kind: "COOKIE", value: fingerprint.cookie } } }),
     prisma.authBan.findUnique({ where: { kind_value: { kind: "UA", value: fingerprint.userAgent } } }),
   ]);
 
-  await applyLockout("IP", fingerprint.ip, (ipCount?.failCount ?? 0) + 1);
-  await applyLockout("COOKIE", fingerprint.cookie, (cookieCount?.failCount ?? 0) + 1);
-  await applyLockout("UA", fingerprint.userAgent, (uaCount?.failCount ?? 0) + 1);
+  const penalties: PenaltyInfo[] = [];
+  penalties.push(await applyLockout("IP", fingerprint.ip, (ipCount?.failCount ?? 0) + 1));
+  penalties.push(await applyLockout("COOKIE", fingerprint.cookie, (cookieCount?.failCount ?? 0) + 1));
+  penalties.push(await applyLockout("UA", fingerprint.userAgent, (uaCount?.failCount ?? 0) + 1));
 
   if (account) {
     const existing = await prisma.authBan.findUnique({
       where: { kind_value: { kind: "ACCOUNT", value: account.id } },
     });
-    const failCount = (existing?.failCount ?? 0) + 1;
-    await applyLockout("ACCOUNT", account.id, failCount, account.trustedIp ? TRUSTED_IP_MAX_LOCKOUT_MS : undefined);
+    penalties.push(await applyLockout("ACCOUNT", account.id, (existing?.failCount ?? 0) + 1));
   }
+
+  return penalties;
 }
 
 export async function recordSuccess(fingerprint: Fingerprint, accountId?: string | null): Promise<void> {
@@ -173,6 +185,9 @@ export async function recordSuccess(fingerprint: Fingerprint, accountId?: string
     await prisma.user.update({
       where: { id: accountId },
       data: { lastLoginIp: fingerprint.ip },
+    });
+    await prisma.authLog.deleteMany({
+      where: { accountId, kind: "login_failed" },
     });
   }
 }
@@ -194,6 +209,7 @@ export async function fingerprintBlock(fingerprint: Fingerprint): Promise<BlockR
   return {
     permanent: blocked.some((row) => row.permanent),
     retryAfterSeconds: retryAfterSeconds(blocked),
+    failCount: Math.max(...rows.map((row) => row.failCount), 0),
   };
 }
 
@@ -207,13 +223,39 @@ export async function accountBlock(accountId: string): Promise<BlockResult | nul
   return {
     permanent: row.permanent,
     retryAfterSeconds: row.permanent ? null : row.lockedUntil ? Math.max(1, Math.ceil((row.lockedUntil.getTime() - Date.now()) / 1000)) : null,
+    failCount: row.failCount,
   };
+}
+
+export async function logAuthFailure(input: {
+  fingerprint: Fingerprint;
+  username: string | null;
+  accountId: string | null;
+  reason: string;
+  penalty?: PenaltyInfo | null;
+}): Promise<void> {
+  await prisma.authLog.create({
+    data: {
+      kind: "login_failed",
+      username: input.username,
+      accountId: input.accountId,
+      ip: input.fingerprint.ip,
+      userAgentHash: sha256(input.fingerprint.userAgent),
+      fingerprint: input.fingerprint.cookie,
+      reason: input.reason,
+      penaltyMinutes: input.penalty?.penaltyMinutes ?? null,
+      permanent: input.penalty?.permanent ?? false,
+      triggeredBy: input.penalty && input.penalty.failCount > MAX_FREE_ATTEMPTS ? `${input.penalty.failCount} failed attempts` : null,
+      expiresAt: input.penalty?.expiresAt ?? null,
+    },
+  });
 }
 
 async function findUserByIdentifier(identifier: string) {
   const lower = identifier.toLowerCase();
   return prisma.user.findFirst({
     where: { OR: [{ email: lower }, { username: lower }] },
+    select: { id: true, username: true, email: true, registeredIp: true, lastLoginIp: true },
   });
 }
 
@@ -231,8 +273,8 @@ export async function resolveAuthAccount(
   path: string,
   body: Record<string, unknown> | undefined,
   ip: string
-): Promise<{ id: string; trustedIp: boolean } | null> {
-  let user: { id: string; registeredIp: string | null; lastLoginIp: string | null } | null = null;
+): Promise<AuthAccount | null> {
+  let user: { id: string; username: string; registeredIp: string | null; lastLoginIp: string | null } | null = null;
 
   if (path.startsWith("/2fa")) {
     const token = typeof body?.token === "string" ? body.token : "";
@@ -240,7 +282,7 @@ export async function resolveAuthAccount(
     if (account) {
       user = await prisma.user.findUnique({
         where: { id: account.id },
-        select: { id: true, registeredIp: true, lastLoginIp: true },
+        select: { id: true, username: true, registeredIp: true, lastLoginIp: true },
       });
     }
   } else if (typeof body?.identifier === "string") {
@@ -251,6 +293,24 @@ export async function resolveAuthAccount(
 
   return {
     id: user.id,
+    username: user.username,
     trustedIp: user.registeredIp === ip || user.lastLoginIp === ip,
   };
+}
+
+export function penaltyFromBlock(block: BlockResult): PenaltyInfo {
+  return {
+    permanent: block.permanent,
+    penaltyMinutes: block.permanent ? null : block.retryAfterSeconds ? Math.ceil(block.retryAfterSeconds / 60) : null,
+    expiresAt: block.permanent ? null : new Date(Date.now() + (block.retryAfterSeconds ?? 0) * 1000),
+    failCount: block.failCount,
+  };
+}
+
+export function pickWorstPenalty(penalties: PenaltyInfo[]): PenaltyInfo | null {
+  const locked = penalties.filter((p) => p.permanent || p.penaltyMinutes !== null);
+  if (locked.length === 0) return null;
+  const permanent = locked.some((p) => p.permanent);
+  const last = locked[locked.length - 1];
+  return { permanent, penaltyMinutes: last.penaltyMinutes, expiresAt: last.expiresAt, failCount: last.failCount };
 }

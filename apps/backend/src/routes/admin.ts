@@ -200,4 +200,16 @@ router.delete("/auth-bans/:id", async (req: Request<{ id: string }>, res) => {
   res.json({ success: true });
 });
 
+router.get("/auth-logs", async (req: Request, res) => {
+  const requested = Number(req.query.limit) || 100;
+  const limit = Math.min(Math.max(requested, 1), 500);
+
+  const logs = await prisma.authLog.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  res.json({ success: true, data: logs });
+});
+
 export default router;

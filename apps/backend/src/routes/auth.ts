@@ -14,6 +14,7 @@ import {
   verifyRegister,
 } from "../lib/webauthn.js";
 import { authRateLimit } from "../middleware/rateLimit.js";
+import { isEmailEnabled, sendEmail, buildUnlockEmail } from "../lib/email.js";
 
 const router = Router();
 
@@ -618,6 +619,90 @@ router.post("/change-password", requireAuth, async (req, res) => {
   });
 
   res.json({ success: true, message: "Password changed successfully" });
+});
+
+const unlockRequestSchema = z.object({
+  identifier: z.string().min(1).max(128),
+});
+
+const unlockVerifySchema = z.object({
+  token: z.string().min(1),
+});
+
+router.post("/unlock", async (req, res) => {
+  if (getEnv().AUTH_LOCK_POLICY !== "email") {
+    return res.status(400).json({ success: false, error: "Email unlock is not enabled" });
+  }
+
+  if (!isEmailEnabled()) {
+    return res.status(503).json({ success: false, error: "Email is not configured" });
+  }
+
+  const parsed = unlockRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await findUserByIdentifier(parsed.data.identifier);
+  if (!user) {
+    return res.json({ success: true, data: { sent: false } });
+  }
+
+  const ban = await prisma.authBan.findUnique({
+    where: { kind_value: { kind: "ACCOUNT", value: user.id } },
+  });
+  if (!ban || !(ban.permanent || (ban.lockedUntil && ban.lockedUntil > new Date()))) {
+    return res.json({ success: true, data: { sent: false } });
+  }
+
+  const token = jwt.sign({ userId: user.id, purpose: "unlock" }, getEnv().JWT_SECRET, {
+    expiresIn: `${getEnv().AUTH_UNLOCK_TOKEN_TTL_MINUTES}m`,
+  });
+  const unlockUrl = `${getEnv().CORS_ORIGIN}/unlock?token=${encodeURIComponent(token)}`;
+
+  const result = await sendEmail({
+    to: user.email,
+    subject: `Unlock your ${getEnv().SMTP_FROM_NAME} account`,
+    html: buildUnlockEmail({
+      appName: getEnv().SMTP_FROM_NAME,
+      username: user.username,
+      unlockUrl,
+    }),
+  });
+
+  if (!result.success) {
+    return res.status(500).json({ success: false, error: "Failed to send unlock email" });
+  }
+
+  res.json({ success: true, data: { sent: true } });
+});
+
+router.post("/unlock/verify", async (req, res) => {
+  if (getEnv().AUTH_LOCK_POLICY !== "email") {
+    return res.status(400).json({ success: false, error: "Email unlock is not enabled" });
+  }
+
+  const parsed = unlockVerifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  let payload: { userId: string; purpose?: string } | null = null;
+  try {
+    payload = jwt.verify(parsed.data.token, getEnv().JWT_SECRET) as { userId: string; purpose?: string };
+  } catch {
+    return res.status(400).json({ success: false, error: "Invalid or expired unlock link" });
+  }
+
+  if (payload.purpose !== "unlock") {
+    return res.status(400).json({ success: false, error: "Invalid unlock token" });
+  }
+
+  await prisma.authBan.deleteMany({
+    where: { kind: "ACCOUNT", value: payload.userId },
+  });
+
+  res.json({ success: true });
 });
 
 setInterval(() => {

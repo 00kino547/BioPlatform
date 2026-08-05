@@ -10,6 +10,7 @@ import { FAQ } from "@/components/landing/FAQ";
 import { Footer } from "@/components/landing/Footer";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
+import { Unlock } from "@/pages/Unlock";
 import { Dashboard } from "@/pages/Dashboard";
 import { AdminDashboard } from "@/pages/AdminDashboard";
 import { PublicProfilePage } from "@/pages/PublicProfile";
@@ -59,6 +60,7 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/unlock" element={<Unlock />} />
             <Route
               path="/dashboard"
               element={

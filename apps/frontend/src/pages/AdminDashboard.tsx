@@ -50,7 +50,23 @@ interface AuthBan {
   updatedAt: string;
 }
 
-type Tab = "codes" | "users" | "bans";
+interface AuthLogEntry {
+  id: string;
+  kind: string;
+  username: string | null;
+  accountId: string | null;
+  ip: string;
+  userAgentHash: string | null;
+  fingerprint: string | null;
+  reason: string;
+  penaltyMinutes: number | null;
+  permanent: boolean;
+  triggeredBy: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+type Tab = "codes" | "users" | "bans" | "logs";
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -58,6 +74,7 @@ export function AdminDashboard() {
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [bans, setBans] = useState<AuthBan[]>([]);
+  const [logs, setLogs] = useState<AuthLogEntry[]>([]);
   const [count, setCount] = useState(1);
   const [expiresDays, setExpiresDays] = useState("");
   const [loading, setLoading] = useState(false);
@@ -106,6 +123,15 @@ export function AdminDashboard() {
     if (data.success) setBans(data.data);
   };
 
+  const fetchLogs = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/auth-logs?limit=100", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setLogs(data.data);
+  };
+
   const handleUnban = async (id: string) => {
     const token = getToken();
     const res = await fetch(`/api/admin/auth-bans/${id}`, {
@@ -122,6 +148,7 @@ export function AdminDashboard() {
     fetchCodes();
     fetchUsers();
     fetchBans();
+    fetchLogs();
   }, []);
 
   const handleCreate = async (e: FormEvent) => {
@@ -313,6 +340,16 @@ export function AdminDashboard() {
             }`}
           >
             Bans
+          </button>
+          <button
+            onClick={() => setTab("logs")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "logs"
+                ? "bg-zinc-800 text-white"
+                : "text-zinc-400 hover:text-zinc-300"
+            }`}
+          >
+            Logs
           </button>
         </div>
 
@@ -555,6 +592,56 @@ export function AdminDashboard() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {tab === "logs" && (
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+            <h2 className="text-lg font-semibold text-white mb-1">Auth Log</h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              Failed auth attempts with the applied penalty. Entries are pruned automatically once their lock
+              expires or after the retention period.
+            </p>
+
+            {logs.length === 0 ? (
+              <p className="text-sm text-zinc-500">No auth log entries.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
+                      <th className="pb-3 font-medium">Time</th>
+                      <th className="pb-3 font-medium">User</th>
+                      <th className="pb-3 font-medium">Reason</th>
+                      <th className="pb-3 font-medium">IP</th>
+                      <th className="pb-3 font-medium">Penalty</th>
+                      <th className="pb-3 font-medium">Triggered by</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/40">
+                    {logs.map((log) => (
+                      <tr key={log.id}>
+                        <td className="py-3 whitespace-nowrap text-zinc-500">
+                          {new Date(log.createdAt).toLocaleString()}
+                        </td>
+                        <td className="py-3 font-mono text-zinc-300">{log.username ?? "—"}</td>
+                        <td className="py-3 text-zinc-300">{log.reason}</td>
+                        <td className="py-3 font-mono text-zinc-500">{log.ip}</td>
+                        <td className="py-3">
+                          {log.permanent ? (
+                            <span className="text-red-400 text-xs font-semibold">Permanent lock</span>
+                          ) : log.penaltyMinutes !== null ? (
+                            <span className="text-amber-400 text-xs">+{log.penaltyMinutes} min</span>
+                          ) : (
+                            <span className="text-zinc-600 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-zinc-500">{log.triggeredBy ?? "—"}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

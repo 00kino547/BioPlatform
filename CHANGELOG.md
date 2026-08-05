@@ -17,11 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Server-side WebAuthn challenge storage (`WebAuthnChallenge` model) with 5-minute TTL and periodic cleanup
 - Passkey counter tracking with last-used timestamps (`Passkey` model)
 - `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, `WEBAUTHN_RP_NAME` environment variables
-- Anti-brute-force protection on auth endpoints: fingerprint (IP + HttpOnly cookie + User-Agent) and per-account failure tracking with escalation tiers — 3 free failures, then +10 min per failure, +1h per failure after 5, permanent block after 11
+- Anti-brute-force protection on auth endpoints: fingerprint (IP + HttpOnly cookie + User-Agent) and per-account failure tracking — 3 free failures, then a configurable lock (`AUTH_LOCK_DURATION_MINUTES`, default `-1` = permanent)
 - 2-of-3 fingerprint blocking so shared IPs / shared browsers are not locked out by a single banned fingerprint
-- Trusted-IP cap: failures from an account's registered or last-login IP cap at a 1-hour lockout and never become a permanent account ban
-- `AuthBan` model, admin ban listing, and admin unban endpoint + Bans tab in the admin panel
-- `bio_sid` HttpOnly cookie (server-issued, stored hashed) and `TRUST_PROXY` environment variable
+- Account lock policy (`AUTH_LOCK_POLICY`): `block` (reject all), `trusted_ip` (registered + last-login IPs may sign in without unlocking, default), or `email` (unlock requires a signed email link via new `/auth/unlock` + `/auth/unlock/verify` endpoints and `/unlock` page)
+- `AuthBan` model, admin ban listing and unban endpoint + Bans tab in the admin panel
+- `AuthLog` table recording every rejected/failed attempt (username, IP, hashed User-Agent, fingerprint, reason, penalty, trigger) with an admin Logs tab and scheduled cleanup of expired / retention-aged entries
+- `bio_sid` HttpOnly cookie (server-issued, stored hashed), `TRUST_PROXY`, `AUTH_LOCK_*`, and `AUTH_LOG_*` environment variables
 
 ### Security
 - Auth requests blocked at the API layer (429 + `Retry-After` for temporary lockouts, 403 for permanent bans) instead of host firewall rules

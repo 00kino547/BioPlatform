@@ -4,7 +4,11 @@ import { api, setToken, getToken, type AuthUser, type TwoFactorRequired } from "
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (identifier: string, password: string) => Promise<{ error?: string; twoFactor?: TwoFactorRequired }>;
+  login: (identifier: string, password: string) => Promise<{
+    error?: string;
+    twoFactor?: TwoFactorRequired;
+    unlockRequired?: boolean;
+  }>;
   loginWithPasskey: (identifier: string) => Promise<string | null>;
   verifyTotp: (token: string, code: string) => Promise<string | null>;
   verifyTwoFactorPasskey: (token: string) => Promise<string | null>;
@@ -48,7 +52,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (identifier: string, password: string) => {
     const res = await api.login({ email: identifier, password });
-    if (!res.success || !res.data) return { error: res.error ?? "Login failed" };
+    if (!res.success || !res.data) {
+      if (res.unlockRequired) return { error: res.error ?? "Account locked", unlockRequired: true };
+      return { error: res.error ?? "Login failed" };
+    }
 
     if (!("requiresTwoFactor" in res.data)) {
       completeAuth(res.data.token, res.data.user);

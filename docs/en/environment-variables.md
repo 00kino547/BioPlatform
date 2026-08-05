@@ -50,6 +50,11 @@
 | `JWT_SECRET` | JWT signing secret | — (required) |
 | `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
 | `TRUST_PROXY` | Number of trusted proxy hops (used to resolve the real client IP for auth rate limiting) | `1` |
+| `AUTH_LOCK_POLICY` | Account lock policy: `block` (reject all), `trusted_ip` (registered + last-login IPs may sign in without unlocking), `email` (unlock requires an email link) | `trusted_ip` |
+| `AUTH_LOCK_DURATION_MINUTES` | Lock duration in minutes after the free attempts run out; `-1` = permanent lock | `-1` |
+| `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL in minutes for the email unlock link (`email` policy) | `30` |
+| `AUTH_LOG_RETENTION_DAYS` | Auth log retention in days before the cleanup job deletes entries | `30` |
+| `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | How often the auth log cleanup job runs (in minutes) | `60` |
 
 ## CORS
 

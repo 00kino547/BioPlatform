@@ -19,10 +19,14 @@ export function Login() {
   const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [unlockRequired, setUnlockRequired] = useState(false);
+  const [unlockSent, setUnlockSent] = useState(false);
 
   const handleContinue = async () => {
     if (!identifier.trim()) return;
     setError("");
+    setUnlockRequired(false);
+    setUnlockSent(false);
     setLoading(true);
 
     const res = await api.loginStart(identifier.trim());
@@ -57,12 +61,15 @@ export function Login() {
   const handlePassword = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
+    setUnlockRequired(false);
+    setUnlockSent(false);
     setLoading(true);
     const result = await login(identifier.trim(), password);
     setLoading(false);
 
     if (result.error) {
       setError(result.error);
+      setUnlockRequired(Boolean(result.unlockRequired));
       return;
     }
 
@@ -73,6 +80,21 @@ export function Login() {
     }
 
     navigate("/dashboard");
+  };
+
+  const handleSendUnlock = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!identifier.trim()) return;
+    setError("");
+    setUnlockSent(false);
+    setLoading(true);
+    const res = await api.requestUnlock(identifier.trim());
+    setLoading(false);
+    if (!res.success) {
+      setError(res.error ?? "Failed to send unlock email");
+      return;
+    }
+    setUnlockSent(true);
   };
 
   const handleTotpVerify = async (e: FormEvent) => {
@@ -121,6 +143,31 @@ export function Login() {
           {error && (
             <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
               {error}
+            </div>
+          )}
+
+          {unlockRequired && (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3">
+              <p className="text-sm text-amber-300 mb-2">
+                Your account is locked after too many failed attempts. Enter your username or email and we&apos;ll
+                send you an unlock link.
+              </p>
+              {unlockSent ? (
+                <p className="text-sm text-emerald-400">Unlock email sent — check your inbox.</p>
+              ) : (
+                <form onSubmit={handleSendUnlock} className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="username or you@example.com"
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                  />
+                  <Button type="submit" disabled={loading} className="whitespace-nowrap">
+                    {loading ? "Sending..." : "Send unlock email"}
+                  </Button>
+                </form>
+              )}
             </div>
           )}
 

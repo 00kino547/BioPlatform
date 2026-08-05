@@ -9,6 +9,7 @@ interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+  unlockRequired?: boolean;
 }
 
 let _token: string | null = localStorage.getItem("token");
@@ -281,6 +282,18 @@ export const api = {
     }),
 
   me: () => request<AuthUser>("/auth/me"),
+
+  requestUnlock: (identifier: string) =>
+    request<{ sent: boolean }>("/auth/unlock", {
+      method: "POST",
+      body: JSON.stringify({ identifier }),
+    }),
+
+  verifyUnlock: (token: string) =>
+    request("/auth/unlock/verify", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
 
   getMyProfile: () => request<Profile>("/profiles/me"),
 
