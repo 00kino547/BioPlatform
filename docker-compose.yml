@@ -42,6 +42,9 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-BioPlatform}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@bioplatform.com}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER}
       LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
@@ -50,7 +53,7 @@ services:
     volumes:
       - uploads_data:/app/uploads
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
