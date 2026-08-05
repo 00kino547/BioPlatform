@@ -32,4 +32,6 @@ Ver [Variables de Entorno](./environment-variables.md) para la referencia comple
 
 ## Próximos Pasos
 
-→ [Variables de Entorno](./environment-variables.md)
+- [Variables de Entorno](./environment-variables.md) — referencia completa
+- [Guía de Usuario](./user-guide.md) — perfiles, passkeys/2FA, analíticas, ayuda si te bloquean
+- [Guía de Administración](./admin-guide.md) — códigos de invitación, gestión de usuarios, desbloqueo de cuentas

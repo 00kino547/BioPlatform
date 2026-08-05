@@ -118,4 +118,4 @@ docker compose --profile nginx up -d --build
 
 ---
 
-← [Configuration](./configuration.md) · [Contributing](./contributing.md) →
+← [Admin Guide](./admin-guide.md) · [Contributing](./contributing.md) →

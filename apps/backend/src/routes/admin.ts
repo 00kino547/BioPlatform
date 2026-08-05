@@ -200,6 +200,52 @@ router.delete("/auth-bans/:id", async (req: Request<{ id: string }>, res) => {
   res.json({ success: true });
 });
 
+const authUnlockSchema = z.object({
+  userId: z.string().min(1),
+});
+
+router.post("/auth-unlock", async (req: Request, res: Response) => {
+  const parsed = authUnlockSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: parsed.data.userId },
+    select: { id: true, username: true },
+  });
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  const logs = await prisma.authLog.findMany({
+    where: { accountId: user.id },
+    select: { ip: true, fingerprint: true },
+  });
+  const ips = [...new Set(logs.map((l) => l.ip).filter((v): v is string => Boolean(v)))];
+  const cookies = [...new Set(logs.map((l) => l.fingerprint).filter((v): v is string => Boolean(v)))];
+
+  const [accountBan, ipBans, cookieBans, failedLogs] = await Promise.all([
+    prisma.authBan.deleteMany({ where: { kind: "ACCOUNT", value: user.id } }),
+    prisma.authBan.deleteMany({ where: { kind: "IP", value: { in: ips } } }),
+    prisma.authBan.deleteMany({ where: { kind: "COOKIE", value: { in: cookies } } }),
+    prisma.authLog.deleteMany({ where: { accountId: user.id } }),
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      username: user.username,
+      removed: {
+        accountBans: accountBan.count,
+        ipBans: ipBans.count,
+        cookieBans: cookieBans.count,
+        failedLogs: failedLogs.count,
+      },
+    },
+  });
+});
+
 router.get("/auth-logs", async (req: Request, res) => {
   const requested = Number(req.query.limit) || 100;
   const limit = Math.min(Math.max(requested, 1), 500);

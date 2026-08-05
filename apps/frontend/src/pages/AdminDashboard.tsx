@@ -144,6 +144,23 @@ export function AdminDashboard() {
     }
   };
 
+  const handleUnlockAccount = async (userId: string) => {
+    const token = getToken();
+    const res = await fetch("/api/admin/auth-unlock", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userId }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchBans();
+      fetchLogs();
+    }
+  };
+
   useEffect(() => {
     fetchCodes();
     fetchUsers();
@@ -582,6 +599,14 @@ export function AdminDashboard() {
                             {new Date(ban.updatedAt).toLocaleString()}
                           </td>
                           <td className="py-3">
+                            {ban.kind === "ACCOUNT" && (
+                              <button
+                                onClick={() => handleUnlockAccount(ban.accountId!)}
+                                className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors mr-3"
+                              >
+                                Unlock
+                              </button>
+                            )}
                             <button
                               onClick={() => handleUnban(ban.id)}
                               className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
@@ -619,29 +644,43 @@ export function AdminDashboard() {
                       <th className="pb-3 font-medium">IP</th>
                       <th className="pb-3 font-medium">Penalty</th>
                       <th className="pb-3 font-medium">Triggered by</th>
+                      <th className="pb-3 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/40">
-                    {logs.map((log) => (
-                      <tr key={log.id}>
-                        <td className="py-3 whitespace-nowrap text-zinc-500">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </td>
-                        <td className="py-3 font-mono text-zinc-300">{log.username ?? "—"}</td>
-                        <td className="py-3 text-zinc-300">{log.reason}</td>
-                        <td className="py-3 font-mono text-zinc-500">{log.ip}</td>
-                        <td className="py-3">
-                          {log.permanent ? (
-                            <span className="text-red-400 text-xs font-semibold">Permanent lock</span>
-                          ) : log.penaltyMinutes !== null ? (
-                            <span className="text-amber-400 text-xs">+{log.penaltyMinutes} min</span>
-                          ) : (
-                            <span className="text-zinc-600 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 text-zinc-500">{log.triggeredBy ?? "—"}</td>
-                      </tr>
-                    ))}
+                    {logs.map((log) => {
+                      const locked = log.accountId && (log.permanent || log.penaltyMinutes !== null);
+                      return (
+                        <tr key={log.id}>
+                          <td className="py-3 whitespace-nowrap text-zinc-500">
+                            {new Date(log.createdAt).toLocaleString()}
+                          </td>
+                          <td className="py-3 font-mono text-zinc-300">{log.username ?? "—"}</td>
+                          <td className="py-3 text-zinc-300">{log.reason}</td>
+                          <td className="py-3 font-mono text-zinc-500">{log.ip}</td>
+                          <td className="py-3">
+                            {log.permanent ? (
+                              <span className="text-red-400 text-xs font-semibold">Permanent lock</span>
+                            ) : log.penaltyMinutes !== null ? (
+                              <span className="text-amber-400 text-xs">+{log.penaltyMinutes} min</span>
+                            ) : (
+                              <span className="text-zinc-600 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 text-zinc-500">{log.triggeredBy ?? "—"}</td>
+                          <td className="py-3">
+                            {locked && (
+                              <button
+                                onClick={() => handleUnlockAccount(log.accountId!)}
+                                className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                              >
+                                Unlock
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

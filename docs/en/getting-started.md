@@ -32,4 +32,6 @@ See [Environment Variables](./environment-variables.md) for the full reference.
 
 ## Next Steps
 
-→ [Environment Variables](./environment-variables.md)
+- [Environment Variables](./environment-variables.md) — full reference
+- [User Guide](./user-guide.md) — profiles, passkeys/2FA, analytics, locked-out help
+- [Admin Guide](./admin-guide.md) — invite codes, user management, unlocking accounts

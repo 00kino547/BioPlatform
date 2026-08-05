@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Account lock policy (`AUTH_LOCK_POLICY`): `block` (reject all), `trusted_ip` (registered + last-login IPs may sign in without unlocking, default), or `email` (unlock requires a signed email link via new `/auth/unlock` + `/auth/unlock/verify` endpoints and `/unlock` page)
 - `AuthBan` model, admin ban listing and unban endpoint + Bans tab in the admin panel
 - `AuthLog` table recording every rejected/failed attempt (username, IP, hashed User-Agent, fingerprint, reason, penalty, trigger) with an admin Logs tab and scheduled cleanup of expired / retention-aged entries
+- Admin account unlock (`POST /api/admin/auth-unlock`) — removes the account ban plus the IP/cookie fingerprint bans recorded against that account and its failed auth-log entries, with **Unlock** actions in the admin Bans and Logs tabs
 - `bio_sid` HttpOnly cookie (server-issued, stored hashed), `TRUST_PROXY`, `AUTH_LOCK_*`, and `AUTH_LOG_*` environment variables
 
 ### Security

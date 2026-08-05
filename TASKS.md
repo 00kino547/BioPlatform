@@ -10,6 +10,8 @@
 
 ## Medium Priority
 
+- [ ] GitHub version checker — on every admin panel entry, show an update warning banner with the CHANGELOG.md loaded and rendered formatted; footer shows the app version (in red when the pending update is critical/security), plus an "Update" state when the installed version is outdated
+- [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment
 - [ ] API documentation
 - [ ] REST API for third-party integrations
 - [ ] S3/R2/B2 storage providers
@@ -96,6 +98,7 @@
 - [x] Two-factor authentication (TOTP via authenticator apps, verify-and-enable + disable, QR setup in Security tab)
 - [x] WebAuthn passkeys (passwordless login + passkey as 2FA, resident/non-resident choice, Security tab management, server-side challenge store)
 - [x] Multi-step login flow (username/email → passwordless or password → TOTP/passkey 2FA)
-- [x] Anti-brute-force auth rate limiting (fingerprint 2-of-3 blocks, per-account lockouts, escalation tiers, permanent bans, trusted-IP cap, admin unban panel)
+- [x] Anti-brute-force auth rate limiting (fingerprint 2-of-3 blocks, per-account lockouts, permanent bans, trusted-IP cap, admin unban panel)
 - [x] Configurable auth lock policy (AUTH_LOCK_POLICY: block / trusted_ip / email with email unlock link) and lock duration (AUTH_LOCK_DURATION_MINUTES, -1 = permanent)
 - [x] Auth log table + admin Logs tab (failed attempts, reason, penalty, trigger) with cron cleanup of expired/retention-aged entries
+- [x] Admin account unlock (POST /api/admin/auth-unlock) — clears the account ban plus the fingerprint (IP/cookie) bans recorded against that account, and its failed auth-log entries

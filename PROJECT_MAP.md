@@ -23,7 +23,7 @@ apps/backend/src/
     ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA, passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Profile CRUD, avatar/banner upload+delete, public profile, click tracking
-    ├── admin.ts          # Admin: list users, update user, reset password, edit profiles, list/unban auth bans, auth log
+    ├── admin.ts          # Admin: list users, update user, reset password, edit profiles, list/unban auth bans, account unlock, auth log
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown)
     ├── email.ts          # Email notification settings (SMTP config, test endpoint)
     └── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete)
@@ -72,7 +72,7 @@ apps/frontend/src/
 │   ├── Register.tsx      # Register form (invite code required)
 │   ├── Unlock.tsx        # Email unlock link handler (/unlock?token=)
 │   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance, Analytics, Email, Music, Security tabs)
-│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Bans, Logs tabs, profile editing modal, tier control)
+│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Bans, Logs tabs, profile editing modal, tier control, Unlock account actions)
 │   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)
 │   └── Terms.tsx         # Terms of Service page (/terms)

@@ -57,8 +57,21 @@ cp .env.example .env
 |----------|-------------|-------------|
 | `JWT_SECRET` | Secreto para firmar tokens JWT | — (requerido) |
 | `JWT_EXPIRES_IN` | Expiración del token JWT | `7d` |
+| `TRUST_PROXY` | Número de saltos de proxy de confianza (IP real del cliente para el rate limiting de autenticación) | `1` |
+| `AUTH_LOCK_POLICY` | Política de bloqueo de cuenta: `block` (rechazar todo), `trusted_ip` (las IP registradas + de último acceso pueden iniciar sesión sin desbloquear), `email` (desbloqueo mediante enlace por correo) | `trusted_ip` |
+| `AUTH_LOCK_DURATION_MINUTES` | Duración del bloqueo en minutos; `-1` = bloqueo permanente | `-1` |
+| `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL en minutos del enlace de desbloqueo por correo (política `email`) | `30` |
+| `AUTH_LOG_RETENTION_DAYS` | Retención del registro de autenticación en días | `30` |
+| `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | Cada cuántos minutos se ejecuta la limpieza del registro de autenticación | `60` |
 
 > Usa una cadena aleatoria fuerte (32+ caracteres) para `JWT_SECRET` en producción.
+
+### Bloqueo y desbloqueo de cuentas
+
+- Tras `MAX_FREE_ATTEMPTS` intentos fallidos (3), se aplica un bloqueo por huella (IP, cookie, user-agent) y por cuenta; por defecto es permanente (`AUTH_LOCK_DURATION_MINUTES=-1`).
+- Con `trusted_ip`, iniciar sesión desde la IP registrada o de último acceso funciona sin desbloquear y restablece los contadores.
+- Con `email`, el usuario debe abrir el enlace de desbloqueo enviado por correo (`AUTH_UNLOCK_TOKEN_TTL_MINUTES`); requiere SMTP configurado.
+- Los administradores pueden desbloquear cuentas desde el panel de administración (pestañas **Bans** y **Logs**). El desbloqueo elimina el bloqueo de cuenta y los bloqueos de IP/cookie registrados contra esa cuenta.
 
 ## CORS
 
@@ -99,4 +112,4 @@ Para reformar toda la aplicación, cambia estos valores en `.env` y reconstruye.
 
 ---
 
-← [Variables de Entorno](./environment-variables.md) · [Despliegue](./deployment.md) →
+← [Variables de Entorno](./environment-variables.md) · [Guía de Usuario](./user-guide.md) →

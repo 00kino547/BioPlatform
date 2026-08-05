@@ -57,8 +57,21 @@ cp .env.example .env
 |----------|-------------|---------|
 | `JWT_SECRET` | Secret key for signing JWT tokens | — (required) |
 | `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
+| `TRUST_PROXY` | Number of trusted proxy hops (real client IP for auth rate limiting) | `1` |
+| `AUTH_LOCK_POLICY` | Account lock policy: `block` (reject all), `trusted_ip` (registered + last-login IPs may sign in without unlocking), `email` (unlock via email link) | `trusted_ip` |
+| `AUTH_LOCK_DURATION_MINUTES` | Lock duration in minutes; `-1` = permanent lock | `-1` |
+| `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL in minutes of the email unlock link (`email` policy) | `30` |
+| `AUTH_LOG_RETENTION_DAYS` | Auth log retention in days before the cleanup job deletes entries | `30` |
+| `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | How often the auth log cleanup job runs (in minutes) | `60` |
 
 > Use a strong random string (32+ characters) for `JWT_SECRET` in production.
+
+### Account lock & unlock
+
+- After `MAX_FREE_ATTEMPTS` failed attempts (3), a lock is applied to the fingerprint (IP, cookie, user agent) and the account; by default it is permanent (`AUTH_LOCK_DURATION_MINUTES=-1`).
+- With `trusted_ip`, signing in from the registered or last-login IP works without unlocking and resets the counters.
+- With `email`, the user must open the unlock link emailed to them (`AUTH_UNLOCK_TOKEN_TTL_MINUTES`); requires SMTP configured.
+- Admins can unlock accounts from the admin panel (**Bans** and **Logs** tabs). The unlock removes the account ban plus the IP/cookie bans recorded against that account.
 
 ## CORS
 
@@ -99,4 +112,4 @@ To rebrand the entire application, change these values in `.env` and rebuild.
 
 ---
 
-← [Environment Variables](./environment-variables.md) · [Deployment](./deployment.md) →
+← [Environment Variables](./environment-variables.md) · [User Guide](./user-guide.md) →
