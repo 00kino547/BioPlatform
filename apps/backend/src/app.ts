@@ -13,6 +13,8 @@ import musicRoutes from "./routes/music.js";
 const env = getEnv();
 const app = express();
 
+app.set("trust proxy", env.TRUST_PROXY);
+
 const allowedOrigins = env.CORS_ORIGIN.split(",").map((o) => o.trim());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());

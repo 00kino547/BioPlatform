@@ -38,13 +38,26 @@ interface UserProfile {
   isPublic: boolean;
 }
 
-type Tab = "codes" | "users";
+interface AuthBan {
+  id: string;
+  kind: string;
+  value: string;
+  accountId: string | null;
+  failCount: number;
+  lockedUntil: string | null;
+  permanent: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type Tab = "codes" | "users" | "bans";
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("codes");
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [bans, setBans] = useState<AuthBan[]>([]);
   const [count, setCount] = useState(1);
   const [expiresDays, setExpiresDays] = useState("");
   const [loading, setLoading] = useState(false);
@@ -84,9 +97,31 @@ export function AdminDashboard() {
     if (data.success) setUsers(data.data);
   };
 
+  const fetchBans = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/auth-bans", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setBans(data.data);
+  };
+
+  const handleUnban = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/auth-bans/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setBans((prev) => prev.filter((b) => b.id !== id));
+    }
+  };
+
   useEffect(() => {
     fetchCodes();
     fetchUsers();
+    fetchBans();
   }, []);
 
   const handleCreate = async (e: FormEvent) => {
@@ -269,6 +304,16 @@ export function AdminDashboard() {
           >
             Users
           </button>
+          <button
+            onClick={() => setTab("bans")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "bans"
+                ? "bg-zinc-800 text-white"
+                : "text-zinc-400 hover:text-zinc-300"
+            }`}
+          >
+            Bans
+          </button>
         </div>
 
         {tab === "codes" && (
@@ -441,6 +486,75 @@ export function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {tab === "bans" && (
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+            <h2 className="text-lg font-semibold text-white mb-1">Auth Bans &amp; Lockouts</h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              Automatically applied to fingerprints (IP, cookie, user agent) and accounts after repeated failed
+              auth attempts. Remove a record to allow access again.
+            </p>
+
+            {bans.length === 0 ? (
+              <p className="text-sm text-zinc-500">No bans or lockouts.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
+                      <th className="pb-3 font-medium">Type</th>
+                      <th className="pb-3 font-medium">Value</th>
+                      <th className="pb-3 font-medium">Failures</th>
+                      <th className="pb-3 font-medium">Status</th>
+                      <th className="pb-3 font-medium">Updated</th>
+                      <th className="pb-3 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/40">
+                    {bans.map((ban) => {
+                      const locked = ban.permanent || (ban.lockedUntil && new Date(ban.lockedUntil) > new Date());
+                      const value =
+                        ban.kind === "COOKIE" ? `${ban.value.slice(0, 12)}…` : ban.value;
+                      return (
+                        <tr key={ban.id}>
+                          <td className="py-3">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              {ban.kind}
+                            </span>
+                          </td>
+                          <td className="py-3 font-mono text-zinc-300">{value}</td>
+                          <td className="py-3 text-zinc-400">{ban.failCount}</td>
+                          <td className="py-3">
+                            {ban.permanent ? (
+                              <span className="text-red-400 text-xs font-semibold">Permanent ban</span>
+                            ) : locked ? (
+                              <span className="text-amber-400 text-xs font-semibold">
+                                Locked until{" "}
+                                {new Date(ban.lockedUntil as string).toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-emerald-400 text-xs">Clear</span>
+                            )}
+                          </td>
+                          <td className="py-3 text-zinc-500">
+                            {new Date(ban.updatedAt).toLocaleString()}
+                          </td>
+                          <td className="py-3">
+                            <button
+                              onClick={() => handleUnban(ban.id)}
+                              className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                            >
+                              Unban
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

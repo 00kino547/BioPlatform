@@ -7,6 +7,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   JWT_SECRET: z.string().min(1),
   JWT_EXPIRES_IN: z.string().default("7d"),
+  TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   STORAGE_PROVIDER: z.enum(["local", "r2", "b2", "s3"]).default("local"),
   LOCAL_STORAGE_PATH: z.string().default("./uploads"),
   SMTP_ENABLED: z.coerce.boolean().default(false),

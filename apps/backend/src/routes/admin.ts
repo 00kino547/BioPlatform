@@ -161,4 +161,43 @@ router.put("/users/:id/profile", async (req: Request<{ id: string }>, res) => {
   res.json({ success: true, data: profile });
 });
 
+router.get("/auth-bans", async (_req, res) => {
+  const bans = await prisma.authBan.findMany({
+    orderBy: { updatedAt: "desc" },
+    take: 200,
+  });
+
+  const accountIds = bans.filter((b) => b.kind === "ACCOUNT").map((b) => b.value);
+  const accounts = await prisma.user.findMany({
+    where: { id: { in: accountIds } },
+    select: { id: true, username: true },
+  });
+  const usernameById = new Map(accounts.map((u) => [u.id, u.username]));
+
+  res.json({
+    success: true,
+    data: bans.map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      value: b.kind === "ACCOUNT" ? (usernameById.get(b.value) ?? b.value) : b.value,
+      accountId: b.kind === "ACCOUNT" ? b.value : null,
+      failCount: b.failCount,
+      lockedUntil: b.lockedUntil,
+      permanent: b.permanent,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+    })),
+  });
+});
+
+router.delete("/auth-bans/:id", async (req: Request<{ id: string }>, res) => {
+  const ban = await prisma.authBan.findUnique({ where: { id: req.params.id } });
+  if (!ban) {
+    return res.status(404).json({ success: false, error: "Ban not found" });
+  }
+
+  await prisma.authBan.delete({ where: { id: ban.id } });
+  res.json({ success: true });
+});
+
 export default router;

@@ -28,6 +28,8 @@ model User {
   trackLimit   Int?      @map("track_limit")
   totpSecret   String?   @map("totp_secret")
   totpEnabled  Boolean   @default(false) @map("totp_enabled")
+  registeredIp String?   @map("registered_ip")
+  lastLoginIp  String?   @map("last_login_ip")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -163,4 +165,19 @@ model WebAuthnChallenge {
 
   @@index([createdAt])
   @@map("web_authn_challenges")
+}
+
+model AuthBan {
+  id         String    @id @default(uuid()) @db.Uuid
+  kind       String
+  value      String
+  failCount  Int       @default(0)
+  lockedUntil DateTime? @map("locked_until")
+  permanent  Boolean   @default(false) @map("permanent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([kind, value])
+  @@index([kind])
+  @@map("auth_bans")
 }

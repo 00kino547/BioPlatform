@@ -12,18 +12,23 @@ apps/backend/src/
 ├── lib/
 │   ├── prisma.ts         # Prisma client singleton
 │   ├── email.ts          # Email service (nodemailer, Gmail preset, custom SMTP)
-│   └── music.ts          # Track limits per tier, Spotify/YouTube URL parsing → embed URLs, fullUrl parsing
+│   ├── music.ts          # Track limits per tier, Spotify/YouTube URL parsing → embed URLs, fullUrl parsing
+│   ├── totp.ts           # TOTP secret generation + code verification (otplib)
+│   ├── validation.ts     # Shared sanitization (stripHtml) + URL/platform/discord validators, profile update schema
+│   ├── webauthn.ts       # Passkey helpers (register/login options, challenge store, verify register/login/2FA)
+│   └── authGuard.ts      # Auth rate limiting: fingerprint (IP/cookie/UA), escalation tiers, permanent bans, trusted-IP cap
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
+├── middleware/rateLimit.ts # Auth anti-brute-force middleware (cookie issuance, 2-of-3 fingerprint block, account lock, outcome recording)
 └── routes/
-    ├── auth.ts           # Register, login, me, change-password
+    ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA, passkey CRUD, TOTP setup/enable/disable, me, change-password
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Profile CRUD, avatar/banner upload+delete, public profile, click tracking
-    ├── admin.ts          # Admin: list users, update user, reset password, edit profiles
+    ├── admin.ts          # Admin: list users, update user, reset password, edit profiles, list/unban auth bans
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown)
     ├── email.ts          # Email notification settings (SMTP config, test endpoint)
     └── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete)
 apps/backend/prisma/
-├── schema.prisma         # User (tier, trackLimit), Profile, InviteCode, PageView, LinkClick, MusicTrack models
+├── schema.prisma         # User (tier, trackLimit, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan models
 └── seed.ts               # Bootstrap admin + invite codes
 ```
 
@@ -38,7 +43,7 @@ apps/frontend/src/
 ├── contexts/
 │   └── AuthContext.tsx    # Auth state (login, register, logout)
 ├── lib/
-│   ├── api.ts            # API client (auth, profile, upload, analytics, email, music)
+│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, profile, upload, analytics, email, music)
 │   └── utils.ts          # cn() utility
 ├── components/
 │   ├── ui/
@@ -48,7 +53,8 @@ apps/frontend/src/
 │   │   ├── scroll-reveal.tsx # IntersectionObserver wrapper
 │   │   └── PlatformIcon.tsx  # SVG icons for social platforms (11 platforms)
 │   ├── auth/
-│   │   └── ProtectedRoute.tsx # Redirect to /login if unauthenticated
+│   │   ├── ProtectedRoute.tsx # Redirect to /login if unauthenticated
+│   │   └── SecurityTab.tsx    # Dashboard Security tab (passkeys + TOTP management)
 │   ├── music/
 │   │   └── MusicPlayer.tsx   # Playlist picker + embedded player (local/Spotify/YouTube, full version + Open in Spotify)
 │   ├── layout/
@@ -62,10 +68,10 @@ apps/frontend/src/
 │       ├── FAQ.tsx           # Accordion FAQ (6 questions)
 │       └── Footer.tsx        # Footer with links, social
 ├── pages/
-│   ├── Login.tsx         # Login form
+│   ├── Login.tsx         # Multi-step login (identifier → passwordless/password → 2FA)
 │   ├── Register.tsx      # Register form (invite code required)
-│   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance, Analytics, Email, Music tabs)
-│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users tabs, profile editing modal, tier control)
+│   ├── Dashboard.tsx     # Profile editor (Profile, Links, Appearance, Analytics, Email, Music, Security tabs)
+│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Bans tabs, profile editing modal, tier control)
 │   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)
 │   └── Terms.tsx         # Terms of Service page (/terms)

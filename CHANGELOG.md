@@ -4,6 +4,32 @@ All notable changes to BioPlatform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Two-factor authentication with authenticator apps (TOTP) using `otplib`
+- WebAuthn passkeys (`@simplewebauthn/server` + `@simplewebauthn/browser`): passwordless login and passkey as a second factor
+- Username/email-first login flow — after identifying, choose Passwordless (passkey) or Password
+- Two-factor challenge flow: password step issues a short-lived (5 min) token, then TOTP or passkey completes sign-in
+- Passkey registration with Non-resident (2FA / security key) vs Resident (passwordless) choice and automatic fallback when the device can't create the selected type
+- Passkey management in Dashboard Security tab (add with name/type, list with last-used, remove)
+- TOTP setup in Security tab: QR code (`qrcode.react`), manual secret, verify-and-enable, disable
+- Server-side WebAuthn challenge storage (`WebAuthnChallenge` model) with 5-minute TTL and periodic cleanup
+- Passkey counter tracking with last-used timestamps (`Passkey` model)
+- `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, `WEBAUTHN_RP_NAME` environment variables
+- Anti-brute-force protection on auth endpoints: fingerprint (IP + HttpOnly cookie + User-Agent) and per-account failure tracking with escalation tiers — 3 free failures, then +10 min per failure, +1h per failure after 5, permanent block after 11
+- 2-of-3 fingerprint blocking so shared IPs / shared browsers are not locked out by a single banned fingerprint
+- Trusted-IP cap: failures from an account's registered or last-login IP cap at a 1-hour lockout and never become a permanent account ban
+- `AuthBan` model, admin ban listing, and admin unban endpoint + Bans tab in the admin panel
+- `bio_sid` HttpOnly cookie (server-issued, stored hashed) and `TRUST_PROXY` environment variable
+
+### Security
+- Auth requests blocked at the API layer (429 + `Retry-After` for temporary lockouts, 403 for permanent bans) instead of host firewall rules
+- WebAuthn registrations and assertions verify origin, relying party ID, and challenge server-side
+- TOTP codes verified server-side with a ±30 second window
+- Passkey public keys stored base64url-encoded; counters updated after every authentication
+- Successful auth resets failure counters and records the last-login IP; registration records the registered IP
+
 ## [1.0.1-dev-beta.2] - 2026-08-04
 
 ### Fixed

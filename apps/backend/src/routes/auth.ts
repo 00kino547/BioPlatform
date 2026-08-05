@@ -13,8 +13,11 @@ import {
   verifyLogin,
   verifyRegister,
 } from "../lib/webauthn.js";
+import { authRateLimit } from "../middleware/rateLimit.js";
 
 const router = Router();
+
+router.use(authRateLimit);
 
 const registerSchema = z.object({
   username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/),
@@ -157,7 +160,12 @@ router.post("/register", async (req, res) => {
 
   const user = await prisma.$transaction(async (tx) => {
     const u = await tx.user.create({
-      data: { username, email, passwordHash },
+      data: {
+        username,
+        email,
+        passwordHash,
+        registeredIp: req.authFingerprint?.ip ?? null,
+      },
     });
 
     await tx.profile.create({

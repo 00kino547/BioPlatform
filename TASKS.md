@@ -6,18 +6,16 @@
 
 - [ ] Custom domain support
 - [ ] Affiliate/referral program — referrers earn a discount on their own plan and invited users also get a discount (e.g., % off PRO/ENTERPRISE for both parties)
-- [ ] Affiliate rewards/new plans — affiliate-specific plan perks (e.g., additional tracks, advanced analytics, priority support) unlocked by referrals
+- [ ] Affiliate rewards — referrers get a reward for reaching referral milestones (e.g., a discount on upgrading to a paid plan, or premium perks), not new plan tiers
 
 ## Medium Priority
 
 - [ ] API documentation
 - [ ] REST API for third-party integrations
 - [ ] S3/R2/B2 storage providers
-- [ ] Rate limiting on auth endpoints
 
 ## Low Priority
 
-- [ ] Two-factor authentication (TOTP)
 - [ ] Profile export / data portability
 - [ ] Webhook support for integrations
 
@@ -95,3 +93,7 @@
 - [x] Enhanced analytics graphs (dual total/unique bars, hover tooltips with date, platform colors)
 - [x] Privacy policy update (bp_vid cookie, analytics data collection, 90-day retention)
 - [x] Music player integration (local audio uploads + Spotify + YouTube embeds, tier-based track limits, admin trackLimit control)
+- [x] Two-factor authentication (TOTP via authenticator apps, verify-and-enable + disable, QR setup in Security tab)
+- [x] WebAuthn passkeys (passwordless login + passkey as 2FA, resident/non-resident choice, Security tab management, server-side challenge store)
+- [x] Multi-step login flow (username/email → passwordless or password → TOTP/passkey 2FA)
+- [x] Anti-brute-force auth rate limiting (fingerprint 2-of-3 blocks, per-account lockouts, escalation tiers, permanent bans, trusted-IP cap, admin unban panel)

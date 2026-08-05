@@ -42,6 +42,7 @@ async function request<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   return res.json();
@@ -305,6 +306,7 @@ export const api = {
       method: "POST",
       headers,
       body: form,
+      credentials: "include",
     });
     return res.json() as Promise<{ success: boolean; data?: { avatar: string }; error?: string }>;
   },
@@ -318,6 +320,7 @@ export const api = {
       method: "POST",
       headers,
       body: form,
+      credentials: "include",
     });
     return res.json() as Promise<{ success: boolean; data?: { banner: string }; error?: string }>;
   },
@@ -331,7 +334,7 @@ export const api = {
   getPublicProfile: async (username: string) => {
     const headers: Record<string, string> = {};
     if (_token) headers["Authorization"] = `Bearer ${_token}`;
-    const res = await fetch(`${API_URL}/profiles/${username}`, { headers });
+    const res = await fetch(`${API_URL}/profiles/${username}`, { headers, credentials: "include" });
     return res.json() as Promise<{ success: boolean; data?: PublicProfile; error?: string }>;
   },
 
@@ -378,6 +381,7 @@ export const api = {
       method: "POST",
       headers,
       body: form,
+      credentials: "include",
     });
     return res.json() as Promise<{ success: boolean; data?: MusicTrack; error?: string }>;
   },

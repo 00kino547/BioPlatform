@@ -49,6 +49,7 @@
 |----------|-------------|---------|
 | `JWT_SECRET` | JWT signing secret | — (required) |
 | `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
+| `TRUST_PROXY` | Number of trusted proxy hops (used to resolve the real client IP for auth rate limiting) | `1` |
 
 ## CORS
 

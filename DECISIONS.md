@@ -193,6 +193,40 @@
 
 ## Music: autoplay behavior
 
-- Active track autoplays on all three providers: local `<audio autoPlay>`, Spotify embed `autoplay=true`, YouTube embed `autoplay=1&mute=1`
-- YouTube uses muted autoplay because browsers block unmuted autoplay without user interaction; Spotify's embed accepts autoplay only where the platform allows it
+- Active track autoplays on all three providers: local `<audio autoPlay>`, Spotify embed `autoplay=true`, YouTube embed `autoplay=1`
+- `mute=1` is NOT set on the YouTube embed — the browser may still mute unmuted autoplay without user interaction, but we don't force it
 - Full-version player does NOT autoplay (avoids double playback with the main player)
+
+## Two-factor authentication: TOTP + WebAuthn passkeys
+
+- Two independent second factors: TOTP via authenticator apps and passkeys via WebAuthn
+- `otplib` for TOTP (maintained, small) and `@simplewebauthn/server` + `@simplewebauthn/browser` for WebAuthn (de-facto standard)
+- Password sign-in no longer returns a full JWT when 2FA is enabled — it issues a short-lived (5 min) `purpose: "twofactor"` token that must be redeemed with a valid TOTP code or passkey assertion
+- WebAuthn challenges are stored server-side (`WebAuthnChallenge`, 5 min TTL) and consumed once; origin, RP ID, and challenge are always verified server-side
+
+## Passkey resident vs non-resident
+
+- Resident (discoverable) credentials are stored on the authenticator and enable true passwordless login — the user can sign in without typing a username because the credential is discoverable (empty/omitted `allowCredentials`)
+- Non-resident credentials are re-derived each time from a key handle; the server must list the credential in `allowCredentials`, so the user must be identified first — this is the classic security-key / second-factor style (a credential is "a passkey" only if it is discoverable)
+- Users choose between Non-resident (2FA / security key, `residentKey: "discouraged"`, default) and Resident (Passwordless, `residentKey: "preferred"`)
+- "Preferred" (not "required") lets the authenticator fall back to a non-resident credential when the device can't create a resident one (e.g. YubiKey with full resident slots)
+- Non-resident is the default because resident credentials consume limited on-device slots; our login is username-first and always enumerates credentials by ID (`allowCredentials`), so non-resident keys work fine as passwordless-in-practice there too — the resident choice only adds username-less sign-in
+
+## TOTP secret lifecycle
+
+- `User.totpSecret` is generated and stored before verification, then `totpEnabled` flips true only after a correct 6-digit code is entered (classic verify-and-enable flow)
+- Disabling requires the current code
+- Secret is a Base32 string generated with `otplib`; QR encodes a standard `otpauth://totp/{rpName}:{username}` URI
+
+## Auth anti-brute-force: fingerprint + account escalation
+
+- Three fingerprints per request: client IP (`req.ip` with `TRUST_PROXY`), a server-signed HttpOnly cookie (`bio_sid`, random UUID, sha256-hashed in the DB), and the User-Agent header
+- **2-of-3 rule:** a request is blocked only when ≥2 of its 3 fingerprints are locked or permanently banned — a single banned fingerprint is allowed through (protects CG-NAT users and shared browsers)
+- **Escalation tiers (per fingerprint and per account):** 3 failed attempts are free; failures 4–5 add +10 min each; failures 6–10 add +1h each on top; the 11th failure is a permanent blacklist
+- Failures are counted only on *responses*: a locked request is rejected before the route runs, so counters climb only as lockouts expire (an attacker must persist for hours to reach a permanent ban)
+- A successful auth (token issued, or password verified into the 2FA step) resets the fingerprint and account counters; success also records `User.lastLoginIp`
+- `User.registeredIp` is captured at registration
+- **Trusted-IP cap:** when the failing IP equals the account's `registeredIp` or `lastLoginIp`, the account lockout is capped at 1h and can never become permanent — protection is never disabled, but a user who simply keeps mistyping their password can't permanently lock their own account (or let an attacker DoS the account via its own IP)
+- **App-level enforcement:** bans live in the `AuthBan` table and are enforced in the API layer (403 for permanent, 429 + `Retry-After` for temporary) — no host firewall/iptables, since the backend is a Docker container; only admins can unban via the admin panel
+- The rate limiter fails **open** on DB errors so an outage can never lock everyone out
+- Block messages are generic and identical regardless of the reason, avoiding account-enumeration feedback
