@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0-dev-beta.1] - 2026-08-05
+
 ### Added
 - Two-factor authentication with authenticator apps (TOTP) using `otplib`
 - WebAuthn passkeys (`@simplewebauthn/server` + `@simplewebauthn/browser`): passwordless login and passkey as a second factor
@@ -41,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - `ADMIN_USERNAME` environment variable added (seed only); `ADMIN_PASSWORD` must be ≥ 12 chars and not the known default
 - PostgreSQL port in `docker-compose.yml` bound to loopback only (`127.0.0.1:5432:5432`)
+- Backend published port bound to loopback only (`127.0.0.1:3000:3000`) so the API can't be reached directly, bypassing nginx
+- `ADMIN_EMAIL` / `ADMIN_USERNAME` / `ADMIN_PASSWORD` now passed into the backend container (required by the boot-time env validation)
 
 ## [1.0.1-dev-beta.2] - 2026-08-04
 
@@ -107,6 +111,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
+[1.1.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.0.1-dev-beta.2...v1.1.0-dev-beta.1
 [1.0.1-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.0.1-dev-beta.1...v1.0.1-dev-beta.2
 [1.0.1-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.0.0-dev-beta.1...v1.0.1-dev-beta.1
 [1.0.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/releases/tag/v1.0.0-dev-beta.1

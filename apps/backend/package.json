@@ -1,7 +1,7 @@
 {
   "name": "@bioplatform/backend",
   "private": true,
-  "version": "1.0.1-dev-beta.3",
+  "version": "1.1.0-dev-beta.1",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
