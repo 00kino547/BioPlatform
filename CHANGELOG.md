@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Security
 - HTTPS served on 443 with HSTS (production mode only; `SEND_HSTS_ON_DEV=true` opts in for dev). `TLS_MODE=development` auto-generates self-signed certs stored as `self-signed.pem`/`self-signed.key`; `TLS_MODE=production` deletes them and requires real certs
 - `JWT_SECRET` must be at least 32 characters (backend refuses to boot with a weak secret)
+- Profile `theme` values are validated server-side: colors must be hex / `rgb()` / `rgba()` / `hsl()` / `hsla()` and `fontFamily` is restricted to a safe character set — rejects CSS injection (`url()`, `var()`, `calc()`, `;`, `{}`) before it reaches inline styles
+- Login responses made uniform to stop user enumeration: `/auth/login/start` always reports a found account with password method, and `/auth/login/passkey/options` + 2FA endpoints return a generic 401 "Invalid credentials" instead of 404/distinct messages for unknown users
+- Email unlock (`/auth/unlock/verify`) now clears the account's IP/cookie fingerprint bans and failed auth-log entries alongside the account ban, matching the admin unlock behavior
 
 ## [1.1.0-dev-beta.1] - 2026-08-05
 

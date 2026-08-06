@@ -71,6 +71,29 @@ export function isValidDiscordUsername(value: string): boolean {
   return /^[a-z0-9_.]{2,32}$/i.test(value) && !/\.\./.test(value) && !/^\./.test(value) && !/\.$/.test(value);
 }
 
+function isSafeCssColor(value: string): boolean {
+  return (
+    /^#[0-9a-fA-F]{3,8}$/.test(value) ||
+    /^rgba?\(\s*(\d{1,3}%?\s*,\s*){2}\d{1,3}%?\s*(,\s*(0|1|0?\.\d+)\s*)?\)$/.test(value) ||
+    /^hsla?\(\s*\d{1,3}(\.\d+)?(deg)?\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*(,\s*(0|1|0?\.\d+)\s*)?\)$/.test(value)
+  );
+}
+
+function isSafeCssFontFamily(value: string): boolean {
+  return /^[a-zA-Z0-9\s,'"-]+$/.test(value) && value.length <= 128;
+}
+
+export const themeSchema = z
+  .object({
+    bg: z.string().max(128).refine(isSafeCssColor, { message: "Invalid background color" }).optional(),
+    cardBg: z.string().max(128).refine(isSafeCssColor, { message: "Invalid card background color" }).optional(),
+    text: z.string().max(128).refine(isSafeCssColor, { message: "Invalid text color" }).optional(),
+    accent: z.string().max(128).refine(isSafeCssColor, { message: "Invalid accent color" }).optional(),
+    fontFamily: z.string().max(128).refine(isSafeCssFontFamily, { message: "Invalid font family" }).optional(),
+  })
+  .nullable()
+  .optional();
+
 export const updateProfileSchema = z.object({
   displayName: z.string().max(64).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
   bio: z.string().max(500).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
@@ -91,15 +114,6 @@ export const updateProfileSchema = z.object({
     .refine((links) => !links || links.every((l) => isSafeSocialUrl(l.platform, l.url)), {
       message: "One or more links have an invalid URL or username",
     }),
-  theme: z
-    .object({
-      bg: z.string().optional(),
-      cardBg: z.string().optional(),
-      text: z.string().optional(),
-      accent: z.string().optional(),
-      fontFamily: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
+  theme: themeSchema,
   isPublic: z.boolean().optional(),
 });

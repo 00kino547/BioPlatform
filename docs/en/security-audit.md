@@ -22,11 +22,11 @@
 | 7 | Low | `referer` header stored unsanitized (violates input-sanitization rule) | Fixed |
 | 8 | Low | Nginx lacked CSP / Permissions-Policy; Nginx version banner exposed | Fixed |
 | 9 | Low | PostgreSQL port exposed on all interfaces in `docker-compose.yml` | Fixed |
-| 10 | Info | Username/email enumeration via `/auth/login/start` (by design) | Documented |
-| 11 | Info | Email unlock clears only the account ban, not fingerprint bans | Documented |
+| 10 | Info | Username/email enumeration via `/auth/login/start` (by design) | Improved |
+| 11 | Info | Email unlock clears only the account ban, not fingerprint bans | Fixed |
 | 12 | Info | JWT stored in `localStorage` (XSS-exposed) — mitigated by new CSP | Documented |
 | 13 | Info | No TLS/HSTS configured in Nginx (443 mapped but not served) | Recommended |
-| 14 | Info | `theme` JSON accepts arbitrary CSS values (own-profile only) | Recommended |
+| 14 | Info | `theme` JSON accepts arbitrary CSS values (own-profile only) | Fixed |
 
 ## Fixed Findings
 
@@ -118,6 +118,31 @@ important defense-in-depth against XSS.
 **Fix**: bind to loopback (`127.0.0.1:5432:5432`). Restart with `docker compose up -d`
 to apply; backend/frontend containers reach Postgres over the internal network regardless.
 
+### 10. Info — Theme CSS values unvalidated
+
+`theme` fields (`bg`, `cardBg`, `text`, `accent`, `fontFamily`) were stored as raw Prisma
+JSON and rendered into React inline styles. The values are applied via CSSOM property
+assignment (no stylesheet injection is possible), and themes only affect the owner's own
+profile, but arbitrary strings were still stored with no shape or pattern checks.
+
+**Fix** (`lib/validation.ts`): `themeSchema` now validates every field —
+`bg` / `cardBg` / `text` / `accent` must be hex (`#rgb`–`#rrggbbaa`), `rgb()`/`rgba()`,
+or `hsl()`/`hsla()`; `fontFamily` is restricted to `[a-zA-Z0-9 ,'"-]`. Lengths capped at
+128 chars. Injection attempts (`url()`, `var()`, `calc()`, `;`, `{}`, `<`, `>`,
+`javascript:`) are rejected with a 400. The admin profile-override route shares the same
+schema.
+
+### 11. Info — Email unlock scope
+
+`/auth/unlock/verify` cleared only the account ban; fingerprint (IP/cookie/UA) bans and
+failed auth-log entries persisted after an email unlock.
+
+**Fix** (`routes/auth.ts`): email unlock now mirrors the admin unlock helper — it gathers
+the IPs and cookie fingerprints recorded against the account in `auth_logs` and deletes
+the account ban plus those IP/COOKIE bans and the account's failed auth-log entries.
+(UA bans are intentionally left alone, matching the admin helper, because `auth_logs`
+stores only the hashed UA, not the value used as a ban key.)
+
 ## Verified Good (no change)
 
 - bcrypt at 12 rounds everywhere (register, login, change-password, admin reset).
@@ -139,26 +164,26 @@ to apply; backend/frontend containers reach Postgres over the internal network r
 
 ## Documented Risks / Recommendations
 
-1. **User enumeration (info):** `/auth/login/start` returns `found: true/false` and the
-   enabled methods; `/auth/login/passkey/options` returns 404 with a distinct message for
-   unknown users. This is intentional for the username-first login UX. Accept as-is or
-   return a uniform response and always allow the passkey flow.
-2. **Email unlock scope (info):** `/auth/unlock/verify` clears only the account ban.
-   Fingerprint (IP/cookie/UA) bans persist; under the default `trusted_ip` policy a user
-   can still sign in from a registered/last-login IP, after which all bans reset. Documented
-   behavior.
-3. **Token storage (info):** the JWT lives in `localStorage` and is therefore reachable by
-   any script running on the origin. The new CSP `script-src 'self'` is the compensating
-   control. Moving to an HttpOnly cookie is a larger refactor and optional.
-4. **TLS (addressed):** Nginx now serves HTTPS on 443. `TLS_MODE=development` auto-generates
+1. **User enumeration (improved):** login responses are now uniform. `/auth/login/start`
+   always returns a found account (password method) and `/auth/login/passkey/options` plus
+   the 2FA endpoints return a generic 401 instead of 404 for unknown users. What remains:
+   a real account's *enabled methods* are still revealed by `/auth/login/start`
+   (`methods.passkey` / `methods.totp`) — this is intentional for the username-first login
+   UX and does not reveal account existence.
+2. **Token storage (info):** the JWT lives in `localStorage` and is therefore reachable by
+   any script running on the origin. The strict `script-src 'self'` CSP is the compensating
+   control. Moving to an HttpOnly cookie is a larger refactor and was deliberately deferred
+   (accepted risk).
+3. **TLS (addressed):** Nginx now serves HTTPS on 443. `TLS_MODE=development` auto-generates
    self-signed certs (`self-signed.pem`/`self-signed.key`) for dev; `TLS_MODE=production`
    deletes those and requires real certs in `./certs/`. HSTS is sent in production mode only
    (`SEND_HSTS_ON_DEV=true` opts in for dev). Deploy with real certs + HSTS in production.
-5. **Theme CSS values (recommended):** `theme` fields accept arbitrary strings rendered via
-   React inline styles. This is limited to the user's own profile; consider validating
-   color/gradient/font-family patterns if theme sharing is ever added.
-6. **JWT secret strength (addressed):** `JWT_SECRET` is now validated as ≥ 32 characters in
+4. **JWT secret strength (addressed):** `JWT_SECRET` is now validated as ≥ 32 characters in
    `apps/backend/src/config/env.ts`; the backend refuses to boot with a weak secret.
+
+> **Operational note:** the admin account created before the seed fix still carries the old
+> `admin123456` hash. Rotate its password in any deployed environment (`docker compose exec
+> backend ...` or the admin user-edit flow).
 
 ## Verification
 
@@ -168,3 +193,9 @@ to apply; backend/frontend containers reach Postgres over the internal network r
 - `pnpm --filter @bioplatform/frontend exec eslint src` ✓ (3 pre-existing react-refresh warnings)
 - Runtime: register (mixed-case email) → stored lowercase; duplicate email → 409;
   invite creation as non-admin → 403; `/api/profiles/*` → 60×200/404 then 429.
+- Runtime (theme): `PUT /api/profiles/me` with a valid preset theme → 200; with
+  `accent: "#7c3aed); background-image: url(...)"`, `fontFamily: "Arial; } body {..."`,
+  `javascript:` or `url(...)` → 400.
+- Runtime (enumeration): `/auth/login/start` for an unknown identifier → `found: true`
+  with password method; `/auth/login/passkey/options` for an unknown identifier →
+  401 "Invalid credentials".

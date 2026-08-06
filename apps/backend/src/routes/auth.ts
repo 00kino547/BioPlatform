@@ -212,7 +212,10 @@ router.post("/login/start", async (req, res) => {
 
   const user = await findUserByIdentifier(parsed.data.identifier);
   if (!user) {
-    return res.json({ success: true, data: { found: false } });
+    return res.json({
+      success: true,
+      data: { found: true, methods: { password: true, passkey: false, totp: false } },
+    });
   }
 
   const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
@@ -285,12 +288,12 @@ router.post("/login/passkey/options", async (req, res) => {
 
   const user = await findUserByIdentifier(parsed.data.identifier);
   if (!user) {
-    return res.status(404).json({ success: false, error: "User not found" });
+    return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
   const passkeys = await prisma.passkey.findMany({ where: { userId: user.id } });
   if (passkeys.length === 0) {
-    return res.status(404).json({ success: false, error: "No passkeys registered" });
+    return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
   const options = await generateLoginOptions({
@@ -315,7 +318,7 @@ router.post("/login/passkey/verify", async (req, res) => {
 
   const user = await findUserByIdentifier(parsed.data.identifier);
   if (!user) {
-    return res.status(404).json({ success: false, error: "User not found" });
+    return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
   const result = await verifyLogin(
@@ -352,7 +355,7 @@ router.post("/2fa/totp", async (req, res) => {
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !user.totpEnabled || !user.totpSecret) {
-    return res.status(401).json({ success: false, error: "TOTP is not enabled" });
+    return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
   if (!(await verifyTotpCode(user.totpSecret, parsed.data.code))) {
@@ -421,7 +424,7 @@ router.post("/2fa/passkey/verify", async (req, res) => {
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    return res.status(404).json({ success: false, error: "User not found" });
+    return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
   res.json({ success: true, data: { token, user: userPublic(user) } });
@@ -712,9 +715,19 @@ router.post("/unlock/verify", async (req, res) => {
     return res.status(400).json({ success: false, error: "Invalid unlock token" });
   }
 
-  await prisma.authBan.deleteMany({
-    where: { kind: "ACCOUNT", value: payload.userId },
+  const logs = await prisma.authLog.findMany({
+    where: { accountId: payload.userId },
+    select: { ip: true, fingerprint: true },
   });
+  const ips = [...new Set(logs.map((l) => l.ip).filter((v): v is string => Boolean(v)))];
+  const cookies = [...new Set(logs.map((l) => l.fingerprint).filter((v): v is string => Boolean(v)))];
+
+  await Promise.all([
+    prisma.authBan.deleteMany({ where: { kind: "ACCOUNT", value: payload.userId } }),
+    prisma.authBan.deleteMany({ where: { kind: "IP", value: { in: ips } } }),
+    prisma.authBan.deleteMany({ where: { kind: "COOKIE", value: { in: cookies } } }),
+    prisma.authLog.deleteMany({ where: { accountId: payload.userId } }),
+  ]);
 
   res.json({ success: true });
 });
