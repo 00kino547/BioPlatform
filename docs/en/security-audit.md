@@ -150,9 +150,10 @@ to apply; backend/frontend containers reach Postgres over the internal network r
 3. **Token storage (info):** the JWT lives in `localStorage` and is therefore reachable by
    any script running on the origin. The new CSP `script-src 'self'` is the compensating
    control. Moving to an HttpOnly cookie is a larger refactor and optional.
-4. **TLS (addressed):** Nginx now serves HTTPS on 443 with HSTS. `TLS_MODE=development`
-   auto-generates self-signed certs for dev; `TLS_MODE=production` requires real certs in
-   `./certs/` and refuses to start without them. Deploy with real certs + HSTS in production.
+4. **TLS (addressed):** Nginx now serves HTTPS on 443. `TLS_MODE=development` auto-generates
+   self-signed certs (`self-signed.pem`/`self-signed.key`) for dev; `TLS_MODE=production`
+   deletes those and requires real certs in `./certs/`. HSTS is sent in production mode only
+   (`SEND_HSTS_ON_DEV=true` opts in for dev). Deploy with real certs + HSTS in production.
 5. **Theme CSS values (recommended):** `theme` fields accept arbitrary strings rendered via
    React inline styles. This is limited to the user's own profile; consider validating
    color/gradient/font-family patterns if theme sharing is ever added.

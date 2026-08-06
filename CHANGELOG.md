@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Security
-- HTTPS served on 443 with HSTS; `TLS_MODE=development` auto-generates self-signed certs into `./certs/`, `TLS_MODE=production` requires real certs and refuses to start without them
+- HTTPS served on 443 with HSTS (production mode only; `SEND_HSTS_ON_DEV=true` opts in for dev). `TLS_MODE=development` auto-generates self-signed certs stored as `self-signed.pem`/`self-signed.key`; `TLS_MODE=production` deletes them and requires real certs
 - `JWT_SECRET` must be at least 32 characters (backend refuses to boot with a weak secret)
 
 ## [1.1.0-dev-beta.1] - 2026-08-05

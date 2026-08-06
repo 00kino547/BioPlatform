@@ -73,6 +73,7 @@ services:
     command: ["nginx", "-g", "daemon off;"]
     environment:
       TLS_MODE: ${TLS_MODE:-development}
+      SEND_HSTS_ON_DEV: ${SEND_HSTS_ON_DEV:-false}
     ports:
       - "${NGINX_PORT}:80"
       - "${NGINX_HTTPS_PORT}:443"

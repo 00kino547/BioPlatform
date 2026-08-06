@@ -36,7 +36,8 @@ npm-debug.log*
 temp
 
 # TLS certificates (user-provided or auto-generated)
-certs/*.pem
+certs/*
+!certs/.gitkeep
 
 # Local AI files
 NOTES.md

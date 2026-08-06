@@ -69,7 +69,8 @@
 | `ENABLE_INTERNAL_NGINX` | Enable Nginx container | `true` |
 | `NGINX_PORT` | Nginx HTTP port | `80` |
 | `NGINX_HTTPS_PORT` | Nginx HTTPS port | `443` |
-| `TLS_MODE` | TLS certificate mode: `development` auto-generates self-signed certs into `./certs` on startup; `production` requires valid `cert.pem` + `key.pem` in `./certs/` (nginx fails to start otherwise) | `development` |
+| `TLS_MODE` | TLS certificate mode: `development` auto-generates self-signed certs stored as `self-signed.pem`/`self-signed.key` in `./certs` (symlinked to `cert.pem`/`key.pem`); `production` deletes any self-signed files and requires valid user-provided `cert.pem` + `key.pem` (nginx fails to start otherwise) | `development` |
+| `SEND_HSTS_ON_DEV` | Send the `Strict-Transport-Security` header in development mode too (`true`/`false`). In `production` mode HSTS is always sent. | `false` |
 
 ## Storage
 

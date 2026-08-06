@@ -62,11 +62,13 @@ pnpm --filter backend start
 The bundled Nginx listens on both HTTP (80) and HTTPS (443). Certificate handling is
 controlled by `TLS_MODE`:
 
-- **`development` (default)** — if no valid certificate exists in `./certs/`, Nginx
-  auto-generates a self-signed certificate (valid 10 years, SAN for `localhost` /
-  `127.0.0.1`) on container startup. Good for local dev; browsers will warn.
-- **`production`** — Nginx requires a valid certificate/key pair and refuses to start
-  without it. Drop your certificate and private key into `./certs/`:
+- **`development` (default)** — if no valid certificate exists, Nginx auto-generates a
+  self-signed certificate (valid 10 years, SAN for `localhost` / `127.0.0.1`) on container
+  startup. It is stored as `self-signed.pem` / `self-signed.key` in `./certs/` and symlinked
+  as `cert.pem` / `key.pem`. Browsers will warn.
+- **`production`** — Nginx deletes any `self-signed.*` files and the dev symlinks on startup,
+  then requires a valid certificate/key pair, refusing to start without it. Drop your
+  certificate and private key into `./certs/`:
 
   ```
   certs/
@@ -77,9 +79,13 @@ controlled by `TLS_MODE`:
   Both files are gitignored (`certs/*.pem`). Generate with Let's Encrypt (Certbot), a
   CA of your choice, or Cloudflare Origin Certificates.
 
-Once HTTPS is live, HSTS is sent automatically (`Strict-Transport-Security`, 1 year) on
-port 443. If you terminate TLS elsewhere (Cloudflare, Load Balancer), leave
-`TLS_MODE=development` or remove the 443 mapping.
+### HSTS
+
+HSTS (`Strict-Transport-Security`, 1 year) is sent automatically on port 443 in
+**production** mode. It is **not** sent in development mode (browsers ignore it for
+self-signed certs anyway); set `SEND_HSTS_ON_DEV=true` to force it on dev too. If you
+terminate TLS elsewhere (Cloudflare, Load Balancer), leave `TLS_MODE=development` or remove
+the 443 mapping.
 
 ## Reverse Proxy
 
