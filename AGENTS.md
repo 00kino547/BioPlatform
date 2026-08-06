@@ -72,3 +72,6 @@ Before changing code:
 
 Never: assume architecture, duplicate logic, rewrite unrelated code, rename files, add unnecessary deps.
 Always: reuse code/patterns, keep modules independent, update docs when files change.
+
+Never create standalone audit/report files (e.g. `docs/en/security-audit.md`). If a review finds issues, fix them directly.
+Record every security fix in `CHANGELOG.md` under `[Unreleased] → Security` and mark it done in `TASKS.md` — never in a separate audit document. Accepted/deferred risks go in the same changelog entry as a note.

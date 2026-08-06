@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Login responses made uniform to stop user enumeration: `/auth/login/start` always reports a found account with password method, and `/auth/login/passkey/options` + 2FA endpoints return a generic 401 "Invalid credentials" instead of 404/distinct messages for unknown users
 - Email unlock (`/auth/unlock/verify`) now clears the account's IP/cookie fingerprint bans and failed auth-log entries alongside the account ban, matching the admin unlock behavior
 
+> **Accepted / deferred risks:** the JWT stays in `localStorage` (XSS-exposed) with the strict `script-src 'self'` CSP as the compensating control — an HttpOnly-cookie refactor is deferred. `/auth/login/start` still reveals a real account's enabled methods (passkey/totp), intentional for the username-first UX. Production operators must deploy real TLS certs + HSTS and rotate the pre-existing admin password (created before the seed fix) away from `admin123456`.
+
 ## [1.1.0-dev-beta.1] - 2026-08-05
 
 ### Added
