@@ -150,14 +150,14 @@ to apply; backend/frontend containers reach Postgres over the internal network r
 3. **Token storage (info):** the JWT lives in `localStorage` and is therefore reachable by
    any script running on the origin. The new CSP `script-src 'self'` is the compensating
    control. Moving to an HttpOnly cookie is a larger refactor and optional.
-4. **TLS (recommended):** Nginx only listens on port 80; port 443 is mapped in compose but
-   not served. Terminate TLS at the edge (Nginx, Cloudflare, or a load balancer) and add
-   HSTS once HTTPS is active.
+4. **TLS (addressed):** Nginx now serves HTTPS on 443 with HSTS. `TLS_MODE=development`
+   auto-generates self-signed certs for dev; `TLS_MODE=production` requires real certs in
+   `./certs/` and refuses to start without them. Deploy with real certs + HSTS in production.
 5. **Theme CSS values (recommended):** `theme` fields accept arbitrary strings rendered via
    React inline styles. This is limited to the user's own profile; consider validating
    color/gradient/font-family patterns if theme sharing is ever added.
-6. **JWT secret strength:** `JWT_SECRET` is only validated as non-empty. Use a long random
-   secret in production.
+6. **JWT secret strength (addressed):** `JWT_SECRET` is now validated as ≥ 32 characters in
+   `apps/backend/src/config/env.ts`; the backend refuses to boot with a weak secret.
 
 ## Verification
 

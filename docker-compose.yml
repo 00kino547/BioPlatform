@@ -69,11 +69,18 @@ services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
+    environment:
+      TLS_MODE: ${TLS_MODE:-development}
     ports:
       - "${NGINX_PORT}:80"
       - "${NGINX_HTTPS_PORT}:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/site.conf:/etc/nginx/custom/site.conf:ro
+      - ./nginx/entrypoint.sh:/entrypoint.sh:ro
+      - ./certs:/etc/nginx/certs
     depends_on:
       - frontend
       - backend

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- HTTPS served on 443 with HSTS; `TLS_MODE=development` auto-generates self-signed certs into `./certs/`, `TLS_MODE=production` requires real certs and refuses to start without them
+- `JWT_SECRET` must be at least 32 characters (backend refuses to boot with a weak secret)
+
 ## [1.1.0-dev-beta.1] - 2026-08-05
 
 ### Added

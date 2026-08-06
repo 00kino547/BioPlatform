@@ -57,6 +57,30 @@ pnpm --filter frontend build
 pnpm --filter backend start
 ```
 
+## TLS / HTTPS
+
+The bundled Nginx listens on both HTTP (80) and HTTPS (443). Certificate handling is
+controlled by `TLS_MODE`:
+
+- **`development` (default)** — if no valid certificate exists in `./certs/`, Nginx
+  auto-generates a self-signed certificate (valid 10 years, SAN for `localhost` /
+  `127.0.0.1`) on container startup. Good for local dev; browsers will warn.
+- **`production`** — Nginx requires a valid certificate/key pair and refuses to start
+  without it. Drop your certificate and private key into `./certs/`:
+
+  ```
+  certs/
+    cert.pem      # your certificate (or fullchain)
+    key.pem       # your private key
+  ```
+
+  Both files are gitignored (`certs/*.pem`). Generate with Let's Encrypt (Certbot), a
+  CA of your choice, or Cloudflare Origin Certificates.
+
+Once HTTPS is live, HSTS is sent automatically (`Strict-Transport-Security`, 1 year) on
+port 443. If you terminate TLS elsewhere (Cloudflare, Load Balancer), leave
+`TLS_MODE=development` or remove the 443 mapping.
+
 ## Reverse Proxy
 
 ### Nginx
@@ -92,6 +116,7 @@ cloudflared tunnel --url http://localhost:80
 ## Production Checklist
 
 - [ ] Strong `JWT_SECRET` (32+ random characters)
+- [ ] `TLS_MODE=production` with real certs in `./certs/` (no self-signed certs)
 - [ ] `NODE_ENV=production`
 - [ ] HTTPS enabled (reverse proxy or Cloudflare)
 - [ ] `APP_URL` set to your domain

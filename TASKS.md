@@ -103,3 +103,4 @@
 - [x] Auth log table + admin Logs tab (failed attempts, reason, penalty, trigger) with cron cleanup of expired/retention-aged entries
 - [x] Admin account unlock (POST /api/admin/auth-unlock) — clears the account ban plus the fingerprint (IP/cookie) bans recorded against that account, and its failed auth-log entries
 - [x] Security audit fixes — seed admin creds from env (no hardcoded default), admin-only invite minting, per-IP rate limit on public view/click endpoints, atomic invite consumption + email normalization on register, trusted `req.ip` + sanitized referer in analytics, Nginx CSP/Permissions-Policy/`server_tokens off`, Postgres bound to loopback (see `docs/en/security-audit.md`)
+- [x] TLS on 443 + HSTS — `TLS_MODE` env var (development = auto self-signed certs in `./certs/`, production = requires real cert.pem/key.pem), 443 server block with HSTS, `JWT_SECRET` min 32 chars validation (see `docs/en/security-audit.md` Documented Risks #4, #6)

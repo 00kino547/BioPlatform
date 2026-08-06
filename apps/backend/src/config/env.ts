@@ -5,7 +5,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().url(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
-  JWT_SECRET: z.string().min(1),
+  JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default("7d"),
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   AUTH_LOCK_POLICY: z.enum(["block", "trusted_ip", "email"]).default("trusted_ip"),

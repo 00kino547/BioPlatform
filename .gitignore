@@ -35,5 +35,8 @@ npm-debug.log*
 *.tmp
 temp
 
+# TLS certificates (user-provided or auto-generated)
+certs/*.pem
+
 # Local AI files
 NOTES.md

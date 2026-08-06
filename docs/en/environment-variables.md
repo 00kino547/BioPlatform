@@ -47,7 +47,7 @@
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `JWT_SECRET` | JWT signing secret | — (required) |
+| `JWT_SECRET` | JWT signing secret (min 32 chars) | — (required) |
 | `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
 | `TRUST_PROXY` | Number of trusted proxy hops (used to resolve the real client IP for auth rate limiting) | `1` |
 | `AUTH_LOCK_POLICY` | Account lock policy: `block` (reject all), `trusted_ip` (registered + last-login IPs may sign in without unlocking), `email` (unlock requires an email link) | `trusted_ip` |
@@ -69,6 +69,7 @@
 | `ENABLE_INTERNAL_NGINX` | Enable Nginx container | `true` |
 | `NGINX_PORT` | Nginx HTTP port | `80` |
 | `NGINX_HTTPS_PORT` | Nginx HTTPS port | `443` |
+| `TLS_MODE` | TLS certificate mode: `development` auto-generates self-signed certs into `./certs` on startup; `production` requires valid `cert.pem` + `key.pem` in `./certs/` (nginx fails to start otherwise) | `development` |
 
 ## Storage
 
