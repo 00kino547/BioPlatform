@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getEnv } from "../config/env.js";
 import { requireAuth } from "../middleware/auth.js";
+import { permissionsFor } from "../lib/permissions.js";
 import { generateTotpSecret, verifyTotpCode } from "../lib/totp.js";
 import {
   cleanupExpiredChallenges,
@@ -90,22 +91,35 @@ function verifyTwoFactorToken(token: string): string | null {
   }
 }
 
-function userPublic(user: {
+async function userPublic(user: {
   id: string;
   username: string;
   email: string;
-  role: string;
+  roleId: string;
   tier: string;
   trackLimit: number | null;
+  profileLimit: number | null;
+  aliasLimit: number | null;
+  badges?: { id: string }[];
   totpEnabled: boolean;
 }) {
+  const role = await prisma.role.findUnique({
+    where: { id: user.roleId },
+    select: { id: true, slug: true, name: true, isSystem: true, permissions: true },
+  });
+  const permissions = permissionsFor(role);
   return {
     id: user.id,
     username: user.username,
     email: user.email,
-    role: user.role,
+    role: role ?? null,
+    permissions,
+    isAdmin: permissions.length > 0,
     tier: user.tier,
     trackLimit: user.trackLimit,
+    profileLimit: user.profileLimit,
+    aliasLimit: user.aliasLimit,
+    badges: (user.badges ?? []).map((b) => b.id),
     totpEnabled: user.totpEnabled,
   };
 }
@@ -159,6 +173,13 @@ router.post("/register", async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const userRole = await prisma.role.findUnique({
+    where: { slug: "user" },
+    select: { id: true },
+  });
+  if (!userRole) {
+    return res.status(500).json({ success: false, error: "Default role not configured" });
+  }
 
   try {
     const user = await prisma.$transaction(async (tx) => {
@@ -167,12 +188,13 @@ router.post("/register", async (req, res) => {
           username,
           email: normalizedEmail,
           passwordHash,
+          roleId: userRole.id,
           registeredIp: req.authFingerprint?.ip ?? null,
         },
       });
 
       await tx.profile.create({
-        data: { userId: u.id },
+        data: { userId: u.id, slug: username, isPrimary: true },
       });
 
       const consumed = await tx.inviteCode.updateMany({
@@ -191,7 +213,7 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: { token, user: userPublic(user) },
+      data: { token, user: await userPublic(user) },
     });
   } catch (err) {
     if (err instanceof Error && err.message === "INVITE_ALREADY_USED") {
@@ -276,7 +298,7 @@ router.post("/login", async (req, res) => {
 
   res.json({
     success: true,
-    data: { token, user: userPublic(user) },
+    data: { token, user: await userPublic(user) },
   });
 });
 
@@ -338,7 +360,7 @@ router.post("/login/passkey/verify", async (req, res) => {
 
   res.json({
     success: true,
-    data: { token, user: userPublic(user) },
+    data: { token, user: await userPublic(user) },
   });
 });
 
@@ -365,7 +387,7 @@ router.post("/2fa/totp", async (req, res) => {
   const env = getEnv();
   const token = signToken(user.id, env.JWT_EXPIRES_IN);
 
-  res.json({ success: true, data: { token, user: userPublic(user) } });
+  res.json({ success: true, data: { token, user: await userPublic(user) } });
 });
 
 router.post("/2fa/passkey/options", async (req, res) => {
@@ -427,7 +449,7 @@ router.post("/2fa/passkey/verify", async (req, res) => {
     return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
 
-  res.json({ success: true, data: { token, user: userPublic(user) } });
+  res.json({ success: true, data: { token, user: await userPublic(user) } });
 });
 
 router.post("/passkeys/options", requireAuth, async (req, res) => {
@@ -597,14 +619,35 @@ router.post("/totp/disable", requireAuth, async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId! },
-    select: { id: true, username: true, email: true, role: true, tier: true, trackLimit: true, createdAt: true, totpEnabled: true },
+    include: {
+      role: { select: { id: true, slug: true, name: true, isSystem: true, permissions: true } },
+      badges: { select: { id: true } },
+    },
   });
 
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
   }
 
-  res.json({ success: true, data: user });
+  const permissions = permissionsFor(user.role);
+
+  res.json({
+    success: true,
+    data: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      permissions,
+      isAdmin: permissions.length > 0,
+      tier: user.tier,
+      trackLimit: user.trackLimit,
+      profileLimit: user.profileLimit,
+      aliasLimit: user.aliasLimit,
+      badges: user.badges.map((b) => b.id),
+      totpEnabled: user.totpEnabled,
+    },
+  });
 });
 
 router.post("/change-password", requireAuth, async (req, res) => {

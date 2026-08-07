@@ -9,6 +9,7 @@ import {
   Upload,
   Gauge,
   Paintbrush,
+  Layers,
 } from "lucide-react";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
@@ -21,6 +22,15 @@ const features = [
     color: "from-violet-500/20 to-violet-600/5",
     iconColor: "text-violet-400",
     iconBg: "bg-violet-500/10",
+    span: "col-span-1 row-span-1",
+  },
+  {
+    icon: Layers,
+    title: "Multiple Profiles",
+    description: "Run several link pages from one account, each with its own slug, theme, links, and music. Alias slugs give every page extra short URLs.",
+    color: "from-sky-500/20 to-sky-600/5",
+    iconColor: "text-sky-400",
+    iconBg: "bg-sky-500/10",
     span: "col-span-1 row-span-1",
   },
   {

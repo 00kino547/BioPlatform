@@ -9,6 +9,7 @@ Una plataforma moderna de enlaces para creadores, desarrolladores y cualquier pe
 - Perfiles personalizados con avatares, banners y biografías
 - Enlaces sociales con iconos de plataforma (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email)
 - Soporte para nombres de usuario de Discord y enlaces de invitación
+- Presencia de Discord en vivo (estado, actividad, canción actual) con un widget de perfil opt-in y previsualizaciones de enlaces enriquecidas (meta OpenGraph + tarjeta renderizada en servidor)
 - Enlaces de correo electrónico `mailto:`
 - 8 temas predefinidos (Midnight, Ocean, Sunset, Forest, Lavender, Rose, Arctic, Minimal)
 - Personalización de temas con colores de acento

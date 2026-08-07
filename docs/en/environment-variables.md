@@ -20,6 +20,7 @@
 | `VITE_APP_DESCRIPTION` | Frontend description | `Create a stunning profile page...` |
 | `VITE_APP_URL` | Frontend public URL | `http://localhost:80` |
 | `VITE_APP_GITHUB_URL` | Frontend GitHub URL | `https://github.com/00kino547/BioPlatform` |
+| `VITE_APP_OG_IMAGE` | Default Open Graph/Discord embed image | `<VITE_APP_URL>/og.png` |
 | `VITE_CONTACT_URL` | Contact/support URL | `https://github.com/00kino547/BioPlatform/issues` |
 | `VITE_STATUS_URL` | Status page URL | _(empty)_ |
 | `VITE_DOCS_URL` | Documentation URL | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
@@ -56,6 +57,16 @@
 | `AUTH_LOG_RETENTION_DAYS` | Auth log retention in days before the cleanup job deletes entries | `30` |
 | `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | How often the auth log cleanup job runs (in minutes) | `60` |
 
+## WebAuthn (passkeys)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `WEBAUTHN_RP_ID` | Relying-party ID — the registrable domain **without port** (e.g. `localhost`, `example.com`) | `localhost` |
+| `WEBAUTHN_ORIGIN` | The **exact** origin(s) the browser uses to reach the app (scheme + host + port; default ports are omitted). Comma-separate multiple origins (e.g. `http://localhost:80,https://localhost`). Must match the address bar precisely or passkey registration/authentication will fail with "Passkey registration failed". | `http://localhost:80` |
+| `WEBAUTHN_RP_NAME` | Display name shown in the passkey prompt | `BioPlatform` |
+
+> The origin is compared byte-for-byte against the browser-reported origin. If your deployment is served over HTTPS on the default port (as the Docker setup is), use `https://<host>` — not `http://<host>:80`. If you access it over plain HTTP on port 80, use `http://<host>:80`. In production this is your public domain (e.g. `https://bio.example.com`). If you want to allow both (e.g. an HTTP local deployment plus an HTTPS domain), list both origins separated by commas.
+
 ## CORS
 
 | Variable | Description | Default |
@@ -78,6 +89,18 @@
 |----------|-------------|---------|
 | `STORAGE_PROVIDER` | Storage backend (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Local upload directory | `./uploads` |
+
+## Discord
+
+The Discord integration (presence widget, link previews, "Post to Discord") is enabled only when all three variables are set. Leave them empty to disable the feature entirely — the Dashboard shows an "unavailable" card and the backend runs no gateway sessions.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DISCORD_CLIENT_ID` | Discord application client ID | _(empty)_ |
+| `DISCORD_CLIENT_SECRET` | Discord application client secret | _(empty)_ |
+| `DISCORD_REDIRECT_URI` | OAuth2 redirect URI (must match the Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
+
+> Create the application in the [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). No bot is required. Register the redirect URI under **OAuth2 → Redirects**, then copy the Client ID and Client Secret. Authorized users grant `identify` + `gateway.connect` with `prompt=consent`, which issues a refresh token so the server can keep their presence session alive without the user being online.
 
 ## Branding
 

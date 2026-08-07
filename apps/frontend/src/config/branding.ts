@@ -7,4 +7,5 @@ export const branding = {
   contactUrl: import.meta.env.VITE_CONTACT_URL || "https://github.com/00kino547/BioPlatform/issues",
   statusUrl: import.meta.env.VITE_STATUS_URL || "",
   docsUrl: import.meta.env.VITE_DOCS_URL || "https://github.com/00kino547/BioPlatform/tree/main/docs",
+  ogImage: import.meta.env.VITE_APP_OG_IMAGE || `${import.meta.env.VITE_APP_URL || "http://localhost:80"}/og.png`,
 } as const;

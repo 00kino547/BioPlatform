@@ -55,9 +55,14 @@ export function isSafeSocialUrl(platform: string, value: string): boolean {
 }
 
 export function isValidDiscordUsername(value: string): boolean {
-  if (/^https?:\/\//i.test(value)) {
+  const trimmed = value.trim();
+  let candidate = trimmed;
+  if (!/^https?:\/\//i.test(candidate) && /^discord\.(gg|com|app)\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+  if (/^https?:\/\//i.test(candidate)) {
     try {
-      const url = new URL(value);
+      const url = new URL(candidate);
       const h = url.hostname.toLowerCase();
       return (
         (h === "discord.gg" || h.endsWith(".discord.gg") || h === "discord.com" || h === "discordapp.com") &&
@@ -68,7 +73,7 @@ export function isValidDiscordUsername(value: string): boolean {
       return false;
     }
   }
-  return /^[a-z0-9_.]{2,32}$/i.test(value) && !/\.\./.test(value) && !/^\./.test(value) && !/\.$/.test(value);
+  return /^[a-z0-9_.]{2,32}$/i.test(candidate) && !/\.\./.test(candidate) && !/^\./.test(candidate) && !/\.$/.test(candidate);
 }
 
 function isSafeCssColor(value: string): boolean {
@@ -94,7 +99,14 @@ export const themeSchema = z
   .nullable()
   .optional();
 
+export const profileSlugSchema = z
+  .string()
+  .min(2)
+  .max(64)
+  .regex(/^[a-z0-9_-]+$/, { message: "Only lowercase letters, numbers, dashes and underscores" });
+
 export const updateProfileSchema = z.object({
+  slug: profileSlugSchema.optional().transform((v) => (v ? stripHtml(v) || v : v)),
   displayName: z.string().max(64).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
   bio: z.string().max(500).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
   location: z.string().max(100).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),

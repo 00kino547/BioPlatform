@@ -1,15 +1,19 @@
 # Guía de Administración
 
-Guía de operaciones para administradores: códigos de invitación, gestión de usuarios, baneos y bloqueos, desbloqueo de cuentas de usuario y el registro de autenticación.
+Guía de operaciones para administradores: códigos de invitación, gestión de usuarios, roles y permisos, insignias, baneos y bloqueos, desbloqueo de cuentas de usuario y el registro de autenticación.
 
 ## Resumen
 
-Inicia sesión como administrador y abre **Panel de Administración**. Tiene cuatro pestañas:
+Inicia sesión como administrador y abre **Panel de Administración**. Tiene hasta seis pestañas:
 
 - **Códigos de Invitación** — crea y revoca códigos de registro.
-- **Usuarios** — lista cuentas, edita perfiles, cambia planes y límites de pistas, restablece contraseñas.
+- **Usuarios** — lista cuentas, edita perfiles, asigna roles, cambia planes y límites de pistas, restablece contraseñas.
+- **Roles** — define roles con conmutadores de permisos individuales.
+- **Insignias** — gestiona el catálogo de insignias (etiqueta, color, icono).
 - **Baneos** — cada baneo de huella/cuenta activo con su estado.
 - **Registros** — el registro de autenticación (intentos fallidos, razones, penalizaciones).
+
+Las pestañas que ves dependen de los permisos de tu propio rol: un rol con solo `invites.manage` verá únicamente **Códigos de Invitación**, mientras que el rol Admin integrado lo ve todo.
 
 ## Códigos de Invitación
 
@@ -24,8 +28,44 @@ El registro es solo con invitación. En la pestaña **Códigos de Invitación**:
 La pestaña **Usuarios** lista todas las cuentas. Haz clic en **Editar Perfil** para:
 
 - Cambiar nombre, bio, ubicación, sitio web y visibilidad pública/privada.
+- Asignar el **rol** del usuario (de los definidos en la pestaña **Roles**).
 - Definir el **plan** del usuario (Free / Pro / Enterprise) y un **límite de pistas** personalizado (anula el predeterminado del plan para el reproductor de música).
+- Definir un **límite de perfiles** y **límite de aliases** personalizado (anula los predeterminados del plan para las páginas multiperfil y los aliases).
+- Alternar **insignias** del catálogo — estas son las insignias que el usuario puede mostrar en sus perfiles.
 - Restablecer la contraseña de un usuario (backend `POST /api/admin/users/:id/reset-password`).
+
+## Roles y Permisos
+
+La pestaña **Roles** gestiona el acceso. Cada usuario tiene exactamente un rol; cada rol lleva un conjunto de permisos:
+
+- `users.view` — ver la pestaña Usuarios.
+- `users.manage` — editar usuarios (rol, plan, límites, insignias, perfil).
+- `profiles.manage` — gestionar perfiles.
+- `invites.manage` — crear y revocar códigos de invitación.
+- `bans.manage` — gestionar baneos y bloqueos.
+- `roles.manage` — crear/editar/eliminar roles.
+- `badges.manage` — crear/editar/eliminar insignias.
+- `logs.view` — ver el registro de autenticación.
+
+Siempre existen dos roles de sistema:
+
+- **Admin** — acceso completo. Sus permisos están bloqueados (siempre todos); puedes renombrarlo pero no quitarle permisos.
+- **User** — el rol por defecto para los nuevos registros. Su nombre, descripción y permisos son editables.
+
+Para crear un rol, introduce un nombre/descripción, marca los permisos y haz clic en **Crear Rol**. Puedes **Editarlo** después (el slug se deriva del nombre) o **Eliminarlo** — un rol personalizado solo puede eliminarse cuando ningún usuario lo tiene. Los nombres reservados (`admin` / `user`) no pueden reutilizarse en roles personalizados. Los roles nuevos solo son tan poderosos como los permisos que les concedas.
+
+## Insignias
+
+La pestaña **Insignias** gestiona el catálogo de insignias. Cada insignia tiene:
+
+- **Etiqueta** — lo que se muestra en el perfil (p. ej. «Gold Member»).
+- **Slug** — una clave única (opcional; por defecto la etiqueta).
+- **Color** — un color hex (`#22c55e`) usado para la píldora y el icono.
+- **Icono** — un nombre de icono lucide (p. ej. `Crown`, `Award`, `Code`).
+
+Haz clic en **Crear Insignia** para añadir una; una vista previa en vivo muestra cómo se renderiza. Las insignias de sistema (developer, owner, staff, moderator, verified, premium, enterprise) no pueden eliminarse ni cambiar su slug; las personalizadas pueden editarse o eliminarse libremente (eliminar las quita de todos los perfiles y usuarios).
+
+Las insignias se asignan a los usuarios en **Usuarios → Editar Perfil**. Una vez que un usuario tiene una insignia, puede activarla en cada perfil desde su panel, y se muestra como un icono de color en la página pública. El catálogo es público en `GET /api/badges`.
 
 ## Cómo Funcionan los Baneos y Bloqueos
 

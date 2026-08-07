@@ -2,18 +2,22 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BioPlatform — Your Digital Identity, Beautifully Crafted</title>
-    <meta name="description" content="Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place." />
+    <title>%VITE_APP_NAME% — %VITE_APP_TAGLINE%</title>
+    <meta name="description" content="%VITE_APP_DESCRIPTION%" />
     <meta name="theme-color" content="#09090b" />
+    <link rel="canonical" href="%VITE_APP_URL%" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="BioPlatform — Your Digital Identity, Beautifully Crafted" />
-    <meta property="og:description" content="Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place." />
-    <meta property="og:url" content="http://localhost:80" />
+    <meta property="og:site_name" content="%VITE_APP_NAME%" />
+    <meta property="og:title" content="%VITE_APP_NAME% — %VITE_APP_TAGLINE%" />
+    <meta property="og:description" content="%VITE_APP_DESCRIPTION%" />
+    <meta property="og:url" content="%VITE_APP_URL%" />
+    <meta property="og:image" content="%VITE_APP_OG_IMAGE%" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="BioPlatform — Your Digital Identity, Beautifully Crafted" />
-    <meta name="twitter:description" content="Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place." />
+    <meta name="twitter:title" content="%VITE_APP_NAME% — %VITE_APP_TAGLINE%" />
+    <meta name="twitter:description" content="%VITE_APP_DESCRIPTION%" />
+    <meta name="twitter:image" content="%VITE_APP_OG_IMAGE%" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -21,9 +25,9 @@
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "BioPlatform",
-        "description": "Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place.",
-        "url": "http://localhost:80",
+        "name": "%VITE_APP_NAME%",
+        "description": "%VITE_APP_DESCRIPTION%",
+        "url": "%VITE_APP_URL%",
         "applicationCategory": "WebApplication",
         "operatingSystem": "Web"
       }

@@ -20,15 +20,16 @@ export type ChallengePurpose = "register" | "login" | "twofactor";
 export interface WebauthnEnv {
   rpID: string;
   rpName: string;
-  origin: string;
+  origin: string | string[];
 }
 
 export function getWebauthnEnv(): WebauthnEnv {
   const env = getEnv();
+  const origins = env.WEBAUTHN_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean);
   return {
     rpID: env.WEBAUTHN_RP_ID,
     rpName: env.WEBAUTHN_RP_NAME,
-    origin: env.WEBAUTHN_ORIGIN,
+    origin: origins.length > 1 ? origins : (origins[0] ?? env.WEBAUTHN_ORIGIN),
   };
 }
 

@@ -40,6 +40,14 @@ Client → Nginx (optional) → Frontend (React SPA)
 - No `dangerouslySetInnerHTML` anywhere in the frontend
 - React escapes all JSX content by default — defense-in-depth via backend sanitization
 
+## Protected Operations
+
+The agent MUST NEVER modify authentication credentials, password hashes, 2FA/passkeys, API keys, tokens, or user secrets without explicit user approval.
+
+If authentication blocks testing, stop and ask the user.
+
+Never rewrite credentials to continue automatically. If an E2E test requires changing user state, create temporary test accounts instead of modifying existing ones.
+
 ## Visual Quality Rules
 
 Every public page must include: visual hierarchy, proper spacing, interactive elements, hover states, responsive behavior, smooth animations, modern UI patterns, consistent design language.
@@ -75,3 +83,5 @@ Always: reuse code/patterns, keep modules independent, update docs when files ch
 
 Never create standalone audit/report files (e.g. `docs/en/security-audit.md`). If a review finds issues, fix them directly.
 Record every security fix in `CHANGELOG.md` under `[Unreleased] → Security` and mark it done in `TASKS.md` — never in a separate audit document. Accepted/deferred risks go in the same changelog entry as a note.
+
+Docs parity: every file in `docs/en/` must have an exact Spanish twin in `docs/es/` (same set of files, same content translated). When you add, rename, or delete a doc in one language, mirror it in the other in the same change.

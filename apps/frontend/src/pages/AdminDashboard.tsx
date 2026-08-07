@@ -2,9 +2,11 @@ import { useState, useEffect, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
+import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
-import { getToken } from "@/lib/api";
-import { X, Edit, Save } from "lucide-react";
+import { getToken, type Badge, type Role } from "@/lib/api";
+import { BadgePill } from "@/components/ui/BadgePill";
+import { X, Edit, Save, Trash2 } from "lucide-react";
 
 interface InviteCode {
   id: string;
@@ -20,9 +22,13 @@ interface User {
   id: string;
   username: string;
   email: string;
-  role: string;
+  roleId: string;
+  role: { id: string; slug: string; name: string; isSystem: boolean } | null;
   tier: string;
   trackLimit: number | null;
+  profileLimit: number | null;
+  aliasLimit: number | null;
+  badges: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -66,13 +72,47 @@ interface AuthLogEntry {
   createdAt: string;
 }
 
-type Tab = "codes" | "users" | "bans" | "logs";
+type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs";
+
+const PERMISSION_LABELS: Record<string, string> = {
+  "users.view": "View users",
+  "users.manage": "Manage users",
+  "profiles.manage": "Manage profiles",
+  "invites.manage": "Manage invite codes",
+  "bans.manage": "Manage bans & lockouts",
+  "roles.manage": "Manage roles",
+  "badges.manage": "Manage badges",
+  "logs.view": "View auth logs",
+};
+
+const PERMISSION_ORDER = Object.keys(PERMISSION_LABELS);
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<Tab>("codes");
+  const perms = new Set(user?.permissions ?? []);
+
+  usePageMeta({ title: "Admin Panel", description: `Administrative panel for ${branding.name}.`, url: "/admin" });
+  const canInvites = perms.has("invites.manage");
+  const canViewUsers = perms.has("users.view");
+  const canManageUsers = perms.has("users.manage");
+  const canRoles = perms.has("roles.manage");
+  const canBadges = perms.has("badges.manage");
+  const canBans = perms.has("bans.manage");
+  const canLogs = perms.has("logs.view");
+
+  const allowedTabs: Tab[] = [
+    ...(canInvites ? (["codes"] as Tab[]) : []),
+    ...(canViewUsers ? (["users"] as Tab[]) : []),
+    ...(canRoles ? (["roles"] as Tab[]) : []),
+    ...(canBadges ? (["badges"] as Tab[]) : []),
+    ...(canBans ? (["bans"] as Tab[]) : []),
+    ...(canLogs ? (["logs"] as Tab[]) : []),
+  ];
+  const [tab, setTab] = useState<Tab>(allowedTabs[0] ?? "codes");
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
   const [bans, setBans] = useState<AuthBan[]>([]);
   const [logs, setLogs] = useState<AuthLogEntry[]>([]);
   const [count, setCount] = useState(1);
@@ -95,6 +135,27 @@ export function AdminDashboard() {
   const [editSaved, setEditSaved] = useState(false);
   const [editTier, setEditTier] = useState<"FREE" | "PRO" | "ENTERPRISE">("FREE");
   const [editTrackLimit, setEditTrackLimit] = useState("");
+  const [editProfileLimit, setEditProfileLimit] = useState("");
+  const [editAliasLimit, setEditAliasLimit] = useState("");
+  const [editRoleId, setEditRoleId] = useState("");
+  const [editBadges, setEditBadges] = useState<string[]>([]);
+
+  const [roleForm, setRoleForm] = useState<{ id: string | null; name: string; description: string; permissions: string[] }>({
+    id: null,
+    name: "",
+    description: "",
+    permissions: [],
+  });
+  const [roleMsg, setRoleMsg] = useState("");
+
+  const [badgeForm, setBadgeForm] = useState<{ id: string | null; slug: string; label: string; color: string; icon: string }>({
+    id: null,
+    slug: "",
+    label: "",
+    color: "#a855f7",
+    icon: "Award",
+  });
+  const [badgeMsg, setBadgeMsg] = useState("");
 
   const fetchCodes = async () => {
     const token = getToken();
@@ -121,6 +182,24 @@ export function AdminDashboard() {
     });
     const data = await res.json();
     if (data.success) setBans(data.data);
+  };
+
+  const fetchRoles = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/roles", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setRoles(data.data);
+  };
+
+  const fetchBadges = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/badges", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setBadgeCatalog(data.data);
   };
 
   const fetchLogs = async () => {
@@ -162,10 +241,13 @@ export function AdminDashboard() {
   };
 
   useEffect(() => {
-    fetchCodes();
-    fetchUsers();
-    fetchBans();
-    fetchLogs();
+    if (canInvites) fetchCodes();
+    if (canViewUsers) fetchUsers();
+    if (canRoles) fetchRoles();
+    if (canBadges) fetchBadges();
+    if (canBans) fetchBans();
+    if (canLogs) fetchLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreate = async (e: FormEvent) => {
@@ -219,6 +301,10 @@ export function AdminDashboard() {
     setEditLoading(true);
     setEditTier(u.tier === "PRO" ? "PRO" : u.tier === "ENTERPRISE" ? "ENTERPRISE" : "FREE");
     setEditTrackLimit(u.trackLimit !== null && u.trackLimit !== undefined ? String(u.trackLimit) : "");
+    setEditProfileLimit(u.profileLimit !== null && u.profileLimit !== undefined ? String(u.profileLimit) : "");
+    setEditAliasLimit(u.aliasLimit !== null && u.aliasLimit !== undefined ? String(u.aliasLimit) : "");
+    setEditRoleId(u.roleId ?? "");
+    setEditBadges(u.badges ?? []);
     const token = getToken();
     const res = await fetch(`/api/admin/users/${u.id}/profile`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -273,6 +359,8 @@ export function AdminDashboard() {
     });
 
     const trackLimitValue = editTrackLimit === "" ? null : Number(editTrackLimit);
+    const profileLimitValue = editProfileLimit === "" ? null : Number(editProfileLimit);
+    const aliasLimitValue = editAliasLimit === "" ? null : Number(editAliasLimit);
     const userRes = await fetch(`/api/admin/users/${editingUser.id}`, {
       method: "PATCH",
       headers: {
@@ -282,6 +370,10 @@ export function AdminDashboard() {
       body: JSON.stringify({
         tier: editTier,
         trackLimit: trackLimitValue,
+        profileLimit: profileLimitValue,
+        aliasLimit: aliasLimitValue,
+        ...(editRoleId ? { roleId: editRoleId } : {}),
+        badges: editBadges,
       }),
     });
     const userData = await userRes.json();
@@ -290,11 +382,117 @@ export function AdminDashboard() {
     setEditSaved(true);
     if (userData.success) {
       setUsers((prev) =>
-        prev.map((u) => (u.id === editingUser.id ? { ...u, tier: userData.data.tier, trackLimit: userData.data.trackLimit } : u))
+        prev.map((u) =>
+          u.id === editingUser.id
+            ? {
+                ...u,
+                roleId: userData.data.roleId,
+                role: userData.data.role,
+                tier: userData.data.tier,
+                trackLimit: userData.data.trackLimit,
+                profileLimit: userData.data.profileLimit,
+                aliasLimit: userData.data.aliasLimit,
+                badges: userData.data.badges,
+              }
+            : u
+        )
       );
     }
     setTimeout(() => setEditSaved(false), 2000);
   };
+
+  const handleRoleSave = async (e: FormEvent) => {
+    e.preventDefault();
+    setRoleMsg("");
+    const token = getToken();
+    const body: Record<string, unknown> = {
+      name: roleForm.name,
+      description: roleForm.description,
+      permissions: roleForm.permissions,
+    };
+    const url = roleForm.id ? `/api/admin/roles/${roleForm.id}` : "/api/admin/roles";
+    const res = await fetch(url, {
+      method: roleForm.id ? "PATCH" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setRoleMsg(data.error ?? "Failed to save role");
+      return;
+    }
+    setRoleMsg("Saved");
+    setRoleForm({ id: null, name: "", description: "", permissions: [] });
+    fetchRoles();
+    setTimeout(() => setRoleMsg(""), 2000);
+  };
+
+  const handleRoleDelete = async (id: string) => {
+    if (!window.confirm("Delete this role? Users with this role must be reassigned first.")) return;
+    const token = getToken();
+    const res = await fetch(`/api/admin/roles/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setRoles((prev) => prev.filter((r) => r.id !== id));
+    } else {
+      setRoleMsg(data.error ?? "Failed to delete role");
+      setTimeout(() => setRoleMsg(""), 3000);
+    }
+  };
+
+  const handleBadgeSave = async (e: FormEvent) => {
+    e.preventDefault();
+    setBadgeMsg("");
+    const token = getToken();
+    const body: Record<string, unknown> = {
+      label: badgeForm.label,
+      color: badgeForm.color,
+      icon: badgeForm.icon,
+      ...(badgeForm.slug ? { slug: badgeForm.slug } : {}),
+    };
+    const url = badgeForm.id ? `/api/admin/badges/${badgeForm.id}` : "/api/admin/badges";
+    const res = await fetch(url, {
+      method: badgeForm.id ? "PATCH" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setBadgeMsg(data.error ?? "Failed to save badge");
+      return;
+    }
+    setBadgeMsg("Saved");
+    setBadgeForm({ id: null, slug: "", label: "", color: "#a855f7", icon: "Award" });
+    fetchBadges();
+    setTimeout(() => setBadgeMsg(""), 2000);
+  };
+
+  const handleBadgeDelete = async (id: string) => {
+    if (!window.confirm("Delete this badge? It will be removed from all profiles and users.")) return;
+    const token = getToken();
+    const res = await fetch(`/api/admin/badges/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setBadgeCatalog((prev) => prev.filter((b) => b.id !== id));
+    } else {
+      setBadgeMsg(data.error ?? "Failed to delete badge");
+      setTimeout(() => setBadgeMsg(""), 3000);
+    }
+  };
+
+  const roleUserCount = (roleId: string) => users.filter((u) => u.roleId === roleId).length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -313,7 +511,7 @@ export function AdminDashboard() {
             <span className="inline-flex items-center gap-2 text-sm text-zinc-400">
               {user?.username}
               <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-semibold text-violet-400 border border-violet-500/20">
-                Admin
+                {user?.role?.name ?? "Staff"}
               </span>
             </span>
             <Button variant="secondary" size="sm" onClick={logout}>
@@ -325,49 +523,22 @@ export function AdminDashboard() {
 
       <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
         <h1 className="text-2xl font-bold text-white mb-2">Admin Dashboard</h1>
-        <p className="text-zinc-400 mb-8">Manage invite codes and users.</p>
+        <p className="text-zinc-400 mb-8">Manage invite codes, users, roles, badges and security.</p>
 
-        <div className="flex gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1 w-fit">
-          <button
-            onClick={() => setTab("codes")}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === "codes"
-                ? "bg-zinc-800 text-white"
-                : "text-zinc-400 hover:text-zinc-300"
-            }`}
-          >
-            Invite Codes
-          </button>
-          <button
-            onClick={() => setTab("users")}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === "users"
-                ? "bg-zinc-800 text-white"
-                : "text-zinc-400 hover:text-zinc-300"
-            }`}
-          >
-            Users
-          </button>
-          <button
-            onClick={() => setTab("bans")}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === "bans"
-                ? "bg-zinc-800 text-white"
-                : "text-zinc-400 hover:text-zinc-300"
-            }`}
-          >
-            Bans
-          </button>
-          <button
-            onClick={() => setTab("logs")}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === "logs"
-                ? "bg-zinc-800 text-white"
-                : "text-zinc-400 hover:text-zinc-300"
-            }`}
-          >
-            Logs
-          </button>
+        <div className="flex gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1 w-fit overflow-x-auto">
+          {allowedTabs.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                tab === t
+                  ? "bg-zinc-800 text-white"
+                  : "text-zinc-400 hover:text-zinc-300"
+              }`}
+            >
+              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : "Logs"}
+            </button>
+          ))}
         </div>
 
         {tab === "codes" && (
@@ -504,11 +675,16 @@ export function AdminDashboard() {
                         <td className="py-3 font-mono text-zinc-300">{u.username}</td>
                         <td className="py-3 text-zinc-400">{u.email}</td>
                         <td className="py-3">
-                          {u.role === "ADMIN" ? (
-                            <span className="text-violet-400 text-xs font-semibold">Admin</span>
-                          ) : (
-                            <span className="text-zinc-500 text-xs">User</span>
-                          )}
+                          <span
+                            className={`text-xs font-semibold ${
+                              u.role?.slug === "admin" ? "text-violet-400" : "text-zinc-400"
+                            }`}
+                          >
+                            {u.role?.name ?? "—"}
+                          </span>
+                          <span className="block text-[10px] text-zinc-600 mt-0.5">
+                            (t:{u.trackLimit ?? "–"} p:{u.profileLimit ?? "–"} a:{u.aliasLimit ?? "–"})
+                          </span>
                         </td>
                         <td className="py-3">
                           <span
@@ -522,21 +698,20 @@ export function AdminDashboard() {
                           >
                             {u.tier}
                           </span>
-                          {u.trackLimit !== null && u.trackLimit !== undefined && (
-                            <span className="text-[10px] text-zinc-600 ml-1">({u.trackLimit})</span>
-                          )}
                         </td>
                         <td className="py-3 text-zinc-500">
                           {new Date(u.createdAt).toLocaleDateString()}
                         </td>
                         <td className="py-3">
-                          <button
-                            onClick={() => openEditProfile(u)}
-                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
-                          >
-                            <Edit className="h-3 w-3" />
-                            Edit Profile
-                          </button>
+                          {canManageUsers && (
+                            <button
+                              onClick={() => openEditProfile(u)}
+                              className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                            >
+                              <Edit className="h-3 w-3" />
+                              Edit Profile
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -546,6 +721,303 @@ export function AdminDashboard() {
             )}
           </div>
         )}
+        {tab === "roles" && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+              <h2 className="text-lg font-semibold text-white mb-1">
+                {roleForm.id ? "Edit Role" : "Create Role"}
+              </h2>
+              <p className="text-sm text-zinc-500 mb-4">
+                The Admin role always has every permission. The User role and custom roles can be edited here.
+              </p>
+
+              {roleMsg && (
+                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${roleMsg === "Saved" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                  {roleMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleRoleSave} className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name</label>
+                    <input
+                      type="text"
+                      value={roleForm.name}
+                      onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                      placeholder="e.g. Moderator"
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Description</label>
+                    <input
+                      type="text"
+                      value={roleForm.description}
+                      onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                      placeholder="What is this role for?"
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Permissions</label>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {PERMISSION_ORDER.map((perm) => {
+                      const checked = roleForm.permissions.includes(perm);
+                      const locked = roleForm.id !== null && roles.find((r) => r.id === roleForm.id)?.slug === "admin";
+                      return (
+                        <button
+                          key={perm}
+                          type="button"
+                          disabled={locked}
+                          onClick={() =>
+                            setRoleForm((prev) => ({
+                              ...prev,
+                              permissions: checked
+                                ? prev.permissions.filter((p) => p !== perm)
+                                : [...prev.permissions, perm],
+                            }))
+                          }
+                          className={`flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm text-left transition-colors ${
+                            locked
+                              ? "border-zinc-800 bg-zinc-900/30 text-zinc-600 cursor-not-allowed"
+                              : checked
+                              ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+                              : "border-zinc-800 bg-zinc-900/30 text-zinc-300 hover:border-zinc-700"
+                          }`}
+                        >
+                          <span
+                            className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] ${
+                              checked ? "bg-violet-500 border-violet-500 text-white" : "border-zinc-600"
+                            }`}
+                          >
+                            {checked && "✓"}
+                          </span>
+                          {PERMISSION_LABELS[perm]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button type="submit">
+                    <Save className="h-4 w-4" />
+                    {roleForm.id ? "Save Role" : "Create Role"}
+                  </Button>
+                  {roleForm.id && (
+                    <Button variant="secondary" onClick={() => setRoleForm({ id: null, name: "", description: "", permissions: [] })}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+              <h2 className="text-lg font-semibold text-white mb-4">Roles</h2>
+              {roles.length === 0 ? (
+                <p className="text-sm text-zinc-500">No roles yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {roles.map((r) => (
+                    <div key={r.id} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-white">{r.name}</span>
+                            {r.isSystem && (
+                              <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                                System
+                              </span>
+                            )}
+                            <span className="text-[11px] text-zinc-600">
+                              {roleUserCount(r.id)} user{roleUserCount(r.id) === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          {r.description && (
+                            <p className="text-xs text-zinc-500 mt-0.5">{r.description}</p>
+                          )}
+                          <div className="flex flex-wrap gap-1.5 mt-2.5">
+                            {r.permissions.length === 0 ? (
+                              <span className="text-[11px] text-zinc-600">No permissions</span>
+                            ) : (
+                              r.permissions.map((p) => (
+                                <span key={p} className="rounded-full bg-zinc-800/80 px-2 py-0.5 text-[11px] text-zinc-300 border border-zinc-700/50">
+                                  {PERMISSION_LABELS[p] ?? p}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() =>
+                              setRoleForm({
+                                id: r.id,
+                                name: r.name,
+                                description: r.description ?? "",
+                                permissions: r.permissions,
+                              })
+                            }
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                          >
+                            <Edit className="h-3 w-3" />
+                            Edit
+                          </button>
+                          {!r.isSystem && (
+                            <button
+                              onClick={() => handleRoleDelete(r.id)}
+                              className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === "badges" && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+              <h2 className="text-lg font-semibold text-white mb-1">
+                {badgeForm.id ? "Edit Badge" : "Create Badge"}
+              </h2>
+              <p className="text-sm text-zinc-500 mb-4">
+                Badges appear on profiles as colored icons. Pick a label, color and lucide icon name.
+              </p>
+
+              {badgeMsg && (
+                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${badgeMsg === "Saved" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                  {badgeMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleBadgeSave} className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Label</label>
+                    <input
+                      type="text"
+                      value={badgeForm.label}
+                      onChange={(e) => setBadgeForm({ ...badgeForm, label: e.target.value })}
+                      placeholder="e.g. Gold Member"
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                      Slug <span className="text-zinc-500">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={badgeForm.slug}
+                      onChange={(e) => setBadgeForm({ ...badgeForm, slug: e.target.value })}
+                      placeholder="gold-member"
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                    />
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Color</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={badgeForm.color}
+                        onChange={(e) => setBadgeForm({ ...badgeForm, color: e.target.value })}
+                        className="h-10 w-12 cursor-pointer rounded-lg border border-zinc-800 bg-zinc-900/50 p-1"
+                      />
+                      <input
+                        type="text"
+                        value={badgeForm.color}
+                        onChange={(e) => setBadgeForm({ ...badgeForm, color: e.target.value })}
+                        className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                      Icon <span className="text-zinc-500">(lucide name)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={badgeForm.icon}
+                      onChange={(e) => setBadgeForm({ ...badgeForm, icon: e.target.value })}
+                      placeholder="Award"
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Preview</label>
+                  <BadgePill badge={{ id: "preview", slug: badgeForm.slug || "preview", label: badgeForm.label || "Badge", color: badgeForm.color, icon: badgeForm.icon, isSystem: false }} size="lg" />
+                </div>
+
+                <div className="flex gap-3">
+                  <Button type="submit">
+                    <Save className="h-4 w-4" />
+                    {badgeForm.id ? "Save Badge" : "Create Badge"}
+                  </Button>
+                  {badgeForm.id && (
+                    <Button variant="secondary" onClick={() => setBadgeForm({ id: null, slug: "", label: "", color: "#a855f7", icon: "Award" })}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+              <h2 className="text-lg font-semibold text-white mb-4">Badges</h2>
+              {badgeCatalog.length === 0 ? (
+                <p className="text-sm text-zinc-500">No badges yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {badgeCatalog.map((b) => (
+                    <div key={b.id} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+                      <BadgePill badge={b} size="lg" />
+                      {!b.isSystem && (
+                        <>
+                          <button
+                            onClick={() =>
+                              setBadgeForm({
+                                id: b.id,
+                                slug: b.slug,
+                                label: b.label,
+                                color: b.color,
+                                icon: b.icon,
+                              })
+                            }
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleBadgeDelete(b.id)}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {tab === "bans" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
             <h2 className="text-lg font-semibold text-white mb-1">Auth Bans &amp; Lockouts</h2>
@@ -792,6 +1264,36 @@ export function AdminDashboard() {
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                      Profile Limit <span className="text-zinc-500">(optional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={editProfileLimit}
+                      onChange={(e) => setEditProfileLimit(e.target.value)}
+                      placeholder="Tier default"
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                      Alias Limit <span className="text-zinc-500">(optional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={editAliasLimit}
+                      onChange={(e) => setEditAliasLimit(e.target.value)}
+                      placeholder="Tier default"
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
                 <div className="flex items-center gap-3">
                   <label className="text-sm font-medium text-zinc-300">Public</label>
                   <button
@@ -808,6 +1310,51 @@ export function AdminDashboard() {
                       }`}
                     />
                   </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Role</label>
+                  <select
+                    value={editRoleId}
+                    onChange={(e) => setEditRoleId(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  >
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                        {r.isSystem ? " (System)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Badges</label>
+                  <div className="flex flex-wrap gap-2">
+                    {badgeCatalog.map((badge) => {
+                      const active = editBadges.includes(badge.id);
+                      return (
+                        <button
+                          key={badge.id}
+                          type="button"
+                          onClick={() =>
+                            setEditBadges((prev) =>
+                              active ? prev.filter((b) => b !== badge.id) : [...prev, badge.id]
+                            )
+                          }
+                          className={`rounded-full transition-all duration-200 ${
+                            active
+                              ? "scale-105 ring-2 ring-offset-1 ring-offset-zinc-900"
+                              : "opacity-40 grayscale hover:opacity-80 hover:grayscale-0"
+                          }`}
+                          style={{ border: `1px solid ${badge.color}40` }}
+                        >
+                          <BadgePill badge={badge} />
+                        </button>
+                      );
+                    })}
+                    {badgeCatalog.length === 0 && (
+                      <span className="text-[11px] text-zinc-600">No badges available</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <Button variant="secondary" onClick={() => setEditingUser(null)}>

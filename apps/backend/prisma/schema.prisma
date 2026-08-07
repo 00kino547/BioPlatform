@@ -7,11 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  USER
-  ADMIN
-}
-
 enum UserTier {
   FREE
   PRO
@@ -23,9 +18,13 @@ model User {
   username     String    @unique
   email        String    @unique
   passwordHash String    @map("password_hash")
-  role         Role      @default(USER)
+  roleId       String    @db.Uuid @map("role_id")
+  role         Role      @relation(fields: [roleId], references: [id])
   tier         UserTier  @default(FREE)
   trackLimit   Int?      @map("track_limit")
+  profileLimit Int?      @map("profile_limit")
+  aliasLimit   Int?      @map("alias_limit")
+  badges       Badge[]
   totpSecret   String?   @map("totp_secret")
   totpEnabled  Boolean   @default(false) @map("totp_enabled")
   registeredIp String?   @map("registered_ip")
@@ -35,16 +34,52 @@ model User {
 
   inviteUsed   InviteCode? @relation("InviteUsedBy")
   inviteCreated InviteCode[] @relation("InviteCreatedBy")
-  profile      Profile?
+  profiles     Profile[]
   passkeys     Passkey[]
   webauthnChallenges WebAuthnChallenge[]
+  webhooks     Webhook[]
 
+  @@index([roleId])
   @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  permissions String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("roles")
+}
+
+model Badge {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  label     String
+  color     String   @default("#22c55e")
+  icon      String   @default("Award")
+  isSystem  Boolean  @default(false) @map("is_system")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users    User[]
+  profiles Profile[]
+
+  @@map("badges")
 }
 
 model Profile {
   id            String   @id @default(uuid()) @db.Uuid
-  userId        String   @unique @db.Uuid @map("user_id")
+  userId        String   @db.Uuid @map("user_id")
+  slug          String   @unique
+  isPrimary     Boolean  @default(false) @map("is_primary")
+  badges        Badge[]
   displayName   String?  @map("display_name")
   bio           String?
   avatar        String?
@@ -56,15 +91,52 @@ model Profile {
   notifyOnView        Boolean  @default(false) @map("notify_on_view")
   notifyOnClick       Boolean  @default(false) @map("notify_on_click")
   isPublic            Boolean  @default(true) @map("is_public")
+  showDiscordPresence Boolean  @default(false) @map("show_discord_presence")
+  showDiscordActivity Boolean  @default(true) @map("show_discord_activity")
+  discordWebhookUrlEncrypted String? @map("discord_webhook_url_encrypted")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aliases    ProfileAlias[]
   pageViews  PageView[]
   linkClicks LinkClick[]
   musicTracks MusicTrack[]
+  discordConnection DiscordConnection?
 
+  @@index([userId])
   @@map("profiles")
+}
+
+model ProfileAlias {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @db.Uuid @map("profile_id")
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("profile_aliases")
+}
+
+model DiscordConnection {
+  id                  String   @id @default(uuid()) @db.Uuid
+  profileId           String   @unique @db.Uuid @map("profile_id")
+  discordId           String   @unique @map("discord_id")
+  username            String
+  globalName          String?  @map("global_name")
+  avatar              String?
+  accessTokenEncrypted String  @map("access_token_encrypted")
+  refreshTokenEncrypted String @map("refresh_token_encrypted")
+  tokenExpiresAt      DateTime @map("token_expires_at")
+  connectedAt         DateTime @default(now()) @map("connected_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("discord_connections")
 }
 
 model PageView {
@@ -203,4 +275,43 @@ model AuthLog {
   @@index([createdAt])
   @@index([expiresAt])
   @@map("auth_logs")
+}
+
+model Webhook {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  name      String
+  url       String
+  secretEncrypted String @map("secret_encrypted")
+  secretPrefix String @map("secret_prefix")
+  active    Boolean  @default(true)
+  events    String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id             String   @id @default(uuid()) @db.Uuid
+  webhookId      String   @db.Uuid @map("webhook_id")
+  event          String
+  payload        Json
+  status         String   @default("pending")
+  attempts       Int      @default(0)
+  lastStatusCode Int?     @map("last_status_code")
+  lastError      String?  @map("last_error")
+  nextRetryAt    DateTime? @map("next_retry_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextRetryAt])
+  @@map("webhook_deliveries")
 }

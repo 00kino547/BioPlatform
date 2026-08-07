@@ -1,11 +1,17 @@
 import { useEffect, useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
+import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
 import { PlatformIcon, platformDisplayNames } from "@/components/ui/PlatformIcon";
 import { SecurityTab } from "@/components/auth/SecurityTab";
-import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack } from "@/lib/api";
+import { WebhooksTab } from "@/components/settings/WebhooksTab";
+import { DiscordTab } from "@/components/settings/DiscordTab";
+import { DataTab } from "@/components/settings/DataTab";
+import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge } from "@/lib/api";
+import { BadgePill } from "@/components/ui/BadgePill";
+import { ImageCropper } from "@/components/ui/ImageCropper";
 import {
   Camera,
   Save,
@@ -27,6 +33,9 @@ import {
   ChevronDown,
   Pencil,
   ExternalLink,
+  Layers,
+  Star,
+  Link2,
 } from "lucide-react";
 
 const platforms = [
@@ -112,14 +121,31 @@ const themePresets = [
 
 export function Dashboard() {
   const { user, logout } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const isAdmin = user?.isAdmin === true;
+
+  usePageMeta({ title: "Dashboard", description: `Manage your ${branding.name} profiles, links, appearance, and settings.`, url: "/dashboard" });
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
+  const [limits, setLimits] = useState<{ profiles: number; aliases: number }>({ profiles: 1, aliases: 0 });
+  const [primaryId, setPrimaryId] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security">("profile");
+  const [tab, setTab] = useState<"profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord">("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
+
+  const [profileSlug, setProfileSlug] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMsg, setProfileMsg] = useState("");
+  const [expandedAliasesFor, setExpandedAliasesFor] = useState<string | null>(null);
+  const [newAliasSlug, setNewAliasSlug] = useState("");
+  const [aliasBusy, setAliasBusy] = useState(false);
+  const [aliasMsg, setAliasMsg] = useState("");
+
+  const profile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
@@ -164,66 +190,99 @@ export function Dashboard() {
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    api.getMyProfile().then((res) => {
-      if (res.success && res.data) {
-        const p = res.data;
-        setProfile(p);
-        setDisplayName(p.displayName ?? "");
-        setBio(p.bio ?? "");
-        setLocation(p.location ?? "");
-        setWebsite(p.website ?? "");
-        setIsPublic(p.isPublic);
-        setSocialLinks(p.socialLinks ?? []);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-        if (p.theme) {
-          const match = themePresets.find(
-            (t) =>
-              t.bg === p.theme!.bg &&
-              t.accent === p.theme!.accent
-          );
-          setSelectedTheme(match?.name ?? null);
-        }
-      }
-      setLoading(false);
-    });
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["profiles", "profile", "links", "appearance", "analytics", "email", "music", "security", "webhooks", "data", "discord"].includes(tabParam)) {
+      setTab(tabParam as "profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord");
+      const next = new URLSearchParams(searchParams);
+      next.delete("tab");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const refreshProfiles = async () => {
+    const res = await api.getMyProfiles();
+    if (res.success && res.data) {
+      const data = res.data;
+      setProfiles(data.profiles);
+      setLimits(data.limits);
+      setPrimaryId(data.primaryId);
+      setSelectedProfileId((prev) =>
+        prev && data.profiles.some((p) => p.id === prev) ? prev : (data.primaryId ?? data.profiles[0]?.id ?? null)
+      );
+    }
+  };
+
+  useEffect(() => {
+    refreshProfiles().finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (tab === "analytics" && !analytics) {
+    api.getBadges().then((res) => {
+      if (res.success && res.data) setBadgeCatalog(res.data);
+    }).catch(() => {});
+  }, []);
+
+  const [formProfileId, setFormProfileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!profile || profile.id === formProfileId) return;
+    setFormProfileId(profile.id);
+    setDisplayName(profile.displayName ?? "");
+    setBio(profile.bio ?? "");
+    setLocation(profile.location ?? "");
+    setWebsite(profile.website ?? "");
+    setIsPublic(profile.isPublic);
+    setSocialLinks(profile.socialLinks ?? []);
+    setSelectedTheme(
+      profile.theme
+        ? themePresets.find((t) => t.bg === profile.theme!.bg && t.accent === profile.theme!.accent)?.name ?? null
+        : null
+    );
+    setAnalytics(null);
+    setMusic(null);
+    setUploadError("");
+    setSaveError("");
+  }, [profile, formProfileId]);
+
+  useEffect(() => {
+    if (tab === "analytics" && !analytics && profile) {
       setAnalyticsLoading(true);
-      api.getAnalytics().then((res) => {
+      api.getAnalytics(profile.id).then((res) => {
         if (res.success && res.data) {
           setAnalytics(res.data);
         }
         setAnalyticsLoading(false);
       });
     }
-  }, [tab, analytics]);
+  }, [tab, analytics, profile]);
 
   useEffect(() => {
-    if (tab === "email") {
-      api.getEmailSettings().then((res) => {
+    if (tab === "email" && profile) {
+      api.getEmailSettings(profile.id).then((res) => {
         if (res.success && res.data) {
           setEmailSettings(res.data);
         }
       });
     }
-  }, [tab]);
+  }, [tab, profile]);
 
   useEffect(() => {
-    if (tab === "music" && !music) {
+    if (tab === "music" && !music && profile) {
       setMusicLoading(true);
-      api.getMusic().then((res) => {
+      api.getMusic(profile.id).then((res) => {
         if (res.success && res.data) {
           setMusic(res.data);
         }
         setMusicLoading(false);
       });
     }
-  }, [tab, music]);
+  }, [tab, music, profile]);
 
   const handleSave = async () => {
+    if (!profile) return;
     setSaving(true);
     setSaved(false);
     setSaveError("");
@@ -240,10 +299,13 @@ export function Dashboard() {
       socialLinks: socialLinks.length > 0 ? socialLinks : null,
       theme: themeData,
       isPublic,
-    });
+    }, profile.id);
     setSaving(false);
 
-    if (res.success) {
+    if (res.success && res.data) {
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, ...(res.data as Profile), aliases: p.aliases } : p))
+      );
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } else {
@@ -253,12 +315,20 @@ export function Dashboard() {
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !profile) return;
+    e.target.value = "";
     setUploadError("");
-    const res = await api.uploadAvatar(file);
+    setAvatarCropFile(file);
+  };
+
+  const confirmAvatarCrop = async (file: File) => {
+    if (!profile) return;
+    setAvatarCropFile(null);
+    setUploadError("");
+    const res = await api.uploadAvatar(file, profile.id);
     if (res.success && res.data) {
-      setProfile((prev) =>
-        prev ? { ...prev, avatar: res.data!.avatar } : prev
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, avatar: res.data!.avatar } : p))
       );
     } else {
       setUploadError(res.error ?? "Failed to upload avatar");
@@ -267,12 +337,12 @@ export function Dashboard() {
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !profile) return;
     setUploadError("");
-    const res = await api.uploadBanner(file);
+    const res = await api.uploadBanner(file, profile.id);
     if (res.success && res.data) {
-      setProfile((prev) =>
-        prev ? { ...prev, banner: res.data!.banner } : prev
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, banner: res.data!.banner } : p))
       );
     } else {
       setUploadError(res.error ?? "Failed to upload banner");
@@ -280,20 +350,26 @@ export function Dashboard() {
   };
 
   const handleRemoveAvatar = async () => {
+    if (!profile) return;
     setUploadError("");
-    const res = await api.removeAvatar();
+    const res = await api.removeAvatar(profile.id);
     if (res.success) {
-      setProfile((prev) => (prev ? { ...prev, avatar: null } : prev));
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, avatar: null } : p))
+      );
     } else {
       setUploadError(res.error ?? "Failed to remove avatar");
     }
   };
 
   const handleRemoveBanner = async () => {
+    if (!profile) return;
     setUploadError("");
-    const res = await api.removeBanner();
+    const res = await api.removeBanner(profile.id);
     if (res.success) {
-      setProfile((prev) => (prev ? { ...prev, banner: null } : prev));
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, banner: null } : p))
+      );
     } else {
       setUploadError(res.error ?? "Failed to remove banner");
     }
@@ -308,16 +384,23 @@ export function Dashboard() {
         url = `mailto:${url}`;
       }
     } else if (platformLower === "discord") {
-      if (/^https?:\/\//i.test(url)) {
+      let candidate = url;
+      if (!/^https?:\/\//i.test(candidate) && /^discord\.(gg|com|app)\//i.test(candidate)) {
+        candidate = `https://${candidate}`;
+      }
+      if (/^https?:\/\//i.test(candidate)) {
         try {
-          const parsed = new URL(url);
+          const parsed = new URL(candidate);
           const h = parsed.hostname.toLowerCase();
           const isInvite =
-            h === "discord.gg" || h.endsWith(".discord.gg") || h === "discord.com" || h === "discordapp.com";
+            (h === "discord.gg" || h.endsWith(".discord.gg") || h === "discord.com" || h === "discordapp.com") &&
+            (/^\/invite\/.+/.test(parsed.pathname) ||
+              (h === "discord.gg" && /^\/.+/.test(parsed.pathname) && !parsed.pathname.startsWith("/invite")));
           if (!isInvite) {
-            setUploadError("Invalid Discord link. Use a discord.gg/x invite or a username.");
+            setUploadError("Invalid Discord link. Use a discord.gg invite or a username.");
             return;
           }
+          url = candidate;
         } catch {
           setUploadError("Invalid Discord URL.");
           return;
@@ -341,12 +424,13 @@ export function Dashboard() {
   };
 
   const handleSaveEmail = async () => {
+    if (!profile) return;
     setEmailSaving(true);
     setEmailSaved(false);
     const res = await api.updateEmailSettings({
       notifyOnView: emailSettings.notifyOnView,
       notifyOnClick: emailSettings.notifyOnClick,
-    });
+    }, profile.id);
     setEmailSaving(false);
     if (res.success) {
       setEmailSaved(true);
@@ -355,9 +439,10 @@ export function Dashboard() {
   };
 
   const handleTestEmail = async () => {
+    if (!profile) return;
     setEmailTesting(true);
     setEmailTestResult(null);
-    const res = await api.testEmail();
+    const res = await api.testEmail(profile.id);
     setEmailTesting(false);
     setEmailTestResult(res.success ? "success" : "error");
     setTimeout(() => setEmailTestResult(null), 3000);
@@ -380,7 +465,7 @@ export function Dashboard() {
         setMusicBusy(false);
         return;
       }
-      res = await api.uploadMusicTrack(musicFile, musicTitle || undefined, musicArtist || undefined, musicFullUrl || undefined);
+      res = await api.uploadMusicTrack(musicFile, musicTitle || undefined, musicArtist || undefined, musicFullUrl || undefined, profile.id);
     } else {
       if (!musicUrl.trim()) {
         setMusicError(`Enter a ${musicProvider} URL.`);
@@ -393,7 +478,7 @@ export function Dashboard() {
         artist: musicArtist || undefined,
         url: musicUrl.trim(),
         fullUrl: musicFullUrl.trim() || undefined,
-      });
+      }, profile.id);
     }
     setMusicBusy(false);
 
@@ -461,6 +546,109 @@ export function Dashboard() {
     setEditingTrackId(null);
   };
 
+  const handleCreateProfile = async () => {
+    const slug = profileSlug.trim().toLowerCase();
+    if (!slug) {
+      setProfileMsg("Enter a slug for the new profile.");
+      return;
+    }
+    if (profiles.length >= limits.profiles) {
+      setProfileMsg(`Profile limit reached (${limits.profiles}). Upgrade your tier to add more profiles.`);
+      return;
+    }
+    setProfileBusy(true);
+    setProfileMsg("");
+    const res = await api.createProfile({ slug, isPublic: true });
+    setProfileBusy(false);
+    if (res.success && res.data) {
+      setProfileMsg("Profile created.");
+      setProfileSlug("");
+      await refreshProfiles();
+      if (res.data) setSelectedProfileId(res.data.id);
+    } else {
+      setProfileMsg(res.error ?? "Failed to create profile");
+    }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    if (!window.confirm("Delete this profile? This cannot be undone.")) return;
+    const res = await api.deleteProfile(id);
+    if (res.success) {
+      setSelectedProfileId((prev) => (prev === id ? null : prev));
+      await refreshProfiles();
+    } else {
+      setProfileMsg(res.error ?? "Failed to delete profile");
+    }
+  };
+
+  const handleSetPrimary = async (id: string) => {
+    const res = await api.setPrimaryProfile(id);
+    if (res.success) {
+      setPrimaryId(id);
+      await refreshProfiles();
+    } else {
+      setProfileMsg(res.error ?? "Failed to set primary profile");
+    }
+  };
+
+  const handleToggleBadge = async (profileId: string, badgeId: string) => {
+    const active = profiles.find((p) => p.id === profileId)?.badges?.includes(badgeId) ?? false;
+    const res = await api.toggleProfileBadge(profileId, badgeId, !active);
+    if (res.success && res.data) {
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profileId ? { ...p, badges: res.data!.badges } : p))
+      );
+    } else {
+      setProfileMsg(res.error ?? "Failed to update badge");
+    }
+  };
+
+  const loadAliases = async (profileId: string) => {
+    const res = await api.getAliases(profileId);
+    if (res.success && res.data) {
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profileId ? { ...p, aliases: res.data! } : p))
+      );
+    }
+  };
+
+  const handleExpandAliases = async (profileId: string) => {
+    if (expandedAliasesFor === profileId) {
+      setExpandedAliasesFor(null);
+      return;
+    }
+    setAliasMsg("");
+    await loadAliases(profileId);
+    setExpandedAliasesFor(profileId);
+  };
+
+  const handleAddAlias = async (profileId: string) => {
+    const slug = newAliasSlug.trim().toLowerCase();
+    if (!slug) {
+      setAliasMsg("Enter a slug for the alias.");
+      return;
+    }
+    setAliasBusy(true);
+    setAliasMsg("");
+    const res = await api.createAlias(profileId, slug);
+    setAliasBusy(false);
+    if (res.success) {
+      setNewAliasSlug("");
+      await loadAliases(profileId);
+    } else {
+      setAliasMsg(res.error ?? "Failed to add alias");
+    }
+  };
+
+  const handleDeleteAlias = async (profileId: string, aliasId: string) => {
+    const res = await api.deleteAlias(profileId, aliasId);
+    if (res.success) {
+      await loadAliases(profileId);
+    } else {
+      setAliasMsg(res.error ?? "Failed to remove alias");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -478,7 +666,7 @@ export function Dashboard() {
           </Link>
           <div className="flex items-center gap-4">
             <a
-              href={`/${user?.username}`}
+              href={`/${profile?.slug ?? user?.username}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-zinc-400 hover:text-violet-400 transition-colors"
@@ -506,10 +694,23 @@ export function Dashboard() {
           <div>
             <h1 className="text-2xl font-bold text-white">Edit Profile</h1>
             <p className="text-sm text-zinc-400 mt-1">
-              {new URL(branding.url).host}/{user?.username}
+              {new URL(branding.url).host}/{profile?.slug ?? user?.username}
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {profiles.length > 1 && (
+              <select
+                value={profile?.id ?? ""}
+                onChange={(e) => setSelectedProfileId(e.target.value)}
+                className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName || p.slug} {p.isPrimary ? "★" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setIsPublic(!isPublic)}
               className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
@@ -525,7 +726,7 @@ export function Dashboard() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
-          {(["profile", "links", "appearance", "analytics", "email", "music", "security"] as const).map((t) => (
+          {(["profiles", "profile", "links", "appearance", "analytics", "email", "music", "webhooks", "data", "discord", "security"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -535,7 +736,7 @@ export function Dashboard() {
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : "Security"}
+              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : "Security"}
             </button>
           ))}
         </div>
@@ -549,6 +750,180 @@ export function Dashboard() {
         {saveError && (
           <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
             {saveError}
+          </div>
+        )}
+
+        {tab === "profiles" && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <Layers className="h-5 w-5 text-violet-400" />
+                <div>
+                  <h3 className="text-sm font-medium text-white">Profiles</h3>
+                  <p className="text-xs text-zinc-500">
+                    {profiles.length}/{limits.profiles} profiles used · {primaryId ? "Primary: " + (profiles.find((p) => p.id === primaryId)?.slug ?? "") : "No primary"}
+                  </p>
+                </div>
+              </div>
+
+              {profiles.length < limits.profiles && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={profileSlug}
+                    onChange={(e) => setProfileSlug(e.target.value)}
+                    placeholder="new-profile-slug"
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  />
+                  <Button onClick={handleCreateProfile} disabled={profileBusy}>
+                    <Plus className="h-4 w-4" />
+                    {profileBusy ? "Creating..." : "Create Profile"}
+                  </Button>
+                </div>
+              )}
+              {profiles.length >= limits.profiles && (
+                <p className="text-xs text-zinc-500 text-center py-2">
+                  Profile limit reached ({limits.profiles}). Upgrade your tier to add more profiles.
+                </p>
+              )}
+            </div>
+
+            {profileMsg && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-400">
+                {profileMsg}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {profiles.map((p) => (
+                <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {p.avatar ? (
+                        <img src={p.avatar} alt={p.slug} className="h-10 w-10 rounded-full object-cover ring-1 ring-zinc-700" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-400">
+                          {(p.displayName || p.slug).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {p.displayName || p.slug}
+                          {p.isPrimary && (
+                            <Star className="inline h-3.5 w-3.5 text-amber-400 ml-1.5 -mt-0.5" />
+                          )}
+                        </p>
+                        <p className="text-xs text-zinc-500 truncate">/{p.slug}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!p.isPrimary && (
+                        <Button variant="secondary" size="sm" onClick={() => handleSetPrimary(p.id)}>
+                          <Star className="h-3.5 w-3.5" /> Set Primary
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setSelectedProfileId(p.id)}
+                      >
+                        Edit
+                      </Button>
+                      {profiles.length > 1 && (
+                        <button
+                          onClick={() => handleDeleteProfile(p.id)}
+                          className="text-zinc-500 hover:text-red-400 transition-colors"
+                          title="Delete profile"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <p className="text-xs font-medium text-zinc-400 mb-2">Badges</p>
+                    <div className="flex flex-wrap gap-2">
+                      {badgeCatalog.map((badge) => {
+                        const active = p.badges?.includes(badge.id) ?? false;
+                        return (
+                          <button
+                            key={badge.id}
+                            onClick={() => handleToggleBadge(p.id, badge.id)}
+                            title={active ? `Remove ${badge.label} badge` : `Add ${badge.label} badge`}
+                            className={`rounded-full transition-all duration-200 ${
+                              active
+                                ? "scale-105 ring-2 ring-offset-1 ring-offset-zinc-900"
+                                : "opacity-40 grayscale hover:opacity-80 hover:grayscale-0"
+                            }`}
+                            style={{ border: `1px solid ${badge.color}40` }}
+                          >
+                            <BadgePill badge={badge} />
+                          </button>
+                        );
+                      })}
+                      {badgeCatalog.length === 0 && (
+                        <span className="text-[11px] text-zinc-600">No badges available</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-zinc-800/60 pt-4">
+                    <button
+                      onClick={() => handleExpandAliases(p.id)}
+                      className="flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      Aliases ({p.aliases?.length ?? 0} / {limits.aliases})
+                      {expandedAliasesFor === p.id ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+
+                    {expandedAliasesFor === p.id && (
+                      <div className="mt-3 space-y-3">
+                        {(p.aliases?.length ?? 0) > 0 && (
+                          <div className="space-y-2">
+                            {p.aliases!.map((a) => (
+                              <div key={a.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                                <span className="text-sm text-zinc-300">/{a.slug}</span>
+                                <button
+                                  onClick={() => handleDeleteAlias(p.id, a.id)}
+                                  className="text-zinc-500 hover:text-red-400 transition-colors"
+                                  title="Remove alias"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(p.aliases?.length ?? 0) < limits.aliases ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newAliasSlug}
+                              onChange={(e) => setNewAliasSlug(e.target.value)}
+                              placeholder="alias-slug"
+                              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            />
+                            <Button variant="secondary" size="sm" onClick={() => handleAddAlias(p.id)} disabled={aliasBusy}>
+                              <Plus className="h-3.5 w-3.5" />
+                              Add
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-zinc-600">Alias limit reached ({limits.aliases}).</p>
+                        )}
+                        {aliasMsg && <p className="text-xs text-red-400">{aliasMsg}</p>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1376,6 +1751,18 @@ export function Dashboard() {
           <SecurityTab />
         )}
 
+        {tab === "webhooks" && (
+          <WebhooksTab />
+        )}
+
+        {tab === "discord" && (
+          <DiscordTab profileId={profile?.id} />
+        )}
+
+        {tab === "data" && (
+          <DataTab profileId={profile?.id} />
+        )}
+
         {tab === "email" && (
           <div className="space-y-6">
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
@@ -1456,6 +1843,16 @@ export function Dashboard() {
           </div>
         )}
       </main>
+
+      {avatarCropFile && (
+        <ImageCropper
+          file={avatarCropFile}
+          aspectRatio={1}
+          targetSize={512}
+          onConfirm={confirmAvatarCrop}
+          onCancel={() => setAvatarCropFile(null)}
+        />
+      )}
     </div>
   );
 }

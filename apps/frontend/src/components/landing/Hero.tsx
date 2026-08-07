@@ -32,8 +32,8 @@ export function Hero() {
           </div>
 
           <h1 className="text-5xl font-extrabold tracking-tight sm:text-7xl lg:text-8xl leading-[1.05] animate-reveal">
-            <span className="text-white block">Your digital identity,</span>
-            <span className="text-gradient block mt-1">beautifully crafted.</span>
+            <span className="text-white block">{branding.tagline.split(",")[0]},</span>
+            <span className="text-gradient block mt-1">{branding.tagline.split(",")[1]?.trim()}</span>
           </h1>
 
           <p

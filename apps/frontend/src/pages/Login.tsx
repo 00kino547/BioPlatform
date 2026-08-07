@@ -5,6 +5,7 @@ import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { api, type LoginMethods, type TwoFactorRequired } from "@/lib/api";
 import { KeyRound, Fingerprint, Lock } from "lucide-react";
+import { usePageMeta } from "@/lib/seo";
 
 type Stage = "identifier" | "method" | "password" | "twofactor";
 
@@ -21,6 +22,8 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [unlockRequired, setUnlockRequired] = useState(false);
   const [unlockSent, setUnlockSent] = useState(false);
+
+  usePageMeta({ title: "Log In", description: `Sign in to ${branding.name} and manage your profile, links, and theme.`, url: "/login" });
 
   const handleContinue = async () => {
     if (!identifier.trim()) return;

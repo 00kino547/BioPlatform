@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { branding } from "@/config/branding";
+import { usePageMeta } from "@/lib/seo";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Navbar } from "@/components/layout/Navbar";
 import { Hero } from "@/components/landing/Hero";
@@ -16,8 +18,14 @@ import { AdminDashboard } from "@/pages/AdminDashboard";
 import { PublicProfilePage } from "@/pages/PublicProfile";
 import { Privacy } from "@/pages/Privacy";
 import { Terms } from "@/pages/Terms";
+import { ApiDocs } from "@/pages/ApiDocs";
 
 function Landing() {
+  usePageMeta({
+    title: `${branding.name} — ${branding.tagline}`,
+    description: branding.description,
+    url: "/",
+  });
   return (
     <>
       <Navbar />
@@ -44,7 +52,7 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (user?.role !== "ADMIN") {
+  if (!user?.isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -81,6 +89,7 @@ function App() {
             />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/api-docs" element={<ApiDocs />} />
             <Route path="/:username" element={<PublicProfilePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

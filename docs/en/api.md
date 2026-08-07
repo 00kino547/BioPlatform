@@ -1,0 +1,212 @@
+# API Reference
+
+BioPlatform exposes a REST API under `/api`. The machine-readable OpenAPI 3.0 specification is served at `/api/openapi.json`, and a rendered reference lives in-app at `/api-docs`.
+
+## Conventions
+
+- **Base URL:** `/api` (relative to the instance origin).
+- **Authentication:** most endpoints require `Authorization: Bearer <token>`. Tokens are returned by `POST /api/auth/login` and `POST /api/auth/register`, and expire after `JWT_EXPIRES_IN`.
+- **Errors:** every error returns HTTP 4xx/5xx with `{ "success": false, "error": "human readable message" }`.
+- **Success:** most responses return `{ "success": true, "data": ... }`.
+- **Content-Type:** JSON (`application/json`), except file uploads (multipart) and downloads.
+
+## Health
+
+### `GET /api/health`
+
+Public. Returns `{ "status": "ok", "timestamp": "..." }`.
+
+## Auth
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | Create an account. Body: `username`, `email`, `password` (min 12 chars), optional `inviteCode`. Returns `token` + `user`. |
+| `POST` | `/api/auth/login/start` | Discover login methods for an identifier. Always returns `{ found: true }` to prevent account enumeration. |
+| `POST` | `/api/auth/login` | Log in with `identifier` (username or email) + `password`. Returns `token` + `user`, or `requiresTwoFactor` when 2FA is enabled. |
+| `POST` | `/api/auth/login/passkey/options` | WebAuthn assertion options for passwordless login (`identifier`). |
+| `POST` | `/api/auth/login/passkey/verify` | Verify the assertion and log in. |
+| `POST` | `/api/auth/2fa/totp` | Complete login with a TOTP code (`token` + `code`). |
+| `POST` | `/api/auth/2fa/passkey/options` | WebAuthn assertion options for second factor. |
+| `POST` | `/api/auth/2fa/passkey/verify` | Verify the second-factor assertion. |
+| `POST` | `/api/auth/passkeys/options` | WebAuthn creation options to register a passkey (`residentKey`). |
+| `POST` | `/api/auth/passkeys/register` | Register a new passkey. |
+| `GET` | `/api/auth/passkeys` | List your passkeys. |
+| `DELETE` | `/api/auth/passkeys/:id` | Delete a passkey. |
+| `POST` | `/api/auth/totp/setup` | Start TOTP enrollment. Returns `secret` + `otpauthUrl`. |
+| `POST` | `/api/auth/totp/enable` | Enable TOTP with a verification `code`. |
+| `POST` | `/api/auth/totp/disable` | Disable TOTP. |
+| `GET` | `/api/auth/me` | Get the current user. |
+| `POST` | `/api/auth/change-password` | Change your password (`currentPassword`, `newPassword` min 12 chars). |
+| `POST` | `/api/auth/unlock` | Request an unlock email for an identifier. |
+| `POST` | `/api/auth/unlock/verify` | Verify an unlock `token`. |
+
+## Profiles
+
+Every account has one or more **profiles**, each with its own slug, theme, links, and music. The **primary** profile is the account's default. Additional profiles and **aliases** (extra short URLs pointing at a profile) are limited by your tier (`profileLimit` / `aliasLimit`) or the admin's per-user override.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/profiles/me` | List your profiles with `limits`, `primaryId`, and `aliasCount`. |
+| `POST` | `/api/profiles/me` | Create a profile. Body: `slug` (lowercase) plus the usual profile fields. Returns the created profile. |
+| `PUT` | `/api/profiles/me` | Update your **primary** profile (backward-compatible). |
+| `GET` | `/api/profiles/me/:profileId` | Get one of your profiles. |
+| `PATCH` | `/api/profiles/me/:profileId` | Update a profile (`slug`, `displayName`, `bio`, `location`, `website`, `socialLinks`, `theme`, `isPublic`). Changing the slug of the primary profile is rejected. |
+| `DELETE` | `/api/profiles/me/:profileId` | Delete a profile. If you delete the primary profile, primary status moves to your oldest remaining profile; the last profile cannot be deleted. |
+| `POST` | `/api/profiles/me/:profileId/primary` | Set a profile as the primary. |
+| `GET` | `/api/profiles/me/:profileId/aliases` | List the profile's aliases. |
+| `POST` | `/api/profiles/me/:profileId/aliases` | Add an alias (body: `slug`). |
+| `DELETE` | `/api/profiles/me/:profileId/aliases/:aliasId` | Delete an alias. |
+| `POST` | `/api/profiles/me/:profileId/badges` | Toggle a badge on a profile (body: `badge` — a badge id — + `enabled`). Badges come from the user's badge set assigned by admins. |
+| `POST` | `/api/profiles/me/avatar` | Upload an avatar (multipart, 5 MB max, JPEG/PNG/GIF/WebP). Optional `?profileId=` scopes to a profile. |
+| `DELETE` | `/api/profiles/me/avatar` | Remove your avatar. Optional `?profileId=`. |
+| `POST` | `/api/profiles/me/banner` | Upload a banner (multipart, same limits). Optional `?profileId=`. |
+| `DELETE` | `/api/profiles/me/banner` | Remove your banner. Optional `?profileId=`. |
+| `GET` | `/api/profiles/me/export?format=xlsx\|ods` | Download your profile as a spreadsheet. Optional `?profileId=`. |
+| `POST` | `/api/profiles/me/import` | Import your profile from a spreadsheet (multipart `file`). Optional `?profileId=`. |
+| `GET` | `/api/profiles/:identifier` | Get a public profile by its **slug or alias**. Response includes `requestedSlug` (what you asked for) and the canonical `slug`, plus `badges`. No email or PII. Includes a `discord` presence object only when the owner connected Discord and opted in to sharing presence. |
+| `GET` | `/api/profiles/:identifier/og.png` | Server-rendered 1200×630 PNG card (name, avatar, bio, presence line, link/click counts) used as the OpenGraph image for shared profile links. |
+| `POST` | `/api/profiles/click` | Record a social-link click (public; `profileId` + `platform`). |
+
+> Endpoints that manage music, email settings, analytics, and Discord settings accept an optional `?profileId=` query parameter to scope to a specific profile. When omitted, they operate on the account's primary profile.
+
+### Export / import
+
+- **Export** produces a single-sheet spreadsheet with two columns: `Field` and `Value` (`.xlsx` by default, `.ods` with `?format=ods`). Rows use `displayName`, `bio`, `location`, `website`, `isPublic`, `social.<platform>`, and `theme.<field>` keys. The file contains no macros.
+- **Import** accepts `.xlsx`, `.ods`, and `.csv` (5 MB max). Macro-enabled formats (`.xlsm`, `.xls`) are rejected. Values that look like formulas (starting with `=`, `+`, `@`, tab/CR) are skipped. Unknown or duplicate rows are reported as `warnings` instead of failing the whole import. The response is `{ success, data: { applied: string[], warnings: string[] } }`. Importing replaces your current profile fields.
+
+## Badges
+
+Badges are a catalog managed by admins. Each badge has a `slug`, `label`, `color`, and `icon`. Profile badges reference catalog entries by id.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/badges` | Public badge catalog. Returns all badges (`id`, `slug`, `label`, `color`, `icon`). |
+
+Public profiles return `badges` as an array of badge ids; clients resolve them against this catalog to render the colored icons.
+
+## Analytics
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/analytics/me` | Views and clicks aggregates (total, 30d, 7d, 24h, per-day, per-platform, top referrers). |
+
+## Email
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/email/settings` | Your notification settings and whether SMTP is configured. |
+| `PUT` | `/api/email/settings` | Update `notifyOnView` / `notifyOnClick`. |
+| `POST` | `/api/email/test` | Send a test email. |
+
+## Music
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/music/me` | List your tracks and your tier limit. |
+| `POST` | `/api/music/me` | Add a track (`provider` local/spotify/youtube, optional title/artist/url). |
+| `POST` | `/api/music/me/upload` | Upload an audio file (multipart). |
+| `PATCH` | `/api/music/:id` | Update a track (`title`, `artist`, `position`, `fullUrl`). |
+| `POST` | `/api/music/reorder` | Reorder tracks (`ids`). |
+| `DELETE` | `/api/music/:id` | Delete a track. |
+
+## Webhooks
+
+Webhooks deliver JSON events to your own endpoint so you can react to activity on your profile. Max 10 webhooks per account.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/webhooks` | List your webhooks with their most recent delivery. |
+| `POST` | `/api/webhooks` | Create a webhook (`name`, `url`, `events`, `active`). Returns the signing `secret` **exactly once**. |
+| `PATCH` | `/api/webhooks/:id` | Update name, url, events, or `active` (pause/resume). |
+| `POST` | `/api/webhooks/:id/rotate-secret` | Generate a new signing secret (returned once). |
+| `POST` | `/api/webhooks/:id/test` | Send a `webhook.test` delivery. Rate-limited to 5/minute/user. |
+| `GET` | `/api/webhooks/:id/deliveries?limit=` | Recent deliveries (default 20, max 50). |
+| `DELETE` | `/api/webhooks/:id` | Delete the webhook and its delivery history. |
+
+### Events
+
+| Event | Fires when |
+| --- | --- |
+| `profile.viewed` | Someone views your public profile. |
+| `link.clicked` | Someone clicks one of your social links. |
+| `profile.updated` | You update your profile. |
+| `webhook.test` | You trigger a test delivery. |
+
+### Delivery payload
+
+Every delivery is a `POST` with the shape:
+
+```json
+{
+  "id": "delivery-uuid",
+  "event": "profile.viewed",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "data": { }
+}
+```
+
+The `data` object is minimal and contains **no** personal information (no email, no IP). Webhooks and deliveries are scoped to per-user events only.
+
+### Signature verification
+
+Each request includes these headers:
+
+- `X-BioPlatform-Id` — delivery UUID
+- `X-BioPlatform-Event` — event name
+- `X-BioPlatform-Timestamp` — ISO timestamp
+- `X-BioPlatform-Signature` — `sha256=<hex>` HMAC-SHA256 of the **raw request body** using your signing secret
+
+Verify in your endpoint like this:
+
+```js
+const crypto = require("crypto");
+const rawBody = await readRawBody(req); // do not use a parsed body
+const sig = crypto.createHmac("sha256", process.env.WEBHOOK_SECRET)
+  .update(rawBody).digest("hex");
+const expected = `sha256=${sig}`;
+if (req.headers["x-bi-platform-signature"] !== expected) {
+  return res.status(401).end();
+}
+```
+
+Also confirm `X-BioPlatform-Timestamp` is recent (e.g. within 5 minutes) to prevent replay attacks.
+
+### Retries
+
+Deliveries are attempted synchronously and, on failure, retried with backoff of 0s, 60s, 5m, 15m, 60m — up to 5 attempts total. Every attempt is recorded in the delivery log (`GET /api/webhooks/:id/deliveries`) with its HTTP status code or error. After the final attempt the delivery is marked `failed`.
+
+### Best practices
+
+- Respond **quickly** with a 2xx (before your timeout of 10s); do the real work in a background task.
+- Return a non-2xx to trigger a retry.
+- Reject requests with an invalid signature before doing anything.
+- Set up an HTTPS endpoint; only `http(s)` URLs are accepted.
+
+## Discord
+
+Per-user OAuth2 integration (no bot, no shared guild). All endpoints are user-authenticated. The whole integration is **disabled** (returns `configured: false`, `/connect` returns 400) when `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_REDIRECT_URI` are not set — see [Environment Variables](./environment-variables.md).
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
+| `GET` | `/api/discord/connect` | Returns `{ url }` — the Discord OAuth2 authorize URL (scopes `identify gateway.connect`, `prompt=consent`). Requires the integration to be configured. |
+| `GET` | `/api/discord/callback` | OAuth2 callback (visited in the browser). Exchanges the code, upserts the `DiscordConnection`, redirects to `/dashboard?tab=discord&discord=connected|error`. |
+| `POST` | `/api/discord/disconnect` | Disconnect Discord: stops the gateway session, deletes the connection, turns off presence sharing. |
+| `PUT` | `/api/discord/settings` | Update `showDiscordPresence` (share presence on the public profile), `showDiscordActivity` (include activity details), or `webhookUrl` (empty string clears it). Starts/stops the gateway session as needed. |
+| `POST` | `/api/discord/post` | Send a "Post to Discord" embed to the saved webhook (or a `url` passed in the body): display name, profile link, avatar thumbnail, bio, and current status/activity when presence sharing is on. |
+
+Presence shown on the public profile and in the OG card is always gated by `showDiscordPresence`, and activity details by `showDiscordActivity` — a user who never opts in is never tracked or exposed.
+
+## Invites & Admin
+
+Invite endpoints are admin-gated (`POST /api/invites`, `DELETE /api/invites/:id`, `GET /api/invites`). Admin endpoints under `/api/admin/*` manage users, tiers, password resets, profiles, auth bans, manual unlocks, auth logs, **roles**, and **badges**. Admin access is permission-based (see [Admin Guide](./admin-guide.md) → Roles & Permissions).
+
+## Rate limits
+
+- Public profile views: 60 requests/minute per IP.
+- Webhook test deliveries: 5/minute per user.
+- Auth endpoints enforce anti-brute-force locking (see [Configuration](./configuration.md) `AUTH_LOCK_POLICY`).
+
+---
+
+← [Environment Variables](./environment-variables.md) · [User Guide](./user-guide.md) →

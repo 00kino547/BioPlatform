@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { branding } from "@/config/branding";
+import { usePageMeta } from "@/lib/seo";
 
 export function Privacy() {
+  usePageMeta({ title: "Privacy Policy", description: `Read how ${branding.name} collects, uses, and protects your data.`, url: "/privacy" });
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-zinc-800/80 bg-zinc-900/30">

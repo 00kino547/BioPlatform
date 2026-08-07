@@ -24,6 +24,9 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV}
       PORT: ${PORT}
+      APP_URL: ${APP_URL:-http://localhost:80}
+      APP_NAME: ${APP_NAME:-BioPlatform}
+      APP_TAGLINE: ${APP_TAGLINE:-Your digital identity, beautifully crafted.}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       CORS_ORIGIN: ${CORS_ORIGIN}
       JWT_SECRET: ${JWT_SECRET}
@@ -50,6 +53,9 @@ services:
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost:80}
       WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-BioPlatform}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-}
     volumes:
       - uploads_data:/app/uploads
     ports:
@@ -62,6 +68,17 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_APP_NAME: ${VITE_APP_NAME:-BioPlatform}
+        VITE_APP_TAGLINE: ${VITE_APP_TAGLINE:-Your digital identity, beautifully crafted.}
+        VITE_APP_DESCRIPTION: ${VITE_APP_DESCRIPTION:-Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place.}
+        VITE_APP_URL: ${VITE_APP_URL:-http://localhost:80}
+        VITE_APP_GITHUB_URL: ${VITE_APP_GITHUB_URL:-https://github.com/00kino547/BioPlatform}
+        VITE_APP_OG_IMAGE: ${VITE_APP_OG_IMAGE:-http://localhost:80/og.png}
+        VITE_CONTACT_URL: ${VITE_CONTACT_URL:-https://github.com/00kino547/BioPlatform/issues}
+        VITE_STATUS_URL: ${VITE_STATUS_URL:-}
+        VITE_DOCS_URL: ${VITE_DOCS_URL:-https://github.com/00kino547/BioPlatform/tree/main/docs}
     restart: unless-stopped
     depends_on:
       - backend

@@ -9,6 +9,7 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 - Custom profiles with avatars, banners, and bios
 - Social links with platform icons (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email)
 - Discord username and invite link support
+- Live Discord presence (status, activity, current song) with an opt-in profile widget and rich link previews (OpenGraph meta + server-rendered card)
 - Email `mailto:` links
 - 8 built-in theme presets (Midnight, Ocean, Sunset, Forest, Lavender, Rose, Arctic, Minimal)
 - Theme customization with accent colors

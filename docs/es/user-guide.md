@@ -11,6 +11,18 @@ Tu perfil vive en `/@usuario` (o `/usuario`) y se genera desde el panel → pest
 - **Enlaces sociales** — elige una plataforma de la lista (GitHub, X, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email y más). Las URLs se validan; los enlaces de email se completan con `mailto:` automáticamente. Los usuarios de Discord deben usar el formato nuevo (sin discriminador) o pegar un enlace de invitación al servidor.
 - **Interruptor público** — cuando está desactivado, solo tú (con sesión iniciada) puedes ver tu página.
 
+## Múltiples Perfiles y Aliases
+
+La pestaña **Perfiles** gestiona cada página de tu cuenta:
+
+- **Crear un perfil** — introduce un slug en minúsculas (p. ej. `gaming`) y haz clic en **Crear Perfil**. Cada perfil tiene su propio slug, enlaces, música, tema e interruptor público/privado. Las cuentas gratuitas obtienen 1 perfil; los planes superiores aumentan el límite.
+- **Establecer principal** — el perfil principal es el predeterminado de la cuenta. Su slug está fijado a tu nombre de usuario; usa aliases para darle URLs cortas adicionales.
+- **Aliases** — cada perfil puede tener URLs cortas adicionales que resuelven a la misma página (p. ej. `/bio` apuntando a tu perfil principal). Aplican los límites del plan. Los aliases facilitan compartir un enlace corto y memorable a un perfil específico.
+- **Insignias** — muestra insignias en una página de perfil como iconos de color (cada insignia tiene su propio color e icono). Las insignias provienen del conjunto que los administradores asignan a tu cuenta; tú eliges cuáles aparecen por perfil.
+- **Eliminar un perfil** — cualquier perfil puede eliminarse. Si eliminas el perfil principal, el estado de principal pasa a tu perfil más antiguo restante; el último perfil de la cuenta está protegido.
+
+El selector de la cabecera cambia qué perfil editan las otras pestañas (Perfil, Enlaces, Apariencia, Analíticas, Email, Música, Discord, Datos), y **Ver Perfil** abre el actualmente seleccionado.
+
 ## Enlaces y Música
 
 - **Pestaña Enlaces** — añade los botones que se muestran en tu perfil.
@@ -53,6 +65,17 @@ Usa **Cambiar contraseña** en la pestaña Seguridad. Elige una contraseña fuer
 ## Notificaciones por Email
 
 La pestaña **Email** te permite activar o desactivar notificaciones cuando tu perfil recibe una nueva vista o se hace clic en un enlace. Solo funcionan cuando la instancia tiene SMTP configurado.
+
+## Discord
+
+La pestaña **Discord** (solo presente cuando la instancia tiene Discord configurado) te permite:
+
+- **Conectar tu cuenta** — autorizas con Discord (`identify` + `gateway.connect`, se requiere consentimiento). Conectar es opcional y siempre es opt-in.
+- **Mostrar presencia en tu perfil** — al activarlo, los visitantes ven una tarjeta de estado en vivo (online/idle/dnd/offline, actividad actual, canción actual, estado personalizado) en tu página pública y en las previsualizaciones de enlaces compartidos (imagen OpenGraph). No se muestra nada hasta que lo actives.
+- **Mostrar detalles de actividad** — controla por separado si aparecen los detalles de actividad (juegos, Spotify, estado personalizado); el estado online en sí siempre se muestra una vez activado compartir presencia.
+- **Post to Discord** — pega una URL de webhook (canal → Integraciones → Webhooks) para obtener un botón "Post to Discord" que comparte un embed enriquecido con el enlace a tu perfil, avatar, bio y estado actual.
+
+**Privacidad:** no se recopila ni almacena ningún dato de presencia en el servidor más allá de los tokens OAuth cifrados; la presencia se lee en vivo a través de una sesión privada del gateway y se guarda en caché solo en memoria. Un usuario que nunca conecta ni opta nunca es rastreado.
 
 ## Analíticas
 

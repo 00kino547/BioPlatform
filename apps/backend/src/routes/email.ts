@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { isEmailEnabled, testConnection, sendEmail, getFromAddress } from "../lib/email.js";
 import { getEnv } from "../config/env.js";
+import { profileScope, upsertPrimaryProfile } from "../lib/profile.js";
 
 const router = Router();
 
@@ -13,8 +14,8 @@ const prefsSchema = z.object({
 });
 
 router.get("/settings", requireAuth, async (req, res) => {
-  const profile = await prisma.profile.findUnique({
-    where: { userId: req.userId! },
+  const profile = await prisma.profile.findFirst({
+    where: profileScope(req.userId!, req.query.profileId),
     select: { notifyOnView: true, notifyOnClick: true },
   });
 
@@ -35,18 +36,16 @@ router.put("/settings", requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
   }
 
-  await prisma.profile.upsert({
-    where: { userId: req.userId! },
-    update: {
-      notifyOnView: parsed.data.notifyOnView,
-      notifyOnClick: parsed.data.notifyOnClick,
-    },
-    create: {
-      userId: req.userId!,
-      notifyOnView: parsed.data.notifyOnView,
-      notifyOnClick: parsed.data.notifyOnClick,
-    },
-  });
+  const scoped = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
+  const data = {
+    notifyOnView: parsed.data.notifyOnView,
+    notifyOnClick: parsed.data.notifyOnClick,
+  };
+  if (scoped) {
+    await prisma.profile.update({ where: { id: scoped.id }, data });
+  } else {
+    await upsertPrimaryProfile(req.userId!, data);
+  }
 
   res.json({ success: true, data: parsed.data });
 });

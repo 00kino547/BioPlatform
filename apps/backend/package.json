@@ -17,6 +17,8 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
+    "@napi-rs/canvas": "^1.0.3",
     "@prisma/client": "^6.9.0",
     "@simplewebauthn/server": "^13.3.2",
     "bcrypt": "^6.0.0",

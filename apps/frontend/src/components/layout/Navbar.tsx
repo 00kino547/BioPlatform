@@ -53,6 +53,12 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
+            <Link
+              to="/api-docs"
+              className="px-3.5 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+            >
+              API Docs
+            </Link>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
@@ -101,6 +107,13 @@ export function Navbar() {
                   {link.label}
                 </a>
               ))}
+              <Link
+                to="/api-docs"
+                onClick={() => setIsOpen(false)}
+                className="px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+              >
+                API Docs
+              </Link>
               <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-col gap-2">
                 <Link
                   to="/login"

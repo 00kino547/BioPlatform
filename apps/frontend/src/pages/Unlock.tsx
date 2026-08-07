@@ -3,12 +3,15 @@ import { Link, useSearchParams } from "react-router-dom";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { usePageMeta } from "@/lib/seo";
 
 export function Unlock() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
   const [error, setError] = useState("");
+
+  usePageMeta({ title: "Unlock Account", description: `Unlock your ${branding.name} account.`, url: "/unlock" });
 
   useEffect(() => {
     if (!token) {

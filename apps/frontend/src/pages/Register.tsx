@@ -3,10 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
+import { usePageMeta } from "@/lib/seo";
 
 export function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  usePageMeta({ title: "Create Account", description: `Create a free account on ${branding.name} and get your own profile page.`, url: "/register" });
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

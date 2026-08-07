@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { api, type PublicProfile } from "@/lib/api";
+import { api, type PublicProfile, type Badge } from "@/lib/api";
 import { branding } from "@/config/branding";
+import { usePageMeta } from "@/lib/seo";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { MusicPlayer } from "@/components/music/MusicPlayer";
+import { PresenceWidget } from "@/components/discord/PresenceWidget";
+import { BadgePill } from "@/components/ui/BadgePill";
 import {
   MapPin,
   Globe,
@@ -30,6 +33,20 @@ export function PublicProfilePage() {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
+
+  usePageMeta({
+    title: profile ? `${profile.displayName || profile.username} (@${profile.username})` : "Profile",
+    description: profile?.bio || branding.description,
+    url: `/${username ?? ""}`,
+    image: profile ? `${branding.url}/api/profiles/${profile.username}/og.png` : branding.ogImage,
+  });
+
+  useEffect(() => {
+    api.getBadges().then((res) => {
+      if (res.success && res.data) setBadgeCatalog(res.data);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!username) return;
@@ -116,6 +133,17 @@ export function PublicProfilePage() {
           @{profile.username}
         </p>
 
+        {profile.badges && profile.badges.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+            {profile.badges
+              .map((id) => badgeCatalog.find((b) => b.id === id))
+              .filter((b): b is Badge => Boolean(b))
+              .map((badge) => (
+                <BadgePill key={badge.id} badge={badge} />
+              ))}
+          </div>
+        )}
+
         {profile.bio && (
           <p className="text-sm leading-relaxed mb-5 whitespace-pre-wrap" style={{ color: `${textColor}cc` }}>
             {profile.bio}
@@ -146,6 +174,27 @@ export function PublicProfilePage() {
           )}
         </div>
 
+        {profile.discord && (
+          <div className="mb-6 flex flex-col items-center">
+            <h2
+              className="text-[11px] font-semibold uppercase tracking-widest mb-2.5 text-center"
+              style={{ color: mutedColor }}
+            >
+              Discord
+            </h2>
+            <PresenceWidget
+              account={{
+                username: profile.discord.username,
+                globalName: profile.discord.globalName,
+                avatar: profile.discord.avatar,
+              }}
+              presence={profile.discord.presence}
+              accent={accent}
+              textColor={textColor}
+            />
+          </div>
+        )}
+
         {profile.musicTracks && profile.musicTracks.length > 0 && (
           <div className="mb-6">
             <h2
@@ -174,11 +223,16 @@ export function PublicProfilePage() {
                 href = `mailto:${link.url}`;
               }
 
+              const isDiscordInvite =
+                platformLower === "discord" && /^https?:\/\//i.test(link.url) && /discord\.(gg|com|app)\//.test(link.url);
+
               const isClickable = !isDiscordUsername && isSafeHref(href);
 
               const displayText = isEmail
                 ? link.url.startsWith("mailto:") ? link.url.slice(7) : link.url
-                : link.url;
+                : isDiscordInvite
+                  ? `discord.gg${new URL(link.url).pathname.replace(/^\/invite/, "") || "/invite"}`
+                  : link.url;
 
               const Tag = isClickable ? "a" : "div";
               const linkProps = isClickable

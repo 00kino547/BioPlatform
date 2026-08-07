@@ -11,6 +11,18 @@ Your profile lives at `/@username` (or `/username`) and is generated from your D
 - **Social links** — pick a platform from the list (GitHub, X, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email, and more). URLs are validated; email links get `mailto:` automatically. Discord usernames must use the new format (no discriminator), or paste a server invite link.
 - **Public toggle** — when off, only you (when signed in) can see your page.
 
+## Multiple Profiles & Aliases
+
+The **Profiles** tab manages every page in your account:
+
+- **Create a profile** — enter a lowercase slug (e.g. `gaming`) and click **Create Profile**. Each profile has its own slug, links, music, theme, and public/private toggle. Free accounts get 1 profile; higher tiers raise the limit.
+- **Set primary** — the primary profile is the account's default. Its slug is fixed to your username; use aliases to give it extra short URLs.
+- **Aliases** — every profile can have extra short URLs that resolve to the same page (e.g. `/bio` pointing at your main profile). Tier limits apply. Aliases make it easy to share a short, memorable link to a specific profile.
+- **Badges** — show badges on a profile page as colored icons (each badge has its own color and icon). Badges come from the set admins assign to your account; you toggle which ones appear per profile.
+- **Delete a profile** — any profile can be deleted. If you delete the primary profile, primary status moves to your oldest remaining profile; the last profile in the account is protected.
+
+The header selector switches which profile the other tabs (Profile, Links, Appearance, Analytics, Email, Music, Discord, Data) are editing, and **View Profile** opens the currently selected one.
+
 ## Links & Music
 
 - **Links tab** — add the buttons shown on your profile.
@@ -53,6 +65,17 @@ Use **Change password** in the Security tab (or the backend `POST /auth/change-p
 ## Email Notifications
 
 The **Email** tab lets you toggle notifications when your profile gets a new view or a link is clicked. These only work when the instance has SMTP configured.
+
+## Discord
+
+The **Discord** tab (only present when the instance has configured Discord) lets you:
+
+- **Connect your account** — authorizes with Discord (`identify` + `gateway.connect`, consent required). Connecting is optional and always opt-in.
+- **Show presence on your profile** — when enabled, visitors see a live status card (online/idle/dnd/offline, current activity, current song, custom status) on your public page and in shared link previews (OpenGraph image). Nothing is shown until you turn this on.
+- **Show activity details** — separately controls whether activity details (games, Spotify, custom status) appear; the online status itself is always shown once presence sharing is on.
+- **Post to Discord** — paste a webhook URL (channel → Integrations → Webhooks) to get a "Post to Discord" button that shares a rich embed with your profile link, avatar, bio, and current status.
+
+**Privacy:** no presence data is collected or stored server-side beyond the encrypted OAuth tokens; presence is read live over a private gateway session and cached in memory only. A user who never connects or opts in is never tracked.
 
 ## Analytics
 

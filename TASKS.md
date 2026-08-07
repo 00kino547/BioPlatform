@@ -12,14 +12,12 @@
 
 - [ ] GitHub version checker — on every admin panel entry, show an update warning banner with the CHANGELOG.md loaded and rendered formatted; footer shows the app version (in red when the pending update is critical/security), plus an "Update" state when the installed version is outdated
 - [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment
-- [ ] API documentation
 - [ ] REST API for third-party integrations
 - [ ] S3/R2/B2 storage providers
 
 ## Low Priority
 
-- [ ] Profile export / data portability
-- [ ] Webhook support for integrations
+- [ ] Webhook event expansion (admin/user events, custom payload templates)
 
 ## Completed
 
@@ -105,3 +103,11 @@
 - [x] Security audit fixes — seed admin creds from env (no hardcoded default), admin-only invite minting, per-IP rate limit on public view/click endpoints, atomic invite consumption + email normalization on register, trusted `req.ip` + sanitized referer in analytics, Nginx CSP/Permissions-Policy/`server_tokens off`, Postgres bound to loopback
 - [x] TLS on 443 — `TLS_MODE` env var (development = auto self-signed certs as `self-signed.pem`/`self-signed.key` in `./certs/`, production = deletes them + requires real cert.pem/key.pem), HSTS sent in production only (`SEND_HSTS_ON_DEV=true` opt-in for dev), `JWT_SECRET` min 32 chars validation
 - [x] Security audit round 2 — server-side `theme` CSS validation (hex/rgb/rgba/hsl/hsla + safe font-family charset, rejects CSS injection), uniform login responses to stop user enumeration (always-found `/login/start` + generic 401 on passkey/2FA for unknown users), email unlock now clears the account's fingerprint bans and failed auth-log entries (localStorage JWT kept with CSP as accepted risk)
+- [x] Webhook support for integrations — per-account webhooks (`/api/webhooks`) with AES-256-GCM encrypted one-time secrets, HMAC-SHA256 signature header, events `profile.viewed` / `link.clicked` / `profile.updated`, test delivery, retry sweep (0s/60s/5m/15m/60m, max 5 attempts) with delivery log, Dashboard **Webhooks** tab (create/edit/pause/test/rotate/delete, secret shown once)
+- [x] Profile export / data portability — single-sheet spreadsheet export (`.xlsx` default / `.ods`) and import (`.xlsx`/`.ods`/`.csv`), macro files rejected, formula-looking values skipped with warnings, Dashboard **Data** tab
+- [x] API documentation — OpenAPI 3.0 served at `/api/openapi.json`, in-app `/api-docs` reference page, `docs/en/api.md` + `docs/es/api.md` (exact parity), AGENTS.md docs-parity rule added
+- [x] Discord presence + link previews — per-user OAuth2 gateway session (scopes `identify gateway.connect`, `prompt=consent`, intents 0, invisible presence; 4004→refresh, 4015 backoff), in-memory presence cache, public presence widget (status/activity/custom status), OG meta page (`GET /:username`) + server-rendered 1200×630 PNG card (`GET /api/profiles/:username/og.png`), "Post to Discord" webhook embed button, Dashboard **Discord** tab, `DiscordConnection` model, AES-256-GCM encrypted token/webhook storage, session restore on boot, fully env-gated by `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_REDIRECT_URI` (removed `DISCORD_BOT_TOKEN`/`DISCORD_GUILD_ID`)
+- [x] Multi-profile, aliases, and badges — `Profile.slug`/`isPrimary`/`badges` (badge enum: DEV, OWNER, STAFF, MODERATOR, VERIFIED, PREMIUM, ENTERPRISE), `ProfileAlias` model, per-profile scoping via `?profileId=` across music/email/analytics/discord settings, tier limits (profiles FREE 1 / PRO 3 / ENTERPRISE 10; aliases FREE 0 / PRO 5 / ENTERPRISE 25) with admin per-user overrides (`profileLimit`, `aliasLimit`), public resolution by slug or alias (`GET /api/profiles/:identifier`) with `requestedSlug`, primary-slug-rename rejected, Dashboard **Profiles** tab (create/delete/set-primary/aliases/badges) + header profile switcher, badge pills on public pages, OpenAPI/docs/admin-UI parity, migration SQL recorded in `docs/migrations/`
+- [x] WebAuthn multi-origin — `WEBAUTHN_ORIGIN` accepts a comma-separated list of origins (e.g. `http://localhost:80,https://localhost`) so passkeys work on both an HTTP local deployment and an HTTPS domain; `.env.example` + docs parity
+- [x] Role-based access control (RBAC) — `Role` model replacing the USER/ADMIN enum (`User.roleId`, `Role.permissions String[]`), permission constants in `lib/permissions.ts` (`users.view`, `users.manage`, `profiles.manage`, `invites.manage`, `bans.manage`, `roles.manage`, `badges.manage`, `logs.view`), admin middleware `requirePermission`, `admin`/`user` system roles (admin locked full-access, user is the registration default, reserved slugs not reusable, custom roles deletable only when unassigned), admin Roles tab with permission checkboxes, role dropdown in user edit, `isAdmin`/permissions/role object in auth payloads, invite route re-gated on `invites.manage`, register requires the `user` role to exist
+- [x] Badge catalog — `Badge` model (slug/label/color/icon, `isSystem`) replacing the fixed badge list, admin Badges tab (create/edit/delete with live preview, system badges undeletable with fixed slugs), public `GET /api/badges` catalog, profile/user badges now reference catalog ids, colored-icon `BadgePill` rendering on public profiles, Dashboard badge toggles, OpenAPI + docs + CHANGELOG parity

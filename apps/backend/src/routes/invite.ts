@@ -3,7 +3,8 @@ import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requireAdmin } from "../middleware/admin.js";
+import { requirePermission } from "../middleware/admin.js";
+import { PERMISSIONS } from "../lib/permissions.js";
 
 const router = Router();
 
@@ -12,7 +13,7 @@ const createSchema = z.object({
   expiresInDays: z.number().int().min(1).max(365).optional(),
 });
 
-router.post("/", requireAuth, requireAdmin, async (req, res) => {
+router.post("/", requireAuth, requirePermission(PERMISSIONS.INVITES_MANAGE), async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({

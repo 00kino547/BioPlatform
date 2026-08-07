@@ -20,6 +20,7 @@
 | `VITE_APP_DESCRIPTION` | Descripción del frontend | `Create a stunning profile page...` |
 | `VITE_APP_URL` | URL pública del frontend | `http://localhost:80` |
 | `VITE_APP_GITHUB_URL` | URL de GitHub del frontend | `https://github.com/00kino547/BioPlatform` |
+| `VITE_APP_OG_IMAGE` | Imagen Open Graph/embed de Discord por defecto | `<VITE_APP_URL>/og.png` |
 | `VITE_CONTACT_URL` | URL de contacto/soporte | `https://github.com/00kino547/BioPlatform/issues` |
 | `VITE_STATUS_URL` | URL de página de estado | _(vacío)_ |
 | `VITE_DOCS_URL` | URL de documentación | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
@@ -56,6 +57,16 @@
 | `AUTH_LOG_RETENTION_DAYS` | Retención del registro de autenticación en días antes de que la tarea de limpieza lo elimine | `30` |
 | `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | Cada cuántos minutos se ejecuta la tarea de limpieza del registro de autenticación | `60` |
 
+## WebAuthn (passkeys)
+
+| Variable | Descripción | Por defecto |
+|----------|-------------|-------------|
+| `WEBAUTHN_RP_ID` | Relying-party ID — el dominio registrable **sin puerto** (p. ej. `localhost`, `example.com`) | `localhost` |
+| `WEBAUTHN_ORIGIN` | El **origen exacto** que el navegador usa para llegar a la aplicación (esquema + host + puerto; los puertos por defecto se omiten). Separa varios orígenes con comas (p. ej. `http://localhost:80,https://localhost`). Debe coincidir precisamente con la barra de direcciones o el registro/autenticación de passkeys fallará con "Passkey registration failed". | `http://localhost:80` |
+| `WEBAUTHN_RP_NAME` | Nombre mostrado en la solicitud de passkey | `BioPlatform` |
+
+> El origen se compara byte a byte contra el origen reportado por el navegador. Si tu despliegue se sirve por HTTPS en el puerto por defecto (como el setup de Docker), usa `https://<host>` — no `http://<host>:80`. Si lo accedes por HTTP plano en el puerto 80, usa `http://<host>:80`. En producción es tu dominio público (p. ej. `https://bio.example.com`). Si quieres permitir ambos (p. ej. un despliegue local HTTP más un dominio HTTPS), lista ambos orígenes separados por comas.
+
 ## CORS
 
 | Variable | Descripción | Por defecto |
@@ -76,6 +87,18 @@
 |----------|-------------|-------------|
 | `STORAGE_PROVIDER` | Backend de almacenamiento (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Directorio de subidas local | `./uploads` |
+
+## Discord
+
+La integración de Discord (widget de presencia, previsualizaciones de enlaces, "Post to Discord") solo se activa cuando las tres variables están configuradas. Déjalas vacías para deshabilitar la función por completo — el Dashboard muestra una tarjeta "no disponible" y el backend no inicia sesiones de gateway.
+
+| Variable | Descripción | Por defecto |
+|----------|-------------|-------------|
+| `DISCORD_CLIENT_ID` | ID de cliente de la aplicación de Discord | _(vacío)_ |
+| `DISCORD_CLIENT_SECRET` | Secreto de cliente de la aplicación de Discord | _(vacío)_ |
+| `DISCORD_REDIRECT_URI` | URI de redirección de OAuth2 (debe coincidir con el Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
+
+> Crea la aplicación en el [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). No se requiere bot. Registra la URI de redirección en **OAuth2 → Redirects** y copia el Client ID y el Client Secret. Los usuarios autorizados otorgan `identify` + `gateway.connect` con `prompt=consent`, lo que emite un refresh token para que el servidor pueda mantener su sesión de presencia sin necesidad de que el usuario esté en línea.
 
 ## Marca
 

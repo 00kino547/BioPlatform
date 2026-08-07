@@ -41,3 +41,18 @@ certs/*
 
 # Local AI files
 NOTES.md
+
+# Databases & backups (may contain real credentials/data)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.dump
+*.bak
+*.sql.gz
+*.sql.zip
+pgdata/
+postgres_data/
+backups/
+pg_dump*.sql
+.pgpass

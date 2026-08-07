@@ -3,44 +3,103 @@ import bcrypt from "bcrypt";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requireAdmin } from "../middleware/admin.js";
-import { updateProfileSchema, toPrismaJson } from "../lib/validation.js";
+import { requireAdmin, requirePermission } from "../middleware/admin.js";
+import { updateProfileSchema, toPrismaJson, profileSlugSchema, stripHtml } from "../lib/validation.js";
+import { upsertPrimaryProfile, getPrimaryProfile } from "../lib/profile.js";
+import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_SLUGS } from "../lib/permissions.js";
 
 const router = Router();
 
 const updateUserSchema = z.object({
   username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/).optional(),
   email: z.string().email().transform((v) => v.toLowerCase()).optional(),
-  role: z.enum(["USER", "ADMIN"]).optional(),
+  roleId: z.string().uuid().optional(),
   tier: z.enum(["FREE", "PRO", "ENTERPRISE"]).optional(),
   trackLimit: z.number().int().min(0).max(100).nullable().optional(),
+  profileLimit: z.number().int().min(0).max(100).nullable().optional(),
+  aliasLimit: z.number().int().min(0).max(100).nullable().optional(),
+  badges: z.array(z.string().uuid()).optional(),
 });
 
 const resetPasswordSchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
-router.use(requireAuth, requireAdmin);
+const permissionEnum = z.enum(ALL_PERMISSIONS as unknown as [string, ...string[]]);
 
-router.get("/users", async (_req, res) => {
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      role: true,
-      tier: true,
-      trackLimit: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  res.json({ success: true, data: users });
+const roleSchema = z.object({
+  name: z.string().min(2).max(32).transform((v) => stripHtml(v).trim()),
+  description: z.string().max(256).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
+  permissions: z.array(permissionEnum).optional(),
 });
 
-router.patch("/users/:id", async (req: Request<{ id: string }>, res) => {
+const roleUpdateSchema = z.object({
+  name: z.string().min(2).max(32).transform((v) => stripHtml(v).trim()).optional(),
+  description: z.string().max(256).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
+  permissions: z.array(permissionEnum).optional(),
+});
+
+const badgeSchema = z.object({
+  slug: profileSlugSchema.transform((v) => stripHtml(v) || v).optional(),
+  label: z.string().min(1).max(32).transform((v) => stripHtml(v).trim()),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, { message: "Color must be a hex value like #22c55e" }),
+  icon: z.string().regex(/^[A-Z][A-Za-z0-9]*$/, { message: "Icon must be a valid icon name" }),
+});
+
+const badgeUpdateSchema = z.object({
+  slug: profileSlugSchema.transform((v) => stripHtml(v) || v).optional(),
+  label: z.string().min(1).max(32).transform((v) => stripHtml(v).trim()).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, { message: "Color must be a hex value like #22c55e" }).optional(),
+  icon: z.string().regex(/^[A-Z][A-Za-z0-9]*$/, { message: "Icon must be a valid icon name" }).optional(),
+});
+
+const userInclude = {
+  role: { select: { id: true, slug: true, name: true, isSystem: true } },
+  badges: { select: { id: true } },
+};
+
+function serializeUser(u: {
+  id: string;
+  username: string;
+  email: string;
+  roleId: string;
+  role: { id: string; slug: string; name: string; isSystem: boolean } | null;
+  tier: string;
+  trackLimit: number | null;
+  profileLimit: number | null;
+  aliasLimit: number | null;
+  badges: { id: string }[];
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    roleId: u.roleId,
+    role: u.role,
+    tier: u.tier,
+    trackLimit: u.trackLimit,
+    profileLimit: u.profileLimit,
+    aliasLimit: u.aliasLimit,
+    badges: u.badges.map((b) => b.id),
+    createdAt: u.createdAt,
+    updatedAt: u.updatedAt,
+  };
+}
+
+router.use(requireAuth, requireAdmin);
+
+router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (_req, res) => {
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+    include: userInclude,
+  });
+
+  res.json({ success: true, data: users.map(serializeUser) });
+});
+
+router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -52,15 +111,30 @@ router.patch("/users/:id", async (req: Request<{ id: string }>, res) => {
   const { id } = req.params;
   const updates = parsed.data;
 
+  if (id === req.userId) {
+    return res.status(400).json({ success: false, error: "You cannot edit your own account here" });
+  }
+
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) {
     return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  if (updates.roleId) {
+    const role = await prisma.role.findUnique({ where: { id: updates.roleId } });
+    if (!role) {
+      return res.status(400).json({ success: false, error: "Role not found" });
+    }
   }
 
   if (updates.username && updates.username !== existing.username) {
     const taken = await prisma.user.findUnique({ where: { username: updates.username } });
     if (taken) {
       return res.status(409).json({ success: false, error: "Username already taken" });
+    }
+    const slugTaken = await prisma.profile.findUnique({ where: { slug: updates.username } });
+    if (slugTaken) {
+      return res.status(409).json({ success: false, error: "Username already used as a profile URL" });
     }
   }
 
@@ -71,16 +145,41 @@ router.patch("/users/:id", async (req: Request<{ id: string }>, res) => {
     }
   }
 
-  const user = await prisma.user.update({
-    where: { id },
-    data: updates,
-    select: { id: true, username: true, email: true, role: true, tier: true, trackLimit: true, createdAt: true, updatedAt: true },
-  });
+  const data: Record<string, unknown> = {};
+  if (updates.username !== undefined) data.username = updates.username;
+  if (updates.email !== undefined) data.email = updates.email;
+  if (updates.roleId !== undefined) data.roleId = updates.roleId;
+  if (updates.tier !== undefined) data.tier = updates.tier;
+  if (updates.trackLimit !== undefined) data.trackLimit = updates.trackLimit;
+  if (updates.profileLimit !== undefined) data.profileLimit = updates.profileLimit;
+  if (updates.aliasLimit !== undefined) data.aliasLimit = updates.aliasLimit;
+  if (updates.badges !== undefined) data.badges = { set: updates.badges.map((id) => ({ id })) };
 
-  res.json({ success: true, data: user });
+  try {
+    const user = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id },
+        data,
+        include: userInclude,
+      });
+
+      if (updates.username) {
+        await tx.profile.updateMany({ where: { userId: id, isPrimary: true }, data: { slug: updates.username } });
+      }
+
+      return u;
+    });
+
+    res.json({ success: true, data: serializeUser(user) });
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "P2002") {
+      return res.status(409).json({ success: false, error: "Username already used as a profile URL" });
+    }
+    throw err;
+  }
 });
 
-router.post("/users/:id/reset-password", async (req: Request<{ id: string }>, res) => {
+router.post("/users/:id/reset-password", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -107,20 +206,22 @@ router.post("/users/:id/reset-password", async (req: Request<{ id: string }>, re
   res.json({ success: true, message: "Password reset successfully" });
 });
 
-router.get("/users/:id/profile", async (req: Request<{ id: string }>, res) => {
+router.get("/users/:id/profile", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (req: Request<{ id: string }>, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
-    select: { id: true, username: true, profile: true },
+    select: { id: true, username: true },
   });
 
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
   }
 
-  res.json({ success: true, data: { username: user.username, profile: user.profile } });
+  const profile = await getPrimaryProfile(user.id);
+
+  res.json({ success: true, data: { username: user.username, profile } });
 });
 
-router.put("/users/:id/profile", async (req: Request<{ id: string }>, res) => {
+router.put("/users/:id/profile", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (req: Request<{ id: string }>, res) => {
   const parsed = updateProfileSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -136,25 +237,16 @@ router.put("/users/:id/profile", async (req: Request<{ id: string }>, res) => {
 
   const { socialLinks, theme, ...rest } = parsed.data;
 
-  const profile = await prisma.profile.upsert({
-    where: { userId: req.params.id },
-    update: {
-      ...rest,
-      socialLinks: toPrismaJson(socialLinks),
-      theme: toPrismaJson(theme),
-    },
-    create: {
-      userId: req.params.id,
-      ...rest,
-      socialLinks: toPrismaJson(socialLinks),
-      theme: toPrismaJson(theme),
-    },
+  const profile = await upsertPrimaryProfile(req.params.id, {
+    ...rest,
+    socialLinks: toPrismaJson(socialLinks),
+    theme: toPrismaJson(theme),
   });
 
   res.json({ success: true, data: profile });
 });
 
-router.get("/auth-bans", async (_req, res) => {
+router.get("/auth-bans", requirePermission(PERMISSIONS.BANS_MANAGE), async (_req, res) => {
   const bans = await prisma.authBan.findMany({
     orderBy: { updatedAt: "desc" },
     take: 200,
@@ -183,7 +275,7 @@ router.get("/auth-bans", async (_req, res) => {
   });
 });
 
-router.delete("/auth-bans/:id", async (req: Request<{ id: string }>, res) => {
+router.delete("/auth-bans/:id", requirePermission(PERMISSIONS.BANS_MANAGE), async (req: Request<{ id: string }>, res) => {
   const ban = await prisma.authBan.findUnique({ where: { id: req.params.id } });
   if (!ban) {
     return res.status(404).json({ success: false, error: "Ban not found" });
@@ -197,7 +289,7 @@ const authUnlockSchema = z.object({
   userId: z.string().min(1),
 });
 
-router.post("/auth-unlock", async (req: Request, res: Response) => {
+router.post("/auth-unlock", requirePermission(PERMISSIONS.BANS_MANAGE), async (req: Request, res: Response) => {
   const parsed = authUnlockSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -239,7 +331,7 @@ router.post("/auth-unlock", async (req: Request, res: Response) => {
   });
 });
 
-router.get("/auth-logs", async (req: Request, res) => {
+router.get("/auth-logs", requirePermission(PERMISSIONS.LOGS_VIEW), async (req: Request, res) => {
   const requested = Number(req.query.limit) || 100;
   const limit = Math.min(Math.max(requested, 1), 500);
 
@@ -249,6 +341,171 @@ router.get("/auth-logs", async (req: Request, res) => {
   });
 
   res.json({ success: true, data: logs });
+});
+
+// ---------------------------------------------------------------------
+// Roles
+// ---------------------------------------------------------------------
+
+function slugifyRoleName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+}
+
+router.get("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (_req, res) => {
+  const roles = await prisma.role.findMany({ orderBy: [{ isSystem: "desc" }, { name: "asc" }] });
+  res.json({ success: true, data: roles });
+});
+
+router.post("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: Request, res: Response) => {
+  const parsed = roleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const { name, description, permissions } = parsed.data;
+  const slug = slugifyRoleName(name);
+
+  if (slug === SYSTEM_ROLE_SLUGS.ADMIN || slug === SYSTEM_ROLE_SLUGS.USER) {
+    return res.status(400).json({ success: false, error: "That role name is reserved" });
+  }
+
+  const existing = await prisma.role.findFirst({ where: { OR: [{ slug }, { name }] } });
+  if (existing) {
+    return res.status(409).json({ success: false, error: "A role with that name already exists" });
+  }
+
+  const role = await prisma.role.create({
+    data: { name, slug, description: description ?? null, permissions: permissions ?? [] },
+  });
+
+  res.status(201).json({ success: true, data: role });
+});
+
+router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const parsed = roleUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const role = await prisma.role.findUnique({ where: { id: req.params.id } });
+  if (!role) {
+    return res.status(404).json({ success: false, error: "Role not found" });
+  }
+
+  if (role.slug === SYSTEM_ROLE_SLUGS.ADMIN && parsed.data.permissions) {
+    return res.status(400).json({ success: false, error: "The Admin role always has full permissions" });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (parsed.data.name !== undefined) {
+    const newSlug = slugifyRoleName(parsed.data.name);
+    if (newSlug === SYSTEM_ROLE_SLUGS.ADMIN || newSlug === SYSTEM_ROLE_SLUGS.USER) {
+      return res.status(400).json({ success: false, error: "That role name is reserved" });
+    }
+    const existing = await prisma.role.findFirst({ where: { OR: [{ slug: newSlug }, { name: parsed.data.name }], NOT: { id: role.id } } });
+    if (existing) {
+      return res.status(409).json({ success: false, error: "A role with that name already exists" });
+    }
+    data.name = parsed.data.name;
+    data.slug = newSlug;
+  }
+  if (parsed.data.description !== undefined) data.description = parsed.data.description;
+  if (parsed.data.permissions !== undefined) data.permissions = parsed.data.permissions;
+
+  const updated = await prisma.role.update({ where: { id: role.id }, data });
+  res.json({ success: true, data: updated });
+});
+
+router.delete("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const role = await prisma.role.findUnique({ where: { id: req.params.id } });
+  if (!role) {
+    return res.status(404).json({ success: false, error: "Role not found" });
+  }
+  if (role.isSystem) {
+    return res.status(400).json({ success: false, error: "System roles cannot be deleted" });
+  }
+
+  const userCount = await prisma.user.count({ where: { roleId: role.id } });
+  if (userCount > 0) {
+    return res.status(400).json({ success: false, error: "Assign users to another role before deleting this one" });
+  }
+
+  await prisma.role.delete({ where: { id: role.id } });
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------
+// Badges
+// ---------------------------------------------------------------------
+
+router.get("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (_req, res) => {
+  const badges = await prisma.badge.findMany({ orderBy: [{ isSystem: "desc" }, { label: "asc" }] });
+  res.json({ success: true, data: badges });
+});
+
+router.post("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req: Request, res: Response) => {
+  const parsed = badgeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const { label, color, icon, slug } = parsed.data;
+  const finalSlug = slug ?? slugifyRoleName(label);
+
+  const existing = await prisma.badge.findUnique({ where: { slug: finalSlug } });
+  if (existing) {
+    return res.status(409).json({ success: false, error: "A badge with that slug already exists" });
+  }
+
+  const badge = await prisma.badge.create({ data: { slug: finalSlug, label, color, icon } });
+  res.status(201).json({ success: true, data: badge });
+});
+
+router.patch("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const parsed = badgeUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const badge = await prisma.badge.findUnique({ where: { id: req.params.id } });
+  if (!badge) {
+    return res.status(404).json({ success: false, error: "Badge not found" });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (parsed.data.slug !== undefined) data.slug = parsed.data.slug;
+  if (parsed.data.label !== undefined) data.label = parsed.data.label;
+  if (parsed.data.color !== undefined) data.color = parsed.data.color;
+  if (parsed.data.icon !== undefined) data.icon = parsed.data.icon;
+
+  if (parsed.data.slug) {
+    const existing = await prisma.badge.findUnique({ where: { slug: parsed.data.slug } });
+    if (existing && existing.id !== badge.id) {
+      return res.status(409).json({ success: false, error: "A badge with that slug already exists" });
+    }
+  }
+
+  const updated = await prisma.badge.update({ where: { id: badge.id }, data });
+  res.json({ success: true, data: updated });
+});
+
+router.delete("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const badge = await prisma.badge.findUnique({ where: { id: req.params.id } });
+  if (!badge) {
+    return res.status(404).json({ success: false, error: "Badge not found" });
+  }
+  if (badge.isSystem) {
+    return res.status(400).json({ success: false, error: "System badges cannot be deleted" });
+  }
+
+  await prisma.badge.delete({ where: { id: badge.id } });
+  res.json({ success: true });
 });
 
 export default router;

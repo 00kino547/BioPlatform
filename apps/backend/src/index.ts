@@ -1,6 +1,8 @@
 import app from "./app.js";
 import { getEnv } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
+import { startWebhookRetrySweep } from "./lib/webhook.js";
+import { restoreDiscordSessions } from "./routes/discord.js";
 
 const env = getEnv();
 
@@ -25,7 +27,8 @@ async function pruneAuthLogs() {
 }
 
 setInterval(() => {
-  void pruneAuthLogs();
+void pruneAuthLogs();
+startWebhookRetrySweep();
 }, env.AUTH_LOG_CLEANUP_INTERVAL_MINUTES * 60 * 1000);
 
 void pruneAuthLogs();
@@ -33,6 +36,8 @@ void pruneAuthLogs();
 async function main() {
   await prisma.$connect();
   console.log("Database connected");
+
+  void restoreDiscordSessions();
 
   app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);

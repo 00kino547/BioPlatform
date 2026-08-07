@@ -49,13 +49,37 @@ async function request<T>(
   return res.json();
 }
 
+export interface Role {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: string[];
+  _count?: { users: number };
+}
+
+export interface Badge {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  icon: string;
+  isSystem: boolean;
+}
+
 export interface AuthUser {
   id: string;
   username: string;
   email: string;
-  role: string;
+  role: Role | null;
+  permissions: string[];
+  isAdmin: boolean;
   tier: "FREE" | "PRO" | "ENTERPRISE";
   trackLimit: number | null;
+  profileLimit: number | null;
+  aliasLimit: number | null;
+  badges: string[];
   totpEnabled: boolean;
 }
 
@@ -112,9 +136,20 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+export interface ProfileAlias {
+  id: string;
+  profileId: string;
+  slug: string;
+  createdAt: string;
+}
+
 export interface Profile {
   id: string;
   userId: string;
+  slug: string;
+  isPrimary: boolean;
+  badges: string[];
+  aliases?: ProfileAlias[];
   displayName: string | null;
   bio: string | null;
   avatar: string | null;
@@ -133,10 +168,22 @@ export interface Profile {
   createdAt: string;
   updatedAt: string;
   musicTracks?: MusicTrack[];
+  _count?: { musicTracks: number };
+}
+
+export interface MyProfiles {
+  profiles: Profile[];
+  limits: { profiles: number; aliases: number };
+  primaryId: string | null;
+  aliasCount: number;
 }
 
 export interface PublicProfile {
   username: string;
+  slug: string;
+  requestedSlug: string;
+  isPrimary: boolean;
+  badges: string[];
   createdAt: string;
   id: string;
   userId: string;
@@ -156,6 +203,52 @@ export interface PublicProfile {
   } | null;
   isPublic: boolean;
   musicTracks?: MusicTrack[];
+  discord?: {
+    username: string;
+    globalName: string | null;
+    avatar: string | null;
+    presence: DiscordPresence | null;
+  } | null;
+}
+
+export type DiscordPresenceStatus = "online" | "idle" | "dnd" | "offline";
+
+export interface DiscordActivity {
+  type: number;
+  name: string;
+  details: string | null;
+  state: string | null;
+  applicationId: string | null;
+  largeImage: string | null;
+  smallImage: string | null;
+}
+
+export interface DiscordPresence {
+  status: DiscordPresenceStatus;
+  statusLabel: string;
+  activities: DiscordActivity[];
+  line: string | null;
+  customStatus: string | null;
+  updatedAt: number | null;
+}
+
+export interface DiscordAccount {
+  username: string;
+  globalName: string | null;
+  avatar: string | null;
+}
+
+export interface DiscordStatus {
+  configured: boolean;
+  connected: boolean;
+  sessionActive: boolean;
+  discord: DiscordAccount | null;
+  settings: {
+    showDiscordPresence: boolean;
+    showDiscordActivity: boolean;
+  };
+  webhookConfigured: boolean;
+  presence: DiscordPresence | null;
 }
 
 export interface AnalyticsData {
@@ -191,6 +284,61 @@ export interface EmailNotificationSettings {
   notifyOnClick: boolean;
 }
 
+export const WEBHOOK_EVENTS = ["profile.viewed", "link.clicked", "profile.updated"] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
+export interface WebhookDelivery {
+  id: string;
+  webhookId: string;
+  event: string;
+  payload: unknown;
+  status: "pending" | "success" | "failed";
+  attempts: number;
+  lastStatusCode: number | null;
+  lastError: string | null;
+  nextRetryAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Webhook {
+  id: string;
+  name: string;
+  url: string;
+  secretPrefix: string;
+  active: boolean;
+  events: string[];
+  createdAt: string;
+  updatedAt: string;
+  lastDelivery?: {
+    status: string;
+    lastStatusCode: number | null;
+    lastError: string | null;
+    updatedAt: string;
+  } | null;
+}
+
+export interface WebhookWithSecret {
+  id: string;
+  name: string;
+  url: string;
+  secret: string;
+  active: boolean;
+  events: string[];
+  createdAt: string;
+}
+
+export interface ProfileUpdate {
+  slug?: string;
+  displayName?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  website?: string | null;
+  socialLinks?: { platform: string; url: string }[] | null;
+  theme?: Profile["theme"];
+  isPublic?: boolean;
+}
+
 export const api = {
   register: (data: {
     username: string;
@@ -202,7 +350,7 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  login: (data: { email: string; password: string }) =>
+  login: (data: { identifier: string; password: string }) =>
     request<AuthResponse | TwoFactorRequired>("/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
@@ -215,7 +363,7 @@ export const api = {
     }),
 
   loginPasskeyOptions: (identifier: string) =>
-    request<PublicKeyCredentialRequestOptionsJSON>("/auth/login/passkey/options", {
+    request<{ options: PublicKeyCredentialRequestOptionsJSON; identifier: string }>("/auth/login/passkey/options", {
       method: "POST",
       body: JSON.stringify({ identifier }),
     }),
@@ -233,7 +381,7 @@ export const api = {
     }),
 
   twoFactorPasskeyOptions: (token: string) =>
-    request<PublicKeyCredentialRequestOptionsJSON>("/auth/2fa/passkey/options", {
+    request<{ options: PublicKeyCredentialRequestOptionsJSON }>("/auth/2fa/passkey/options", {
       method: "POST",
       body: JSON.stringify({ token }),
     }),
@@ -295,54 +443,93 @@ export const api = {
       body: JSON.stringify({ token }),
     }),
 
-  getMyProfile: () => request<Profile>("/profiles/me"),
+  getMyProfiles: () => request<MyProfiles>("/profiles/me"),
 
-  updateProfile: (data: {
-    displayName?: string | null;
-    bio?: string | null;
-    location?: string | null;
-    website?: string | null;
-    socialLinks?: { platform: string; url: string }[] | null;
-    theme?: Profile["theme"];
-    isPublic?: boolean;
-  }) => request<Profile>("/profiles/me", {
-    method: "PUT",
-    body: JSON.stringify(data),
-  }),
+  createProfile: (data: { slug: string } & ProfileUpdate) =>
+    request<Profile>("/profiles/me", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  uploadAvatar: async (file: File) => {
+  getProfile: (profileId: string) =>
+    request<Profile>(`/profiles/me/${profileId}`),
+
+  updateProfile: (data: ProfileUpdate, profileId?: string) =>
+    profileId
+      ? request<Profile>(`/profiles/me/${profileId}`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        })
+      : request<Profile>("/profiles/me", {
+          method: "PUT",
+          body: JSON.stringify(data),
+        }),
+
+  deleteProfile: (profileId: string) =>
+    request(`/profiles/me/${profileId}`, { method: "DELETE" }),
+
+  setPrimaryProfile: (profileId: string) =>
+    request(`/profiles/me/${profileId}/primary`, { method: "POST" }),
+
+  getAliases: (profileId: string) =>
+    request<ProfileAlias[]>(`/profiles/me/${profileId}/aliases`),
+
+  createAlias: (profileId: string, slug: string) =>
+    request<ProfileAlias>(`/profiles/me/${profileId}/aliases`, {
+      method: "POST",
+      body: JSON.stringify({ slug }),
+    }),
+
+  deleteAlias: (profileId: string, aliasId: string) =>
+    request(`/profiles/me/${profileId}/aliases/${aliasId}`, { method: "DELETE" }),
+
+  toggleProfileBadge: (profileId: string, badgeId: string, enabled: boolean) =>
+    request<{ badges: string[] }>(`/profiles/me/${profileId}/badges`, {
+      method: "POST",
+      body: JSON.stringify({ badge: badgeId, enabled }),
+    }),
+
+  getBadges: () => request<Badge[]>("/badges"),
+
+  uploadAvatar: async (file: File, profileId?: string) => {
     const form = new FormData();
     form.append("avatar", file);
     const headers: Record<string, string> = {};
     if (_token) headers["Authorization"] = `Bearer ${_token}`;
-    const res = await fetch(`${API_URL}/profiles/me/avatar`, {
-      method: "POST",
-      headers,
-      body: form,
-      credentials: "include",
-    });
+    const res = await fetch(
+      `${API_URL}/profiles/me/avatar${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`,
+      {
+        method: "POST",
+        headers,
+        body: form,
+        credentials: "include",
+      }
+    );
     return res.json() as Promise<{ success: boolean; data?: { avatar: string }; error?: string }>;
   },
 
-  uploadBanner: async (file: File) => {
+  uploadBanner: async (file: File, profileId?: string) => {
     const form = new FormData();
     form.append("banner", file);
     const headers: Record<string, string> = {};
     if (_token) headers["Authorization"] = `Bearer ${_token}`;
-    const res = await fetch(`${API_URL}/profiles/me/banner`, {
-      method: "POST",
-      headers,
-      body: form,
-      credentials: "include",
-    });
+    const res = await fetch(
+      `${API_URL}/profiles/me/banner${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`,
+      {
+        method: "POST",
+        headers,
+        body: form,
+        credentials: "include",
+      }
+    );
     return res.json() as Promise<{ success: boolean; data?: { banner: string }; error?: string }>;
   },
 
-  removeAvatar: () =>
-    request("/profiles/me/avatar", { method: "DELETE" }),
+  removeAvatar: (profileId?: string) =>
+    request(`/profiles/me/avatar${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, { method: "DELETE" }),
 
-  removeBanner: () =>
-    request("/profiles/me/banner", { method: "DELETE" }),
+  removeBanner: (profileId?: string) =>
+    request(`/profiles/me/banner${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, { method: "DELETE" }),
 
   getPublicProfile: async (username: string) => {
     const headers: Record<string, string> = {};
@@ -357,19 +544,90 @@ export const api = {
       body: JSON.stringify({ profileId, platform }),
     }),
 
-  getAnalytics: () => request<AnalyticsData>("/analytics/me"),
+  getAnalytics: (profileId?: string) =>
+    request<AnalyticsData>(`/analytics/me${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`),
 
-  getEmailSettings: () => request<EmailNotificationSettings>("/email/settings"),
+  getEmailSettings: (profileId?: string) =>
+    request<EmailNotificationSettings>(`/email/settings${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`),
 
-  updateEmailSettings: (data: { notifyOnView: boolean; notifyOnClick: boolean }) =>
-    request("/email/settings", {
+  updateEmailSettings: (data: { notifyOnView: boolean; notifyOnClick: boolean }, profileId?: string) =>
+    request(`/email/settings${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
-  testEmail: () => request("/email/test", { method: "POST" }),
+  testEmail: (profileId?: string) =>
+    request(`/email/test${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, { method: "POST" }),
 
-  getMusic: () => request<MusicSettings>("/music/me"),
+  getWebhooks: () => request<Webhook[]>("/webhooks"),
+
+  createWebhook: (data: { name: string; url: string; events: WebhookEvent[]; active: boolean }) =>
+    request<WebhookWithSecret>("/webhooks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateWebhook: (id: string, data: { name?: string; url?: string; events?: WebhookEvent[]; active?: boolean }) =>
+    request<Webhook>(`/webhooks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  rotateWebhookSecret: (id: string) =>
+    request<{ secret: string; secretPrefix: string }>(`/webhooks/${id}/rotate-secret`, {
+      method: "POST",
+    }),
+
+  testWebhook: (id: string) =>
+    request(`/webhooks/${id}/test`, { method: "POST" }),
+
+  getWebhookDeliveries: (id: string, limit = 20) =>
+    request<WebhookDelivery[]>(`/webhooks/${id}/deliveries?limit=${limit}`),
+
+  deleteWebhook: (id: string) =>
+    request(`/webhooks/${id}`, { method: "DELETE" }),
+
+  exportProfile: async (format: "xlsx" | "ods", profileId?: string) => {
+    const headers: Record<string, string> = {};
+    if (_token) headers["Authorization"] = `Bearer ${_token}`;
+    const res = await fetch(
+      `${API_URL}/profiles/me/export?format=${format}${profileId ? `&profileId=${encodeURIComponent(profileId)}` : ""}`,
+      {
+        headers,
+        credentials: "include",
+      }
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? "Export failed");
+    }
+    return res.blob();
+  },
+
+  importProfile: async (file: File, profileId?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    const headers: Record<string, string> = {};
+    if (_token) headers["Authorization"] = `Bearer ${_token}`;
+    const res = await fetch(
+      `${API_URL}/profiles/me/import${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`,
+      {
+        method: "POST",
+        headers,
+        body: form,
+        credentials: "include",
+      }
+    );
+    return res.json() as Promise<{
+      success: boolean;
+      data?: { applied: string[]; warnings: string[] };
+      error?: string;
+      warnings?: string[];
+    }>;
+  },
+
+  getMusic: (profileId?: string) =>
+    request<MusicSettings>(`/music/me${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`),
 
   addMusicTrack: (data: {
     provider: MusicProvider;
@@ -377,12 +635,12 @@ export const api = {
     artist?: string;
     url?: string;
     fullUrl?: string;
-  }) => request<MusicTrack>("/music/me", {
+  }, profileId?: string) => request<MusicTrack>(`/music/me${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, {
     method: "POST",
     body: JSON.stringify(data),
   }),
 
-  uploadMusicTrack: async (file: File, title?: string, artist?: string, fullUrl?: string) => {
+  uploadMusicTrack: async (file: File, title?: string, artist?: string, fullUrl?: string, profileId?: string) => {
     const form = new FormData();
     form.append("file", file);
     if (title) form.append("title", title);
@@ -390,12 +648,15 @@ export const api = {
     if (fullUrl) form.append("fullUrl", fullUrl);
     const headers: Record<string, string> = {};
     if (_token) headers["Authorization"] = `Bearer ${_token}`;
-    const res = await fetch(`${API_URL}/music/me/upload`, {
-      method: "POST",
-      headers,
-      body: form,
-      credentials: "include",
-    });
+    const res = await fetch(
+      `${API_URL}/music/me/upload${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`,
+      {
+        method: "POST",
+        headers,
+        body: form,
+        credentials: "include",
+      }
+    );
     return res.json() as Promise<{ success: boolean; data?: MusicTrack; error?: string }>;
   },
 
@@ -413,4 +674,27 @@ export const api = {
 
   deleteMusicTrack: (id: string) =>
     request(`/music/${id}`, { method: "DELETE" }),
+
+  getDiscordStatus: (profileId?: string) =>
+    request<DiscordStatus>(`/discord${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`),
+
+  getDiscordConnectUrl: () => request<{ url: string }>("/discord/connect"),
+
+  disconnectDiscord: (profileId?: string) =>
+    request(`/discord/disconnect${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, { method: "POST" }),
+
+  updateDiscordSettings: (data: {
+    showDiscordPresence?: boolean;
+    showDiscordActivity?: boolean;
+    webhookUrl?: string;
+  }, profileId?: string) => request(`/discord/settings${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }),
+
+  postToDiscord: (url?: string, profileId?: string) =>
+    request(`/discord/post${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, {
+      method: "POST",
+      body: JSON.stringify(url ? { url } : {}),
+    }),
 };

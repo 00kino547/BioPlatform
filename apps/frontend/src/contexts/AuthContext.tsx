@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (identifier: string, password: string) => {
-    const res = await api.login({ email: identifier, password });
+    const res = await api.login({ identifier, password });
     if (!res.success || !res.data) {
       if (res.unlockRequired) return { error: res.error ?? "Account locked", unlockRequired: true };
       return { error: res.error ?? "Login failed" };
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { startAuthentication } = await import("@simplewebauthn/browser");
     let response;
     try {
-      response = await startAuthentication({ optionsJSON: optionsRes.data });
+      response = await startAuthentication({ optionsJSON: optionsRes.data.options });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Passkey login cancelled";
       if (msg.toLowerCase().includes("cancel")) return msg;
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { startAuthentication } = await import("@simplewebauthn/browser");
     let response;
     try {
-      response = await startAuthentication({ optionsJSON: optionsRes.data });
+      response = await startAuthentication({ optionsJSON: optionsRes.data.options });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Passkey verification cancelled";
       if (msg.toLowerCase().includes("cancel")) return msg;

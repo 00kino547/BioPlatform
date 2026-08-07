@@ -9,6 +9,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getEnv } from "../config/env.js";
 import { ALLOWED_PROVIDERS, getTrackLimit, parseMusicUrl, parseFullUrl } from "../lib/music.js";
 import { stripHtml } from "../lib/validation.js";
+import { profileScope } from "../lib/profile.js";
 import type { UserTier } from "@prisma/client";
 
 const router = Router();
@@ -78,16 +79,16 @@ const reorderSchema = z.object({
   ids: z.array(z.string()).max(25),
 });
 
-async function getProfileWithUser(userId: string) {
-  return prisma.profile.findUnique({
-    where: { userId },
+async function getProfileWithUser(userId: string, profileId?: unknown) {
+  return prisma.profile.findFirst({
+    where: profileScope(userId, profileId),
     include: { user: true },
   });
 }
 
-async function ensureTrackWithinLimit(userId: string, userTier: { tier: UserTier; trackLimit: number | null }): Promise<number | null> {
-  const profile = await prisma.profile.findUnique({
-    where: { userId },
+async function ensureTrackWithinLimit(userId: string, userTier: { tier: UserTier; trackLimit: number | null }, profileId?: unknown): Promise<number | null> {
+  const profile = await prisma.profile.findFirst({
+    where: profileScope(userId, profileId),
     select: { id: true },
   });
   if (!profile) return null;
@@ -99,8 +100,8 @@ async function ensureTrackWithinLimit(userId: string, userTier: { tier: UserTier
 }
 
 router.get("/me", requireAuth, async (req, res) => {
-  const profile = await prisma.profile.findUnique({
-    where: { userId: req.userId! },
+  const profile = await prisma.profile.findFirst({
+    where: profileScope(req.userId!, req.query.profileId),
     include: { user: { select: { tier: true, trackLimit: true } }, musicTracks: { orderBy: { position: "asc" } } },
   });
 
@@ -127,12 +128,12 @@ router.post("/me", requireAuth, async (req, res) => {
   const { provider, title, artist, url, fullUrl } = parsed.data;
   const providerLower = provider.toLowerCase();
 
-  const profile = await getProfileWithUser(req.userId!);
+  const profile = await getProfileWithUser(req.userId!, req.query.profileId);
   if (!profile) {
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 
-  const limit = await ensureTrackWithinLimit(req.userId!, profile.user);
+  const limit = await ensureTrackWithinLimit(req.userId!, profile.user, req.query.profileId);
   if (limit !== null) {
     return res.status(400).json({
       success: false,
@@ -187,13 +188,13 @@ router.post("/me", requireAuth, async (req, res) => {
 });
 
 router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
-  const profile = await getProfileWithUser(req.userId!);
+  const profile = await getProfileWithUser(req.userId!, req.query.profileId);
   if (!profile) {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 
-  const limit = await ensureTrackWithinLimit(req.userId!, profile.user);
+  const limit = await ensureTrackWithinLimit(req.userId!, profile.user, req.query.profileId);
   if (limit !== null) {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(400).json({
@@ -277,8 +278,8 @@ router.post("/reorder", requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
   }
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: req.userId! },
+  const profile = await prisma.profile.findFirst({
+    where: profileScope(req.userId!, req.query.profileId),
     select: { id: true },
   });
   if (!profile) {

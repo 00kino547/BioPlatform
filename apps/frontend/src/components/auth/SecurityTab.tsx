@@ -4,7 +4,7 @@ import { startRegistration } from "@simplewebauthn/browser";
 import { api, type Passkey } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info } from "lucide-react";
+import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info, Lock, Eye, EyeOff } from "lucide-react";
 
 export function SecurityTab() {
   const { user, refreshUser } = useAuth();
@@ -24,6 +24,12 @@ export function SecurityTab() {
   const [totpCode, setTotpCode] = useState("");
   const [totpBusy, setTotpBusy] = useState(false);
   const [showDisable, setShowDisable] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   const loadPasskeys = useCallback(async () => {
     const res = await api.getPasskeys();
@@ -129,6 +135,33 @@ export function SecurityTab() {
       await refreshUser();
     } else {
       setMsg(res.error ?? "Invalid verification code");
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setMsg();
+    if (!currentPassword) {
+      setMsg("Enter your current password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setMsg("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMsg("New passwords do not match.");
+      return;
+    }
+    setPasswordBusy(true);
+    const res = await api.changePassword(currentPassword, newPassword);
+    setPasswordBusy(false);
+    if (res.success) {
+      setMsg(undefined, "Password changed successfully.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } else {
+      setMsg(res.error ?? "Failed to change password");
     }
   };
 
@@ -278,6 +311,83 @@ export function SecurityTab() {
       </div>
 
       <div id="security-totp-enabled" data-enabled={totpEnabled} className="hidden" />
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Lock className="h-5 w-5 text-violet-400" />
+            <div>
+              <h3 className="text-sm font-medium text-white">Password</h3>
+              <p className="text-xs text-zinc-500">
+                Update the password used to sign in to your account.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="relative">
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Current password</label>
+            <input
+              type={showPasswords ? "text" : "password"}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPasswords((v) => !v)}
+              className="absolute right-3 top-[38px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              title={showPasswords ? "Hide passwords" : "Show passwords"}
+            >
+              {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <div className="relative">
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">New password</label>
+            <input
+              type={showPasswords ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPasswords((v) => !v)}
+              className="absolute right-3 top-[38px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              title={showPasswords ? "Hide passwords" : "Show passwords"}
+            >
+              {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <div className="relative">
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Confirm new password</label>
+            <input
+              type={showPasswords ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat the new password"
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPasswords((v) => !v)}
+              className="absolute right-3 top-[38px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              title={showPasswords ? "Hide passwords" : "Show passwords"}
+            >
+              {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <Button onClick={handleChangePassword} disabled={passwordBusy}>
+            {passwordBusy ? "Updating..." : "Update password"}
+          </Button>
+        </div>
+      </div>
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
         <div className="flex items-center justify-between mb-4">

@@ -1,6 +1,71 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { MusicTrack } from "@/lib/api";
-import { Play, Music, ExternalLink, Radio } from "lucide-react";
+import { Play, Music, ExternalLink, Radio, VolumeX, Volume2 } from "lucide-react";
+
+interface YtPlayerInstance {
+  playVideo(): void;
+  mute(): void;
+  unMute(): void;
+  isMuted(): boolean;
+  destroy(): void;
+  getPlayerState(): number;
+  getIframe(): HTMLIFrameElement;
+}
+
+interface YtApi {
+  PlayerState: Record<string, number>;
+  Player: new (element: HTMLElement | string, options: unknown) => YtPlayerInstance;
+}
+
+declare global {
+  interface Window {
+    YT?: YtApi;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let youtubeApiPromise: Promise<void> | null = null;
+
+function loadYouTubeApi(): Promise<void> {
+  if (window.YT?.Player) return Promise.resolve();
+  if (!youtubeApiPromise) {
+    youtubeApiPromise = new Promise((resolve) => {
+      const previous = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previous?.();
+        resolve();
+      };
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    });
+  }
+  return youtubeApiPromise;
+}
+
+function youtubeVideoId(url: string): string | null {
+  const match = url.match(/\/embed\/([a-zA-Z0-9_-]{6,})/);
+  return match?.[1] ?? null;
+}
+
+function startWithSound(
+  player: YtPlayerInstance,
+  onUnmuted: () => void,
+  onMuted: () => void
+): void {
+  player.playVideo();
+  window.setTimeout(() => {
+    if (player.getPlayerState() === window.YT?.PlayerState.PLAYING) {
+      onUnmuted();
+      return;
+    }
+    player.mute();
+    player.playVideo();
+    window.setTimeout(() => {
+      onMuted();
+    }, 300);
+  }, 600);
+}
 
 const PROVIDER_PRIORITY: Record<MusicTrack["provider"], number> = {
   youtube: 0,
@@ -133,21 +198,89 @@ function TrackPlayer({ track, accent }: { track: MusicTrack; accent: string }) {
   }
 
   if (track.provider === "youtube" && track.url) {
-    return (
-      <iframe
-        src={withParams(track.url, { rel: "0", autoplay: "1" })}
-        width="100%"
-        height="auto"
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-        title={track.title ?? "YouTube video"}
-        className="aspect-video w-full rounded-lg bg-black/20"
-      />
-    );
+    return <YouTubePlayer url={track.url} accent={accent} />;
   }
 
   return null;
+}
+
+function YouTubePlayer({ url, accent }: { url: string; accent: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YtPlayerInstance | null>(null);
+  const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const extractedId = youtubeVideoId(url);
+    if (!extractedId || !containerRef.current) return;
+    const videoId: string = extractedId;
+
+    loadYouTubeApi().then(() => {
+      if (cancelled || !containerRef.current || !window.YT) return;
+
+      const player = new window.YT.Player(containerRef.current, {
+        videoId,
+        host: "https://www.youtube-nocookie.com",
+        playerVars: {
+          rel: "0",
+          autoplay: "1",
+          playsinline: "1",
+          origin: window.location.origin,
+        },
+        events: {
+          onReady: () => {
+            playerRef.current = player;
+            const frame = player.getIframe();
+            frame.setAttribute(
+              "allow",
+              "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            );
+            frame.style.width = "100%";
+            frame.style.height = "100%";
+            startWithSound(player, () => setMuted(false), () => setMuted(true));
+          },
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      playerRef.current?.destroy();
+      playerRef.current = null;
+    };
+  }, [url]);
+
+  const toggleMute = () => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (muted) {
+      player.unMute();
+      setMuted(false);
+    } else {
+      player.mute();
+      setMuted(true);
+    }
+  };
+
+  return (
+    <div className="relative w-full rounded-lg bg-black/20 overflow-hidden">
+      <div className="aspect-video w-full" ref={containerRef} />
+      <button
+        onClick={toggleMute}
+        title={muted ? "Unmute" : "Mute"}
+        aria-label={muted ? "Unmute" : "Mute"}
+        className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-colors"
+        style={{
+          backgroundColor: `${accent}cc`,
+          color: "#fff",
+          boxShadow: "0 1px 6px rgba(0,0,0,0.35)",
+        }}
+      >
+        {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+        {muted && "Tap to unmute"}
+      </button>
+    </div>
+  );
 }
 
 export function MusicPlayer({
