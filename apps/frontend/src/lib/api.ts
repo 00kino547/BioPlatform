@@ -241,6 +241,7 @@ export interface DiscordAccount {
 export interface DiscordStatus {
   configured: boolean;
   connected: boolean;
+  botConfigured: boolean;
   sessionActive: boolean;
   discord: DiscordAccount | null;
   settings: {

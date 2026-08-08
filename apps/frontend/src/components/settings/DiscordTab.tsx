@@ -184,7 +184,8 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
           <p className="text-xs text-zinc-500 mt-2 leading-relaxed max-w-md mx-auto">
             Connect with Discord to show your presence (online status, current activity, and what you&apos;re listening to)
             on your public profile and in shared link previews. Your connection uses the official Discord API and is
-            opt-in — you control what is shown.
+            opt-in — you control what is shown. Presence is tracked by an instance bot, so you must also be in a server
+            that shares the bot.
           </p>
           <Button onClick={handleConnect} className="mt-5">
             <Link2 className="h-4 w-4" /> Connect Discord
@@ -206,7 +207,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
                       }`}
                     >
                       <Activity className="h-3 w-3" />
-                      {status.sessionActive ? "Live" : "Connecting…"}
+                      {status.sessionActive ? "Live" : status.botConfigured ? "Connecting…" : "Presence off"}
                     </span>
                   </div>
                   <p className="text-xs text-zinc-500 truncate">@{status.discord?.username}</p>
@@ -217,6 +218,16 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
               </Button>
             </div>
 
+            {!status.botConfigured && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-xs text-amber-400 leading-relaxed">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  Your account is linked, but this instance has not configured <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-amber-300">DISCORD_BOT_TOKEN</code>,
+                  so presence stays off. Ask the server administrator to set up the bot (enable the Presence intent) and invite you to a shared server.
+                </span>
+              </div>
+            )}
+
             <div className="mt-5">
               <PresenceWidget
                 account={status.discord ?? { username: "", globalName: null, avatar: null }}
@@ -226,7 +237,9 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
                 {status.settings.showDiscordPresence
                   ? status.presence?.updatedAt
                     ? `Last updated ${new Date(status.presence.updatedAt).toLocaleTimeString()}`
-                    : "Waiting for presence data from Discord…"
+                    : status.botConfigured
+                      ? "Waiting for presence data from Discord… make sure you are in a server with the instance bot."
+                      : "Presence requires the instance bot (DISCORD_BOT_TOKEN)."
                   : "Presence is currently hidden on your profile."}
               </p>
             </div>

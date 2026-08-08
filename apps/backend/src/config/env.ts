@@ -35,6 +35,7 @@ const envSchema = z.object({
   DISCORD_CLIENT_ID: z.string().default(""),
   DISCORD_CLIENT_SECRET: z.string().default(""),
   DISCORD_REDIRECT_URI: z.string().default(""),
+  DISCORD_BOT_TOKEN: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;

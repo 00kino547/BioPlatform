@@ -70,12 +70,12 @@ La pestaña **Email** te permite activar o desactivar notificaciones cuando tu p
 
 La pestaña **Discord** (solo presente cuando la instancia tiene Discord configurado) te permite:
 
-- **Conectar tu cuenta** — autorizas con Discord (`identify` + `gateway.connect`, se requiere consentimiento). Conectar es opcional y siempre es opt-in.
-- **Mostrar presencia en tu perfil** — al activarlo, los visitantes ven una tarjeta de estado en vivo (online/idle/dnd/offline, actividad actual, canción actual, estado personalizado) en tu página pública y en las previsualizaciones de enlaces compartidos (imagen OpenGraph). No se muestra nada hasta que lo actives.
+- **Conectar tu cuenta** — autorizas con Discord (scope `identify`, se requiere consentimiento). Conectar es opcional y siempre es opt-in.
+- **Mostrar presencia en tu perfil** — al activarlo, los visitantes ven una tarjeta de estado en vivo (online/idle/dnd/offline, actividad actual, canción actual, estado personalizado) en tu página pública y en las previsualizaciones de enlaces compartidos (imagen OpenGraph). No se muestra nada hasta que lo actives. La presencia en vivo proviene de un bot de la instancia, así que debes estar en un servidor que comparta el bot y la instancia debe configurar `DISCORD_BOT_TOKEN`.
 - **Mostrar detalles de actividad** — controla por separado si aparecen los detalles de actividad (juegos, Spotify, estado personalizado); el estado online en sí siempre se muestra una vez activado compartir presencia.
 - **Post to Discord** — pega una URL de webhook (canal → Integraciones → Webhooks) para obtener un botón "Post to Discord" que comparte un embed enriquecido con el enlace a tu perfil, avatar, bio y estado actual.
 
-**Privacidad:** no se recopila ni almacena ningún dato de presencia en el servidor más allá de los tokens OAuth cifrados; la presencia se lee en vivo a través de una sesión privada del gateway y se guarda en caché solo en memoria. Un usuario que nunca conecta ni opta nunca es rastreado.
+**Privacidad:** no se recopila ni almacena ningún dato de presencia en el servidor más allá de los tokens OAuth cifrados; la presencia se lee en vivo mediante un único bot compartido y se guarda en caché solo en memoria. Un usuario que nunca conecta ni opta nunca es rastreado.
 
 ## Analíticas
 

@@ -18,12 +18,9 @@ import {
   DISCORD_STATUS_LABELS,
 } from "../lib/discord.js";
 import {
-  startUserSession,
-  stopUserSession,
   getCachedPresence,
   describeActivities,
   isSessionActive,
-  type UserSessionTokens,
 } from "../lib/discordGateway.js";
 import { profileScope, getPrimaryProfile } from "../lib/profile.js";
 
@@ -37,36 +34,6 @@ function parseAccent(value: unknown): number | undefined {
   if (typeof value !== "string") return undefined;
   const match = /^#([0-9a-fA-F]{6})$/.exec(value.trim());
   return match ? Number.parseInt(match[1], 16) : undefined;
-}
-
-interface ConnectionWithTokens {
-  discordId: string;
-  accessTokenEncrypted: string;
-  refreshTokenEncrypted: string;
-  tokenExpiresAt: Date;
-}
-
-function connectionTokens(connection: ConnectionWithTokens): UserSessionTokens {
-  return {
-    accessToken: decryptDiscordSecret(connection.accessTokenEncrypted, "token"),
-    refreshToken: decryptDiscordSecret(connection.refreshTokenEncrypted, "token"),
-    tokenExpiresAt: connection.tokenExpiresAt,
-  };
-}
-
-async function persistRefreshedTokens(discordId: string, tokens: UserSessionTokens): Promise<void> {
-  try {
-    await prisma.discordConnection.updateMany({
-      where: { discordId },
-      data: {
-        accessTokenEncrypted: encryptDiscordSecret(tokens.accessToken, "token"),
-        refreshTokenEncrypted: encryptDiscordSecret(tokens.refreshToken, "token"),
-        tokenExpiresAt: tokens.tokenExpiresAt,
-      },
-    });
-  } catch (error) {
-    console.error("Failed to persist refreshed Discord tokens:", error);
-  }
 }
 
 router.get("/", requireAuth, async (req, res) => {
@@ -95,7 +62,8 @@ router.get("/", requireAuth, async (req, res) => {
     data: {
       configured: isDiscordConfigured(),
       connected: Boolean(connection),
-      sessionActive: connection ? isSessionActive(connection.discordId) : false,
+      botConfigured: Boolean(getEnv().DISCORD_BOT_TOKEN),
+      sessionActive: connection ? isSessionActive() : false,
       discord: connection
         ? {
             username: connection.username,
@@ -145,11 +113,6 @@ router.get("/callback", async (req, res) => {
       return res.redirect(frontendPath("/dashboard?tab=discord&discord=error"));
     }
 
-    const existing = await prisma.discordConnection.findUnique({ where: { profileId: primary.id } });
-    if (existing && existing.discordId !== discordUser.id) {
-      stopUserSession(existing.discordId);
-    }
-
     await prisma.discordConnection.upsert({
       where: { profileId: primary.id },
       update: {
@@ -173,14 +136,6 @@ router.get("/callback", async (req, res) => {
       },
     });
 
-    if (primary.showDiscordPresence) {
-      startUserSession(
-        discordUser.id,
-        { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, tokenExpiresAt: expiresAt },
-        persistRefreshedTokens
-      );
-    }
-
     return res.redirect(frontendPath("/dashboard?tab=discord&discord=connected"));
   } catch (error) {
     console.error("Discord OAuth callback failed:", error);
@@ -196,7 +151,6 @@ router.post("/disconnect", requireAuth, async (req, res) => {
 
   const connection = await prisma.discordConnection.findUnique({ where: { profileId: profile.id } });
   if (connection) {
-    stopUserSession(connection.discordId);
     await prisma.discordConnection.delete({ where: { profileId: profile.id } });
     await prisma.profile.update({ where: { id: profile.id }, data: { showDiscordPresence: false } });
   }
@@ -240,19 +194,6 @@ router.put("/settings", requireAuth, async (req, res) => {
   }
 
   await prisma.profile.update({ where: { id: profile.id }, data });
-
-  const connection = await prisma.discordConnection.findUnique({
-    where: { profileId: profile.id },
-    select: { discordId: true, accessTokenEncrypted: true, refreshTokenEncrypted: true, tokenExpiresAt: true },
-  });
-
-  if (connection) {
-    if (parsed.data.showDiscordPresence === true) {
-      startUserSession(connection.discordId, connectionTokens(connection), persistRefreshedTokens);
-    } else if (parsed.data.showDiscordPresence === false) {
-      stopUserSession(connection.discordId);
-    }
-  }
 
   res.json({ success: true });
 });
@@ -388,20 +329,5 @@ router.post("/post", requireAuth, async (req, res) => {
 
   res.json({ success: true });
 });
-
-export async function restoreDiscordSessions(): Promise<void> {
-  if (!isDiscordConfigured()) return;
-  try {
-    const connections = await prisma.discordConnection.findMany({
-      where: { profile: { showDiscordPresence: true } },
-      select: { discordId: true, accessTokenEncrypted: true, refreshTokenEncrypted: true, tokenExpiresAt: true },
-    });
-    for (const connection of connections) {
-      startUserSession(connection.discordId, connectionTokens(connection), persistRefreshedTokens);
-    }
-  } catch (error) {
-    console.error("Failed to restore Discord sessions:", error);
-  }
-}
 
 export default router;

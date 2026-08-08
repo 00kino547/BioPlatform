@@ -19,7 +19,7 @@ export function Privacy() {
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: July 27, 2026</p>
+        <p className="text-sm text-zinc-500 mb-8">Last updated: August 8, 2026</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           <section>
@@ -68,6 +68,19 @@ export function Privacy() {
             <h2 className="text-xl font-semibold text-white mb-3">5b. Third-Party Embedded Content</h2>
             <p className="text-zinc-400">
               Profiles may embed music from third-party providers such as Spotify and YouTube. YouTube embeds use the privacy-enhanced <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">youtube-nocookie.com</code> domain, which does not set tracking cookies on your visit. Spotify and other providers set their own cookies in the embedded player; those providers operate under their own privacy policies, which we do not control. We are not responsible for the privacy practices of third-party platforms.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5c. Discord Integration</h2>
+            <p className="text-zinc-400">
+              When you connect a Discord account, {branding.name} receives from Discord only the data granted by the OAuth <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">identify</code> scope: your Discord user ID, username, global name, and avatar. The access and refresh tokens are stored encrypted and are used solely to keep your account link valid. Connecting is optional and always opt-in.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Live presence (online status, current activity, custom status) is shown only when the instance operator has enabled it with a Discord bot and you have explicitly turned on presence sharing for a profile. The bot observes presence only for users who are in a server shared with it; if you never enable presence sharing, your status is never read or displayed. Presence data is held in memory and is not retained.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              The optional &quot;Post to Discord&quot; feature sends a profile embed (display name, profile link, avatar, bio, and — when enabled — your current status) to a webhook URL you provide. Webhook URLs are stored encrypted. Discord is a third party and operates under its own privacy policy, which we do not control.
             </p>
           </section>
 

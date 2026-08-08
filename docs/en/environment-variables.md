@@ -92,15 +92,16 @@
 
 ## Discord
 
-The Discord integration (presence widget, link previews, "Post to Discord") is enabled only when all three variables are set. Leave them empty to disable the feature entirely — the Dashboard shows an "unavailable" card and the backend runs no gateway sessions.
+The Discord integration (account link, presence widget, link previews, "Post to Discord") is enabled only when the three OAuth variables are set. Leave them empty to disable the feature entirely — the Dashboard shows an "unavailable" card. Live presence additionally requires `DISCORD_BOT_TOKEN`; without it, connecting still works but no presence is shown.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DISCORD_CLIENT_ID` | Discord application client ID | _(empty)_ |
 | `DISCORD_CLIENT_SECRET` | Discord application client secret | _(empty)_ |
 | `DISCORD_REDIRECT_URI` | OAuth2 redirect URI (must match the Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
+| `DISCORD_BOT_TOKEN` | Bot token that tracks live presence (enable the privileged **Presence Intent** and invite the bot to a server your users share) | _(empty)_ |
 
-> Create the application in the [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). No bot is required. Register the redirect URI under **OAuth2 → Redirects**, then copy the Client ID and Client Secret. Authorized users grant `identify` + `gateway.connect` with `prompt=consent`, which issues a refresh token so the server can keep their presence session alive without the user being online.
+> Create the application in the [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). Register the redirect URI under **OAuth2 → Redirects**, then copy the Client ID and Client Secret. Authorized users grant only `identify` with `prompt=consent` (account link + webhook embeds). For live presence, create a **Bot** user under the same app (Bot → Add Bot), enable the privileged "Presence Intent" (Settings → Bot → Privileged Gateway Intents), copy the bot token, and invite the bot to a server. A user's status is visible only while they are in a server shared with the bot.
 
 ## Branding
 

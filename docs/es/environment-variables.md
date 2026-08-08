@@ -90,15 +90,16 @@
 
 ## Discord
 
-La integración de Discord (widget de presencia, previsualizaciones de enlaces, "Post to Discord") solo se activa cuando las tres variables están configuradas. Déjalas vacías para deshabilitar la función por completo — el Dashboard muestra una tarjeta "no disponible" y el backend no inicia sesiones de gateway.
+La integración de Discord (vinculación de cuenta, widget de presencia, previsualizaciones de enlaces, "Post to Discord") solo se activa cuando las tres variables OAuth están configuradas. Déjalas vacías para deshabilitar la función por completo — el Dashboard muestra una tarjeta "no disponible". La presencia en vivo requiere además `DISCORD_BOT_TOKEN`; sin él, conectar sigue funcionando pero no se muestra ninguna presencia.
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
 | `DISCORD_CLIENT_ID` | ID de cliente de la aplicación de Discord | _(vacío)_ |
 | `DISCORD_CLIENT_SECRET` | Secreto de cliente de la aplicación de Discord | _(vacío)_ |
 | `DISCORD_REDIRECT_URI` | URI de redirección de OAuth2 (debe coincidir con el Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
+| `DISCORD_BOT_TOKEN` | Token del bot que rastrea la presencia en vivo (habilita el **Presence Intent** privilegiado e invita al bot a un servidor que compartan tus usuarios) | _(vacío)_ |
 
-> Crea la aplicación en el [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). No se requiere bot. Registra la URI de redirección en **OAuth2 → Redirects** y copia el Client ID y el Client Secret. Los usuarios autorizados otorgan `identify` + `gateway.connect` con `prompt=consent`, lo que emite un refresh token para que el servidor pueda mantener su sesión de presencia sin necesidad de que el usuario esté en línea.
+> Crea la aplicación en el [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). Registra la URI de redirección en **OAuth2 → Redirects** y copia el Client ID y el Client Secret. Los usuarios autorizados otorgan solo `identify` con `prompt=consent` (vinculación de cuenta + embeds de webhook). Para la presencia en vivo, crea un usuario **Bot** en la misma aplicación (Bot → Add Bot), activa el "Presence Intent" privilegiado (Settings → Bot → Privileged Gateway Intents), copia el token del bot e invita al bot a un servidor. El estado de un usuario solo es visible mientras esté en un servidor compartido con el bot.
 
 ## Marca
 

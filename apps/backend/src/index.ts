@@ -2,7 +2,7 @@ import app from "./app.js";
 import { getEnv } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
 import { startWebhookRetrySweep } from "./lib/webhook.js";
-import { restoreDiscordSessions } from "./routes/discord.js";
+import { startBotSession } from "./lib/discordGateway.js";
 
 const env = getEnv();
 
@@ -37,7 +37,10 @@ async function main() {
   await prisma.$connect();
   console.log("Database connected");
 
-  void restoreDiscordSessions();
+  if (env.DISCORD_BOT_TOKEN) {
+    startBotSession(env.DISCORD_BOT_TOKEN);
+    console.log("Discord presence bot session started");
+  }
 
   app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);

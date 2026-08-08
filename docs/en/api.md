@@ -184,15 +184,15 @@ Deliveries are attempted synchronously and, on failure, retried with backoff of 
 
 ## Discord
 
-Per-user OAuth2 integration (no bot, no shared guild). All endpoints are user-authenticated. The whole integration is **disabled** (returns `configured: false`, `/connect` returns 400) when `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_REDIRECT_URI` are not set — see [Environment Variables](./environment-variables.md).
+OAuth2 account link plus a shared bot for live presence (bot must share a guild with the user). All endpoints are user-authenticated. The whole integration is **disabled** (returns `configured: false`, `/connect` returns 400) when `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_REDIRECT_URI` are not set — see [Environment Variables](./environment-variables.md).
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
-| `GET` | `/api/discord/connect` | Returns `{ url }` — the Discord OAuth2 authorize URL (scopes `identify gateway.connect`, `prompt=consent`). Requires the integration to be configured. |
+| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `botConfigured`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
+| `GET` | `/api/discord/connect` | Returns `{ url }` — the Discord OAuth2 authorize URL (scope `identify`, `prompt=consent`). Requires the integration to be configured. |
 | `GET` | `/api/discord/callback` | OAuth2 callback (visited in the browser). Exchanges the code, upserts the `DiscordConnection`, redirects to `/dashboard?tab=discord&discord=connected|error`. |
-| `POST` | `/api/discord/disconnect` | Disconnect Discord: stops the gateway session, deletes the connection, turns off presence sharing. |
-| `PUT` | `/api/discord/settings` | Update `showDiscordPresence` (share presence on the public profile), `showDiscordActivity` (include activity details), or `webhookUrl` (empty string clears it). Starts/stops the gateway session as needed. |
+| `POST` | `/api/discord/disconnect` | Disconnect Discord: deletes the connection, turns off presence sharing. |
+| `PUT` | `/api/discord/settings` | Update `showDiscordPresence` (share presence on the public profile), `showDiscordActivity` (include activity details), or `webhookUrl` (empty string clears it). |
 | `POST` | `/api/discord/post` | Send a "Post to Discord" embed to the saved webhook (or a `url` passed in the body): display name, profile link, avatar thumbnail, bio, and current status/activity when presence sharing is on. |
 
 Presence shown on the public profile and in the OG card is always gated by `showDiscordPresence`, and activity details by `showDiscordActivity` — a user who never opts in is never tracked or exposed.

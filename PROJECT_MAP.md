@@ -22,7 +22,7 @@ apps/backend/src/
 │   ├── webhook.ts        # Webhook lib: events, secret gen/encryption (AES-256-GCM), HMAC signing, delivery + retry sweep
 │   ├── profileTransfer.ts# Spreadsheet export/import (xlsx/ods/csv via @e965/xlsx, macro reject, formula-injection guard)
 │   ├── discord.ts        # Discord OAuth2: scopes, state create/verify, code exchange + refresh grant, @me fetch, avatar URLs, purpose-scoped secret encryption (token/webhook), webhook URL validation
-│   ├── discordGateway.ts # Per-user OAuth2 gateway sessions (heartbeat/resume/reconnect, 4004→refresh, 4015 backoff), in-memory presence cache, describeActivities
+│   ├── discordGateway.ts # Shared bot gateway session (GUILDS|GUILD_PRESENCES intents, heartbeat/resume/reconnect, fatal-close handling), in-memory presence cache keyed by user id, describeActivities
 │   ├── profileOg.ts      # OG data builder for a public profile (presence line + counts) → PNG card + HTML meta page
 │   ├── ogCard.ts         # Server-rendered 1200x630 OG card PNG (@napi-rs/canvas)
 │   ├── og.ts             # OpenGraph/Twitter meta HTML (escapeHtml + buildOgPage)

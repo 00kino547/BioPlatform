@@ -70,12 +70,12 @@ The **Email** tab lets you toggle notifications when your profile gets a new vie
 
 The **Discord** tab (only present when the instance has configured Discord) lets you:
 
-- **Connect your account** — authorizes with Discord (`identify` + `gateway.connect`, consent required). Connecting is optional and always opt-in.
-- **Show presence on your profile** — when enabled, visitors see a live status card (online/idle/dnd/offline, current activity, current song, custom status) on your public page and in shared link previews (OpenGraph image). Nothing is shown until you turn this on.
+- **Connect your account** — authorizes with Discord (scope `identify`, consent required). Connecting is optional and always opt-in.
+- **Show presence on your profile** — when enabled, visitors see a live status card (online/idle/dnd/offline, current activity, current song, custom status) on your public page and in shared link previews (OpenGraph image). Nothing is shown until you turn this on. Live presence comes from an instance bot, so you must be in a server that shares the bot and the instance must set `DISCORD_BOT_TOKEN`.
 - **Show activity details** — separately controls whether activity details (games, Spotify, custom status) appear; the online status itself is always shown once presence sharing is on.
 - **Post to Discord** — paste a webhook URL (channel → Integrations → Webhooks) to get a "Post to Discord" button that shares a rich embed with your profile link, avatar, bio, and current status.
 
-**Privacy:** no presence data is collected or stored server-side beyond the encrypted OAuth tokens; presence is read live over a private gateway session and cached in memory only. A user who never connects or opts in is never tracked.
+**Privacy:** no presence data is collected or stored server-side beyond the encrypted OAuth tokens; presence is read live by a single shared bot and cached in memory only. A user who never connects or opts in is never tracked.
 
 ## Analytics
 

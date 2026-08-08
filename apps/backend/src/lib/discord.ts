@@ -3,7 +3,7 @@ import { getEnv } from "../config/env.js";
 
 const DISCORD_API = "https://discord.com/api/v10";
 const STATE_TTL_MS = 10 * 60 * 1000;
-const DISCORD_SCOPE = "identify gateway.connect";
+const DISCORD_SCOPE = "identify";
 
 export function isDiscordConfigured(): boolean {
   const env = getEnv();
@@ -110,11 +110,6 @@ export function exchangeDiscordCode(code: string): Promise<DiscordTokenPair> {
     code,
     redirect_uri: env.DISCORD_REDIRECT_URI,
   });
-  return oauthTokenExchange(body);
-}
-
-export function refreshDiscordTokens(refreshToken: string): Promise<DiscordTokenPair> {
-  const body = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken });
   return oauthTokenExchange(body);
 }
 
