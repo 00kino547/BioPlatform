@@ -188,7 +188,7 @@ OAuth2 account link plus a shared bot for live presence (bot must share a guild 
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `botConfigured`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
+| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `botConfigured`, `presenceHubInvite`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
 | `GET` | `/api/discord/connect` | Returns `{ url }` — the Discord OAuth2 authorize URL (scope `identify`, `prompt=consent`). Requires the integration to be configured. |
 | `GET` | `/api/discord/callback` | OAuth2 callback (visited in the browser). Exchanges the code, upserts the `DiscordConnection`, redirects to `/dashboard?tab=discord&discord=connected|error`. |
 | `POST` | `/api/discord/disconnect` | Disconnect Discord: deletes the connection, turns off presence sharing. |

@@ -57,6 +57,7 @@ services:
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
       DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_INVITE: ${DISCORD_GUILD_INVITE:-}
     volumes:
       - uploads_data:/app/uploads
     ports:

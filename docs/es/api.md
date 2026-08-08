@@ -188,7 +188,7 @@ Vinculación OAuth2 de la cuenta más un bot compartido para la presencia en viv
 
 | Método | Endpoint | Descripción |
 | --- | --- | --- |
-| `GET` | `/api/discord` | Estado de la integración: `configured`, `connected`, `botConfigured`, `sessionActive`, la cuenta conectada (`username`, `globalName`, `avatar`), ajustes (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured` y una instantánea de presencia en caché. |
+| `GET` | `/api/discord` | Estado de la integración: `configured`, `connected`, `botConfigured`, `presenceHubInvite`, `sessionActive`, la cuenta conectada (`username`, `globalName`, `avatar`), ajustes (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured` y una instantánea de presencia en caché. |
 | `GET` | `/api/discord/connect` | Devuelve `{ url }` — la URL de autorización OAuth2 de Discord (scope `identify`, `prompt=consent`). Requiere que la integración esté configurada. |
 | `GET` | `/api/discord/callback` | Callback de OAuth2 (se visita en el navegador). Intercambia el código, crea/actualiza la `DiscordConnection` y redirige a `/dashboard?tab=discord&discord=connected|error`. |
 | `POST` | `/api/discord/disconnect` | Desconectar Discord: elimina la conexión y desactiva compartir presencia. |

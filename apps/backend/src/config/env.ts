@@ -36,6 +36,7 @@ const envSchema = z.object({
   DISCORD_CLIENT_SECRET: z.string().default(""),
   DISCORD_REDIRECT_URI: z.string().default(""),
   DISCORD_BOT_TOKEN: z.string().default(""),
+  DISCORD_GUILD_INVITE: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;

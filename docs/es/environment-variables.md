@@ -98,6 +98,7 @@ La integración de Discord (vinculación de cuenta, widget de presencia, previsu
 | `DISCORD_CLIENT_SECRET` | Secreto de cliente de la aplicación de Discord | _(vacío)_ |
 | `DISCORD_REDIRECT_URI` | URI de redirección de OAuth2 (debe coincidir con el Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
 | `DISCORD_BOT_TOKEN` | Token del bot que rastrea la presencia en vivo (habilita el **Presence Intent** privilegiado e invita al bot a un servidor que compartan tus usuarios) | _(vacío)_ |
+| `DISCORD_GUILD_INVITE` | Invitación opcional a un servidor de Discord que se muestra como botón "Join presence hub" en la pestaña Discord del Dashboard | _(vacío)_ |
 
 > Crea la aplicación en el [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). Registra la URI de redirección en **OAuth2 → Redirects** y copia el Client ID y el Client Secret. Los usuarios autorizados otorgan solo `identify` con `prompt=consent` (vinculación de cuenta + embeds de webhook). Para la presencia en vivo, crea un usuario **Bot** en la misma aplicación (Bot → Add Bot), activa el "Presence Intent" privilegiado (Settings → Bot → Privileged Gateway Intents), copia el token del bot e invita al bot a un servidor. El estado de un usuario solo es visible mientras esté en un servidor compartido con el bot.
 

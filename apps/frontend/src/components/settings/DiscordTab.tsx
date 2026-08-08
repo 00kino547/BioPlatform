@@ -12,6 +12,7 @@ import {
   XCircle,
   AlertTriangle,
   Activity,
+  Users,
 } from "lucide-react";
 
 const POLL_MS = 30_000;
@@ -242,6 +243,16 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
                       : "Presence requires the instance bot (DISCORD_BOT_TOKEN)."
                   : "Presence is currently hidden on your profile."}
               </p>
+              {status.presenceHubInvite && (
+                <a
+                  href={status.presenceHubInvite}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:bg-violet-700 cursor-pointer"
+                >
+                  <Users className="h-4 w-4" /> Join presence hub
+                </a>
+              )}
             </div>
           </div>
 

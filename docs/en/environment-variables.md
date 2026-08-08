@@ -100,6 +100,7 @@ The Discord integration (account link, presence widget, link previews, "Post to 
 | `DISCORD_CLIENT_SECRET` | Discord application client secret | _(empty)_ |
 | `DISCORD_REDIRECT_URI` | OAuth2 redirect URI (must match the Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
 | `DISCORD_BOT_TOKEN` | Bot token that tracks live presence (enable the privileged **Presence Intent** and invite the bot to a server your users share) | _(empty)_ |
+| `DISCORD_GUILD_INVITE` | Optional Discord server invite shown as a "Join presence hub" button in the Dashboard Discord tab | _(empty)_ |
 
 > Create the application in the [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). Register the redirect URI under **OAuth2 → Redirects**, then copy the Client ID and Client Secret. Authorized users grant only `identify` with `prompt=consent` (account link + webhook embeds). For live presence, create a **Bot** user under the same app (Bot → Add Bot), enable the privileged "Presence Intent" (Settings → Bot → Privileged Gateway Intents), copy the bot token, and invite the bot to a server. A user's status is visible only while they are in a server shared with the bot.
 

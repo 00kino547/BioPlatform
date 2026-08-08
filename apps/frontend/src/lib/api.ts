@@ -242,6 +242,7 @@ export interface DiscordStatus {
   configured: boolean;
   connected: boolean;
   botConfigured: boolean;
+  presenceHubInvite: string | null;
   sessionActive: boolean;
   discord: DiscordAccount | null;
   settings: {

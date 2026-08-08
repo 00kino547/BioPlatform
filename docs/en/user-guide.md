@@ -73,6 +73,7 @@ The **Discord** tab (only present when the instance has configured Discord) lets
 - **Connect your account** — authorizes with Discord (scope `identify`, consent required). Connecting is optional and always opt-in.
 - **Show presence on your profile** — when enabled, visitors see a live status card (online/idle/dnd/offline, current activity, current song, custom status) on your public page and in shared link previews (OpenGraph image). Nothing is shown until you turn this on. Live presence comes from an instance bot, so you must be in a server that shares the bot and the instance must set `DISCORD_BOT_TOKEN`.
 - **Show activity details** — separately controls whether activity details (games, Spotify, custom status) appear; the online status itself is always shown once presence sharing is on.
+- **Join presence hub** — if the instance publishes a server invite (`DISCORD_GUILD_INVITE`), a "Join presence hub" button opens it so you can join the server where the presence bot lives and start sharing your status.
 - **Post to Discord** — paste a webhook URL (channel → Integrations → Webhooks) to get a "Post to Discord" button that shares a rich embed with your profile link, avatar, bio, and current status.
 
 **Privacy:** no presence data is collected or stored server-side beyond the encrypted OAuth tokens; presence is read live by a single shared bot and cached in memory only. A user who never connects or opts in is never tracked.

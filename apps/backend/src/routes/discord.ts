@@ -36,6 +36,16 @@ function parseAccent(value: unknown): number | undefined {
   return match ? Number.parseInt(match[1], 16) : undefined;
 }
 
+function presenceHubUrl(value: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 router.get("/", requireAuth, async (req, res) => {
   const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
   const connection = profile
@@ -63,6 +73,7 @@ router.get("/", requireAuth, async (req, res) => {
       configured: isDiscordConfigured(),
       connected: Boolean(connection),
       botConfigured: Boolean(getEnv().DISCORD_BOT_TOKEN),
+      presenceHubInvite: presenceHubUrl(getEnv().DISCORD_GUILD_INVITE),
       sessionActive: connection ? isSessionActive() : false,
       discord: connection
         ? {
