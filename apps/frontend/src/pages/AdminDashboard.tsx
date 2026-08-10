@@ -400,6 +400,11 @@ export function AdminDashboard() {
   };
 
   const handleInviteBan = async (u: User, banned: boolean) => {
+    if (banned && !window.confirm(
+      `Ban "${u.username}" from invites?\n\n` +
+      "They can no longer generate invite codes or receive invite-event allowances. " +
+      "Their unused invites are revoked immediately and their remaining allowance is zeroed."
+    )) return;
     const token = getToken();
     const res = await fetch(`/api/admin/users/${u.id}`, {
       method: "PATCH",
@@ -411,18 +416,13 @@ export function AdminDashboard() {
     });
     const data = await res.json();
     if (data.success) {
-      setUsers((prev) =>
-        prev.map((x) =>
-          x.id === u.id
-            ? {
-                ...x,
-                inviteBanned: data.data.inviteBanned,
-                inviteBannedAt: data.data.inviteBannedAt,
-                inviteAllowance: data.data.inviteAllowance,
-              }
-            : x
-        )
-      );
+      const patch = {
+        inviteBanned: data.data.inviteBanned,
+        inviteBannedAt: data.data.inviteBannedAt,
+        inviteAllowance: data.data.inviteAllowance,
+      };
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, ...patch } : x)));
+      setEditingUser((prev) => (prev && prev.id === u.id ? { ...prev, ...patch } : prev));
     } else {
       window.alert(data.error ?? "Failed to update invite ban");
     }
@@ -1022,23 +1022,6 @@ export function AdminDashboard() {
                         <td className="py-3">
                           {canManageUsers && (
                             <div className="flex items-center gap-3">
-                              {u.id !== user?.id && (
-                                <button
-                                  onClick={() => handleInviteBan(u, !u.inviteBanned)}
-                                  className={`text-xs transition-colors flex items-center gap-1 ${
-                                    u.inviteBanned
-                                      ? "text-emerald-400 hover:text-emerald-300"
-                                      : "text-amber-400 hover:text-amber-300"
-                                  }`}
-                                  title={
-                                    u.inviteBanned
-                                      ? "Allow this user to join invite events and generate invites again"
-                                      : "Block this user from invite events and invite generation (revokes their unused invites)"
-                                  }
-                                >
-                                  {u.inviteBanned ? "Unban invites" : "Ban invites"}
-                                </button>
-                              )}
                               {u.id !== user?.id && (
                                 <button
                                   onClick={() => handleDeleteUser(u)}
@@ -1798,6 +1781,29 @@ export function AdminDashboard() {
                       <span className="text-[11px] text-zinc-600">No badges available</span>
                     )}
                   </div>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-800/30 px-3.5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-200">Invite access</p>
+                    <p className="text-xs text-zinc-500">
+                      {editingUser.inviteBanned
+                        ? "Banned from invite events and invite generation."
+                        : "Allowed to join invite events and generate invites."}
+                    </p>
+                  </div>
+                  {editingUser.id !== user?.id && (
+                    <button
+                      type="button"
+                      onClick={() => handleInviteBan(editingUser, !editingUser.inviteBanned)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        editingUser.inviteBanned
+                          ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                          : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+                      }`}
+                    >
+                      {editingUser.inviteBanned ? "Unban invites" : "Ban invites"}
+                    </button>
+                  )}
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <Button variant="secondary" onClick={() => setEditingUser(null)}>

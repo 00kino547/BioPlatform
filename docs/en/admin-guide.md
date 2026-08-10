@@ -52,13 +52,13 @@ Recent events are listed below the form so you can audit who granted what and wh
 
 ### Invite bans
 
-Use **Ban invites** on a user's row in the **Users** tab to exclude them from the invite system entirely:
+Use **Edit Profile → Ban invites** on a user to exclude them from the invite system entirely:
 
 - They can no longer generate codes (role quota or allowance).
 - They are skipped by future invite events.
 - Their current unused codes are revoked immediately and their remaining allowance is zeroed.
 
-**Unban invites** restores access (their old allowance is not restored). This is the recommended way to deal with invite abuse without deleting the account.
+**Unban invites** (same spot) restores access (their old allowance is not restored). This is the recommended way to deal with invite abuse without deleting the account.
 
 ## Managing Users
 

@@ -534,13 +534,17 @@ router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (r
   }
 
   if (role.slug === SYSTEM_ROLE_SLUGS.ADMIN && parsed.data.permissions) {
-    return res.status(400).json({ success: false, error: "The Admin role always has full permissions" });
+    const full = [...ALL_PERMISSIONS].sort().join(",");
+    const submitted = [...parsed.data.permissions].sort().join(",");
+    if (full !== submitted) {
+      return res.status(400).json({ success: false, error: "The Admin role always has full permissions" });
+    }
   }
 
   const data: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) {
     const newSlug = slugifyRoleName(parsed.data.name);
-    if (newSlug === SYSTEM_ROLE_SLUGS.ADMIN || newSlug === SYSTEM_ROLE_SLUGS.USER) {
+    if ((newSlug === SYSTEM_ROLE_SLUGS.ADMIN || newSlug === SYSTEM_ROLE_SLUGS.USER) && role.slug !== newSlug) {
       return res.status(400).json({ success: false, error: "That role name is reserved" });
     }
     const existing = await prisma.role.findFirst({ where: { OR: [{ slug: newSlug }, { name: parsed.data.name }], NOT: { id: role.id } } });

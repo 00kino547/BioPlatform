@@ -153,11 +153,6 @@ function FullVersionPlayer({ track, accent }: { track: MusicTrack; accent: strin
 
 function LocalAudioPlayer({ src, accent, started }: { src: string; accent: string; started: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
-  const startedRef = useRef(started);
-
-  useEffect(() => {
-    startedRef.current = started;
-  }, [started]);
 
   useEffect(() => {
     const audio = ref.current;
@@ -168,20 +163,6 @@ function LocalAudioPlayer({ src, accent, started }: { src: string; accent: strin
       audio.pause();
     }
   }, [started]);
-
-  useEffect(() => {
-    const unlock = () => {
-      if (!startedRef.current) return;
-      const audio = ref.current;
-      if (audio && audio.paused) void audio.play().catch(() => {});
-    };
-    document.addEventListener("pointerdown", unlock);
-    document.addEventListener("keydown", unlock);
-    return () => {
-      document.removeEventListener("pointerdown", unlock);
-      document.removeEventListener("keydown", unlock);
-    };
-  }, []);
 
   return (
     <audio
@@ -306,27 +287,6 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
       player.pauseVideo();
     }
   }, [started]);
-
-  useEffect(() => {
-    const unlock = () => {
-      if (!startedRef.current) return;
-      const player = playerRef.current;
-      if (!player) return;
-      if (player.isMuted()) {
-        player.unMute();
-        player.playVideo();
-        setMuted(false);
-      } else if (player.getPlayerState() !== window.YT?.PlayerState.PLAYING) {
-        player.playVideo();
-      }
-    };
-    document.addEventListener("pointerdown", unlock);
-    document.addEventListener("keydown", unlock);
-    return () => {
-      document.removeEventListener("pointerdown", unlock);
-      document.removeEventListener("keydown", unlock);
-    };
-  }, []);
 
   useEffect(() => {
     let wasPlaying = false;

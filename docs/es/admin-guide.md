@@ -52,13 +52,13 @@ Los eventos recientes se listan debajo del formulario para que puedas auditar qu
 
 ### Baneos de invitación
 
-Usa **Banear invitaciones** en la fila de un usuario de la pestaña **Usuarios** para excluirlo del sistema de invitaciones por completo:
+Usa **Editar Perfil → Banear invitaciones** en un usuario para excluirlo del sistema de invitaciones por completo:
 
 - Ya no puede generar códigos (cuota de rol o allowance).
 - Se le omite en futuros eventos de invitación.
 - Sus códigos sin usar actuales se revocan inmediatamente y su allowance restante se pone a cero.
 
-**Desbanear invitaciones** restaura el acceso (su allowance anterior no se restaura). Esta es la forma recomendada de tratar el abuso de invitaciones sin eliminar la cuenta.
+**Desbanear invitaciones** (en el mismo lugar) restaura el acceso (su allowance anterior no se restaura). Esta es la forma recomendada de tratar el abuso de invitaciones sin eliminar la cuenta.
 
 ## Gestión de Usuarios
 
