@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- Private-profile presence leak closed: `GET /api/profiles/:identifier/presence` now returns 404 for non-public profiles (it previously exposed online status and current activity to anyone who knew the slug).
+- Invite generation is now atomic: the allowance check and the spend run inside a single transaction with `SELECT … FOR UPDATE` on the user row, closing the check-then-spend race that could overdraw an allowance and mint more codes than credits.
+- Discord presence cache entries expire after 5 minutes (with a periodic sweep) instead of persisting indefinitely, so a stale "online"/activity never lingers on profiles after the user leaves the shared guild or removes the integration.
+- `requireAdmin` now requires a real admin-gate permission (`users.view/manage`, `profiles.manage`, `invites.manage`, `bans.manage`, `roles.manage`, `badges.manage`, `logs.view`) instead of passing any role with ≥1 permission (e.g. `api.basic`).
+- `user.deleted` webhooks now actually fire: the event is awaited **before** the account row is deleted — previously the delete cascaded the user's webhooks first, so no delivery was ever attempted.
+- Webhook transport hardened: destinations must be `https:` and every resolved IP must be public (loopback/private/ULA/multicast are rejected, with a DNS re-check on each redirect), and redirects are only followed to `https:` — no more plaintext sniffing, HTTP downgrades, or SSRF to internal services.
+
+### Changed
+- Cloudflare Tunnel client IPs: nginx now restores the real visitor IP from Cloudflare's `CF-Connecting-IP` header for trusted sources only (new `CF_TRUSTED_IPS` env var, default `172.18.0.0/16,127.0.0.1,::1` — the docker bridge gateway plus loopback), so backend logs, analytics, and auth rate limiting record public IPs instead of the tunnel's local address. Keep `TRUST_PROXY=1`; raising it would trust spoofed `X-Forwarded-For` values.
+
+### Fixed
+- OG card cache now includes the track count in its cache key, so adding/removing music tracks invalidates the cached card and ETag immediately instead of serving a stale image for up to 5 minutes.
+- Renaming a system role (Admin/User) no longer re-slugs it: system-role slugs are frozen (`admin`/`user`) and only the display name can change — fixing the footgun where renaming the Admin role away from `admin` locked it out of its full-permission branch and couldn't be renamed back.
 ## [1.2.1-dev-beta.1] - 2026-08-10
 
 ### Fixed

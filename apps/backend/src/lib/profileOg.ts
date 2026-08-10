@@ -74,6 +74,7 @@ function ogCacheKey(og: ProfileOgData): string {
     og.accent,
     og.badges.map((b) => `${b.slug}:${b.label}:${b.color}`).join(","),
     og.socialLinks.map((s) => s.platform).join(","),
+    og.trackCount,
   ].join("\u0001");
 }
 

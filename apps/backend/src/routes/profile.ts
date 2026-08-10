@@ -744,7 +744,7 @@ router.get("/:identifier/presence", publicRateLimit, async (req: Request<{ ident
     },
   });
 
-  if (!profile) {
+  if (!profile || !profile.isPublic) {
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 

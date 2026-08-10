@@ -93,6 +93,7 @@ services:
     environment:
       TLS_MODE: ${TLS_MODE:-development}
       SEND_HSTS_ON_DEV: ${SEND_HSTS_ON_DEV:-false}
+      CF_TRUSTED_IPS: ${CF_TRUSTED_IPS:-172.18.0.0/16,127.0.0.1,::1}
     ports:
       - "${NGINX_PORT}:80"
       - "${NGINX_HTTPS_PORT}:443"

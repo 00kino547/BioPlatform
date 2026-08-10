@@ -65,4 +65,15 @@ else
   printf '# HSTS disabled (development mode, SEND_HSTS_ON_DEV not true)\n' > "$hsts_conf"
 fi
 
+# Restore the real client IP from Cloudflare's CF-Connecting-IP header.
+# Only trust sources that cloudflared connects from (docker bridge gateway + loopback).
+real_ip_conf=/etc/nginx/conf.d/real_ip.conf
+trusted_ips=${CF_TRUSTED_IPS:-172.18.0.0/16,127.0.0.1,::1}
+{
+  for ip in $(printf '%s\n' "$trusted_ips" | tr ',' ' '); do
+    [ -n "$ip" ] && printf 'set_real_ip_from %s;\n' "$ip"
+  done
+  printf 'real_ip_header CF-Connecting-IP;\n'
+} > "$real_ip_conf"
+
 exec /docker-entrypoint.sh "$@"

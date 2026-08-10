@@ -1,13 +1,21 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { prisma } from "../lib/prisma.js";
-import { permissionsFor, hasPermission, hasApiLevel, effectiveApiLevel, type ApiLevel, type Permission } from "../lib/permissions.js";
+import {
+  permissionsFor,
+  hasPermission,
+  hasApiLevel,
+  effectiveApiLevel,
+  ADMIN_GATE_PERMISSIONS,
+  type ApiLevel,
+  type Permission,
+} from "../lib/permissions.js";
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = await prisma.user.findUnique({
     where: { id: req.userId! },
     include: { role: true },
   });
-  if (!user || permissionsFor(user.role).length === 0) {
+  if (!user || !permissionsFor(user.role).some((p) => ADMIN_GATE_PERMISSIONS.has(p as Permission))) {
     return res.status(403).json({ success: false, error: "Admin access required" });
   }
   next();

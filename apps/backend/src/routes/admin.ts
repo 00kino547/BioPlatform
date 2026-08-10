@@ -9,7 +9,7 @@ import { requireAdmin, requirePermission } from "../middleware/admin.js";
 import { updateProfileSchema, toPrismaJson, profileSlugSchema, stripHtml } from "../lib/validation.js";
 import { upsertPrimaryProfile, getPrimaryProfile } from "../lib/profile.js";
 import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_SLUGS } from "../lib/permissions.js";
-import { dispatchWebhookEvent } from "../lib/webhook.js";
+import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.js";
 import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
 
@@ -259,6 +259,11 @@ router.delete("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
   }
+
+  await dispatchWebhookEventAsync(id, "user.deleted", {
+    username: user.username,
+    deletedAt: new Date().toISOString(),
+  });
 
   await prisma.$transaction([
     prisma.authBan.deleteMany({ where: { kind: "ACCOUNT", value: id } }),
@@ -543,16 +548,24 @@ router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (r
 
   const data: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) {
-    const newSlug = slugifyRoleName(parsed.data.name);
-    if ((newSlug === SYSTEM_ROLE_SLUGS.ADMIN || newSlug === SYSTEM_ROLE_SLUGS.USER) && role.slug !== newSlug) {
-      return res.status(400).json({ success: false, error: "That role name is reserved" });
+    if (role.isSystem) {
+      const existing = await prisma.role.findFirst({ where: { name: parsed.data.name, NOT: { id: role.id } } });
+      if (existing) {
+        return res.status(409).json({ success: false, error: "A role with that name already exists" });
+      }
+      data.name = parsed.data.name;
+    } else {
+      const newSlug = slugifyRoleName(parsed.data.name);
+      if ((newSlug === SYSTEM_ROLE_SLUGS.ADMIN || newSlug === SYSTEM_ROLE_SLUGS.USER) && role.slug !== newSlug) {
+        return res.status(400).json({ success: false, error: "That role name is reserved" });
+      }
+      const existing = await prisma.role.findFirst({ where: { OR: [{ slug: newSlug }, { name: parsed.data.name }], NOT: { id: role.id } } });
+      if (existing) {
+        return res.status(409).json({ success: false, error: "A role with that name already exists" });
+      }
+      data.name = parsed.data.name;
+      data.slug = newSlug;
     }
-    const existing = await prisma.role.findFirst({ where: { OR: [{ slug: newSlug }, { name: parsed.data.name }], NOT: { id: role.id } } });
-    if (existing) {
-      return res.status(409).json({ success: false, error: "A role with that name already exists" });
-    }
-    data.name = parsed.data.name;
-    data.slug = newSlug;
   }
   if (parsed.data.description !== undefined) data.description = parsed.data.description;
   if (parsed.data.permissions !== undefined) data.permissions = parsed.data.permissions;

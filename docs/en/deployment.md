@@ -119,6 +119,14 @@ server {
 cloudflared tunnel --url http://localhost:80
 ```
 
+When the tunnel terminates at this repo's nginx (the included `docker-compose.yml`),
+set `CF_TRUSTED_IPS` in `.env` to the source IPs/CIDRs that cloudflared connects from
+(default `172.18.0.0/16,127.0.0.1,::1` — the docker bridge gateway plus loopback). Nginx
+restores the real client IP from Cloudflare's `CF-Connecting-IP` header only for those
+sources, so backend logs, analytics, and auth rate limiting see public IPs instead of the
+tunnel/local address. Keep `TRUST_PROXY=1`; do **not** raise it, or spoofed
+`X-Forwarded-For` values become trusted.
+
 ## Production Checklist
 
 - [ ] Strong `JWT_SECRET` (32+ random characters)

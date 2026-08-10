@@ -24,6 +24,22 @@ export interface CachedPresence {
 
 const presenceCache = new Map<string, CachedPresence>();
 
+const PRESENCE_TTL_MS = 5 * 60 * 1000;
+const PRESENCE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+let presenceSweepStarted = false;
+
+function startPresenceSweep(): void {
+  if (presenceSweepStarted) return;
+  presenceSweepStarted = true;
+  setInterval(() => {
+    const cutoff = Date.now() - PRESENCE_TTL_MS;
+    for (const [id, entry] of presenceCache) {
+      if (entry.updatedAt < cutoff) presenceCache.delete(id);
+    }
+  }, PRESENCE_SWEEP_INTERVAL_MS);
+}
+
 interface BotSession {
   token: string;
   ws: WebSocket | null;
@@ -43,7 +59,13 @@ const FATAL_CLOSE_CODES = new Set([4004, 4013, 4014]);
 const NON_RESUMABLE_CLOSE_CODES = new Set([4010, 4011, 4012, 4015, 4016]);
 
 export function getCachedPresence(discordId: string): CachedPresence | null {
-  return presenceCache.get(discordId) ?? null;
+  const entry = presenceCache.get(discordId);
+  if (!entry) return null;
+  if (Date.now() - entry.updatedAt > PRESENCE_TTL_MS) {
+    presenceCache.delete(discordId);
+    return null;
+  }
+  return entry;
 }
 
 export function isBotConnected(): boolean {
@@ -68,6 +90,7 @@ export function startBotSession(token: string): void {
     manualClose: false,
     reconnectTimer: null,
   };
+  startPresenceSweep();
   void connectBot(bot);
 }
 

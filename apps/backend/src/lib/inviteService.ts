@@ -1,6 +1,9 @@
+import { type Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma.js";
 
 export const DAY_MS = 86400000;
+
+type Db = Prisma.TransactionClient | PrismaClient;
 
 export const INVITE_GENERATION_SETTING_KEY = "invites.userGenerationEnabled";
 
@@ -44,8 +47,8 @@ export function computeInviteAllowance(user: {
  * event allowance that expired unused *before* the allowance itself expires.
  * Credits that die exactly at the allowance expiry are not refunded.
  */
-export async function runInviteRefundSweep(userId: string): Promise<number> {
-  const user = await prisma.user.findUnique({
+export async function runInviteRefundSweep(userId: string, db: Db = prisma): Promise<number> {
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { inviteAllowance: true, inviteAllowanceExpiresAt: true },
   });
@@ -57,7 +60,7 @@ export async function runInviteRefundSweep(userId: string): Promise<number> {
   if (!allowanceActive) return 0;
 
   const now = new Date();
-  const expiredCodes = await prisma.inviteCode.findMany({
+  const expiredCodes = await db.inviteCode.findMany({
     where: {
       createdById: userId,
       fromAllowance: true,
@@ -76,26 +79,32 @@ export async function runInviteRefundSweep(userId: string): Promise<number> {
 
   if (refundable.length === 0) return 0;
 
-  await prisma.$transaction([
-    prisma.inviteCode.updateMany({
-      where: { id: { in: refundable.map((c) => c.id) } },
-      data: { refundedAt: now },
-    }),
-    prisma.user.update({
-      where: { id: userId },
-      data: { inviteAllowance: { increment: refundable.length } },
-    }),
-  ]);
+  const markRefunded = db.inviteCode.updateMany({
+    where: { id: { in: refundable.map((c) => c.id) } },
+    data: { refundedAt: now },
+  });
+  const grantRefund = db.user.update({
+    where: { id: userId },
+    data: { inviteAllowance: { increment: refundable.length } },
+  });
+
+  if ("$transaction" in db) {
+    await (db as PrismaClient).$transaction([markRefunded, grantRefund]);
+  } else {
+    await markRefunded;
+    await grantRefund;
+  }
 
   return refundable.length;
 }
 
 export async function countOutstandingInvites(
   userId: string,
-  fromAllowance?: boolean
+  fromAllowance?: boolean,
+  db: Db = prisma
 ): Promise<number> {
   const now = new Date();
-  return prisma.inviteCode.count({
+  return db.inviteCode.count({
     where: {
       createdById: userId,
       usedAt: null,

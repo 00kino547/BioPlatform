@@ -1,4 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "crypto";
+import dns from "node:dns/promises";
+import net from "node:net";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.js";
 import { getEnv } from "../config/env.js";
@@ -72,10 +74,62 @@ export function isValidWebhookUrl(value: string): boolean {
     return false;
   }
   return (
-    (url.protocol === "http:" || url.protocol === "https:") &&
+    url.protocol === "https:" &&
     !url.username &&
     !url.password
   );
+}
+
+function isPrivateIpAddress(address: string): boolean {
+  if (net.isIPv4(address)) {
+    const [a, b] = address.split(".").map(Number);
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 192 && b === 0) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    return false;
+  }
+  const lower = address.toLowerCase();
+  if (lower === "::" || lower === "::1") return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  if (lower.startsWith("fe80")) return true;
+  if (lower.startsWith("ff")) return true;
+  return false;
+}
+
+async function isPublicWebhookHost(hostname: string): Promise<boolean> {
+  try {
+    const addresses = await Promise.race([
+      dns.lookup(hostname, { all: true, verbatim: true }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("DNS lookup timed out")), 3000)
+      ),
+    ]);
+    return addresses.length > 0 && addresses.every((entry) => !isPrivateIpAddress(entry.address));
+  } catch {
+    return false;
+  }
+}
+
+async function isSafeWebhookTarget(value: string): Promise<{ ok: boolean; error?: string }> {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return { ok: false, error: "Invalid webhook target URL" };
+  }
+  if (url.protocol !== "https:") {
+    return { ok: false, error: "Webhook URLs must use https" };
+  }
+  if (!(await isPublicWebhookHost(url.hostname))) {
+    return { ok: false, error: "Webhook target must resolve to a public address" };
+  }
+  return { ok: true };
 }
 
 const DISCORD_WEBHOOK_HOSTS = new Set(["discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com"]);
@@ -221,6 +275,10 @@ async function deliver(
     let status: number | null = null;
     let response: Response | null = null;
     while (true) {
+      const targetCheck = await isSafeWebhookTarget(url);
+      if (!targetCheck.ok) {
+        return { success: false, status: null, error: targetCheck.error ?? "Webhook target rejected", nextRetryAt: null };
+      }
       const body = JSON.stringify(isDiscordWebhookUrl(url) ? toDiscordMessage(payload) : payload);
       const signature = signWebhookPayload(secret, body);
       response = await fetch(url, {
@@ -242,7 +300,7 @@ async function deliver(
       const location = response.headers.get("location");
       if (!location) break;
       const next = new URL(location, url);
-      if (next.protocol !== "http:" && next.protocol !== "https:") break;
+      if (next.protocol !== "https:") break;
       url = next.toString();
       redirects += 1;
     }
@@ -299,29 +357,31 @@ export async function attemptDelivery(
   });
 }
 
-export function dispatchWebhookEvent(userId: string, event: WebhookEvent, data: Record<string, unknown>): void {
-  void (async () => {
-    try {
-      const webhooks = await prisma.webhook.findMany({
-        where: { userId, active: true, events: { has: event } },
+export async function dispatchWebhookEventAsync(userId: string, event: WebhookEvent, data: Record<string, unknown>): Promise<void> {
+  try {
+    const webhooks = await prisma.webhook.findMany({
+      where: { userId, active: true, events: { has: event } },
+    });
+    if (webhooks.length === 0) return;
+
+    const defaultPayload = buildPayload(event, data);
+    for (const webhook of webhooks) {
+      const payload: unknown = webhook.template
+        ? renderPayloadTemplate(webhook.template, defaultPayload)
+        : defaultPayload;
+
+      const delivery = await prisma.webhookDelivery.create({
+        data: { webhookId: webhook.id, event, payload: payload as Prisma.InputJsonValue },
       });
-      if (webhooks.length === 0) return;
-
-      const defaultPayload = buildPayload(event, data);
-      for (const webhook of webhooks) {
-        const payload: unknown = webhook.template
-          ? renderPayloadTemplate(webhook.template, defaultPayload)
-          : defaultPayload;
-
-        const delivery = await prisma.webhookDelivery.create({
-          data: { webhookId: webhook.id, event, payload: payload as Prisma.InputJsonValue },
-        });
-        await attemptDelivery(webhook, delivery, event, payload);
-      }
-    } catch (err) {
-      console.error("Webhook dispatch failed:", err);
+      await attemptDelivery(webhook, delivery, event, payload);
     }
-  })();
+  } catch (err) {
+    console.error("Webhook dispatch failed:", err);
+  }
+}
+
+export function dispatchWebhookEvent(userId: string, event: WebhookEvent, data: Record<string, unknown>): void {
+  void dispatchWebhookEventAsync(userId, event, data);
 }
 
 export async function sendTestWebhook(webhookId: string, userId: string): Promise<{ success: boolean; error?: string }> {

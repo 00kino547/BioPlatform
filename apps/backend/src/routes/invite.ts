@@ -20,6 +20,16 @@ const createSchema = z.object({
   expiresInDays: z.number().int().min(1).max(365).optional(),
 });
 
+class InviteHttpError extends Error {
+  status: number;
+  data?: { retryAfterSeconds?: number };
+  constructor(status: number, message: string, retryAfterSeconds?: number) {
+    super(message);
+    this.status = status;
+    if (retryAfterSeconds !== undefined) this.data = { retryAfterSeconds };
+  }
+}
+
 function serializeCode(c: {
   id: string;
   code: string;
@@ -158,132 +168,135 @@ router.post("/", requireAuth, async (req, res) => {
     });
   }
 
-  await runInviteRefundSweep(me.id);
-
-  const fresh = await prisma.user.findUnique({
-    where: { id: me.id },
-    include: { role: true },
-  });
-  if (!fresh) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
-
-  const cfg = roleInviteConfig(fresh.role);
-  const allowanceInfo = computeInviteAllowance(fresh);
-  const roleGen =
-    hasPermission(fresh.role, PERMISSIONS.INVITES_GENERATE) && cfg.batchLimit > 0;
-
-  const roleOutstanding = roleGen ? await countOutstandingInvites(fresh.id, false) : 0;
-  const roleHeadroom = roleGen
-    ? cfg.outstandingLimit > 0
-      ? Math.max(0, cfg.outstandingLimit - roleOutstanding)
-      : Number.MAX_SAFE_INTEGER
-    : 0;
-
-  const available = allowanceInfo.allowance + roleHeadroom;
-  if (available <= 0) {
-    return res.status(403).json({
-      success: false,
-      error: "You have no invite credits available.",
-    });
-  }
-
-  if (cfg.cooldownMinutes > 0 && fresh.inviteLastGeneratedAt) {
-    const elapsed = Date.now() - fresh.inviteLastGeneratedAt.getTime();
-    const cooldownMs = cfg.cooldownMinutes * 60000;
-    if (elapsed < cooldownMs) {
-      const remaining = Math.ceil((cooldownMs - elapsed) / 1000);
-      return res.status(429).json({
-        success: false,
-        error: `Please wait ${remaining}s before generating more invites.`,
-        data: { retryAfterSeconds: remaining },
-      });
+  const outcome = await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "users" WHERE "id" = ${me.id}::uuid FOR UPDATE
+    `;
+    if (locked.length === 0) {
+      throw new InviteHttpError(401, "Unauthorized");
     }
-  }
 
-  let batch = Math.min(count, available);
-  if (batch < 1) {
-    return res.status(400).json({
-      success: false,
-      error: "That many invites exceeds your available credits.",
+    await runInviteRefundSweep(me.id, tx);
+
+    const fresh = await tx.user.findUnique({
+      where: { id: me.id },
+      include: { role: true },
     });
-  }
-  if (roleGen) {
-    batch = Math.min(batch, cfg.batchLimit);
-  }
+    if (!fresh) {
+      throw new InviteHttpError(401, "Unauthorized");
+    }
 
-  const now = Date.now();
-  let maxDays = cfg.maxExpiryDays;
-  if (allowanceInfo.active && allowanceInfo.allowanceExpiresAt) {
-    const remainingDays = Math.max(1, Math.floor((allowanceInfo.allowanceExpiresAt.getTime() - now) / DAY_MS));
-    maxDays = Math.min(maxDays, remainingDays);
-  }
+    const cfg = roleInviteConfig(fresh.role);
+    const allowanceInfo = computeInviteAllowance(fresh);
+    const roleGen =
+      hasPermission(fresh.role, PERMISSIONS.INVITES_GENERATE) && cfg.batchLimit > 0;
 
-  if (maxDays < cfg.minExpiryDays) {
-    return res.status(400).json({
-      success: false,
-      error: "Not enough time left on your invite allowance to generate invites.",
+    const roleOutstanding = roleGen ? await countOutstandingInvites(fresh.id, false, tx) : 0;
+    const roleHeadroom = roleGen
+      ? cfg.outstandingLimit > 0
+        ? Math.max(0, cfg.outstandingLimit - roleOutstanding)
+        : Number.MAX_SAFE_INTEGER
+      : 0;
+
+    const available = allowanceInfo.allowance + roleHeadroom;
+    if (available <= 0) {
+      throw new InviteHttpError(403, "You have no invite credits available.");
+    }
+
+    if (cfg.cooldownMinutes > 0 && fresh.inviteLastGeneratedAt) {
+      const elapsed = Date.now() - fresh.inviteLastGeneratedAt.getTime();
+      const cooldownMs = cfg.cooldownMinutes * 60000;
+      if (elapsed < cooldownMs) {
+        const remaining = Math.ceil((cooldownMs - elapsed) / 1000);
+        throw new InviteHttpError(429, `Please wait ${remaining}s before generating more invites.`, remaining);
+      }
+    }
+
+    let batch = Math.min(count, available);
+    if (batch < 1) {
+      throw new InviteHttpError(400, "That many invites exceeds your available credits.");
+    }
+    if (roleGen) {
+      batch = Math.min(batch, cfg.batchLimit);
+    }
+
+    const now = Date.now();
+    let maxDays = cfg.maxExpiryDays;
+    if (allowanceInfo.active && allowanceInfo.allowanceExpiresAt) {
+      const remainingDays = Math.max(1, Math.floor((allowanceInfo.allowanceExpiresAt.getTime() - now) / DAY_MS));
+      maxDays = Math.min(maxDays, remainingDays);
+    }
+
+    if (maxDays < cfg.minExpiryDays) {
+      throw new InviteHttpError(400, "Not enough time left on your invite allowance to generate invites.");
+    }
+
+    let defaultDays = Math.min(cfg.defaultExpiryDays, maxDays);
+    if (defaultDays < cfg.minExpiryDays) defaultDays = Math.min(cfg.minExpiryDays, maxDays);
+
+    const days = expiresInDays ?? defaultDays;
+    if (days < cfg.minExpiryDays) {
+      throw new InviteHttpError(400, `Invites must expire at least ${cfg.minExpiryDays} day(s) from now.`);
+    }
+    if (days > maxDays) {
+      throw new InviteHttpError(400, `Invites can expire at most ${maxDays} day(s) from now.`);
+    }
+    const expiresAt = new Date(now + days * DAY_MS);
+
+    const allowanceSourced = Math.min(batch, allowanceInfo.allowance);
+    const roleSourced = batch - allowanceSourced;
+
+    await tx.user.update({
+      where: { id: fresh.id },
+      data: {
+        ...(allowanceSourced > 0
+          ? { inviteAllowance: { decrement: allowanceSourced } }
+          : {}),
+        inviteLastGeneratedAt: new Date(),
+      },
     });
-  }
 
-  let defaultDays = Math.min(cfg.defaultExpiryDays, maxDays);
-  if (defaultDays < cfg.minExpiryDays) defaultDays = Math.min(cfg.minExpiryDays, maxDays);
-
-  const days = expiresInDays ?? defaultDays;
-  if (days < cfg.minExpiryDays) {
-    return res.status(400).json({
-      success: false,
-      error: `Invites must expire at least ${cfg.minExpiryDays} day(s) from now.`,
+    await tx.inviteCode.createMany({
+      data: [
+        ...Array.from({ length: allowanceSourced }, () => ({
+          code: crypto.randomBytes(8).toString("hex"),
+          createdById: fresh.id,
+          expiresAt,
+          fromAllowance: true,
+        })),
+        ...Array.from({ length: roleSourced }, () => ({
+          code: crypto.randomBytes(8).toString("hex"),
+          createdById: fresh.id,
+          expiresAt,
+          fromAllowance: false,
+        })),
+      ],
     });
-  }
-  if (days > maxDays) {
-    return res.status(400).json({
-      success: false,
-      error: `Invites can expire at most ${maxDays} day(s) from now.`,
-    });
-  }
-  const expiresAt = new Date(now + days * DAY_MS);
 
-  const allowanceSourced = Math.min(batch, allowanceInfo.allowance);
-  const roleSourced = batch - allowanceSourced;
-
-  await prisma.user.update({
-    where: { id: fresh.id },
-    data: {
-      ...(allowanceSourced > 0
-        ? { inviteAllowance: { decrement: allowanceSourced } }
-        : {}),
-      inviteLastGeneratedAt: new Date(),
-    },
+    return { userId: fresh.id, batch };
+  }).catch((err: unknown) => {
+    if (err instanceof InviteHttpError) return err;
+    throw err;
   });
 
-  await prisma.inviteCode.createMany({
-    data: [
-      ...Array.from({ length: allowanceSourced }, () => ({
-        code: crypto.randomBytes(8).toString("hex"),
-        createdById: fresh.id,
-        expiresAt,
-        fromAllowance: true,
-      })),
-      ...Array.from({ length: roleSourced }, () => ({
-        code: crypto.randomBytes(8).toString("hex"),
-        createdById: fresh.id,
-        expiresAt,
-        fromAllowance: false,
-      })),
-    ],
-  });
+  if (outcome instanceof InviteHttpError) {
+    return res.status(outcome.status).json({
+      success: false,
+      error: outcome.message,
+      ...(outcome.data ?? {}),
+    });
+  }
 
   const created = await prisma.inviteCode.findMany({
-    where: { createdById: fresh.id },
+    where: { createdById: outcome.userId },
     orderBy: { createdAt: "desc" },
-    take: batch,
+    take: outcome.batch,
   });
 
   res.status(201).json({
     success: true,
     data: created.map(serializeCode),
-    meta: await buildInviteMeta(fresh.id),
+    meta: await buildInviteMeta(outcome.userId),
   });
 });
 
