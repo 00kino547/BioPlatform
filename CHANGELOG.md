@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.1-dev-beta.1] - 2026-08-10
+
 ### Fixed
 - Badge toggle state on the Dashboard was always "inactive": `GET /api/profiles/me` and the profile detail/update/create responses didn't return the profile's applied badges, so badges you had already activated appeared greyed out again after every reload ("the badge disappeared from my profile"). All authenticated profile responses now include `badges` (array of badge ids), so the Profiles tab reflects the real applied badges.
 - The Dashboard rendered the **entire** badge catalog as toggleable, so clicking a badge you didn't own failed with a confusing `403 "You don't have this badge."`. Badges you don't own are now shown locked (greyed out with a lock icon, not clickable) until an admin grants them; only owned badges are toggleable.
