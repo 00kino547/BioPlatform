@@ -12,6 +12,8 @@ export interface DiscordActivity {
   applicationId: string | null;
   largeImage: string | null;
   smallImage: string | null;
+  buttons: string[] | null;
+  timestamps: { start: number | null; end: number | null } | null;
 }
 
 export interface CachedPresence {
@@ -101,6 +103,8 @@ interface RawActivity {
   state?: string | null;
   application_id?: string;
   assets?: { large_image?: string; small_image?: string };
+  buttons?: string[];
+  timestamps?: { start?: number; end?: number };
 }
 
 interface RawPresence {
@@ -302,6 +306,14 @@ function normalizeActivity(activity: RawActivity): DiscordActivity | null {
     applicationId: activity.application_id ?? null,
     largeImage: activity.assets?.large_image ?? null,
     smallImage: activity.assets?.small_image ?? null,
+    buttons: Array.isArray(activity.buttons) ? activity.buttons.filter((b) => typeof b === "string").slice(0, 2) : null,
+    timestamps:
+      activity.timestamps && (typeof activity.timestamps.start === "number" || typeof activity.timestamps.end === "number")
+        ? {
+            start: activity.timestamps.start ?? null,
+            end: activity.timestamps.end ?? null,
+          }
+        : null,
   };
 }
 

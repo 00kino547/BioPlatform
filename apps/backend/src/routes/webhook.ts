@@ -2,12 +2,14 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireApiLevel } from "../middleware/admin.js";
 import {
   WEBHOOK_EVENT_SET,
   generateWebhookSecret,
   encryptSecret,
   secretPrefix,
   isValidWebhookUrl,
+  isValidPayloadTemplate,
   sendTestWebhook,
 } from "../lib/webhook.js";
 
@@ -16,6 +18,17 @@ const router = Router();
 const TEST_LIMIT = 5;
 const TEST_WINDOW_MS = 60 * 1000;
 const testHits = new Map<string, number[]>();
+
+const templateSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .optional()
+  .nullable()
+  .refine((template) => template == null || template.length === 0 || isValidPayloadTemplate(template), {
+    message: "Template must be valid JSON with {{placeholders}}",
+  })
+  .transform((template) => (template ? template : null));
 
 function testRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -40,6 +53,7 @@ setInterval(() => {
 }, TEST_WINDOW_MS);
 
 router.use(requireAuth);
+router.use(requireApiLevel("enterprise"));
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(64),
@@ -50,6 +64,7 @@ const createSchema = z.object({
     .refine((events) => events.every((e) => WEBHOOK_EVENT_SET.has(e)) && new Set(events).size === events.length, {
       message: "Invalid or duplicate webhook events",
     }),
+  template: templateSchema,
   active: z.boolean().default(true),
 });
 
@@ -63,6 +78,7 @@ const updateSchema = z.object({
       message: "Invalid or duplicate webhook events",
     })
     .optional(),
+  template: templateSchema,
   active: z.boolean().optional(),
 });
 
@@ -82,6 +98,7 @@ function publicWebhook(w: {
   secretPrefix: string;
   active: boolean;
   events: string[];
+  template?: string | null;
   createdAt: Date;
   updatedAt: Date;
   lastDelivery?: { status: string; lastStatusCode: number | null; lastError: string | null; updatedAt: Date } | null;
@@ -93,6 +110,7 @@ function publicWebhook(w: {
     secretPrefix: w.secretPrefix,
     active: w.active,
     events: w.events,
+    template: w.template ?? null,
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
     lastDelivery: w.lastDelivery ?? null,
@@ -132,6 +150,7 @@ router.post("/", async (req, res) => {
       secretPrefix: secretPrefix(secret),
       active: parsed.data.active,
       events: parsed.data.events,
+      template: parsed.data.template ?? null,
     },
   });
 
@@ -144,6 +163,7 @@ router.post("/", async (req, res) => {
       secret,
       active: webhook.active,
       events: webhook.events,
+      template: webhook.template ?? null,
       createdAt: webhook.createdAt,
     },
   });
@@ -172,6 +192,7 @@ router.patch("/:id", async (req: Request<{ id: string }>, res) => {
       secretPrefix: updated.secretPrefix,
       active: updated.active,
       events: updated.events,
+      template: updated.template ?? null,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     },

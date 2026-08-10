@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { api, type PublicProfile, type Badge } from "@/lib/api";
+import { api, type PublicProfile, type Badge, type DiscordPresence } from "@/lib/api";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
-import { MusicPlayer } from "@/components/music/MusicPlayer";
+import { FloatingMusicPlayer } from "@/components/music/MusicPlayer";
+import { EnterGate } from "@/components/EnterGate";
 import { PresenceWidget } from "@/components/discord/PresenceWidget";
 import { BadgePill } from "@/components/ui/BadgePill";
 import {
@@ -34,6 +35,8 @@ export function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
+  const [entered, setEntered] = useState(false);
+  const [livePresence, setLivePresence] = useState<DiscordPresence | null | undefined>(undefined);
 
   usePageMeta({
     title: profile ? `${profile.displayName || profile.username} (@${profile.username})` : "Profile",
@@ -60,6 +63,30 @@ export function PublicProfilePage() {
       setLoading(false);
     });
   }, [username]);
+
+  const hasDiscord = Boolean(profile?.discord);
+
+  useEffect(() => {
+    if (!entered || !username || !hasDiscord) return;
+    let stopped = false;
+
+    const tick = async () => {
+      if (stopped || document.hidden) return;
+      const res = await api.getProfilePresence(username);
+      if (!stopped && res.success) setLivePresence(res.data ?? null);
+    };
+
+    const timer = window.setInterval(tick, 15_000);
+    const onVisibility = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [entered, username, hasDiscord]);
 
   if (loading) {
     return (
@@ -97,60 +124,74 @@ export function PublicProfilePage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center py-12 px-4"
+      className="min-h-screen flex flex-col items-center py-8 sm:py-12 px-4 sm:px-6"
       style={{ backgroundColor: bg, color: textColor, fontFamily }}
     >
       {profile.banner && (
-        <div className="w-full max-w-lg mb-6 rounded-2xl overflow-hidden">
+        <div className="w-full max-w-4xl mb-5 sm:mb-6 rounded-2xl overflow-hidden">
           <img
             src={profile.banner}
             alt="Banner"
-            className="w-full h-40 object-cover"
+            className="w-full object-cover"
+            style={{ height: "clamp(7rem, 16vw, 11rem)" }}
           />
         </div>
       )}
 
-      <div className="w-full max-w-lg rounded-2xl p-8 text-center" style={{ backgroundColor: cardBg }}>
-        {profile.avatar ? (
-          <img
-            src={profile.avatar}
-            alt={profile.displayName ?? profile.username}
-            className="mx-auto h-24 w-24 rounded-full object-cover ring-4 ring-black/30 mb-5"
-          />
-        ) : (
-          <div
-            className="mx-auto h-24 w-24 rounded-full flex items-center justify-center text-3xl font-bold text-white ring-4 ring-black/30 mb-5"
-            style={{ backgroundColor: accent }}
-          >
-            {fallbackInitial(profile.displayName ?? profile.username)}
-          </div>
-        )}
+      <div
+        className="w-full max-w-4xl rounded-2xl text-left"
+        style={{ backgroundColor: cardBg, padding: "clamp(1.25rem, 4vw, 2rem)" }}
+      >
+        <div className="flex items-center gap-4 sm:gap-5">
+          {profile.avatar ? (
+            <img
+              src={profile.avatar}
+              alt={profile.displayName ?? profile.username}
+              className="shrink-0 rounded-full object-cover ring-4 ring-black/30"
+              style={{ width: "clamp(3.5rem, 9vw, 5rem)", height: "clamp(3.5rem, 9vw, 5rem)" }}
+            />
+          ) : (
+            <div
+              className="shrink-0 rounded-full flex items-center justify-center font-bold text-white ring-4 ring-black/30"
+              style={{
+                width: "clamp(3.5rem, 9vw, 5rem)",
+                height: "clamp(3.5rem, 9vw, 5rem)",
+                backgroundColor: accent,
+              }}
+            >
+              <span style={{ fontSize: "clamp(1.25rem, 3vw, 1.75rem)" }}>
+                {fallbackInitial(profile.displayName ?? profile.username)}
+              </span>
+            </div>
+          )}
 
-        <h1 className="text-2xl font-bold mb-1" style={{ color: textColor }}>
-          {profile.displayName ?? profile.username}
-        </h1>
-        <p className="text-sm mb-4" style={{ color: mutedColor }}>
-          @{profile.username}
-        </p>
-
-        {profile.badges && profile.badges.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-1.5 mb-4">
-            {profile.badges
-              .map((id) => badgeCatalog.find((b) => b.id === id))
-              .filter((b): b is Badge => Boolean(b))
-              .map((badge) => (
-                <BadgePill key={badge.id} badge={badge} />
-              ))}
+          <div className="min-w-0 flex-1">
+            <h1 className="font-bold truncate" style={{ color: textColor, fontSize: "clamp(1.25rem, 3.5vw, 1.75rem)" }}>
+              {profile.displayName ?? profile.username}
+            </h1>
+            <p className="text-xs sm:text-sm truncate" style={{ color: mutedColor }}>
+              @{profile.username}
+            </p>
+            {profile.badges && profile.badges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {profile.badges
+                  .map((id) => badgeCatalog.find((b) => b.id === id))
+                  .filter((b): b is Badge => Boolean(b))
+                  .map((badge) => (
+                    <BadgePill key={badge.id} badge={badge} />
+                  ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {profile.bio && (
-          <p className="text-sm leading-relaxed mb-5 whitespace-pre-wrap" style={{ color: `${textColor}cc` }}>
+          <p className="mt-4 sm:mt-5 text-sm leading-relaxed whitespace-pre-wrap" style={{ color: `${textColor}cc` }}>
             {profile.bio}
           </p>
         )}
 
-        <div className="flex flex-wrap justify-center gap-3 mb-6 text-xs" style={{ color: mutedColor }}>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: mutedColor }}>
           {profile.location && (
             <span className="flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5" />
@@ -175,9 +216,9 @@ export function PublicProfilePage() {
         </div>
 
         {profile.discord && (
-          <div className="mb-6 flex flex-col items-center">
+          <div className="mt-6 sm:mt-7 flex flex-col">
             <h2
-              className="text-[11px] font-semibold uppercase tracking-widest mb-2.5 text-center"
+              className="text-[11px] font-semibold uppercase tracking-widest mb-2.5 text-left"
               style={{ color: mutedColor }}
             >
               Discord
@@ -188,23 +229,7 @@ export function PublicProfilePage() {
                 globalName: profile.discord.globalName,
                 avatar: profile.discord.avatar,
               }}
-              presence={profile.discord.presence}
-              accent={accent}
-              textColor={textColor}
-            />
-          </div>
-        )}
-
-        {profile.musicTracks && profile.musicTracks.length > 0 && (
-          <div className="mb-6">
-            <h2
-              className="text-[11px] font-semibold uppercase tracking-widest mb-2.5 text-center"
-              style={{ color: mutedColor }}
-            >
-              Music
-            </h2>
-            <MusicPlayer
-              tracks={profile.musicTracks}
+              presence={livePresence !== undefined ? livePresence : profile.discord.presence}
               accent={accent}
               textColor={textColor}
             />
@@ -212,7 +237,7 @@ export function PublicProfilePage() {
         )}
 
         {profile.socialLinks && profile.socialLinks.length > 0 && (
-          <div className="flex flex-col items-center gap-2">
+          <div className="mt-6 sm:mt-7 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {profile.socialLinks.map((link, i) => {
               const platformLower = link.platform.toLowerCase();
               const isEmail = platformLower === "email";
@@ -247,7 +272,7 @@ export function PublicProfilePage() {
                 <Tag
                   key={i}
                   {...(linkProps as Record<string, unknown>)}
-                  className={`flex items-center gap-3 w-full max-w-sm px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                     isClickable ? "hover:scale-[1.02] cursor-pointer" : "cursor-default"
                   }`}
                   style={{
@@ -285,6 +310,20 @@ export function PublicProfilePage() {
           {branding.name}
         </a>
       </p>
+
+      {profile.musicTracks && profile.musicTracks.length > 0 && (
+        <FloatingMusicPlayer tracks={profile.musicTracks} accent={accent} textColor={textColor} started={entered} />
+      )}
+
+      <EnterGate
+        key={profile.username}
+        name={profile.displayName ?? profile.username}
+        username={profile.username}
+        avatar={profile.avatar}
+        accent={accent}
+        textColor={textColor}
+        onEnter={() => setEntered(true)}
+      />
     </div>
   );
 }

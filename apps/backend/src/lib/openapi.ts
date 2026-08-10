@@ -198,7 +198,7 @@ export const openapi = {
       get: {
         tags: ["Auth"],
         summary: "Get the current user",
-        responses: { "200": { description: "Current user" } },
+        responses: { "200": { description: "Current user", content: { "application/json": { schema: { $ref: "#/components/schemas/SelfUser" } } } } },
       },
     },
     "/auth/change-password": {
@@ -430,8 +430,8 @@ export const openapi = {
     "/profiles/me/export": {
       get: {
         tags: ["Profiles"],
-        summary: "Export your profile as a spreadsheet",
-        description: "Downloads a single-sheet spreadsheet (one field per row). Macro-free by design.",
+        summary: "Export your profile as a spreadsheet (Premium API access: api.advanced)",
+        description: "Downloads a single-sheet spreadsheet (one field per row). Macro-free by design. Requires the advanced API level (Premium tier or api.advanced permission).",
         parameters: [
           { name: "format", in: "query", schema: { type: "string", enum: ["xlsx", "ods"] }, description: "xlsx (default) or ods" },
           { name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to export (defaults to primary)" },
@@ -444,19 +444,21 @@ export const openapi = {
               "application/vnd.oasis.opendocument.spreadsheet": { schema: { type: "string", format: "binary" } },
             },
           },
+          "403": { description: "Requires the advanced API level (Premium tier or api.advanced permission)" },
         },
       },
     },
     "/profiles/me/import": {
       post: {
         tags: ["Profiles"],
-        summary: "Import your profile from a spreadsheet",
-        description: "Accepts .xlsx, .ods, or .csv. Macro-enabled files (.xlsm/.xls) are rejected. Unknown rows are reported as warnings.",
+        summary: "Import your profile from a spreadsheet (Premium API access: api.advanced)",
+        description: "Accepts .xlsx, .ods, or .csv. Macro-enabled files (.xlsm/.xls) are rejected. Unknown rows are reported as warnings. Requires the advanced API level (Premium tier or api.advanced permission).",
         parameters: [{ name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to import into (defaults to primary)" }],
         requestBody: { required: true, content: { "multipart/form-data": { schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } } } },
         responses: {
           "200": { description: "Import result with applied fields and warnings", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { type: "object", properties: { applied: { type: "array", items: { type: "string" } }, warnings: { type: "array", items: { type: "string" } } } } } } } } },
           "400": { description: "Invalid file or data" },
+          "403": { description: "Requires the advanced API level (Premium tier or api.advanced permission)" },
         },
       },
     },
@@ -469,13 +471,22 @@ export const openapi = {
         responses: { "200": { description: "Public profile (no email/PII)", content: { "application/json": { schema: { $ref: "#/components/schemas/PublicProfile" } } } }, "404": { description: "Not found or private" } },
       },
     },
+    "/profiles/{identifier}/presence": {
+      get: {
+        tags: ["Profiles"],
+        summary: "Get a live presence snapshot for a public profile",
+        security: [],
+        parameters: [{ name: "identifier", in: "path", required: true, schema: { type: "string" }, description: "A profile slug or an alias slug" }],
+        responses: { "200": { description: "Presence snapshot or `data: null` when Discord presence is off", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { oneOf: [{ $ref: "#/components/schemas/DiscordPresence" }, { type: "null" }] } } } } } }, "404": { description: "Not found or private" } },
+      },
+    },
     "/profiles/{identifier}/og.png": {
       get: {
         tags: ["Profiles"],
         summary: "Render the OpenGraph card image for a public profile",
         security: [],
         parameters: [{ name: "identifier", in: "path", required: true, schema: { type: "string" }, description: "A profile slug or an alias slug" }],
-        responses: { "200": { description: "1200x630 PNG card with the user's presence", content: { "image/png": { schema: { type: "string", format: "binary" } } } }, "404": { description: "Not found or private" } },
+        responses: { "200": { description: "1200x630 PNG card (banner, avatar, display name + @username, bio, all badges, social tiles). Stable profile data only — no presence, so it can't go stale in Discord's image cache. In-memory cached ~5 min keyed by profile content; served with ETag + Cache-Control: public, max-age=300. Use the ?v= versioned URL from the OG page for crawler freshness.", content: { "image/png": { schema: { type: "string", format: "binary" } } } }, "304": { description: "Not modified (If-None-Match matches)" }, "404": { description: "Not found or private" } },
       },
     },
     "/profiles/click": {
@@ -494,9 +505,9 @@ export const openapi = {
     "/analytics/me": {
       get: {
         tags: ["Analytics"],
-        summary: "Get your analytics",
+        summary: "Get your analytics (Premium API access: api.advanced)",
         parameters: [{ name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to scope (defaults to primary)" }],
-        responses: { "200": { description: "Views and clicks aggregates" } },
+        responses: { "200": { description: "Views and clicks aggregates" }, "403": { description: "Requires the advanced API level (Premium tier or api.advanced permission)" } },
       },
     },
 
@@ -581,12 +592,12 @@ export const openapi = {
     "/webhooks": {
       get: {
         tags: ["Webhooks"],
-        summary: "List your webhooks with their last delivery",
-        responses: { "200": { description: "Array of webhooks" } },
+        summary: "List your webhooks with their last delivery (Enterprise API access: api.enterprise)",
+        responses: { "200": { description: "Array of webhooks" }, "403": { description: "Requires the enterprise API level (Enterprise tier or api.enterprise permission)" } },
       },
       post: {
         tags: ["Webhooks"],
-        summary: "Create a webhook",
+        summary: "Create a webhook (Enterprise API access: api.enterprise)",
         description: "Returns the signing secret exactly once. It is not recoverable afterwards.",
         requestBody: {
           required: true,
@@ -600,6 +611,7 @@ export const openapi = {
                   url: { type: "string", maxLength: 512, description: "http(s) endpoint" },
                   events: { type: "array", minItems: 1, items: { $ref: "#/components/schemas/WebhookEvent" }, uniqueItems: true },
                   active: { type: "boolean", default: true },
+                  template: { type: "string", maxLength: 2000, nullable: true, description: "Custom JSON payload with {{placeholders}}. Empty = default payload." },
                 },
               },
             },
@@ -611,14 +623,14 @@ export const openapi = {
     "/webhooks/{id}": {
       patch: {
         tags: ["Webhooks"],
-        summary: "Update a webhook (name, url, events, active)",
+        summary: "Update a webhook (name, url, events, active) (Enterprise API access: api.enterprise)",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { name: { type: "string", maxLength: 64 }, url: { type: "string", maxLength: 512 }, events: { type: "array", minItems: 1, items: { $ref: "#/components/schemas/WebhookEvent" } }, active: { type: "boolean" } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { name: { type: "string", maxLength: 64 }, url: { type: "string", maxLength: 512 }, events: { type: "array", minItems: 1, items: { $ref: "#/components/schemas/WebhookEvent" } }, active: { type: "boolean" }, template: { type: "string", maxLength: 2000, nullable: true, description: "Custom JSON payload with {{placeholders}}. Empty = default payload." } } } } } },
         responses: { "200": { description: "Updated webhook" }, "404": { description: "Webhook not found" } },
       },
       delete: {
         tags: ["Webhooks"],
-        summary: "Delete a webhook and its delivery history",
+        summary: "Delete a webhook and its delivery history (Enterprise API access: api.enterprise)",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Deleted" }, "404": { description: "Webhook not found" } },
       },
@@ -626,7 +638,7 @@ export const openapi = {
     "/webhooks/{id}/rotate-secret": {
       post: {
         tags: ["Webhooks"],
-        summary: "Rotate the signing secret (returned once)",
+        summary: "Rotate the signing secret (returned once) (Enterprise API access: api.enterprise)",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "New one-time secret" }, "404": { description: "Webhook not found" } },
       },
@@ -634,7 +646,7 @@ export const openapi = {
     "/webhooks/{id}/test": {
       post: {
         tags: ["Webhooks"],
-        summary: "Send a test delivery (webhook.test event)",
+        summary: "Send a test delivery (webhook.test event) (Enterprise API access: api.enterprise)",
         description: "Rate-limited to 5 per minute per user.",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Test delivery queued" }, "400": { description: "Delivery failed immediately" }, "404": { description: "Webhook not found" }, "429": { description: "Rate limited" } },
@@ -643,7 +655,7 @@ export const openapi = {
     "/webhooks/{id}/deliveries": {
       get: {
         tags: ["Webhooks"],
-        summary: "List recent deliveries for a webhook",
+        summary: "List recent deliveries for a webhook (Enterprise API access: api.enterprise)",
         parameters: [
           { name: "id", in: "path", required: true, schema: { type: "string" } },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
@@ -655,15 +667,15 @@ export const openapi = {
     "/discord": {
       get: {
         tags: ["Discord"],
-        summary: "Get your Discord connection status, settings, and current presence snapshot",
+        summary: "Get your Discord connection status, settings, and current presence snapshot (Premium API access: api.advanced)",
         parameters: [{ name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to scope (defaults to primary)" }],
-        responses: { "200": { description: "Status, settings, and presence" } },
+        responses: { "200": { description: "Status, settings, and presence" }, "403": { description: "Requires the advanced API level (Premium tier or api.advanced permission)" } },
       },
     },
     "/discord/connect": {
       get: {
         tags: ["Discord"],
-        summary: "Get the Discord OAuth2 authorize URL for your account",
+        summary: "Get the Discord OAuth2 authorize URL for your account (Premium API access: api.advanced)",
         responses: { "200": { description: "Authorize URL", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { type: "object", properties: { url: { type: "string" } } } } } } } }, "400": { description: "Discord integration not configured" } },
       },
     },
@@ -682,7 +694,7 @@ export const openapi = {
     "/discord/disconnect": {
       post: {
         tags: ["Discord"],
-        summary: "Disconnect your Discord account and stop presence tracking",
+        summary: "Disconnect your Discord account and stop presence tracking (Premium API access: api.advanced)",
         parameters: [{ name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to scope (defaults to primary)" }],
         responses: { "200": { description: "Disconnected" } },
       },
@@ -690,7 +702,7 @@ export const openapi = {
     "/discord/settings": {
       put: {
         tags: ["Discord"],
-        summary: "Update Discord presence visibility and webhook settings",
+        summary: "Update Discord presence visibility and webhook settings (Premium API access: api.advanced)",
         parameters: [{ name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to scope (defaults to primary)" }],
         requestBody: {
           required: true,
@@ -701,7 +713,7 @@ export const openapi = {
                 properties: {
                   showDiscordPresence: { type: "boolean", description: "Show presence on the public profile and link previews" },
                   showDiscordActivity: { type: "boolean", description: "Include activity details (game/song/app)" },
-                  webhookUrl: { type: "string", description: "Discord webhook URL, or empty string to clear" },
+                  webhookUrl: { type: "string", description: "Discord webhook URL, or empty string to clear. Changing it while a posted message exists deletes the old message." },
                 },
               },
             },
@@ -713,32 +725,71 @@ export const openapi = {
     "/discord/post": {
       post: {
         tags: ["Discord"],
-        summary: "Post a profile embed to a Discord webhook",
+        summary: "Post (or update) the profile card embed to a Discord webhook (Premium API access: api.advanced)",
         parameters: [{ name: "profileId", in: "query", required: false, schema: { type: "string" }, description: "Profile to scope (defaults to primary)" }],
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { url: { type: "string", description: "Webhook URL (optional if one is saved)" } } } } } },
-        responses: { "200": { description: "Posted" }, "400": { description: "No webhook configured or invalid URL" } },
+        responses: { "200": { description: "Posted or updated in place. Embed = rendered profile card image (versioned og.png URL) + short title; no presence text so it can't go stale.", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { type: "object", properties: { messageId: { type: ["string", "null"] }, mode: { type: "string", enum: ["created", "updated", "none"] } } } } } } } }, "400": { description: "No webhook configured or invalid URL" }, "502": { description: "Discord webhook failed" } },
       },
     },
 
     "/invites": {
       get: {
         tags: ["Invites"],
-        summary: "List invite codes you can use",
-        responses: { "200": { description: "Array of invite codes" } },
+        summary: "List your invite codes and generation status",
+        description: "Your invite codes plus meta: event allowance (with expiry), role-based generation config, cooldown remaining, and whether generation is enabled for you. Expired event codes are refunded lazily on this call.",
+        responses: { "200": { description: "Array of invite codes + meta" } },
       },
       post: {
         tags: ["Invites"],
-        summary: "Create an invite code (admin only)",
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { code: { type: "string" }, maxUses: { type: "integer" } } } } } },
-        responses: { "201": { description: "Created invite" } },
+        summary: "Create an invite code",
+        description: "Admins with `invites.manage` generate without limits. Other users generate within their role quota (`invites.generate` permission + per-role batch/outstanding limits) or their event allowance, subject to the global `userGenerationEnabled` switch, a per-role cooldown, and expiry bounds (min/max, capped by the allowance expiry).",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { count: { type: "integer", minimum: 1, maximum: 50 }, expiresInDays: { type: "integer", minimum: 1, maximum: 365 } } } } } },
+        responses: { "201": { description: "Created invite codes + meta" }, "403": { description: "Banned / disabled / no credits" }, "429": { description: "Cooldown active" } },
       },
     },
     "/invites/{id}": {
       delete: {
         tags: ["Invites"],
-        summary: "Delete an invite code (admin only)",
+        summary: "Revoke an invite code you created",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Deleted" } },
+      },
+    },
+    "/admin/invites": {
+      get: {
+        tags: ["Admin"],
+        summary: "List all invite codes (admin only)",
+        description: "Every invite code across all creators, with the creator and (when used) the account that redeemed it.",
+        responses: { "200": { description: "Array of invite codes" } },
+      },
+    },
+    "/admin/invite-settings": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get invite generation settings (admin only)",
+        description: "Whether non-admin users may generate invites, and how many users are eligible (not invite-banned).",
+        responses: { "200": { description: "{ userGenerationEnabled, eligibleUserCount }" } },
+      },
+      put: {
+        tags: ["Admin"],
+        summary: "Set invite generation settings (admin only)",
+        description: "Globally enable or disable non-admin invite generation.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["userGenerationEnabled"], properties: { userGenerationEnabled: { type: "boolean" } } } } } },
+        responses: { "200": { description: "Updated settings" } },
+      },
+    },
+    "/admin/invite-events": {
+      get: {
+        tags: ["Admin"],
+        summary: "List invite grant events (admin only)",
+        responses: { "200": { description: "Array of events" } },
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Run an invite event (admin only)",
+        description: "Grants every non-banned user an invite allowance (`count` credits) that expires after `expiryDays`. Users then generate codes within that allowance; codes expiring unused before the allowance expiry are refunded.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["count", "expiryDays"], properties: { count: { type: "integer", minimum: 1, maximum: 1000 }, expiryDays: { type: "integer", minimum: 1, maximum: 3650 } } } } } },
+        responses: { "201": { description: "{ grantedUsers, event, allowanceExpiresAt }" } },
       },
     },
 
@@ -754,8 +805,15 @@ export const openapi = {
         tags: ["Admin"],
         summary: "Update a user (admin only)",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { roleId: { type: "string", format: "uuid", description: "Role id" }, tier: { type: "string", enum: ["FREE", "PRO", "ENTERPRISE"] }, trackLimit: { type: ["integer", "null"] }, profileLimit: { type: ["integer", "null"] }, aliasLimit: { type: ["integer", "null"] }, badges: { type: "array", items: { type: "string", format: "uuid" } } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { roleId: { type: "string", format: "uuid", description: "Role id" }, tier: { type: "string", enum: ["FREE", "PRO", "ENTERPRISE"] }, trackLimit: { type: ["integer", "null"] }, profileLimit: { type: ["integer", "null"] }, aliasLimit: { type: ["integer", "null"] }, badges: { type: "array", items: { type: "string", format: "uuid" } }, inviteBanned: { type: "boolean", description: "Block/allow invite events and invite generation (ban also revokes outstanding invites)" } } } } } },
         responses: { "200": { description: "Updated user" } },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Permanently delete a user (GDPR erasure, admin only)",
+        description: "Irreversibly deletes the account, all profiles, uploads, webhooks, passkeys, invite codes, and the user's auth-log and account-ban references.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "User deleted" }, "400": { description: "Cannot delete your own account" }, "404": { description: "User not found" } },
       },
     },
     "/admin/users/{id}/reset-password": {
@@ -872,6 +930,24 @@ export const openapi = {
       bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
     },
     schemas: {
+      SelfUser: {
+        type: "object",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          username: { type: "string" },
+          email: { type: "string" },
+          role: { type: ["object", "null"] },
+          permissions: { type: "array", items: { type: "string" } },
+          isAdmin: { type: "boolean" },
+          tier: { type: "string", enum: ["FREE", "PRO", "ENTERPRISE"] },
+          apiLevel: { type: "string", enum: ["basic", "advanced", "enterprise"], description: "Effective API access: tier default, raised by the api.basic/api.advanced/api.enterprise role permissions" },
+          trackLimit: { type: ["integer", "null"] },
+          profileLimit: { type: ["integer", "null"] },
+          aliasLimit: { type: ["integer", "null"] },
+          badges: { type: "array", items: { type: "string", format: "uuid" } },
+          totpEnabled: { type: "boolean" },
+        },
+      },
       Profile: {
         type: "object",
         properties: {
@@ -986,7 +1062,7 @@ export const openapi = {
       },
       RolePermission: {
         type: "string",
-        enum: ["users.view", "users.manage", "profiles.manage", "invites.manage", "bans.manage", "roles.manage", "badges.manage", "logs.view"],
+        enum: ["users.view", "users.manage", "profiles.manage", "invites.manage", "invites.generate", "bans.manage", "roles.manage", "badges.manage", "logs.view"],
       },
       PublicDiscord: {
         type: ["object", "null"],
@@ -1018,6 +1094,14 @@ export const openapi = {
           applicationId: { type: ["string", "null"] },
           largeImage: { type: ["string", "null"] },
           smallImage: { type: ["string", "null"] },
+          buttons: { type: ["array", "null"], items: { type: "string" }, description: "Presence button labels only (Discord never includes URLs)" },
+          timestamps: {
+            type: ["object", "null"],
+            properties: {
+              start: { type: ["integer", "null"], description: "Epoch ms the activity started" },
+              end: { type: ["integer", "null"], description: "Epoch ms the activity ends (e.g. track length for Spotify)" },
+            },
+          },
         },
       },
       SocialLink: {
@@ -1040,7 +1124,7 @@ export const openapi = {
       },
       WebhookEvent: {
         type: "string",
-        enum: ["profile.viewed", "link.clicked", "profile.updated", "webhook.test"],
+        enum: ["profile.viewed", "link.clicked", "profile.updated", "profile.created", "profile.deleted", "user.registered", "user.updated", "webhook.test"],
       },
     },
   },

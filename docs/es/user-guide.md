@@ -18,7 +18,7 @@ La pestaña **Perfiles** gestiona cada página de tu cuenta:
 - **Crear un perfil** — introduce un slug en minúsculas (p. ej. `gaming`) y haz clic en **Crear Perfil**. Cada perfil tiene su propio slug, enlaces, música, tema e interruptor público/privado. Las cuentas gratuitas obtienen 1 perfil; los planes superiores aumentan el límite.
 - **Establecer principal** — el perfil principal es el predeterminado de la cuenta. Su slug está fijado a tu nombre de usuario; usa aliases para darle URLs cortas adicionales.
 - **Aliases** — cada perfil puede tener URLs cortas adicionales que resuelven a la misma página (p. ej. `/bio` apuntando a tu perfil principal). Aplican los límites del plan. Los aliases facilitan compartir un enlace corto y memorable a un perfil específico.
-- **Insignias** — muestra insignias en una página de perfil como iconos de color (cada insignia tiene su propio color e icono). Las insignias provienen del conjunto que los administradores asignan a tu cuenta; tú eliges cuáles aparecen por perfil.
+- **Insignias** — muestra insignias en una página de perfil como iconos de color (cada insignia tiene su propio color e icono). Las insignias provienen del conjunto que los administradores asignan a tu cuenta; tú eliges cuáles aparecen por perfil. Las insignias que aún no posees aparecen atenuadas con un candado y no se pueden activar hasta que un administrador te las conceda.
 - **Eliminar un perfil** — cualquier perfil puede eliminarse. Si eliminas el perfil principal, el estado de principal pasa a tu perfil más antiguo restante; el último perfil de la cuenta está protegido.
 
 El selector de la cabecera cambia qué perfil editan las otras pestañas (Perfil, Enlaces, Apariencia, Analíticas, Email, Música, Discord, Datos), y **Ver Perfil** abre el actualmente seleccionado.
@@ -81,6 +81,17 @@ La pestaña **Discord** (solo presente cuando la instancia tiene Discord configu
 ## Analíticas
 
 La pestaña **Analíticas** muestra vistas y clics en enlaces a lo largo del tiempo, con recuentos totales y únicos. Tus propias visitas no se cuentan.
+
+## Invitaciones
+
+La pestaña **Invitaciones** es donde gestionas los códigos de registro y cualquier crédito de invitación que tengas:
+
+- **Allowance de evento** — si la instancia ejecuta un evento de invitación, recibes un allowance (un número de invitaciones) que vence en una fecha fijada. Cada invitación que generes a partir de él cuenta contra el allowance.
+- **Cuota de rol** — si tu rol puede generar invitaciones, la pestaña muestra tu límite por lote y tu tiempo de espera. La capacidad de generar de cada cuenta la controla la instancia; si está desactivada, la pestaña te lo indica.
+- **Generar** — elige cuántos códigos y un vencimiento en días (entre el mínimo y el máximo del rol, y nunca después del vencimiento de tu allowance). Deja el vencimiento en blanco para usar el predeterminado. Tras el tiempo de espera, puedes generar de nuevo.
+- **Reembolsos** — un código de evento que vence *sin usarse antes* de que venza tu allowance se reembolsa: el crédito vuelve a tu allowance en tu siguiente visita a la pestaña, así no se desperdicia nada.
+
+Los códigos que ya no necesites pueden **revocarse** (excepto una vez usados). Si un administrador te baneó de invitaciones, la pestaña muestra un aviso y ya no puedes generar ni recibir allowance.
 
 ## Me han bloqueado — ¿qué hago?
 

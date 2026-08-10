@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import type { MusicTrack } from "@/lib/api";
-import { Play, Music, ExternalLink, Radio, VolumeX, Volume2 } from "lucide-react";
+import { Play, Music, ExternalLink, Radio, VolumeX, Volume2, ChevronDown } from "lucide-react";
 
 interface YtPlayerInstance {
   playVideo(): void;
+  pauseVideo(): void;
   mute(): void;
   unMute(): void;
   isMuted(): boolean;
@@ -150,19 +151,55 @@ function FullVersionPlayer({ track, accent }: { track: MusicTrack; accent: strin
   );
 }
 
-function TrackPlayer({ track, accent }: { track: MusicTrack; accent: string }) {
+function LocalAudioPlayer({ src, accent, started }: { src: string; accent: string; started: boolean }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const startedRef = useRef(started);
+
+  useEffect(() => {
+    startedRef.current = started;
+  }, [started]);
+
+  useEffect(() => {
+    const audio = ref.current;
+    if (!audio) return;
+    if (started) {
+      void audio.play().catch(() => {});
+    } else {
+      audio.pause();
+    }
+  }, [started]);
+
+  useEffect(() => {
+    const unlock = () => {
+      if (!startedRef.current) return;
+      const audio = ref.current;
+      if (audio && audio.paused) void audio.play().catch(() => {});
+    };
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  return (
+    <audio
+      ref={ref}
+      controls
+      autoPlay={started}
+      playsInline
+      preload="auto"
+      className="w-full"
+      style={{ accentColor: accent }}
+      src={src}
+    />
+  );
+}
+
+function TrackPlayer({ track, accent, started }: { track: MusicTrack; accent: string; started: boolean }) {
   if (track.provider === "local" && track.filePath) {
-    return (
-      <audio
-        controls
-        autoPlay
-        playsInline
-        preload="auto"
-        className="w-full"
-        style={{ accentColor: accent }}
-        src={track.filePath}
-      />
-    );
+    return <LocalAudioPlayer src={track.filePath} accent={accent} started={started} />;
   }
 
   if (track.provider === "spotify" && track.url) {
@@ -170,11 +207,12 @@ function TrackPlayer({ track, accent }: { track: MusicTrack; accent: string }) {
     return (
       <div className="flex flex-col gap-2">
         <iframe
-          src={withParams(track.url, { autoplay: "true" })}
+          key={String(started)}
+          src={started ? withParams(track.url, { autoplay: "true" }) : track.url}
           width="100%"
           height={height}
           frameBorder="0"
-          allow="autoplay; encrypted-media"
+          allow={started ? "autoplay; encrypted-media" : "encrypted-media"}
           allowTransparency
           title={track.title ?? "Spotify track"}
           className="rounded-lg bg-black/20"
@@ -198,16 +236,21 @@ function TrackPlayer({ track, accent }: { track: MusicTrack; accent: string }) {
   }
 
   if (track.provider === "youtube" && track.url) {
-    return <YouTubePlayer url={track.url} accent={accent} />;
+    return <YouTubePlayer url={track.url} accent={accent} started={started} />;
   }
 
   return null;
 }
 
-function YouTubePlayer({ url, accent }: { url: string; accent: string }) {
+function YouTubePlayer({ url, accent, started }: { url: string; accent: string; started: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YtPlayerInstance | null>(null);
+  const startedRef = useRef(started);
   const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    startedRef.current = started;
+  }, [started]);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,7 +266,7 @@ function YouTubePlayer({ url, accent }: { url: string; accent: string }) {
         host: "https://www.youtube-nocookie.com",
         playerVars: {
           rel: "0",
-          autoplay: "1",
+          autoplay: startedRef.current ? "1" : "0",
           playsinline: "1",
           origin: window.location.origin,
         },
@@ -237,7 +280,11 @@ function YouTubePlayer({ url, accent }: { url: string; accent: string }) {
             );
             frame.style.width = "100%";
             frame.style.height = "100%";
-            startWithSound(player, () => setMuted(false), () => setMuted(true));
+            if (startedRef.current) {
+              startWithSound(player, () => setMuted(false), () => setMuted(true));
+            } else {
+              player.pauseVideo();
+            }
           },
         },
       });
@@ -249,6 +296,59 @@ function YouTubePlayer({ url, accent }: { url: string; accent: string }) {
       playerRef.current = null;
     };
   }, [url]);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (started) {
+      startWithSound(player, () => setMuted(false), () => setMuted(true));
+    } else {
+      player.pauseVideo();
+    }
+  }, [started]);
+
+  useEffect(() => {
+    const unlock = () => {
+      if (!startedRef.current) return;
+      const player = playerRef.current;
+      if (!player) return;
+      if (player.isMuted()) {
+        player.unMute();
+        player.playVideo();
+        setMuted(false);
+      } else if (player.getPlayerState() !== window.YT?.PlayerState.PLAYING) {
+        player.playVideo();
+      }
+    };
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    let wasPlaying = false;
+    const onBlur = () => {
+      if (!startedRef.current) return;
+      const p = playerRef.current;
+      wasPlaying = p ? p.getPlayerState() === window.YT?.PlayerState.PLAYING : false;
+    };
+    const onFocus = () => {
+      if (!startedRef.current) return;
+      const p = playerRef.current;
+      if (!p || !wasPlaying) return;
+      if (p.getPlayerState() !== window.YT?.PlayerState.PLAYING) p.playVideo();
+      wasPlaying = false;
+    };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
 
   const toggleMute = () => {
     const player = playerRef.current;
@@ -264,7 +364,7 @@ function YouTubePlayer({ url, accent }: { url: string; accent: string }) {
 
   return (
     <div className="relative w-full rounded-lg bg-black/20 overflow-hidden">
-      <div className="aspect-video w-full" ref={containerRef} />
+      <div className="mx-auto aspect-video w-full max-w-[34rem]" ref={containerRef} />
       <button
         onClick={toggleMute}
         title={muted ? "Unmute" : "Mute"}
@@ -347,9 +447,119 @@ export function MusicPlayer({
             {active.artist ? `${active.title ? `${active.title} — ` : ""}${active.artist}` : active.title}
           </span>
         </div>
-        <TrackPlayer key={active.id} track={active} accent={accent} />
+        <TrackPlayer key={active.id} track={active} accent={accent} started />
         <FullVersionPlayer track={active} accent={accent} />
       </div>
+    </div>
+  );
+}
+
+export function FloatingMusicPlayer({
+  tracks,
+  accent,
+  textColor,
+  started,
+}: {
+  tracks: MusicTrack[];
+  accent: string;
+  textColor: string;
+  started: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (activeIndex >= tracks.length) setActiveIndex(0);
+  }, [tracks.length, activeIndex]);
+
+  if (tracks.length === 0) return null;
+
+  const ordered = orderTracks(tracks);
+  const active = ordered[Math.min(activeIndex, ordered.length - 1)];
+  const muted = `${textColor}88`;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      {open ? (
+        <div
+          className="w-[min(20rem,calc(100vw-2rem))] rounded-2xl p-3 shadow-2xl"
+          style={{
+            backgroundColor: "rgba(18,18,22,0.96)",
+            border: `1px solid ${accent}30`,
+            color: textColor,
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-2 px-1">
+            <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>
+              <Music className="h-3.5 w-3.5" />
+              Music
+            </span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[11px] truncate max-w-[9rem]" style={{ color: muted }}>
+                {active.artist ? `${active.title ?? ""}${active.title ? " — " : ""}${active.artist}` : active.title}
+              </span>
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors flex-shrink-0"
+                title="Minimize"
+                aria-label="Minimize music player"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {ordered.length > 1 && (
+            <div className="flex flex-col gap-1.5 mb-2">
+              {ordered.map((track, i) => (
+                <button
+                  key={track.id}
+                  onClick={() => setActiveIndex(i)}
+                  className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-left transition-all duration-200"
+                  style={{
+                    backgroundColor: i === activeIndex ? `${accent}18` : `${accent}08`,
+                    color: i === activeIndex ? accent : textColor,
+                    border: `1px solid ${i === activeIndex ? `${accent}40` : `${accent}12`}`,
+                  }}
+                >
+                  <Play className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-medium truncate">
+                      {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
+                    </span>
+                    {track.artist && (
+                      <span className="text-[10px] opacity-60 truncate">{track.artist}</span>
+                    )}
+                  </div>
+                  {track.fullUrl && <Radio className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <TrackPlayer key={active.id} track={active} accent={accent} started={started} />
+          <FullVersionPlayer track={active} accent={accent} />
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="relative h-14 w-14 rounded-full flex items-center justify-center shadow-xl transition-transform hover:scale-105 active:scale-95"
+          style={{
+            backgroundColor: accent,
+            color: "#fff",
+            boxShadow: `0 8px 28px -8px ${accent}aa`,
+          }}
+          title="Open music player"
+          aria-label="Open music player"
+        >
+          <Music className="h-6 w-6" />
+          <span className="absolute top-0.5 right-0.5 flex h-3 w-3">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-white/70 animate-ping" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-white" />
+          </span>
+        </button>
+      )}
     </div>
   );
 }

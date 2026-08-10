@@ -6,10 +6,16 @@ import { branding } from "@/config/branding";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 
 const themes = [
-  { name: "Midnight", bg: "#09090b", cardBg: "rgba(24,24,27,0.6)", text: "#e4e4e7", accent: "#7c3aed", banner: "from-violet-600 via-violet-500 to-cyan-500" },
-  { name: "Ocean", bg: "#0c1222", cardBg: "rgba(15,23,42,0.7)", text: "#e2e8f0", accent: "#0ea5e9", banner: "from-cyan-500 via-blue-500 to-indigo-500" },
-  { name: "Sunset", bg: "#1a0a0a", cardBg: "rgba(45,10,10,0.6)", text: "#fef2f2", accent: "#f97316", banner: "from-orange-500 via-rose-500 to-pink-500" },
-  { name: "Forest", bg: "#0a1a0f", cardBg: "rgba(10,30,15,0.6)", text: "#ecfdf5", accent: "#22c55e", banner: "from-emerald-500 via-teal-500 to-cyan-500" },
+  { name: "Midnight", bg: "#09090b", cardBg: "rgba(24,24,27,0.6)", text: "#e4e4e7", accent: "#7c3aed", banner: "from-violet-600 via-violet-500 to-cyan-500", tier: "free" as const },
+  { name: "Ocean", bg: "#0c1222", cardBg: "rgba(15,23,42,0.7)", text: "#e2e8f0", accent: "#0ea5e9", banner: "from-cyan-500 via-blue-500 to-indigo-500", tier: "free" as const },
+  { name: "Sunset", bg: "#1a0a0a", cardBg: "rgba(45,10,10,0.6)", text: "#fef2f2", accent: "#f97316", banner: "from-orange-500 via-rose-500 to-pink-500", tier: "free" as const },
+  { name: "Forest", bg: "#0a1a0f", cardBg: "rgba(10,30,15,0.6)", text: "#ecfdf5", accent: "#22c55e", banner: "from-emerald-500 via-teal-500 to-cyan-500", tier: "free" as const },
+  { name: "Aurora", bg: "#071426", cardBg: "rgba(10,25,45,0.65)", text: "#e0f2fe", accent: "#22d3ee", banner: "from-cyan-400 via-sky-500 to-violet-500", tier: "premium" as const },
+  { name: "Royal", bg: "#0b0712", cardBg: "rgba(28,17,42,0.65)", text: "#f5f3ff", accent: "#a78bfa", banner: "from-violet-500 via-purple-500 to-fuchsia-500", tier: "premium" as const },
+  { name: "Golden", bg: "#120d04", cardBg: "rgba(35,28,10,0.6)", text: "#fffbeb", accent: "#f59e0b", banner: "from-amber-500 via-yellow-500 to-orange-500", tier: "premium" as const },
+  { name: "Obsidian", bg: "#05060a", cardBg: "rgba(16,18,26,0.7)", text: "#eef2ff", accent: "#34d399", banner: "from-emerald-500 via-teal-400 to-sky-400", tier: "enterprise" as const },
+  { name: "Nebula", bg: "#0a0614", cardBg: "rgba(30,10,45,0.6)", text: "#fae8ff", accent: "#d946ef", banner: "from-fuchsia-500 via-purple-500 to-indigo-500", tier: "enterprise" as const },
+  { name: "Pearl", bg: "#f4f1eb", cardBg: "rgba(255,255,255,0.85)", text: "#1c1917", accent: "#b45309", banner: "from-amber-400 via-yellow-300 to-orange-400", tier: "enterprise" as const },
 ];
 
 const mockLinks = [
@@ -23,7 +29,7 @@ function BrowserMockup({ themeIndex }: { themeIndex: number }) {
   const t = themes[themeIndex];
 
   return (
-    <div className="mx-auto w-full max-w-lg rounded-2xl border border-zinc-800/80 bg-zinc-900/80 overflow-hidden shadow-2xl shadow-violet-600/5">
+    <div className="mx-auto w-full max-w-4xl rounded-2xl border border-zinc-800/80 bg-zinc-900/80 overflow-hidden shadow-2xl shadow-violet-600/5">
       <div className="flex items-center gap-2 px-4 py-3 bg-zinc-900/90 border-b border-zinc-800/60">
         <div className="flex gap-1.5">
           <div className="h-3 w-3 rounded-full bg-zinc-700" />
@@ -46,21 +52,25 @@ function BrowserMockup({ themeIndex }: { themeIndex: number }) {
         </div>
 
         <div className="px-6 -mt-8 relative z-10">
-          <div className="rounded-2xl p-6 text-center transition-colors duration-500" style={{ backgroundColor: t.cardBg }}>
-            <div
-              className="mx-auto h-20 w-20 rounded-full flex items-center justify-center text-2xl font-bold text-white ring-4 ring-black/30 mb-4"
-              style={{ backgroundColor: t.accent }}
-            >
-              A
+          <div className="rounded-2xl p-6 text-left transition-colors duration-500" style={{ backgroundColor: t.cardBg }}>
+            <div className="flex items-center gap-4">
+              <div
+                className="h-16 w-16 shrink-0 rounded-full flex items-center justify-center text-xl font-bold text-white ring-4 ring-black/30"
+                style={{ backgroundColor: t.accent }}
+              >
+                A
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold truncate" style={{ color: t.text }}>Alex Morgan</h3>
+                <p className="text-sm truncate" style={{ color: `${t.text}88` }}>@alexmorgan</p>
+              </div>
             </div>
 
-            <h3 className="text-lg font-bold mb-0.5" style={{ color: t.text }}>Alex Morgan</h3>
-            <p className="text-sm mb-3" style={{ color: `${t.text}88` }}>@alexmorgan</p>
-            <p className="text-sm leading-relaxed mb-5" style={{ color: `${t.text}cc` }}>
+            <p className="mt-4 text-sm leading-relaxed mb-5" style={{ color: `${t.text}cc` }}>
               Designer &amp; developer building the future of digital identity.
             </p>
 
-            <div className="flex flex-col items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {mockLinks.map((link) => {
                 const isDiscordUsername = link.platform === "Discord" && !link.url.startsWith("http");
                 const displayUrl = link.url.startsWith("mailto:") ? link.url.slice(7) : link.url;
@@ -68,7 +78,7 @@ function BrowserMockup({ themeIndex }: { themeIndex: number }) {
                 return (
                   <div
                     key={link.platform}
-                    className="flex items-center gap-3 w-full max-w-sm px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                    className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
                     style={{
                       backgroundColor: `${t.accent}12`,
                       color: t.accent,
@@ -126,6 +136,17 @@ function ThemeSelector({ active, onSelect }: { active: number; onSelect: (i: num
               style={{ backgroundColor: theme.accent }}
             />
             <p className="text-xs font-medium text-white">{theme.name}</p>
+            {theme.tier !== "free" && (
+              <span
+                className={`absolute top-1 right-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${
+                  theme.tier === "enterprise"
+                    ? "bg-amber-400/20 text-amber-300"
+                    : "bg-violet-400/20 text-violet-300"
+                }`}
+              >
+                {theme.tier === "enterprise" ? "ENT" : "PRO"}
+              </span>
+            )}
             {active === i && (
               <div className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-violet-500 flex items-center justify-center animate-scale-in">
                 <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 12" fill="none">

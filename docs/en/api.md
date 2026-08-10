@@ -10,6 +10,18 @@ BioPlatform exposes a REST API under `/api`. The machine-readable OpenAPI 3.0 sp
 - **Success:** most responses return `{ "success": true, "data": ... }`.
 - **Content-Type:** JSON (`application/json`), except file uploads (multipart) and downloads.
 
+## Access levels
+
+API access is tier-based. Every account has an effective **api level** — `basic`, `advanced`, or `enterprise` — returned as `apiLevel` by `GET /api/auth/me`.
+
+| Level | Default tier | Endpoints |
+| --- | --- | --- |
+| `basic` | FREE | Profile CRUD, social links, theme, avatar/banner, music, email settings, badges, auth |
+| `advanced` | PRO (Premium) | Analytics, Discord integration, data export/import |
+| `enterprise` | ENTERPRISE | Webhooks (outbound delivery to your endpoint) |
+
+An **admin can override the tier default** by granting the `api.basic`, `api.advanced`, or `api.enterprise` permission to any role (Dashboard → Admin → Roles). A FREE account with a role carrying `api.advanced` gets advanced access; admins always have the enterprise level. Endpoints the caller lacks return `403` with `{ error: "This endpoint requires the <level> API tier", data: { required, apiLevel } }`.
+
 ## Health
 
 ### `GET /api/health`
@@ -64,7 +76,8 @@ Every account has one or more **profiles**, each with its own slug, theme, links
 | `GET` | `/api/profiles/me/export?format=xlsx\|ods` | Download your profile as a spreadsheet. Optional `?profileId=`. |
 | `POST` | `/api/profiles/me/import` | Import your profile from a spreadsheet (multipart `file`). Optional `?profileId=`. |
 | `GET` | `/api/profiles/:identifier` | Get a public profile by its **slug or alias**. Response includes `requestedSlug` (what you asked for) and the canonical `slug`, plus `badges`. No email or PII. Includes a `discord` presence object only when the owner connected Discord and opted in to sharing presence. |
-| `GET` | `/api/profiles/:identifier/og.png` | Server-rendered 1200×630 PNG card (name, avatar, bio, presence line, link/click counts) used as the OpenGraph image for shared profile links. |
+| `GET` | `/api/profiles/:identifier/presence` | Lightweight live presence snapshot (no profile fields): `status`, `statusLabel`, `activities`, `line`, `customStatus`, `updatedAt`. Returns `data: null` when the owner has no Discord connection or opted out of sharing presence. Same visibility rules as `:identifier`. |
+| `GET` | `/api/profiles/:identifier/og.png` | Server-rendered 1200×630 PNG card (banner backdrop, avatar, display name + `@username`, bio, **all** badges, social tiles, link/track counts) used as the OpenGraph image for shared profile links. Contains only stable profile data — live presence is intentionally **not** baked in, since Discord caches embed images for a long time. Cached in memory (~5 min, keyed by profile content) and sent with an `ETag` + `Cache-Control: public, max-age=300`. The `og:image` URL carries a content version (`?v=…`) so crawlers refetch when the profile changes. |
 | `POST` | `/api/profiles/click` | Record a social-link click (public; `profileId` + `platform`). |
 
 > Endpoints that manage music, email settings, analytics, and Discord settings accept an optional `?profileId=` query parameter to scope to a specific profile. When omitted, they operate on the account's primary profile.
@@ -116,8 +129,8 @@ Webhooks deliver JSON events to your own endpoint so you can react to activity o
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/api/webhooks` | List your webhooks with their most recent delivery. |
-| `POST` | `/api/webhooks` | Create a webhook (`name`, `url`, `events`, `active`). Returns the signing `secret` **exactly once**. |
-| `PATCH` | `/api/webhooks/:id` | Update name, url, events, or `active` (pause/resume). |
+| `POST` | `/api/webhooks` | Create a webhook (`name`, `url`, `events`, `active`, `template`). Returns the signing `secret` **exactly once**. |
+| `PATCH` | `/api/webhooks/:id` | Update name, url, events, `active` (pause/resume), or `template`. |
 | `POST` | `/api/webhooks/:id/rotate-secret` | Generate a new signing secret (returned once). |
 | `POST` | `/api/webhooks/:id/test` | Send a `webhook.test` delivery. Rate-limited to 5/minute/user. |
 | `GET` | `/api/webhooks/:id/deliveries?limit=` | Recent deliveries (default 20, max 50). |
@@ -130,6 +143,10 @@ Webhooks deliver JSON events to your own endpoint so you can react to activity o
 | `profile.viewed` | Someone views your public profile. |
 | `link.clicked` | Someone clicks one of your social links. |
 | `profile.updated` | You update your profile. |
+| `profile.created` | You create a new profile. |
+| `profile.deleted` | You delete a profile. |
+| `user.registered` | A new account is registered. |
+| `user.updated` | Your account changes (e.g. password) or an admin edits it. |
 | `webhook.test` | You trigger a test delivery. |
 
 ### Delivery payload
@@ -146,6 +163,26 @@ Every delivery is a `POST` with the shape:
 ```
 
 The `data` object is minimal and contains **no** personal information (no email, no IP). Webhooks and deliveries are scoped to per-user events only.
+
+### Discord webhooks
+
+A Discord webhook URL (channel → Integrations → Webhooks) works as a destination. Because Discord's API only accepts message-shaped bodies, deliveries to `discord.com`/`discordapp.com` (including `ptb.`/`canary.` subdomains) are sent as a formatted **embed** instead of raw JSON: a `BioPlatform · <event>` title, the event timestamp, and one field per top-level entry in `data`. A custom template that already produces a Discord message (`content`, `embeds`, `username`, `avatar_url`, `components`, `attachments`, or `poll`) passes through untouched; any other template payload is rendered as pretty-printed JSON in the embed's description. Embed text is truncated to Discord's per-field limits; the signature always covers the body actually sent.
+
+### Custom payload templates
+
+When creating or updating a webhook you can set `template` to a custom JSON document sent instead of the default payload. Leave it empty (or `null`) to receive the default payload above.
+
+Placeholders are replaced at delivery time:
+
+- `{{id}}` — delivery UUID
+- `{{event}}` — event name
+- `{{timestamp}}` — ISO timestamp
+- `{{data}}` — the full default `data` object
+- `{{data.<field>}}` — a field nested in `data` (dot path, e.g. `{{data.slug}}`)
+
+Example: sending `{"event":"{{event}}","profile":"{{data.slug}}","at":"{{timestamp}}"}` for a `profile.viewed` delivery produces `{"event":"profile.viewed","profile":"myhandle","at":"2026-01-01T00:00:00.000Z"}`. Unknown or missing fields render as `null`.
+
+The template must be valid JSON after replacing placeholders (max 2000 chars). The signature still covers the rendered body, so verify it as usual.
 
 ### Signature verification
 
@@ -192,14 +229,31 @@ OAuth2 account link plus a shared bot for live presence (bot must share a guild 
 | `GET` | `/api/discord/connect` | Returns `{ url }` — the Discord OAuth2 authorize URL (scope `identify`, `prompt=consent`). Requires the integration to be configured. |
 | `GET` | `/api/discord/callback` | OAuth2 callback (visited in the browser). Exchanges the code, upserts the `DiscordConnection`, redirects to `/dashboard?tab=discord&discord=connected|error`. |
 | `POST` | `/api/discord/disconnect` | Disconnect Discord: deletes the connection, turns off presence sharing. |
-| `PUT` | `/api/discord/settings` | Update `showDiscordPresence` (share presence on the public profile), `showDiscordActivity` (include activity details), or `webhookUrl` (empty string clears it). |
-| `POST` | `/api/discord/post` | Send a "Post to Discord" embed to the saved webhook (or a `url` passed in the body): display name, profile link, avatar thumbnail, bio, and current status/activity when presence sharing is on. |
+| `PUT` | `/api/discord/settings` | Update `showDiscordPresence` (share presence on the public profile), `showDiscordActivity` (include activity details), or `webhookUrl` (empty string clears it). If the webhook URL changes while a "Post to Discord" message exists, the old message is deleted from the previous webhook. |
+| `POST` | `/api/discord/post` | Post (or update) the profile embed to the saved webhook (or a `url` passed in the body). The embed shows your rendered profile card image (banner, avatar, name, bio, badges) with a short title — no presence text, so it can't go stale in Discord's image cache. Returns `{ messageId, mode }` where `mode` is `"created"` (new message) or `"updated"` (edited in place). Posting again — or editing your profile while a posted message exists — edits the same message instead of spamming new ones; switching webhooks deletes the old message and creates a fresh one. |
 
-Presence shown on the public profile and in the OG card is always gated by `showDiscordPresence`, and activity details by `showDiscordActivity` — a user who never opts in is never tracked or exposed.
+Presence shown on the public profile is always gated by `showDiscordPresence`, and activity details by `showDiscordActivity` — a user who never opts in is never tracked or exposed. The OG card and the "Post to Discord" embed never include presence (Discord caches those images), so they're built purely from stable profile data.
+
+The "Post to Discord" embed keeps a single message in sync: the posted message id and the webhook URL it was sent to are stored (webhook encrypted), so subsequent posts and profile edits `PATCH` that message in place. If the stored webhook changes, the old message is deleted first. The message id and webhook are cleared if the message can no longer be edited (e.g. the webhook was deleted). Because Discord caches embed images aggressively, the card and embed show only stable profile data (no live status/song) and the image URL is content-versioned, so it refreshes when the profile actually changes.
 
 ## Invites & Admin
 
-Invite endpoints are admin-gated (`POST /api/invites`, `DELETE /api/invites/:id`, `GET /api/invites`). Admin endpoints under `/api/admin/*` manage users, tiers, password resets, profiles, auth bans, manual unlocks, auth logs, **roles**, and **badges**. Admin access is permission-based (see [Admin Guide](./admin-guide.md) → Roles & Permissions).
+**Registration invites.** `POST /api/invites` creates invite codes. Admins with `invites.manage` generate up to 50 per call with an optional `expiresInDays`. Other users generate within their **role quota** (needs the `invites.generate` permission plus the role's batch limit > 0) or their **event allowance**, subject to the global `userGenerationEnabled` switch (admin panel), a per-role **cooldown**, and **expiry bounds**: the role's min/max expiry days, with the max additionally capped by the allowance's expiry date when generating from an allowance. Body: `count` (1–50, default 1) and optional `expiresInDays`. Returns the created codes plus a `meta` object with the user's `allowance`, `allowanceExpiresAt`, `outstanding`, `cooldownRemainingSeconds`, and their role's invite config.
+
+**Allowance & refunds.** Invite events grant an allowance (see below). Codes created from an allowance are tagged `fromAllowance: true`. A code that expires **unused before** the allowance itself expires is refunded automatically (its credit returns to the user's allowance on their next `GET /api/invites` or generate call); codes that die exactly at the allowance expiry are not refunded.
+
+`GET /api/invites` lists the caller's codes **and** the same `meta` object (allowance, role config, cooldown remaining, whether generation is currently possible). `DELETE /api/invites/:id` revokes an unused code you created; admins with `invites.manage` can revoke any unused code.
+
+**Admin endpoints** under `/api/admin/*` manage users, tiers, password resets, profiles, auth bans, manual unlocks, auth logs, **roles**, **badges**, and **invites**:
+
+- `GET /api/admin/invites` — every invite code across all creators, with the creator and — when used — the account that redeemed it.
+- `GET /api/admin/invite-settings` / `PUT /api/admin/invite-settings` — read or set `{ userGenerationEnabled }`, the master switch for non-admin invite generation (admin panel only, no environment variable).
+- `GET /api/admin/invite-events` — audit list of past invite events.
+- `POST /api/admin/invite-events` — run an invite event: `{ count, expiryDays }` grants every non-invite-banned user `count` allowance credits expiring after `expiryDays` days (returns `{ grantedUsers, event, allowanceExpiresAt }`).
+- `PATCH /api/admin/users/:id` accepts `inviteBanned` — banning zeroes the allowance, revokes the user's outstanding codes, and excludes them from future events.
+- `DELETE /api/admin/users/:id` — full GDPR erasure (account, profiles, uploads, webhooks, passkeys, invite codes, and the user's auth-log and account-ban references).
+
+Admin access is permission-based (see [Admin Guide](./admin-guide.md) → Roles &amp; Permissions).
 
 ## Rate limits
 

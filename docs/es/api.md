@@ -10,6 +10,18 @@ BioPlatform expone una API REST bajo `/api`. La especificación OpenAPI 3.0 legi
 - **Éxito:** la mayoría de las respuestas devuelven `{ "success": true, "data": ... }`.
 - **Content-Type:** JSON (`application/json`), excepto subidas de archivos (multipart) y descargas.
 
+## Niveles de acceso
+
+El acceso a la API está basado en el plan. Cada cuenta tiene un **nivel de API** efectivo — `basic`, `advanced` o `enterprise` — devuelto como `apiLevel` por `GET /api/auth/me`.
+
+| Nivel | Plan por defecto | Endpoints |
+| --- | --- | --- |
+| `basic` | GRATIS | CRUD del perfil, enlaces sociales, tema, avatar/banner, música, ajustes de email, insignias, auth |
+| `advanced` | PRO (Premium) | Analíticas, integración de Discord, exportación/importación de datos |
+| `enterprise` | ENTERPRISE | Webhooks (entrega saliente a tu endpoint) |
+
+Un **admin puede anular el plan por defecto** concediendo el permiso `api.basic`, `api.advanced` o `api.enterprise` a cualquier rol (Dashboard → Admin → Roles). Una cuenta GRATIS con un rol que tenga `api.advanced` obtiene acceso avanzado; los admins siempre tienen el nivel enterprise. Los endpoints a los que el llamador no tiene acceso devuelven `403` con `{ error: "This endpoint requires the <level> API tier", data: { required, apiLevel } }`.
+
 ## Salud
 
 ### `GET /api/health`
@@ -64,7 +76,8 @@ Cada cuenta tiene uno o más **perfiles**, cada uno con su propio slug, tema, en
 | `GET` | `/api/profiles/me/export?format=xlsx\|ods` | Descargar tu perfil como hoja de cálculo. `?profileId=` opcional. |
 | `POST` | `/api/profiles/me/import` | Importar tu perfil desde una hoja de cálculo (multipart `file`). `?profileId=` opcional. |
 | `GET` | `/api/profiles/:identifier` | Obtener un perfil público por su **slug o alias**. La respuesta incluye `requestedSlug` (lo que pediste) y el `slug` canónico, además de `badges`. Sin email ni PII. Incluye un objeto de presencia `discord` solo cuando el propietario conectó Discord y optó por compartir la presencia. |
-| `GET` | `/api/profiles/:identifier/og.png` | Tarjeta PNG 1200×630 renderizada en servidor (nombre, avatar, bio, línea de presencia, contadores de enlaces/clics) usada como imagen OpenGraph al compartir enlaces de perfil. |
+| `GET` | `/api/profiles/:identifier/presence` | Instantánea de presencia en vivo y ligera (sin campos de perfil): `status`, `statusLabel`, `activities`, `line`, `customStatus`, `updatedAt`. Devuelve `data: null` cuando el propietario no tiene conexión de Discord o no optó por compartir la presencia. Mismas reglas de visibilidad que `:identifier`. |
+| `GET` | `/api/profiles/:identifier/og.png` | Tarjeta PNG 1200×630 renderizada en servidor (fondo de banner, avatar, nombre visible + `@username`, bio, **todas** las insignias, mosaicos de redes sociales, contadores de enlaces/pistas) usada como imagen OpenGraph al compartir enlaces de perfil. Solo contiene datos de perfil estables — la presencia en vivo se excluye a propósito, ya que Discord cachea las imágenes de los embeds durante mucho tiempo. Se cachea en memoria (~5 min, por contenido de perfil) y se envía con un `ETag` + `Cache-Control: public, max-age=300`. La URL de `og:image` lleva una versión de contenido (`?v=…`) para que los rastreadores la vuelvan a descargar cuando el perfil cambie. |
 | `POST` | `/api/profiles/click` | Registrar un clic en un enlace social (público; `profileId` + `platform`). |
 
 > Los endpoints que gestionan música, ajustes de email, analíticas y ajustes de Discord aceptan un parámetro de consulta `?profileId=` opcional para limitarlos a un perfil específico. Si se omite, operan sobre el perfil principal de la cuenta.
@@ -116,8 +129,8 @@ Los webhooks entregan eventos JSON a tu propio endpoint para que puedas reaccion
 | Método | Endpoint | Descripción |
 | --- | --- | --- |
 | `GET` | `/api/webhooks` | Listar tus webhooks con su entrega más reciente. |
-| `POST` | `/api/webhooks` | Crear un webhook (`name`, `url`, `events`, `active`). Devuelve el `secret` de firma **exactamente una vez**. |
-| `PATCH` | `/api/webhooks/:id` | Actualizar nombre, url, eventos o `active` (pausar/reanudar). |
+| `POST` | `/api/webhooks` | Crear un webhook (`name`, `url`, `events`, `active`, `template`). Devuelve el `secret` de firma **exactamente una vez**. |
+| `PATCH` | `/api/webhooks/:id` | Actualizar nombre, url, eventos, `active` (pausar/reanudar) o `template`. |
 | `POST` | `/api/webhooks/:id/rotate-secret` | Generar un nuevo secreto de firma (devuelto una vez). |
 | `POST` | `/api/webhooks/:id/test` | Enviar una entrega `webhook.test`. Límite de 5/minuto/usuario. |
 | `GET` | `/api/webhooks/:id/deliveries?limit=` | Entregas recientes (20 por defecto, máximo 50). |
@@ -130,6 +143,10 @@ Los webhooks entregan eventos JSON a tu propio endpoint para que puedas reaccion
 | `profile.viewed` | Alguien visita tu perfil público. |
 | `link.clicked` | Alguien hace clic en uno de tus enlaces sociales. |
 | `profile.updated` | Actualizas tu perfil. |
+| `profile.created` | Creas un nuevo perfil. |
+| `profile.deleted` | Eliminas un perfil. |
+| `user.registered` | Se registra una nueva cuenta. |
+| `user.updated` | Tu cuenta cambia (p. ej. contraseña) o un administrador la edita. |
 | `webhook.test` | Disparas una entrega de prueba. |
 
 ### Carga útil de la entrega
@@ -146,6 +163,26 @@ Cada entrega es un `POST` con la forma:
 ```
 
 El objeto `data` es mínimo y **no** contiene información personal (sin email, sin IP). Los webhooks y las entregas se limitan a eventos por usuario.
+
+### Webhooks de Discord
+
+Una URL de webhook de Discord (canal → Integraciones → Webhooks) funciona como destino. Como la API de Discord solo acepta cuerpos con forma de mensaje, las entregas a `discord.com`/`discordapp.com` (incluidos los subdominios `ptb.`/`canary.`) se envían como un **embed** con formato en lugar de JSON crudo: un título `BioPlatform · <evento>`, la marca de tiempo del evento y un campo por cada entrada de nivel superior en `data`. Una plantilla personalizada que ya produzca un mensaje de Discord (`content`, `embeds`, `username`, `avatar_url`, `components`, `attachments` o `poll`) pasa sin cambios; cualquier otra carga útil de plantilla se renderiza como JSON con sangría en la descripción del embed. El texto del embed se trunca a los límites por campo de Discord; la firma siempre cubre el cuerpo realmente enviado.
+
+### Plantillas de carga útil personalizadas
+
+Al crear o actualizar un webhook puedes establecer `template` con un documento JSON personalizado que se envía en lugar de la carga útil por defecto. Déjalo vacío (o `null`) para recibir la carga útil por defecto anterior.
+
+Los marcadores de posición se sustituyen en el momento de la entrega:
+
+- `{{id}}` — UUID de la entrega
+- `{{event}}` — nombre del evento
+- `{{timestamp}}` — marca de tiempo ISO
+- `{{data}}` — el objeto `data` completo por defecto
+- `{{data.<campo>}}` — un campo dentro de `data` (ruta de puntos, p. ej. `{{data.slug}}`)
+
+Ejemplo: enviar `{"event":"{{event}}","profile":"{{data.slug}}","at":"{{timestamp}}"}` para una entrega `profile.viewed` produce `{"event":"profile.viewed","profile":"miusuario","at":"2026-01-01T00:00:00.000Z"}`. Los campos desconocidos o ausentes se renderizan como `null`.
+
+La plantilla debe ser JSON válido después de sustituir los marcadores (máximo 2000 caracteres). La firma sigue cubriendo el cuerpo renderizado, así que verifícala como siempre.
 
 ### Verificación de la firma
 
@@ -192,14 +229,31 @@ Vinculación OAuth2 de la cuenta más un bot compartido para la presencia en viv
 | `GET` | `/api/discord/connect` | Devuelve `{ url }` — la URL de autorización OAuth2 de Discord (scope `identify`, `prompt=consent`). Requiere que la integración esté configurada. |
 | `GET` | `/api/discord/callback` | Callback de OAuth2 (se visita en el navegador). Intercambia el código, crea/actualiza la `DiscordConnection` y redirige a `/dashboard?tab=discord&discord=connected|error`. |
 | `POST` | `/api/discord/disconnect` | Desconectar Discord: elimina la conexión y desactiva compartir presencia. |
-| `PUT` | `/api/discord/settings` | Actualizar `showDiscordPresence` (compartir presencia en el perfil público), `showDiscordActivity` (incluir detalles de actividad) o `webhookUrl` (cadena vacía la elimina). |
-| `POST` | `/api/discord/post` | Enviar un embed "Post to Discord" al webhook guardado (o a un `url` pasado en el body): nombre visible, enlace al perfil, miniatura del avatar, bio y estado/actividad actual cuando compartir presencia está activo. |
+| `PUT` | `/api/discord/settings` | Actualizar `showDiscordPresence` (compartir presencia en el perfil público), `showDiscordActivity` (incluir detalles de actividad) o `webhookUrl` (cadena vacía la elimina). Si el webhook cambia mientras existe un mensaje "Post to Discord", el mensaje antiguo se elimina del webhook anterior. |
+| `POST` | `/api/discord/post` | Publicar (o actualizar) el embed de perfil en el webhook guardado (o un `url` pasado en el body). El embed muestra tu tarjeta de perfil renderizada (banner, avatar, nombre, bio, insignias) con un título corto — sin texto de presencia, para que no quede obsoleto en la caché de imágenes de Discord. Devuelve `{ messageId, mode }` donde `mode` es `"created"` (mensaje nuevo) o `"updated"` (editado en su lugar). Publicar de nuevo — o editar tu perfil mientras existe un mensaje publicado — edita el mismo mensaje en vez de enviar mensajes repetidos; cambiar de webhook elimina el mensaje antiguo y crea uno nuevo. |
 
-La presencia mostrada en el perfil público y en la tarjeta OG siempre está condicionada por `showDiscordPresence`, y los detalles de actividad por `showDiscordActivity` — un usuario que nunca opta no es rastreado ni expuesto.
+La presencia mostrada en el perfil público siempre está condicionada por `showDiscordPresence`, y los detalles de actividad por `showDiscordActivity` — un usuario que nunca opta no es rastreado ni expuesto. La tarjeta OG y el embed "Post to Discord" nunca incluyen presencia (Discord cachea esas imágenes), por lo que se construyen solo con datos de perfil estables.
+
+El embed "Post to Discord" mantiene un único mensaje sincronizado: el id del mensaje publicado y el webhook al que se envió se guardan (el webhook cifrado), de modo que las publicaciones posteriores y las ediciones de perfil hacen `PATCH` de ese mensaje en su lugar. Si el webhook guardado cambia, primero se elimina el mensaje antiguo. El id del mensaje y el webhook se limpian si el mensaje ya no puede editarse (p. ej. el webhook fue eliminado). Como Discord cachea las imágenes de los embeds de forma agresiva, la tarjeta y el embed muestran solo datos de perfil estables (sin estado/canción en vivo) y la URL de la imagen lleva versión de contenido, así se actualiza cuando el perfil cambia de verdad.
 
 ## Invitaciones y Administración
 
-Los endpoints de invitaciones están restringidos a administradores (`POST /api/invites`, `DELETE /api/invites/:id`, `GET /api/invites`). Los endpoints de administración bajo `/api/admin/*` gestionan usuarios, planes, restablecimientos de contraseña, perfiles, bloqueos de autenticación, desbloqueos manuales, registros de autenticación, **roles** e **insignias**. El acceso de administración se basa en permisos (ver [Guía de Administración](./admin-guide.md) → Roles y Permisos).
+**Invitaciones de registro.** `POST /api/invites` crea códigos de invitación. Los administradores con `invites.manage` generan hasta 50 por llamada con un `expiresInDays` opcional. Los demás usuarios generan dentro de su **cuota de rol** (necesita el permiso `invites.generate` además del límite por lote del rol > 0) o de su **allowance de evento**, sujeto al interruptor global `userGenerationEnabled` (panel de administración), al **tiempo de espera** por rol y a los **límites de vencimiento**: los días mínimo/máximo del rol, con el máximo además limitado por la fecha de vencimiento del allowance al generar desde un allowance. Cuerpo: `count` (1–50, por defecto 1) y `expiresInDays` opcional. Devuelve los códigos creados más un objeto `meta` con el `allowance` del usuario, `allowanceExpiresAt`, `outstanding`, `cooldownRemainingSeconds` y la configuración de invitaciones de su rol.
+
+**Allowance y reembolsos.** Los eventos de invitación conceden un allowance (ver abajo). Los códigos creados desde un allowance están etiquetados `fromAllowance: true`. Un código que vence **sin usarse antes** de que venza el propio allowance se reembolsa automáticamente (su crédito vuelve al allowance del usuario en su siguiente `GET /api/invites` o llamada de generación); los códigos que mueren exactamente en el vencimiento del allowance no se reembolsan.
+
+`GET /api/invites` lista los códigos del llamante **y** el mismo objeto `meta` (allowance, configuración del rol, tiempo de espera restante, si la generación es posible actualmente). `DELETE /api/invites/:id` revoca un código sin usar que hayas creado; los administradores con `invites.manage` pueden revocar cualquier código sin usar.
+
+**Endpoints de administración** bajo `/api/admin/*` gestionan usuarios, planes, restablecimientos de contraseña, perfiles, bloqueos de autenticación, desbloqueos manuales, registros de autenticación, **roles**, **insignias** e **invitaciones**:
+
+- `GET /api/admin/invites` — todos los códigos de invitación de todos los creadores, con el creador y —si está usado— la cuenta que lo canjeó.
+- `GET /api/admin/invite-settings` / `PUT /api/admin/invite-settings` — leer o fijar `{ userGenerationEnabled }`, el interruptor maestro de la generación de invitaciones por parte de no administradores (solo panel de administración, sin variable de entorno).
+- `GET /api/admin/invite-events` — lista de auditoría de eventos de invitación pasados.
+- `POST /api/admin/invite-events` — ejecutar un evento de invitación: `{ count, expiryDays }` concede a cada usuario no baneado de invitaciones `count` créditos de allowance que expiran tras `expiryDays` días (devuelve `{ grantedUsers, event, allowanceExpiresAt }`).
+- `PATCH /api/admin/users/:id` acepta `inviteBanned` — el baneo pone el allowance a cero, revoca los códigos pendientes del usuario y lo excluye de futuros eventos.
+- `DELETE /api/admin/users/:id` — borrado completo GDPR (cuenta, perfiles, archivos subidos, webhooks, passkeys, códigos de invitación y las referencias del usuario en el registro de autenticación y en los baneos de cuenta).
+
+El acceso de administración se basa en permisos (ver [Guía de Administración](./admin-guide.md) → Roles y Permisos).
 
 ## Límites de peticiones
 

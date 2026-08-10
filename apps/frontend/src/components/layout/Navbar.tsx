@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LayoutDashboard } from "lucide-react";
 import { Container } from "@/components/layout/Container";
 import { cn } from "@/lib/utils";
 import { branding } from "@/config/branding";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
   { label: "Features", href: "#features" },
@@ -13,6 +14,7 @@ const navLinks = [
 ];
 
 export function Navbar() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -62,18 +64,30 @@ export function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              to="/login"
-              className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
-            >
-              Sign In
-            </Link>
-            <Link
-              to="/register"
-              className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
-            >
-              Get Started
-            </Link>
+            {user ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
 
           <button
@@ -115,20 +129,33 @@ export function Navbar() {
                 API Docs
               </Link>
               <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-col gap-2">
-                <Link
-                  to="/login"
-                  onClick={() => setIsOpen(false)}
-                  className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setIsOpen(false)}
-                  className="inline-flex items-center justify-center gap-2 h-8 w-full px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 transition-all"
-                >
-                  Get Started
-                </Link>
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setIsOpen(false)}
+                    className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 transition-all"
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={() => setIsOpen(false)}
+                      className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      to="/register"
+                      onClick={() => setIsOpen(false)}
+                      className="inline-flex items-center justify-center gap-2 h-8 w-full px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 transition-all"
+                    >
+                      Get Started
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </Container>

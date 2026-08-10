@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
+import fs from "fs";
+import path from "path";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -7,6 +9,9 @@ import { requireAdmin, requirePermission } from "../middleware/admin.js";
 import { updateProfileSchema, toPrismaJson, profileSlugSchema, stripHtml } from "../lib/validation.js";
 import { upsertPrimaryProfile, getPrimaryProfile } from "../lib/profile.js";
 import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_SLUGS } from "../lib/permissions.js";
+import { dispatchWebhookEvent } from "../lib/webhook.js";
+import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
+import { getEnv } from "../config/env.js";
 
 const router = Router();
 
@@ -19,6 +24,7 @@ const updateUserSchema = z.object({
   profileLimit: z.number().int().min(0).max(100).nullable().optional(),
   aliasLimit: z.number().int().min(0).max(100).nullable().optional(),
   badges: z.array(z.string().uuid()).optional(),
+  inviteBanned: z.boolean().optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -27,17 +33,26 @@ const resetPasswordSchema = z.object({
 
 const permissionEnum = z.enum(ALL_PERMISSIONS as unknown as [string, ...string[]]);
 
+const inviteConfigSchema = z.object({
+  inviteBatchLimit: z.number().int().min(0).max(1000).optional(),
+  inviteOutstandingLimit: z.number().int().min(0).max(100000).optional(),
+  inviteCooldownMinutes: z.number().int().min(0).max(525600).optional(),
+  inviteDefaultExpiryDays: z.number().int().min(1).max(3650).optional(),
+  inviteMinExpiryDays: z.number().int().min(1).max(3650).optional(),
+  inviteMaxExpiryDays: z.number().int().min(1).max(3650).optional(),
+});
+
 const roleSchema = z.object({
   name: z.string().min(2).max(32).transform((v) => stripHtml(v).trim()),
   description: z.string().max(256).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
   permissions: z.array(permissionEnum).optional(),
-});
+}).extend(inviteConfigSchema.shape);
 
 const roleUpdateSchema = z.object({
   name: z.string().min(2).max(32).transform((v) => stripHtml(v).trim()).optional(),
   description: z.string().max(256).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
   permissions: z.array(permissionEnum).optional(),
-});
+}).extend(inviteConfigSchema.shape);
 
 const badgeSchema = z.object({
   slug: profileSlugSchema.transform((v) => stripHtml(v) || v).optional(),
@@ -53,10 +68,23 @@ const badgeUpdateSchema = z.object({
   icon: z.string().regex(/^[A-Z][A-Za-z0-9]*$/, { message: "Icon must be a valid icon name" }).optional(),
 });
 
-const userInclude = {
+const userSelect = {
+  id: true,
+  username: true,
+  email: true,
+  roleId: true,
+  tier: true,
+  trackLimit: true,
+  profileLimit: true,
+  aliasLimit: true,
+  inviteBanned: true,
+  inviteBannedAt: true,
+  inviteAllowance: true,
+  createdAt: true,
+  updatedAt: true,
   role: { select: { id: true, slug: true, name: true, isSystem: true } },
   badges: { select: { id: true } },
-};
+} as const;
 
 function serializeUser(u: {
   id: string;
@@ -69,6 +97,9 @@ function serializeUser(u: {
   profileLimit: number | null;
   aliasLimit: number | null;
   badges: { id: string }[];
+  inviteBanned: boolean;
+  inviteBannedAt: Date | null;
+  inviteAllowance: number;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -83,6 +114,9 @@ function serializeUser(u: {
     profileLimit: u.profileLimit,
     aliasLimit: u.aliasLimit,
     badges: u.badges.map((b) => b.id),
+    inviteBanned: u.inviteBanned,
+    inviteBannedAt: u.inviteBannedAt,
+    inviteAllowance: u.inviteAllowance,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
   };
@@ -93,7 +127,7 @@ router.use(requireAuth, requireAdmin);
 router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (_req, res) => {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
-    include: userInclude,
+    select: userSelect,
   });
 
   res.json({ success: true, data: users.map(serializeUser) });
@@ -154,20 +188,42 @@ router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (r
   if (updates.profileLimit !== undefined) data.profileLimit = updates.profileLimit;
   if (updates.aliasLimit !== undefined) data.aliasLimit = updates.aliasLimit;
   if (updates.badges !== undefined) data.badges = { set: updates.badges.map((id) => ({ id })) };
+  if (updates.inviteBanned === true) {
+    data.inviteBanned = true;
+    data.inviteBannedAt = new Date();
+    data.inviteAllowance = 0;
+  } else if (updates.inviteBanned === false) {
+    data.inviteBanned = false;
+    data.inviteBannedAt = null;
+  }
 
   try {
     const user = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({
         where: { id },
         data,
-        include: userInclude,
+        select: userSelect,
       });
+
+      if (updates.inviteBanned === true) {
+        await tx.inviteCode.updateMany({
+          where: { createdById: id, usedAt: null, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
 
       if (updates.username) {
         await tx.profile.updateMany({ where: { userId: id, isPrimary: true }, data: { slug: updates.username } });
       }
 
       return u;
+    });
+
+    dispatchWebhookEvent(id, "user.updated", {
+      userId: id,
+      updatedBy: req.userId,
+      fields: Object.keys(data),
+      updatedAt: new Date().toISOString(),
     });
 
     res.json({ success: true, data: serializeUser(user) });
@@ -177,6 +233,62 @@ router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (r
     }
     throw err;
   }
+});
+
+router.delete("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const { id } = req.params;
+
+  if (id === req.userId) {
+    return res.status(400).json({ success: false, error: "You cannot delete your own account" });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      username: true,
+      profiles: {
+        select: {
+          avatar: true,
+          banner: true,
+          musicTracks: { select: { filePath: true } },
+        },
+      },
+    },
+  });
+  if (!user) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  await prisma.$transaction([
+    prisma.authBan.deleteMany({ where: { kind: "ACCOUNT", value: id } }),
+    prisma.authLog.deleteMany({ where: { OR: [{ accountId: id }, { username: user.username }] } }),
+    prisma.inviteCode.deleteMany({ where: { createdById: id } }),
+    prisma.user.delete({ where: { id } }),
+  ]);
+
+  const storageDir = getEnv().LOCAL_STORAGE_PATH;
+  for (const profile of user.profiles) {
+    for (const filePath of [profile.avatar, profile.banner]) {
+      if (filePath) {
+        const abs = path.resolve(storageDir, path.basename(filePath));
+        if (fs.existsSync(abs)) fs.unlinkSync(abs);
+      }
+    }
+    for (const track of profile.musicTracks) {
+      if (track.filePath) {
+        const abs = path.resolve(storageDir, path.basename(track.filePath));
+        if (fs.existsSync(abs)) fs.unlinkSync(abs);
+      }
+    }
+  }
+
+  dispatchWebhookEvent(id, "user.deleted", {
+    username: user.username,
+    deletedAt: new Date().toISOString(),
+  });
+
+  res.json({ success: true, message: "User deleted" });
 });
 
 router.post("/users/:id/reset-password", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
@@ -357,6 +469,23 @@ function slugifyRoleName(name: string): string {
     .slice(0, 32);
 }
 
+const INVITE_CONFIG_KEYS = [
+  "inviteBatchLimit",
+  "inviteOutstandingLimit",
+  "inviteCooldownMinutes",
+  "inviteDefaultExpiryDays",
+  "inviteMinExpiryDays",
+  "inviteMaxExpiryDays",
+] as const;
+
+function inviteConfigFrom(data: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const key of INVITE_CONFIG_KEYS) {
+    if (data[key] !== undefined) out[key] = data[key] as number;
+  }
+  return out;
+}
+
 router.get("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (_req, res) => {
   const roles = await prisma.role.findMany({ orderBy: [{ isSystem: "desc" }, { name: "asc" }] });
   res.json({ success: true, data: roles });
@@ -381,7 +510,13 @@ router.post("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: R
   }
 
   const role = await prisma.role.create({
-    data: { name, slug, description: description ?? null, permissions: permissions ?? [] },
+    data: {
+      name,
+      slug,
+      description: description ?? null,
+      permissions: permissions ?? [],
+      ...inviteConfigFrom(parsed.data),
+    },
   });
 
   res.status(201).json({ success: true, data: role });
@@ -417,6 +552,7 @@ router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (r
   }
   if (parsed.data.description !== undefined) data.description = parsed.data.description;
   if (parsed.data.permissions !== undefined) data.permissions = parsed.data.permissions;
+  Object.assign(data, inviteConfigFrom(parsed.data));
 
   const updated = await prisma.role.update({ where: { id: role.id }, data });
   res.json({ success: true, data: updated });
@@ -443,6 +579,91 @@ router.delete("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (
 // ---------------------------------------------------------------------
 // Badges
 // ---------------------------------------------------------------------
+
+router.get("/invites", requirePermission(PERMISSIONS.INVITES_MANAGE), async (_req, res) => {
+  const codes = await prisma.inviteCode.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      code: true,
+      createdById: true,
+      usedById: true,
+      usedAt: true,
+      expiresAt: true,
+      revokedAt: true,
+      fromAllowance: true,
+      createdAt: true,
+      createdBy: { select: { id: true, username: true } },
+      usedBy: { select: { id: true, username: true } },
+    },
+  });
+
+  res.json({ success: true, data: codes });
+});
+
+const inviteSettingsSchema = z.object({
+  userGenerationEnabled: z.boolean(),
+});
+
+router.get("/invite-settings", requirePermission(PERMISSIONS.INVITES_MANAGE), async (_req, res) => {
+  const userGenerationEnabled = await getInviteGenerationEnabled();
+  const eligibleUserCount = await prisma.user.count({ where: { inviteBanned: false } });
+  res.json({ success: true, data: { userGenerationEnabled, eligibleUserCount } });
+});
+
+router.put("/invite-settings", requirePermission(PERMISSIONS.INVITES_MANAGE), async (req: Request, res: Response) => {
+  const parsed = inviteSettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+  await setInviteGenerationEnabled(parsed.data.userGenerationEnabled);
+  res.json({ success: true, data: { userGenerationEnabled: parsed.data.userGenerationEnabled } });
+});
+
+const inviteEventSchema = z.object({
+  count: z.number().int().min(1).max(1000),
+  expiryDays: z.number().int().min(1).max(3650),
+});
+
+router.post("/invite-events", requirePermission(PERMISSIONS.INVITES_MANAGE), async (req: Request, res: Response) => {
+  const parsed = inviteEventSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const { count, expiryDays } = parsed.data;
+  const expiresAt = new Date(Date.now() + expiryDays * DAY_MS);
+
+  const grantedUsers = await prisma.$executeRaw`
+    UPDATE "users"
+    SET "invite_allowance" = "invite_allowance" + ${count},
+        "invite_allowance_expires_at" = GREATEST(COALESCE("invite_allowance_expires_at", ${expiresAt}), ${expiresAt}),
+        "updated_at" = ${new Date()}
+    WHERE "invite_banned" = FALSE
+  `;
+
+  const event = await prisma.inviteGrantEvent.create({
+    data: { count, expiryDays, createdById: req.userId },
+  });
+
+  res.status(201).json({
+    success: true,
+    data: {
+      grantedUsers,
+      event,
+      allowanceExpiresAt: expiresAt,
+    },
+  });
+});
+
+router.get("/invite-events", requirePermission(PERMISSIONS.INVITES_MANAGE), async (_req, res) => {
+  const events = await prisma.inviteGrantEvent.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { createdBy: { select: { id: true, username: true } } },
+  });
+  res.json({ success: true, data: events });
+});
 
 router.get("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (_req, res) => {
   const badges = await prisma.badge.findMany({ orderBy: [{ isSystem: "desc" }, { label: "asc" }] });

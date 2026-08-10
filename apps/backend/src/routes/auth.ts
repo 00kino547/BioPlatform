@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getEnv } from "../config/env.js";
 import { requireAuth } from "../middleware/auth.js";
-import { permissionsFor } from "../lib/permissions.js";
+import { permissionsFor, effectiveApiLevel } from "../lib/permissions.js";
 import { generateTotpSecret, verifyTotpCode } from "../lib/totp.js";
 import {
   cleanupExpiredChallenges,
@@ -16,6 +16,7 @@ import {
 } from "../lib/webauthn.js";
 import { authRateLimit } from "../middleware/rateLimit.js";
 import { isEmailEnabled, sendEmail, buildUnlockEmail } from "../lib/email.js";
+import { dispatchWebhookEvent } from "../lib/webhook.js";
 
 const router = Router();
 
@@ -116,6 +117,7 @@ async function userPublic(user: {
     permissions,
     isAdmin: permissions.length > 0,
     tier: user.tier,
+    apiLevel: effectiveApiLevel(role, user.tier),
     trackLimit: user.trackLimit,
     profileLimit: user.profileLimit,
     aliasLimit: user.aliasLimit,
@@ -210,6 +212,12 @@ router.post("/register", async (req, res) => {
 
     const env = getEnv();
     const token = signToken(user.id, env.JWT_EXPIRES_IN);
+
+    dispatchWebhookEvent(user.id, "user.registered", {
+      userId: user.id,
+      username: user.username,
+      registeredAt: new Date().toISOString(),
+    });
 
     res.status(201).json({
       success: true,
@@ -641,6 +649,7 @@ router.get("/me", requireAuth, async (req, res) => {
       permissions,
       isAdmin: permissions.length > 0,
       tier: user.tier,
+      apiLevel: effectiveApiLevel(user.role, user.tier),
       trackLimit: user.trackLimit,
       profileLimit: user.profileLimit,
       aliasLimit: user.aliasLimit,
@@ -676,6 +685,12 @@ router.post("/change-password", requireAuth, async (req, res) => {
   await prisma.user.update({
     where: { id: req.userId! },
     data: { passwordHash },
+  });
+
+  dispatchWebhookEvent(req.userId!, "user.updated", {
+    userId: req.userId!,
+    field: "password",
+    updatedAt: new Date().toISOString(),
   });
 
   res.json({ success: true, message: "Password changed successfully" });

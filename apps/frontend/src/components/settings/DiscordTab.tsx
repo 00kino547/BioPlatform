@@ -132,7 +132,11 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
     const res = await api.postToDiscord(webhookUrl.trim() || undefined, profileId);
     setPosting(false);
     if (res.success) {
-      setSuccess("Posted to Discord. Check your channel.");
+      setSuccess(
+        res.data?.mode === "updated"
+          ? "Updated your Discord embed. It will stay in sync as your profile changes."
+          : "Posted to Discord. Posting again (or changing your profile) updates the same embed automatically."
+      );
     } else {
       setError(res.error ?? "Could not post to Discord");
     }
@@ -262,7 +266,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
               <div>
                 <p className="text-sm font-medium text-white">Show Discord presence on my profile</p>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Display your status and activity in a widget on your public page and in link previews.
+                  Display your status and activity in a widget on your public page.
                 </p>
               </div>
               <button
@@ -304,8 +308,11 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
             <h3 className="text-sm font-medium text-white">Post to Discord</h3>
             <p className="text-xs text-zinc-500 leading-relaxed">
-              Set a Discord webhook URL to add a &quot;Post to Discord&quot; action. Posting sends a rich embed of your
-              profile (with your current presence) to your channel. Webhooks are stored encrypted.
+              Set a Discord webhook URL to add a &quot;Post to Discord&quot; action. Posting sends your profile card image
+              (banner, avatar, name, bio, badges) with a short title to your channel. The embed is kept in sync: posting
+              again — or editing your profile — updates the same message instead of spamming your channel, and switching
+              webhooks removes the old message. Webhooks are stored encrypted. Live presence is not baked into the card
+              (Discord caches images), so your current song/status never looks stale.
             </p>
             <div className="flex gap-2">
               <input

@@ -18,7 +18,7 @@ The **Profiles** tab manages every page in your account:
 - **Create a profile** — enter a lowercase slug (e.g. `gaming`) and click **Create Profile**. Each profile has its own slug, links, music, theme, and public/private toggle. Free accounts get 1 profile; higher tiers raise the limit.
 - **Set primary** — the primary profile is the account's default. Its slug is fixed to your username; use aliases to give it extra short URLs.
 - **Aliases** — every profile can have extra short URLs that resolve to the same page (e.g. `/bio` pointing at your main profile). Tier limits apply. Aliases make it easy to share a short, memorable link to a specific profile.
-- **Badges** — show badges on a profile page as colored icons (each badge has its own color and icon). Badges come from the set admins assign to your account; you toggle which ones appear per profile.
+- **Badges** — show badges on a profile page as colored icons (each badge has its own color and icon). Badges come from the set admins assign to your account; you toggle which ones appear per profile. Badges you don't own yet are shown greyed out with a lock and can't be toggled until an admin grants them.
 - **Delete a profile** — any profile can be deleted. If you delete the primary profile, primary status moves to your oldest remaining profile; the last profile in the account is protected.
 
 The header selector switches which profile the other tabs (Profile, Links, Appearance, Analytics, Email, Music, Discord, Data) are editing, and **View Profile** opens the currently selected one.
@@ -81,6 +81,17 @@ The **Discord** tab (only present when the instance has configured Discord) lets
 ## Analytics
 
 The **Analytics** tab shows views and link clicks over time, with total vs. unique counts. Your own visits are not counted.
+
+## Invites
+
+The **Invites** tab is where you manage registration codes and any invite credits you hold:
+
+- **Event allowance** — if the instance runs an invite event, you receive an allowance (a number of invites) that expires on a set date. Each invite you generate from it counts against the allowance.
+- **Role quota** — if your role is allowed to generate invites, the tab shows your per-batch limit and cooldown. Every account's ability to generate is controlled by the instance; if it's off, the tab tells you.
+- **Generate** — pick how many codes and an expiry in days (between the role's min and max, and no later than your allowance expiry). Leave the expiry blank for the default. After a cooldown window, you can generate again.
+- **Refunds** — an event code that expires unused *before* your allowance does is refunded: the credit returns to your allowance on your next visit to the tab, so nothing is wasted.
+
+Codes you no longer need can be **revoked** (except once they've been used). If you were banned from invites by an admin, the tab shows a notice and you can no longer generate or receive allowance.
 
 ## I'm locked out — what now?
 

@@ -33,17 +33,18 @@ export async function resolvePublicProfile<T extends Prisma.ProfileSelect>(
   return viaAlias?.profile ?? null;
 }
 
-export async function upsertPrimaryProfile(
+export async function upsertPrimaryProfile<T extends Prisma.ProfileInclude | undefined>(
   userId: string,
-  data: Omit<Prisma.ProfileUncheckedUpdateInput, "userId" | "slug" | "isPrimary">
+  data: Omit<Prisma.ProfileUncheckedUpdateInput, "userId" | "slug" | "isPrimary">,
+  include?: T
 ) {
   const existing = await getPrimaryProfile(userId);
   if (existing) {
-    return prisma.profile.update({ where: { id: existing.id }, data });
+    return prisma.profile.update({ where: { id: existing.id }, data, include });
   }
   const first = await prisma.profile.findFirst({ where: { userId } });
   if (first) {
-    return prisma.profile.update({ where: { id: first.id }, data: { ...data, isPrimary: true } });
+    return prisma.profile.update({ where: { id: first.id }, data: { ...data, isPrimary: true }, include });
   }
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
   const createData: Prisma.ProfileUncheckedCreateInput = {
@@ -52,5 +53,5 @@ export async function upsertPrimaryProfile(
     slug: user?.username ?? `user_${userId}`,
     isPrimary: true,
   };
-  return prisma.profile.create({ data: createData });
+  return prisma.profile.create({ data: createData, include });
 }

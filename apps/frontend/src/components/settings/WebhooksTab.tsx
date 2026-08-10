@@ -7,12 +7,20 @@ const EVENT_LABELS: Record<WebhookEvent, string> = {
   "profile.viewed": "Profile viewed",
   "link.clicked": "Link clicked",
   "profile.updated": "Profile updated",
+  "profile.created": "Profile created",
+  "profile.deleted": "Profile deleted",
+  "user.registered": "Account registered",
+  "user.updated": "Account updated",
 };
 
 const EVENT_DESCS: Record<WebhookEvent, string> = {
   "profile.viewed": "Fires when someone visits your public profile.",
   "link.clicked": "Fires when someone clicks one of your social links.",
   "profile.updated": "Fires when you update your profile.",
+  "profile.created": "Fires when you create a new profile.",
+  "profile.deleted": "Fires when you delete a profile.",
+  "user.registered": "Fires when a new account is registered.",
+  "user.updated": "Fires when your account changes (e.g. password) or an admin edits it.",
 };
 
 export function WebhooksTab() {
@@ -26,6 +34,7 @@ export function WebhooksTab() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [events, setEvents] = useState<WebhookEvent[]>(["profile.viewed"]);
+  const [template, setTemplate] = useState("");
   const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -33,6 +42,7 @@ export function WebhooksTab() {
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editEvents, setEditEvents] = useState<WebhookEvent[]>([]);
+  const [editTemplate, setEditTemplate] = useState("");
 
   const [testState, setTestState] = useState<Record<string, "sending" | "ok" | "err">>({});
   const [deliveriesFor, setDeliveriesFor] = useState<string | null>(null);
@@ -72,15 +82,35 @@ export function WebhooksTab() {
     setEditEvents((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]));
   };
 
+  const isValidTemplate = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const sample = trimmed.replace(/\{\{([^}]+)\}\}/g, "null");
+    try {
+      JSON.parse(sample);
+      return null;
+    } catch {
+      return "Template must be valid JSON after replacing {{placeholders}}.";
+    }
+  };
+
   const handleCreate = async () => {
     setError("");
     setSuccess("");
     if (!name.trim()) return setError("Give the webhook a name.");
     if (!url.trim()) return setError("Enter a destination URL.");
     if (events.length === 0) return setError("Select at least one event.");
+    const templateError = isValidTemplate(template);
+    if (templateError) return setError(templateError);
     setBusy(true);
     try {
-      const res = await api.createWebhook({ name: name.trim(), url: url.trim(), events, active });
+      const res = await api.createWebhook({
+        name: name.trim(),
+        url: url.trim(),
+        events,
+        active,
+        template: template.trim() || null,
+      });
       if (res.success && res.data) {
         setRevealedSecret({ id: res.data.id, secret: res.data.secret });
         clearSecretLater(res.data.id);
@@ -88,6 +118,7 @@ export function WebhooksTab() {
         setName("");
         setUrl("");
         setEvents(["profile.viewed"]);
+        setTemplate("");
         setActive(true);
         await load();
         setSuccess("Webhook created. Copy your signing secret now — it is shown only once.");
@@ -113,6 +144,7 @@ export function WebhooksTab() {
     setEditName(w.name);
     setEditUrl(w.url);
     setEditEvents(w.events as WebhookEvent[]);
+    setEditTemplate(w.template ?? "");
     setError("");
     setSuccess("");
   };
@@ -122,10 +154,13 @@ export function WebhooksTab() {
     if (!editName.trim()) return setError("Name is required.");
     if (!editUrl.trim()) return setError("URL is required.");
     if (editEvents.length === 0) return setError("Select at least one event.");
+    const templateError = isValidTemplate(editTemplate);
+    if (templateError) return setError(templateError);
     const res = await api.updateWebhook(editingId, {
       name: editName.trim(),
       url: editUrl.trim(),
       events: editEvents,
+      template: editTemplate.trim() || null,
     });
     if (res.success) {
       setEditingId(null);
@@ -228,6 +263,8 @@ export function WebhooksTab() {
           includes a signature in the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">X-BioPlatform-Signature</code>{" "}
           header (HMAC-SHA256 of the raw body using your signing secret) so you can verify it came from us.
           Failed deliveries are retried up to 5 times with increasing backoff. Max 10 webhooks per account.
+          Discord webhook URLs (channel → Integrations → Webhooks) are supported automatically — deliveries are
+          sent as a formatted embed so Discord shows the event nicely instead of raw JSON.
         </p>
       </div>
 
@@ -295,6 +332,26 @@ export function WebhooksTab() {
               </label>
             ))}
           </div>
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-400">Payload template (optional)</label>
+            <textarea
+              value={template}
+              onChange={(e) => setTemplate(e.target.value)}
+              rows={5}
+              spellCheck={false}
+              placeholder={'{\n  "event": "{{event}}",\n  "profile": "{{data.slug}}",\n  "at": "{{timestamp}}"\n}'}
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-violet-500 resize-y"
+            />
+            <p className="text-xs text-zinc-500">
+              Custom JSON sent instead of the default payload. Placeholders:{" "}
+              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{id}}"}</code>{" "}
+              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{event}}"}</code>{" "}
+              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{timestamp}}"}</code>{" "}
+              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data}}"}</code> and{" "}
+              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data.<field>}}"}</code>.
+              Leave empty to use the default payload.
+            </p>
+          </div>
           <label className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
             <div>
               <p className="text-sm text-white">Active</p>
@@ -351,6 +408,25 @@ export function WebhooksTab() {
                         <span className="text-sm text-white">{EVENT_LABELS[e]}</span>
                       </label>
                     ))}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-400">Payload template (optional)</label>
+                    <textarea
+                      value={editTemplate}
+                      onChange={(e) => setEditTemplate(e.target.value)}
+                      rows={4}
+                      spellCheck={false}
+                      placeholder={"{\n  \"event\": \"{{event}}\"\n}"}
+                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-violet-500 resize-y"
+                    />
+                    <p className="text-xs text-zinc-500">
+                      Empty = default payload. Placeholders:{" "}
+                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{id}}"}</code>{" "}
+                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{event}}"}</code>{" "}
+                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{timestamp}}"}</code>{" "}
+                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data}}"}</code> and{" "}
+                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data.<field>}}"}</code>.
+                    </p>
                   </div>
                   <div className="flex gap-3">
                     <Button onClick={handleSaveEdit}>Save</Button>
@@ -420,6 +496,11 @@ export function WebhooksTab() {
                     <span className="text-xs px-2.5 py-1 rounded-full bg-zinc-800/80 text-zinc-500">
                       secret: {w.secretPrefix}...
                     </span>
+                    {w.template && (
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                        custom template
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-4 border-t border-zinc-800 pt-3">

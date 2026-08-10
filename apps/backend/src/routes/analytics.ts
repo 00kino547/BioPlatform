@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireApiLevel } from "../middleware/admin.js";
 import { profileScope } from "../lib/profile.js";
 
 const router = Router();
 
-router.get("/me", requireAuth, async (req, res) => {
+router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => {
   const profile = await prisma.profile.findFirst({
     where: profileScope(req.userId!, req.query.profileId),
     select: { id: true },

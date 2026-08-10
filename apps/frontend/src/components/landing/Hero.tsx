@@ -1,8 +1,9 @@
-import { ArrowRight, Sparkles, Shield, Zap, Globe, Users, Eye } from "lucide-react";
+import { ArrowRight, Sparkles, Shield, Zap, Globe, Users, Eye, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Container } from "@/components/layout/Container";
 import { branding } from "@/config/branding";
+import { useAuth } from "@/contexts/AuthContext";
 
 const stats = [
   { icon: Users, value: "2,400+", label: "Early Access Users" },
@@ -11,6 +12,7 @@ const stats = [
 ];
 
 export function Hero() {
+  const { user } = useAuth();
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       <div className="absolute inset-0 bg-grid bg-grid-fade" />
@@ -47,13 +49,24 @@ export function Hero() {
             className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 animate-reveal opacity-0-initial"
             style={{ animationDelay: "400ms" }}
           >
-            <Link
-              to="/register"
-              className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-xl shadow-violet-600/25 hover:shadow-violet-600/40 transition-all duration-200 group"
-            >
-              Get Early Access
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Link>
+            {user ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-xl shadow-violet-600/25 hover:shadow-violet-600/40 transition-all duration-200 group"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Go to Dashboard
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            ) : (
+              <Link
+                to="/register"
+                className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-xl shadow-violet-600/25 hover:shadow-violet-600/40 transition-all duration-200 group"
+              >
+                Get Early Access
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            )}
             <a
               href="#showcase"
               className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"

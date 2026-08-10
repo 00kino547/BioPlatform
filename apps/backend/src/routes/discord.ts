@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireApiLevel } from "../middleware/admin.js";
 import { getEnv } from "../config/env.js";
 import {
   isDiscordConfigured,
@@ -14,7 +15,6 @@ import {
   decryptDiscordSecret,
   isDiscordWebhookUrl,
   buildDiscordAvatarUrl,
-  toAbsoluteUrl,
   DISCORD_STATUS_LABELS,
 } from "../lib/discord.js";
 import {
@@ -22,18 +22,13 @@ import {
   describeActivities,
   isSessionActive,
 } from "../lib/discordGateway.js";
+import { syncDiscordPost, deleteDiscordPost } from "../lib/discordPost.js";
 import { profileScope, getPrimaryProfile } from "../lib/profile.js";
 
 const router = Router();
 
 function frontendPath(path: string): string {
   return `${getEnv().APP_URL.replace(/\/$/, "")}${path}`;
-}
-
-function parseAccent(value: unknown): number | undefined {
-  if (typeof value !== "string") return undefined;
-  const match = /^#([0-9a-fA-F]{6})$/.exec(value.trim());
-  return match ? Number.parseInt(match[1], 16) : undefined;
 }
 
 function presenceHubUrl(value: string): string | null {
@@ -46,7 +41,7 @@ function presenceHubUrl(value: string): string | null {
   }
 }
 
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, requireApiLevel("advanced"), async (req, res) => {
   const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
   const connection = profile
     ? await prisma.discordConnection.findUnique({ where: { profileId: profile.id } })
@@ -92,7 +87,7 @@ router.get("/", requireAuth, async (req, res) => {
   });
 });
 
-router.get("/connect", requireAuth, (req, res) => {
+router.get("/connect", requireAuth, requireApiLevel("advanced"), (req, res) => {
   if (!isDiscordConfigured()) {
     return res.status(400).json({ success: false, error: "Discord integration is not configured on this instance." });
   }
@@ -154,7 +149,7 @@ router.get("/callback", async (req, res) => {
   }
 });
 
-router.post("/disconnect", requireAuth, async (req, res) => {
+router.post("/disconnect", requireAuth, requireApiLevel("advanced"), async (req, res) => {
   const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
   if (!profile) {
     return res.status(404).json({ success: false, error: "Profile not found" });
@@ -177,7 +172,7 @@ const settingsSchema = z.object({
     .optional(),
 });
 
-router.put("/settings", requireAuth, async (req, res) => {
+router.put("/settings", requireAuth, requireApiLevel("advanced"), async (req, res) => {
   const parsed = settingsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "Invalid settings." });
@@ -206,6 +201,20 @@ router.put("/settings", requireAuth, async (req, res) => {
 
   await prisma.profile.update({ where: { id: profile.id }, data });
 
+  if (parsed.data.webhookUrl !== undefined) {
+    const newUrl = parsed.data.webhookUrl.trim();
+    const posted = await prisma.profile.findUnique({
+      where: { id: profile.id },
+      select: { discordPostedMessageId: true, discordPostedWebhookUrlEncrypted: true },
+    });
+    if (posted?.discordPostedMessageId && posted.discordPostedWebhookUrlEncrypted) {
+      const oldUrl = decryptDiscordSecret(posted.discordPostedWebhookUrlEncrypted, "webhook");
+      if (newUrl !== oldUrl) {
+        await deleteDiscordPost(profile.id);
+      }
+    }
+  }
+
   res.json({ success: true });
 });
 
@@ -217,84 +226,7 @@ const postSchema = z.object({
     .optional(),
 });
 
-interface DiscordEmbedField {
-  name: string;
-  value: string;
-  inline?: boolean;
-}
-
-interface DiscordEmbed {
-  title: string;
-  url: string;
-  description?: string;
-  color?: number;
-  thumbnail?: { url: string };
-  fields: DiscordEmbedField[];
-  footer?: { text: string };
-  timestamp?: string;
-}
-
-async function buildDiscordEmbed(userId: string, profile: {
-  displayName: string | null;
-  bio: string | null;
-  avatar: string | null;
-  theme: unknown;
-  showDiscordPresence: boolean;
-  showDiscordActivity: boolean;
-  discordConnection: { discordId: string } | null;
-}): Promise<DiscordEmbed | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { username: true },
-  });
-
-  const username = user?.username ?? userId;
-  const displayName = profile.displayName ?? username;
-
-  const embed: DiscordEmbed = {
-    title: `${displayName} (@${username})`,
-    url: toAbsoluteUrl(`/${username}`) ?? `${getEnv().APP_URL}/${username}`,
-    description: profile.bio ?? undefined,
-    color: parseAccent((profile.theme as { accent?: unknown } | null | undefined)?.accent) ?? 0x7c3aed,
-    fields: [],
-    footer: { text: getEnv().APP_NAME },
-    timestamp: new Date().toISOString(),
-  };
-
-  const avatar = toAbsoluteUrl(profile.avatar ?? null);
-  if (avatar) embed.thumbnail = { url: avatar };
-
-  if (profile.showDiscordPresence && profile.discordConnection) {
-    const presence = getCachedPresence(profile.discordConnection.discordId);
-    if (presence) {
-      const statusLabel = DISCORD_STATUS_LABELS[presence.status] ?? presence.status;
-      embed.fields.push({ name: "Status", value: statusLabel, inline: true });
-      const described = describeActivities(profile.showDiscordActivity ? presence.activities : []);
-      if (described.line) {
-        embed.fields.push({ name: "Activity", value: described.line, inline: true });
-      }
-    }
-  }
-
-  return embed;
-}
-
-async function sendDiscordWebhook(url: string, embed: DiscordEmbed): Promise<{ ok: boolean; status: number; error: string }> {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ embeds: [embed] }),
-    });
-    if (res.ok) return { ok: true, status: res.status, error: "" };
-    const text = await res.text().catch(() => "");
-    return { ok: false, status: res.status, error: text ? text.slice(0, 200) : `Discord returned ${res.status}` };
-  } catch (error) {
-    return { ok: false, status: 0, error: error instanceof Error ? error.message : "Request failed" };
-  }
-}
-
-router.post("/post", requireAuth, async (req, res) => {
+router.post("/post", requireAuth, requireApiLevel("advanced"), async (req, res) => {
   const parsed = postSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "Invalid webhook URL." });
@@ -303,14 +235,13 @@ router.post("/post", requireAuth, async (req, res) => {
   const profile = await prisma.profile.findFirst({
     where: profileScope(req.userId!, req.query.profileId),
     select: {
+      id: true,
+      slug: true,
       displayName: true,
-      bio: true,
-      avatar: true,
       theme: true,
-      showDiscordPresence: true,
-      showDiscordActivity: true,
-      discordConnection: { select: { discordId: true } },
       discordWebhookUrlEncrypted: true,
+      discordPostedMessageId: true,
+      discordPostedWebhookUrlEncrypted: true,
     },
   });
   if (!profile) {
@@ -325,12 +256,7 @@ router.post("/post", requireAuth, async (req, res) => {
     webhookUrl = decryptDiscordSecret(profile.discordWebhookUrlEncrypted, "webhook");
   }
 
-  const embed = await buildDiscordEmbed(req.userId!, profile);
-  if (!embed) {
-    return res.status(500).json({ success: false, error: "Could not build the Discord embed." });
-  }
-
-  const result = await sendDiscordWebhook(webhookUrl, embed);
+  const result = await syncDiscordPost(profile, webhookUrl);
   if (!result.ok) {
     return res.status(result.status >= 400 && result.status < 500 ? result.status : 502).json({
       success: false,
@@ -338,7 +264,7 @@ router.post("/post", requireAuth, async (req, res) => {
     });
   }
 
-  res.json({ success: true });
+  res.json({ success: true, data: { messageId: result.messageId ?? null, mode: result.mode } });
 });
 
 export default router;

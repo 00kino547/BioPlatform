@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireApiLevel } from "../middleware/admin.js";
 import { getEnv } from "../config/env.js";
 import {
   ALLOWED_PLATFORMS,
@@ -26,9 +27,10 @@ import {
   normalizeImportedSocialLinks,
   profileToTransferJson,
 } from "../lib/profileTransfer.js";
-import { renderProfileOgPng } from "../lib/profileOg.js";
+import { renderProfileOgCached } from "../lib/profileOg.js";
 import { getCachedPresence, describeActivities } from "../lib/discordGateway.js";
 import { buildDiscordAvatarUrl, DISCORD_STATUS_LABELS } from "../lib/discord.js";
+import { refreshDiscordPostForProfile } from "../lib/discordPost.js";
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -46,6 +48,10 @@ function parseCookies(header: string | undefined): Record<string, string> {
     }
   }
   return cookies;
+}
+
+function serializeOwnProfile<T extends Record<string, unknown> & { badges?: { id: string }[] }>(profile: T) {
+  return { ...profile, badges: (profile.badges ?? []).map((b) => b.id) };
 }
 
 function getViewerId(req: Request): string | undefined {
@@ -165,6 +171,7 @@ router.get("/me", requireAuth, async (req, res) => {
       include: {
         aliases: { orderBy: { createdAt: "asc" } },
         _count: { select: { musicTracks: true } },
+        badges: { select: { id: true } },
       },
     }),
     prisma.profileAlias.count({ where: { profile: { userId: req.userId! } } }),
@@ -173,13 +180,14 @@ router.get("/me", requireAuth, async (req, res) => {
   res.json({
     success: true,
     data: {
-      profiles,
+      profiles: profiles.map(serializeOwnProfile),
       limits: {
         profiles: getProfileLimit(user),
         aliases: getAliasLimit(user),
       },
       primaryId: profiles.find((p) => p.isPrimary)?.id ?? profiles[0]?.id ?? null,
       aliasCount,
+      ownedBadges: user.badges.map((b) => b.id),
     },
   });
 });
@@ -227,9 +235,16 @@ router.post("/me", requireAuth, async (req, res) => {
         socialLinks: toPrismaJson(socialLinks),
         theme: toPrismaJson(theme),
       },
-      include: { aliases: true },
+      include: { aliases: true, badges: { select: { id: true } } },
     });
-    res.status(201).json({ success: true, data: profile });
+
+    dispatchWebhookEvent(req.userId!, "profile.created", {
+      profileId: profile.id,
+      slug: profile.slug,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.status(201).json({ success: true, data: serializeOwnProfile(profile) });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return res.status(409).json({ success: false, error: "That profile URL is already taken." });
@@ -257,11 +272,15 @@ router.put("/me", requireAuth, async (req, res) => {
     return l;
   });
 
-  const profile = await upsertPrimaryProfile(req.userId!, {
-    ...rest,
-    socialLinks: toPrismaJson(normalizedLinks),
-    theme: toPrismaJson(theme),
-  });
+  const profile = await upsertPrimaryProfile(
+    req.userId!,
+    {
+      ...rest,
+      socialLinks: toPrismaJson(normalizedLinks),
+      theme: toPrismaJson(theme),
+    },
+    { badges: { select: { id: true } } }
+  );
 
   dispatchWebhookEvent(req.userId!, "profile.updated", {
     profileId: profile.id,
@@ -269,7 +288,9 @@ router.put("/me", requireAuth, async (req, res) => {
     updatedAt: new Date().toISOString(),
   });
 
-  res.json({ success: true, data: profile });
+  void refreshDiscordPostForProfile(profile.id);
+
+  res.json({ success: true, data: serializeOwnProfile(profile) });
 });
 
 router.get("/me/:profileId", requireAuth, async (req: Request<{ profileId: string }>, res) => {
@@ -278,6 +299,7 @@ router.get("/me/:profileId", requireAuth, async (req: Request<{ profileId: strin
     include: {
       aliases: { orderBy: { createdAt: "asc" } },
       musicTracks: { orderBy: { position: "asc" } },
+      badges: { select: { id: true } },
     },
   });
 
@@ -285,7 +307,7 @@ router.get("/me/:profileId", requireAuth, async (req: Request<{ profileId: strin
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 
-  res.json({ success: true, data: profile });
+  res.json({ success: true, data: serializeOwnProfile(profile) });
 });
 
 router.patch("/me/:profileId", requireAuth, async (req: Request<{ profileId: string }>, res) => {
@@ -316,8 +338,10 @@ router.patch("/me/:profileId", requireAuth, async (req: Request<{ profileId: str
         socialLinks: toPrismaJson(socialLinks),
         theme: toPrismaJson(theme),
       },
+      include: { badges: { select: { id: true } } },
     });
-    res.json({ success: true, data: updated });
+    void refreshDiscordPostForProfile(updated.id);
+    res.json({ success: true, data: serializeOwnProfile(updated) });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return res.status(409).json({ success: false, error: "That profile URL is already taken." });
@@ -365,6 +389,12 @@ router.delete("/me/:profileId", requireAuth, async (req: Request<{ profileId: st
       }
     }
     await tx.profile.delete({ where: { id: profile.id } });
+  });
+
+  dispatchWebhookEvent(req.userId!, "profile.deleted", {
+    profileId: profile.id,
+    slug: profile.slug,
+    deletedAt: new Date().toISOString(),
   });
 
   res.json({ success: true });
@@ -530,6 +560,7 @@ router.post("/me/avatar", requireAuth, handleUpload("avatar"), async (req, res) 
 
   const filePath = `/uploads/${req.file.filename}`;
   await prisma.profile.update({ where: { id: profile.id }, data: { avatar: filePath } });
+  void refreshDiscordPostForProfile(profile.id);
 
   res.json({ success: true, data: { avatar: filePath } });
 });
@@ -547,6 +578,7 @@ router.post("/me/banner", requireAuth, handleUpload("banner"), async (req, res) 
 
   const filePath = `/uploads/${req.file.filename}`;
   await prisma.profile.update({ where: { id: profile.id }, data: { banner: filePath } });
+  void refreshDiscordPostForProfile(profile.id);
 
   res.json({ success: true, data: { banner: filePath } });
 });
@@ -566,6 +598,7 @@ router.delete("/me/avatar", requireAuth, async (req, res) => {
   }
 
   await prisma.profile.update({ where: { id: profile.id }, data: { avatar: null } });
+  void refreshDiscordPostForProfile(profile.id);
 
   res.json({ success: true });
 });
@@ -585,6 +618,7 @@ router.delete("/me/banner", requireAuth, async (req, res) => {
   }
 
   await prisma.profile.update({ where: { id: profile.id }, data: { banner: null } });
+  void refreshDiscordPostForProfile(profile.id);
 
   res.json({ success: true });
 });
@@ -604,7 +638,7 @@ const importUpload = multer({
   },
 });
 
-router.get("/me/export", requireAuth, async (req, res) => {
+router.get("/me/export", requireAuth, requireApiLevel("advanced"), async (req, res) => {
   const format: ExportFormat = req.query.format === "ods" ? "ods" : "xlsx";
   const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
   if (!profile) {
@@ -617,7 +651,7 @@ router.get("/me/export", requireAuth, async (req, res) => {
   res.send(buffer);
 });
 
-router.post("/me/import", requireAuth, (req, res) => {
+router.post("/me/import", requireAuth, requireApiLevel("advanced"), (req, res) => {
   importUpload.single("file")(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === "LIMIT_FILE_SIZE") {
@@ -652,8 +686,9 @@ router.post("/me/import", requireAuth, (req, res) => {
 
       const { socialLinks, theme, ...rest } = parsed.data;
       const scoped = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
+      let updatedId: string;
       if (scoped) {
-        await prisma.profile.update({
+        const updated = await prisma.profile.update({
           where: { id: scoped.id },
           data: {
             ...rest,
@@ -661,13 +696,16 @@ router.post("/me/import", requireAuth, (req, res) => {
             theme: toPrismaJson(theme),
           },
         });
+        updatedId = updated.id;
       } else {
-        await upsertPrimaryProfile(req.userId!, {
+        const updated = await upsertPrimaryProfile(req.userId!, {
           ...rest,
           socialLinks: toPrismaJson(normalizeImportedSocialLinks(socialLinks)),
           theme: toPrismaJson(theme),
         });
+        updatedId = updated.id;
       }
+      void refreshDiscordPostForProfile(updatedId);
 
       res.json({ success: true, data: { applied: Object.keys(parsed.data), warnings } });
     } catch {
@@ -677,13 +715,57 @@ router.post("/me/import", requireAuth, (req, res) => {
 });
 
 router.get("/:username/og.png", publicRateLimit, async (req: Request<{ username: string }>, res) => {
-  const buffer = await renderProfileOgPng(req.params.username);
-  if (!buffer) {
+  const result = await renderProfileOgCached(req.params.username);
+  if (!result) {
     return res.status(404).end();
   }
+  if (req.headers["if-none-match"] === result.etag) {
+    return res.status(304).end();
+  }
   res.setHeader("Content-Type", "image/png");
+  res.setHeader("ETag", result.etag);
   res.setHeader("Cache-Control", "public, max-age=300");
-  res.send(buffer);
+  res.send(result.buffer);
+});
+
+router.get("/:identifier/presence", publicRateLimit, async (req: Request<{ identifier: string }>, res) => {
+  const profileId = await resolveProfileId(req.params.identifier);
+  if (!profileId) {
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId },
+    select: {
+      isPublic: true,
+      showDiscordPresence: true,
+      showDiscordActivity: true,
+      discordConnection: { select: { discordId: true } },
+    },
+  });
+
+  if (!profile) {
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+
+  if (!profile.showDiscordPresence || !profile.discordConnection) {
+    return res.json({ success: true, data: null });
+  }
+
+  const presence = getCachedPresence(profile.discordConnection.discordId);
+  const status = presence?.status ?? "offline";
+  const described = describeActivities(profile.showDiscordActivity ? presence?.activities ?? [] : []);
+  return res.json({
+    success: true,
+    data: {
+      status,
+      statusLabel: DISCORD_STATUS_LABELS[status] ?? status,
+      activities: profile.showDiscordActivity ? presence?.activities ?? [] : [],
+      line: described.line,
+      customStatus: described.customStatus,
+      updatedAt: presence?.updatedAt ?? null,
+    },
+  });
 });
 
 router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: string }>, res) => {

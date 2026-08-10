@@ -7,6 +7,11 @@ export const WEBHOOK_EVENTS = [
   "profile.viewed",
   "link.clicked",
   "profile.updated",
+  "profile.created",
+  "profile.deleted",
+  "user.registered",
+  "user.updated",
+  "user.deleted",
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
@@ -73,6 +78,84 @@ export function isValidWebhookUrl(value: string): boolean {
   );
 }
 
+const DISCORD_WEBHOOK_HOSTS = new Set(["discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com"]);
+const DISCORD_WEBHOOK_PATH = /^\/api\/webhooks\/[^/]+\/[^/]+\/?$/;
+const DISCORD_MESSAGE_KEYS = ["content", "embeds", "username", "avatar_url", "components", "attachments", "poll"];
+
+export function isDiscordWebhookUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return DISCORD_WEBHOOK_HOSTS.has(url.hostname) && DISCORD_WEBHOOK_PATH.test(url.pathname);
+}
+
+function isDiscordMessageShape(payload: unknown): boolean {
+  if (typeof payload !== "object" || payload === null) return false;
+  const record = payload as Record<string, unknown>;
+  return DISCORD_MESSAGE_KEYS.some((key) => key in record);
+}
+
+const EMBED_COLOR = 0x8b5cf6;
+const MAX_EMBED_DESCRIPTION = 4096;
+const MAX_FIELD_NAME = 256;
+const MAX_FIELD_VALUE = 1024;
+const MAX_FIELDS = 25;
+const MAX_FOOTER = 2048;
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 3)}...` : value;
+}
+
+function stringifyValue(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  const json = JSON.stringify(value);
+  return json === undefined ? "undefined" : json;
+}
+
+function isWebhookPayloadShape(payload: unknown): payload is WebhookPayload {
+  if (typeof payload !== "object" || payload === null) return false;
+  const record = payload as Record<string, unknown>;
+  return typeof record.event === "string" && typeof record.timestamp === "string";
+}
+
+function buildDiscordEmbed(payload: unknown): Record<string, unknown> {
+  const embed: Record<string, unknown> = { color: EMBED_COLOR };
+  const fields: Array<{ name: string; value: string; inline: boolean }> = [];
+
+  if (isWebhookPayloadShape(payload)) {
+    embed.title = truncate(`BioPlatform · ${payload.event}`, 256);
+    embed.timestamp = payload.timestamp;
+    if (payload.data && typeof payload.data === "object") {
+      for (const [key, value] of Object.entries(payload.data)) {
+        if (fields.length >= MAX_FIELDS) break;
+        fields.push({
+          name: truncate(key, MAX_FIELD_NAME),
+          value: truncate(stringifyValue(value), MAX_FIELD_VALUE),
+          inline: true,
+        });
+      }
+    }
+    if (payload.id) {
+      embed.footer = { text: truncate(`Delivery ${payload.id}`, MAX_FOOTER) };
+    }
+  } else {
+    embed.description = truncate(JSON.stringify(payload, null, 2), MAX_EMBED_DESCRIPTION);
+  }
+
+  if (fields.length > 0) embed.fields = fields;
+  return { embeds: [embed] };
+}
+
+export function toDiscordMessage(payload: unknown): unknown {
+  if (isDiscordMessageShape(payload)) return payload;
+  return buildDiscordEmbed(payload);
+}
+
 export interface WebhookPayload {
   id: string;
   event: string;
@@ -84,14 +167,50 @@ function buildPayload(event: string, data: Record<string, unknown>): WebhookPayl
   return { id: randomUUID(), event, timestamp: new Date().toISOString(), data };
 }
 
+export function isValidPayloadTemplate(template: string): boolean {
+  if (typeof template !== "string" || template.length === 0 || template.length > 2000) return false;
+  const sample = template.replace(/\{\{\s*[a-zA-Z0-9_.]+\s*\}\}/g, "null");
+  try {
+    JSON.parse(sample);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function templateValue(value: unknown): string {
+  if (value === undefined) return "null";
+  return JSON.stringify(value);
+}
+
+function resolveDataPath(data: Record<string, unknown>, path: string): unknown {
+  let current: unknown = data;
+  for (const part of path.split(".")) {
+    if (current === null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+export function renderPayloadTemplate(template: string, payload: WebhookPayload): unknown {
+  const rendered = template.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (match, path) => {
+    if (path === "id") return templateValue(payload.id);
+    if (path === "event") return templateValue(payload.event);
+    if (path === "timestamp") return templateValue(payload.timestamp);
+    if (path === "data") return templateValue(payload.data);
+    if (path.startsWith("data.")) return templateValue(resolveDataPath(payload.data, path.slice(5)));
+    return match;
+  });
+  return JSON.parse(rendered);
+}
+
 async function deliver(
   webhook: { id: string; url: string; secretEncrypted: string },
   delivery: { id: string },
-  payload: WebhookPayload
+  event: string,
+  payload: unknown
 ): Promise<{ success: boolean; status: number | null; error: string | null; nextRetryAt: Date | null }> {
-  const body = JSON.stringify(payload);
   const secret = decryptSecret(webhook.secretEncrypted);
-  const signature = signWebhookPayload(secret, body);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
@@ -102,11 +221,13 @@ async function deliver(
     let status: number | null = null;
     let response: Response | null = null;
     while (true) {
+      const body = JSON.stringify(isDiscordWebhookUrl(url) ? toDiscordMessage(payload) : payload);
+      const signature = signWebhookPayload(secret, body);
       response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-BioPlatform-Event": payload.event,
+          "X-BioPlatform-Event": event,
           "X-BioPlatform-Webhook-Id": webhook.id,
           "X-BioPlatform-Delivery-Id": delivery.id,
           "X-BioPlatform-Signature": `sha256=${signature}`,
@@ -149,9 +270,10 @@ async function deliver(
 export async function attemptDelivery(
   webhook: { id: string; url: string; secretEncrypted: string },
   delivery: { id: string; attempts: number },
-  payload: WebhookPayload
+  event: string,
+  payload: unknown
 ): Promise<void> {
-  const result = await deliver(webhook, delivery, payload);
+  const result = await deliver(webhook, delivery, event, payload);
 
   if (result.success) {
     await prisma.webhookDelivery.update({
@@ -185,12 +307,16 @@ export function dispatchWebhookEvent(userId: string, event: WebhookEvent, data: 
       });
       if (webhooks.length === 0) return;
 
-      const payload = buildPayload(event, data);
+      const defaultPayload = buildPayload(event, data);
       for (const webhook of webhooks) {
+        const payload: unknown = webhook.template
+          ? renderPayloadTemplate(webhook.template, defaultPayload)
+          : defaultPayload;
+
         const delivery = await prisma.webhookDelivery.create({
-          data: { webhookId: webhook.id, event, payload: payload as unknown as Prisma.InputJsonValue },
+          data: { webhookId: webhook.id, event, payload: payload as Prisma.InputJsonValue },
         });
-        await attemptDelivery(webhook, delivery, payload);
+        await attemptDelivery(webhook, delivery, event, payload);
       }
     } catch (err) {
       console.error("Webhook dispatch failed:", err);
@@ -202,15 +328,18 @@ export async function sendTestWebhook(webhookId: string, userId: string): Promis
   const webhook = await prisma.webhook.findFirst({ where: { id: webhookId, userId } });
   if (!webhook) return { success: false, error: "Webhook not found" };
 
-  const payload = buildPayload("webhook.test", {
+  const defaultPayload = buildPayload("webhook.test", {
     test: true,
     message: "Test delivery from BioPlatform",
   });
+  const payload: unknown = webhook.template
+    ? renderPayloadTemplate(webhook.template, defaultPayload)
+    : defaultPayload;
 
   const delivery = await prisma.webhookDelivery.create({
-    data: { webhookId: webhook.id, event: "webhook.test", payload: payload as unknown as Prisma.InputJsonValue },
+    data: { webhookId: webhook.id, event: "webhook.test", payload: payload as Prisma.InputJsonValue },
   });
-  await attemptDelivery(webhook, delivery, payload);
+  await attemptDelivery(webhook, delivery, "webhook.test", payload);
 
   const updated = await prisma.webhookDelivery.findUnique({ where: { id: delivery.id } });
   if (!updated || updated.status !== "success") {
@@ -228,8 +357,8 @@ async function retryDueDeliveries(): Promise<void> {
     for (const delivery of due) {
       const webhook = await prisma.webhook.findUnique({ where: { id: delivery.webhookId } });
       if (!webhook || !webhook.active) continue;
-      const payload = delivery.payload as unknown as WebhookPayload;
-      await attemptDelivery(webhook, delivery, payload);
+      const payload = delivery.payload as unknown;
+      await attemptDelivery(webhook, delivery, delivery.event, payload);
     }
   } catch (err) {
     console.error("Webhook retry sweep failed:", err);

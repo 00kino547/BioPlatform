@@ -10,6 +10,8 @@
 
 ## Medium Priority
 
+- [ ] SSO (Single Sign-On) — let users sign in through a third-party identity provider (Google, GitHub, Discord OAuth, etc.) instead of username + password; link multiple providers to one account and expose a button next to the normal login form
+- [ ] Enterprise team management — the "leader" of an ENTERPRISE workspace can invite team members, assign each a role/permissions, manage seats, and see the whole team from the dashboard
 - [ ] GitHub version checker — on every admin panel entry, show an update warning banner with the CHANGELOG.md loaded and rendered formatted; footer shows the app version (in red when the pending update is critical/security), plus an "Update" state when the installed version is outdated
 - [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment
 - [ ] REST API for third-party integrations
@@ -17,9 +19,13 @@
 
 ## Low Priority
 
-- [ ] Webhook event expansion (admin/user events, custom payload templates)
-
 ## Completed
+
+- [x] Self-service invite system — global **User invite generation** master switch in the admin panel (new `system_settings` table, `GET/PUT /api/admin/invite-settings`, no environment variable), new `invites.generate` permission + per-role invite config (`inviteBatchLimit`, `inviteOutstandingLimit`, `inviteCooldownMinutes`, `inviteDefaultExpiryDays`, `inviteMinExpiryDays`, `inviteMaxExpiryDays`) managed in the admin Roles tab, **invite events** (`POST /api/admin/invite-events`, `count` + `expiryDays`/weeks) granting every non-banned user an expiring **allowance** recorded in a new `invite_grant_events` table (existing unexpired allowances extended via `GREATEST(...)` SQL), user-side generation from the Dashboard **Invites** tab with quota/cooldown/expiry-bounds enforcement (max capped by remaining allowance days), **refund sweep** (`runInviteRefundSweep`, lazy on GET/POST `/api/invites`) returning credits for allowance codes that expire unused before the allowance does (`fromAllowance` + `refundedAt` columns), **per-user invite bans** (`PATCH /api/admin/users/:id` `inviteBanned` → zeroes allowance, revokes outstanding codes in one transaction, excludes from events; unban restores access without the old allowance), admin audit of events via `GET /api/admin/invite-events`, user codes table with EVENT badge, migration `docs/migrations/2026-08-10_invite-system.sql` (applied live), OpenAPI + en/es docs + CHANGELOG parity
+
+- [x] Webhook event expansion — admin/user events (`profile.created`, `profile.deleted`, `user.registered`, `user.updated`) and per-webhook custom JSON payload templates with `{{placeholders}}` (max 2000 chars, validated on save, rendered at delivery time, signature covers the rendered body)
+- [x] Rich Discord activity card — large album art for music, app art for games/streams/YouTube with type label + title + subtitle, and presence buttons rendered as pills (labels only, since Discord presence payloads never include button URLs)
+- [x] Live presence on the public bio page — lightweight public endpoint `GET /api/profiles/:identifier/presence` polled every 15s (while the gate is open and tab visible), so switching game/music/streams updates the widget without reload; activity `timestamps` captured in the gateway and exposed, driving a live progress timebar (elapsed / total, `mm:ss`)
 
 - [x] Project scaffolding (monorepo, Docker, Prisma, Express, React)
 - [x] Docker Compose (postgres, backend, frontend, nginx)

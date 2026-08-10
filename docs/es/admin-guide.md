@@ -20,8 +20,45 @@ Las pestañas que ves dependen de los permisos de tu propio rol: un rol con solo
 El registro es solo con invitación. En la pestaña **Códigos de Invitación**:
 
 1. Define la **Cantidad** (1–50) y opcionalmente **Expira en días**.
-2. Haz clic en **Generar** — los códigos aparecen al principio de la tabla.
+2. Haz clic en **Generar** — los códigos aparecen en la tabla.
 3. Comparte los códigos con quien quieras invitar. Un código usado muestra **Usado**; puedes **Revocar** uno sin usar en cualquier momento.
+
+La tabla lista **todos** los códigos de invitación de todos los administradores, con el creador en la columna **Creado por**. Usa los chips de filtro sobre la tabla para acotar:
+
+- **Todos** — todos los códigos de invitación.
+- **Disponibles** — códigos que no están usados, ni revocados, ni vencidos.
+- **Creados por mí** — solo los códigos que generaste.
+
+Los administradores con `invites.manage` pueden revocar cualquier código sin usar, no solo los suyos. Los códigos generados por usuarios desde un allowance de evento están etiquetados **EVENT**.
+
+### Permitir que los usuarios generen invitaciones
+
+Los usuarios no administradores pueden generar sus propios códigos si se cumplen **todas** estas condiciones:
+
+1. El interruptor **Generación de invitaciones de usuarios** al inicio de la pestaña está **activado** (solo panel de administración — no hay variable de entorno; este interruptor es el interruptor maestro).
+2. El rol del usuario tiene el permiso **Generar sus propios códigos de invitación** (`invites.generate`) **y** un **Máximo por lote** mayor que 0, **o** el usuario tiene un allowance de evento.
+3. El usuario no está **baneado de invitaciones** (ver abajo).
+
+### Eventos de invitación (conceder un allowance a todos)
+
+Usa la tarjeta **Evento de invitación** para conceder un allowance de invitación a **todos** los usuarios no baneados a la vez:
+
+- **Invitaciones por usuario** — cuántos códigos puede generar cada usuario de este allowance.
+- **El allowance expira en** — un número más **días** o **semanas**. El allowance y cada código generado a partir de él expiran en esa fecha.
+
+Cuando los usuarios generan un código de un allowance, pueden elegir el vencimiento hasta el vencimiento del allowance (el predeterminado). Si un código vence **sin usarse antes** del vencimiento del allowance, el crédito se reembolsa automáticamente al allowance del usuario (en su siguiente carga de invitaciones), así no se desperdicia nada. Cuando el propio allowance vence, los créditos sobrantes desaparecen.
+
+Los eventos recientes se listan debajo del formulario para que puedas auditar quién concedió qué y cuándo.
+
+### Baneos de invitación
+
+Usa **Banear invitaciones** en la fila de un usuario de la pestaña **Usuarios** para excluirlo del sistema de invitaciones por completo:
+
+- Ya no puede generar códigos (cuota de rol o allowance).
+- Se le omite en futuros eventos de invitación.
+- Sus códigos sin usar actuales se revocan inmediatamente y su allowance restante se pone a cero.
+
+**Desbanear invitaciones** restaura el acceso (su allowance anterior no se restaura). Esta es la forma recomendada de tratar el abuso de invitaciones sin eliminar la cuenta.
 
 ## Gestión de Usuarios
 
@@ -33,6 +70,16 @@ La pestaña **Usuarios** lista todas las cuentas. Haz clic en **Editar Perfil** 
 - Definir un **límite de perfiles** y **límite de aliases** personalizado (anula los predeterminados del plan para las páginas multiperfil y los aliases).
 - Alternar **insignias** del catálogo — estas son las insignias que el usuario puede mostrar en sus perfiles.
 - Restablecer la contraseña de un usuario (backend `POST /api/admin/users/:id/reset-password`).
+
+### Eliminar un usuario (borrado GDPR)
+
+Usa **Eliminar** junto a la fila de un usuario para **borrar permanentemente** la cuenta (derecho al olvido del GDPR). Esto es irreversible y elimina:
+
+- la cuenta de usuario, las passkeys, los desafíos WebAuthn y los webhooks (y sus entregas);
+- cada perfil (aliases, vistas de página, clics en enlaces, pistas de música, conexión de Discord, archivos de avatar/banner/música subidos);
+- insignias, códigos de invitación creados por el usuario y las referencias del usuario en el registro de autenticación y en los baneos de cuenta.
+
+No puedes eliminar tu propia cuenta desde el panel de administración. Para una alternativa reversible, usa **Editar Perfil → isPublic desactivado** en su perfil.
 
 ## Roles y Permisos
 
@@ -46,6 +93,18 @@ La pestaña **Roles** gestiona el acceso. Cada usuario tiene exactamente un rol;
 - `roles.manage` — crear/editar/eliminar roles.
 - `badges.manage` — crear/editar/eliminar insignias.
 - `logs.view` — ver el registro de autenticación.
+- `invites.generate` — permite al rol generar sus **propios** códigos de invitación (sujeto al interruptor global, a la configuración de invitaciones del rol a continuación y a los baneos de invitación).
+
+### Configuración de invitaciones por rol
+
+Junto a los permisos, cada rol tiene un bloque **Generación de invitaciones**:
+
+- **Máximo por lote** — cuántos códigos puede crear una acción de generación. `0` desactiva la generación basada en el rol.
+- **Máximo sin usar a la vez** — límite del total de códigos pendientes (sin usar) del usuario. `0` significa ilimitado.
+- **Tiempo de espera (minutos)** — espera mínima entre dos acciones de generar. `0` significa sin tiempo de espera.
+- **Vencimiento por defecto / Vencimiento mínimo / Vencimiento máximo (días)** — el usuario elige un vencimiento entre el mínimo y el máximo; cuando no elige, se usa el predeterminado. El mínimo es el suelo para que los códigos no puedan crearse con vencimiento inmediato; el máximo es el tope para que no puedan crear invitaciones permanentes.
+
+Un rol necesita **tanto** el permiso `invites.generate` como un límite por lote mayor que 0 para que sus miembros generen invitaciones por su cuenta. Los allowances de evento permiten generar independientemente de la configuración del rol (pero se aplican el mismo tiempo de espera y los mismos límites de vencimiento, limitados por la fecha de vencimiento del allowance).
 
 Siempre existen dos roles de sistema:
 

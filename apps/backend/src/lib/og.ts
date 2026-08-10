@@ -11,10 +11,6 @@ export interface OgPageInput {
   username: string;
   displayName: string | null;
   bio: string | null;
-  statusLabel: string | null;
-  activityLine: string | null;
-  linkCount: number;
-  trackCount: number;
   appName: string;
   appTagline: string;
   imageUrl: string;
@@ -23,14 +19,9 @@ export interface OgPageInput {
 
 export function buildOgPage(input: OgPageInput): string {
   const name = input.displayName || input.username;
-  const title = `${name} (@${input.username})${input.statusLabel ? ` · ${input.statusLabel}` : ""}`;
+  const title = `${name} (@${input.username})`;
 
-  const parts: string[] = [];
-  if (input.bio) parts.push(input.bio);
-  if (input.activityLine) parts.push(input.activityLine);
-  if (input.linkCount > 0) parts.push(`${input.linkCount} links`);
-  if (input.trackCount > 0) parts.push(`${input.trackCount} tracks`);
-  const description = parts.join(" · ").slice(0, 400) || input.appTagline;
+  const description = input.bio || input.appTagline;
 
   const titleEsc = escapeHtml(title);
   const descEsc = escapeHtml(description);

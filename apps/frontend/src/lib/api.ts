@@ -56,7 +56,43 @@ export interface Role {
   description: string | null;
   isSystem: boolean;
   permissions: string[];
+  inviteBatchLimit: number;
+  inviteOutstandingLimit: number;
+  inviteCooldownMinutes: number;
+  inviteDefaultExpiryDays: number;
+  inviteMinExpiryDays: number;
+  inviteMaxExpiryDays: number;
   _count?: { users: number };
+}
+
+export interface InviteMeta {
+  banned: boolean;
+  generationEnabled: boolean;
+  canGenerate: boolean;
+  allowance: number;
+  allowanceExpiresAt: string | null;
+  allowanceActive: boolean;
+  outstanding: number;
+  cooldownRemainingSeconds: number;
+  role: {
+    slug: string;
+    canGenerate: boolean;
+    batchLimit: number;
+    outstandingLimit: number;
+    cooldownMinutes: number;
+    defaultExpiryDays: number;
+    minExpiryDays: number;
+    maxExpiryDays: number;
+  };
+}
+
+export interface InviteGrantEvent {
+  id: string;
+  count: number;
+  expiryDays: number;
+  createdById: string | null;
+  createdBy: { id: string; username: string } | null;
+  createdAt: string;
 }
 
 export interface Badge {
@@ -76,6 +112,7 @@ export interface AuthUser {
   permissions: string[];
   isAdmin: boolean;
   tier: "FREE" | "PRO" | "ENTERPRISE";
+  apiLevel: "basic" | "advanced" | "enterprise";
   trackLimit: number | null;
   profileLimit: number | null;
   aliasLimit: number | null;
@@ -176,6 +213,7 @@ export interface MyProfiles {
   limits: { profiles: number; aliases: number };
   primaryId: string | null;
   aliasCount: number;
+  ownedBadges: string[];
 }
 
 export interface PublicProfile {
@@ -221,6 +259,8 @@ export interface DiscordActivity {
   applicationId: string | null;
   largeImage: string | null;
   smallImage: string | null;
+  buttons: string[] | null;
+  timestamps: { start: number | null; end: number | null } | null;
 }
 
 export interface DiscordPresence {
@@ -286,7 +326,15 @@ export interface EmailNotificationSettings {
   notifyOnClick: boolean;
 }
 
-export const WEBHOOK_EVENTS = ["profile.viewed", "link.clicked", "profile.updated"] as const;
+export const WEBHOOK_EVENTS = [
+  "profile.viewed",
+  "link.clicked",
+  "profile.updated",
+  "profile.created",
+  "profile.deleted",
+  "user.registered",
+  "user.updated",
+] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
 export interface WebhookDelivery {
@@ -310,6 +358,7 @@ export interface Webhook {
   secretPrefix: string;
   active: boolean;
   events: string[];
+  template?: string | null;
   createdAt: string;
   updatedAt: string;
   lastDelivery?: {
@@ -327,6 +376,7 @@ export interface WebhookWithSecret {
   secret: string;
   active: boolean;
   events: string[];
+  template?: string | null;
   createdAt: string;
 }
 
@@ -540,6 +590,11 @@ export const api = {
     return res.json() as Promise<{ success: boolean; data?: PublicProfile; error?: string }>;
   },
 
+  getProfilePresence: async (username: string) => {
+    const res = await fetch(`${API_URL}/profiles/${username}/presence`, { credentials: "include" });
+    return res.json() as Promise<{ success: boolean; data?: DiscordPresence | null; error?: string }>;
+  },
+
   trackClick: (profileId: string, platform: string) =>
     request("/profiles/click", {
       method: "POST",
@@ -563,13 +618,13 @@ export const api = {
 
   getWebhooks: () => request<Webhook[]>("/webhooks"),
 
-  createWebhook: (data: { name: string; url: string; events: WebhookEvent[]; active: boolean }) =>
+  createWebhook: (data: { name: string; url: string; events: WebhookEvent[]; active: boolean; template?: string | null }) =>
     request<WebhookWithSecret>("/webhooks", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  updateWebhook: (id: string, data: { name?: string; url?: string; events?: WebhookEvent[]; active?: boolean }) =>
+  updateWebhook: (id: string, data: { name?: string; url?: string; events?: WebhookEvent[]; active?: boolean; template?: string | null }) =>
     request<Webhook>(`/webhooks/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -695,8 +750,48 @@ export const api = {
   }),
 
   postToDiscord: (url?: string, profileId?: string) =>
-    request(`/discord/post${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, {
+    request<{ messageId: string | null; mode: "created" | "updated" | "none" }>(`/discord/post${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ""}`, {
       method: "POST",
       body: JSON.stringify(url ? { url } : {}),
     }),
+
+  getInvites: () => request<{ data: InviteCodeInfo[]; meta: InviteMeta }>("/invites"),
+
+  generateInvites: (body: { count: number; expiresInDays?: number }) =>
+    request<{ data: InviteCodeInfo[]; meta: InviteMeta }>("/invites", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  revokeInvite: (id: string) =>
+    request(`/invites/${id}`, { method: "DELETE" }),
+
+  getInviteSettings: () =>
+    request<{ userGenerationEnabled: boolean; eligibleUserCount: number }>("/admin/invite-settings"),
+
+  updateInviteSettings: (body: { userGenerationEnabled: boolean }) =>
+    request<{ userGenerationEnabled: boolean }>("/admin/invite-settings", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  createInviteEvent: (body: { count: number; expiryDays: number }) =>
+    request<{ grantedUsers: number; event: InviteGrantEvent; allowanceExpiresAt: string }>("/admin/invite-events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getInviteEvents: () =>
+    request<InviteGrantEvent[]>("/admin/invite-events"),
 };
+
+export interface InviteCodeInfo {
+  id: string;
+  code: string;
+  usedById: string | null;
+  usedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  fromAllowance: boolean;
+}

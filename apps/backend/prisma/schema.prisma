@@ -29,11 +29,17 @@ model User {
   totpEnabled  Boolean   @default(false) @map("totp_enabled")
   registeredIp String?   @map("registered_ip")
   lastLoginIp  String?   @map("last_login_ip")
+  inviteAllowance      Int       @default(0) @map("invite_allowance")
+  inviteAllowanceExpiresAt DateTime? @map("invite_allowance_expires_at")
+  inviteLastGeneratedAt DateTime? @map("invite_last_generated_at")
+  inviteBanned Boolean   @default(false) @map("invite_banned")
+  inviteBannedAt DateTime? @map("invite_banned_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   inviteUsed   InviteCode? @relation("InviteUsedBy")
   inviteCreated InviteCode[] @relation("InviteCreatedBy")
+  inviteGrants InviteGrantEvent[]
   profiles     Profile[]
   passkeys     Passkey[]
   webauthnChallenges WebAuthnChallenge[]
@@ -50,6 +56,12 @@ model Role {
   description String?
   isSystem    Boolean  @default(false) @map("is_system")
   permissions String[] @default([])
+  inviteBatchLimit      Int @default(0) @map("invite_batch_limit")
+  inviteOutstandingLimit Int @default(0) @map("invite_outstanding_limit")
+  inviteCooldownMinutes Int @default(0) @map("invite_cooldown_minutes")
+  inviteDefaultExpiryDays Int @default(30) @map("invite_default_expiry_days")
+  inviteMinExpiryDays   Int @default(1) @map("invite_min_expiry_days")
+  inviteMaxExpiryDays   Int @default(365) @map("invite_max_expiry_days")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -94,6 +106,8 @@ model Profile {
   showDiscordPresence Boolean  @default(false) @map("show_discord_presence")
   showDiscordActivity Boolean  @default(true) @map("show_discord_activity")
   discordWebhookUrlEncrypted String? @map("discord_webhook_url_encrypted")
+  discordPostedMessageId String? @map("discord_posted_message_id")
+  discordPostedWebhookUrlEncrypted String? @map("discord_posted_webhook_url_encrypted")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -199,13 +213,36 @@ model InviteCode {
   usedAt    DateTime? @map("used_at")
   expiresAt DateTime? @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
+  fromAllowance Boolean @default(false) @map("from_allowance")
+  refundedAt DateTime? @map("refunded_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
   createdBy User    @relation("InviteCreatedBy", fields: [createdById], references: [id])
   usedBy    User?   @relation("InviteUsedBy", fields: [usedById], references: [id])
 
   @@index([code])
+  @@index([createdById])
   @@map("invite_codes")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model InviteGrantEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  count       Int
+  expiryDays  Int      @map("expiry_days")
+  createdById String?  @db.Uuid @map("created_by_id")
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("invite_grant_events")
 }
 
 model Passkey {
@@ -286,6 +323,7 @@ model Webhook {
   secretPrefix String @map("secret_prefix")
   active    Boolean  @default(true)
   events    String[] @default([])
+  template  String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

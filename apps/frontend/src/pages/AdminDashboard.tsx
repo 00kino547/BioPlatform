@@ -4,17 +4,21 @@ import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
-import { getToken, type Badge, type Role } from "@/lib/api";
+import { getToken, type Badge, type Role, type InviteGrantEvent } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { X, Edit, Save, Trash2 } from "lucide-react";
 
 interface InviteCode {
   id: string;
   code: string;
+  createdById: string;
+  createdBy: { id: string; username: string } | null;
   usedById: string | null;
+  usedBy: { id: string; username: string } | null;
   usedAt: string | null;
   expiresAt: string | null;
   revokedAt: string | null;
+  fromAllowance: boolean;
   createdAt: string;
 }
 
@@ -29,6 +33,9 @@ interface User {
   profileLimit: number | null;
   aliasLimit: number | null;
   badges: string[];
+  inviteBanned: boolean;
+  inviteBannedAt: string | null;
+  inviteAllowance: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,10 +86,14 @@ const PERMISSION_LABELS: Record<string, string> = {
   "users.manage": "Manage users",
   "profiles.manage": "Manage profiles",
   "invites.manage": "Manage invite codes",
+  "invites.generate": "Generate own invite codes",
   "bans.manage": "Manage bans & lockouts",
   "roles.manage": "Manage roles",
   "badges.manage": "Manage badges",
   "logs.view": "View auth logs",
+  "api.basic": "API access — basic endpoints",
+  "api.advanced": "API access — advanced (Premium)",
+  "api.enterprise": "API access — enterprise endpoints",
 };
 
 const PERMISSION_ORDER = Object.keys(PERMISSION_LABELS);
@@ -110,6 +121,7 @@ export function AdminDashboard() {
   ];
   const [tab, setTab] = useState<Tab>(allowedTabs[0] ?? "codes");
   const [codes, setCodes] = useState<InviteCode[]>([]);
+  const [inviteFilter, setInviteFilter] = useState<"all" | "available" | "mine">("all");
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
@@ -117,6 +129,12 @@ export function AdminDashboard() {
   const [logs, setLogs] = useState<AuthLogEntry[]>([]);
   const [count, setCount] = useState(1);
   const [expiresDays, setExpiresDays] = useState("");
+  const [inviteSettings, setInviteSettings] = useState<{ userGenerationEnabled: boolean; eligibleUserCount: number } | null>(null);
+  const [events, setEvents] = useState<InviteGrantEvent[]>([]);
+  const [eventCount, setEventCount] = useState(3);
+  const [eventExpiry, setEventExpiry] = useState(7);
+  const [eventUnit, setEventUnit] = useState<"days" | "weeks">("days");
+  const [eventMsg, setEventMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -140,11 +158,28 @@ export function AdminDashboard() {
   const [editRoleId, setEditRoleId] = useState("");
   const [editBadges, setEditBadges] = useState<string[]>([]);
 
-  const [roleForm, setRoleForm] = useState<{ id: string | null; name: string; description: string; permissions: string[] }>({
+  const [roleForm, setRoleForm] = useState<{
+    id: string | null;
+    name: string;
+    description: string;
+    permissions: string[];
+    inviteBatchLimit: string;
+    inviteOutstandingLimit: string;
+    inviteCooldownMinutes: string;
+    inviteDefaultExpiryDays: string;
+    inviteMinExpiryDays: string;
+    inviteMaxExpiryDays: string;
+  }>({
     id: null,
     name: "",
     description: "",
     permissions: [],
+    inviteBatchLimit: "0",
+    inviteOutstandingLimit: "0",
+    inviteCooldownMinutes: "0",
+    inviteDefaultExpiryDays: "30",
+    inviteMinExpiryDays: "1",
+    inviteMaxExpiryDays: "365",
   });
   const [roleMsg, setRoleMsg] = useState("");
 
@@ -159,11 +194,29 @@ export function AdminDashboard() {
 
   const fetchCodes = async () => {
     const token = getToken();
-    const res = await fetch("/api/invites", {
+    const res = await fetch("/api/admin/invites", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
     if (data.success) setCodes(data.data);
+  };
+
+  const fetchInviteSettings = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/invite-settings", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setInviteSettings(data.data);
+  };
+
+  const fetchEvents = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/invite-events", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setEvents(data.data);
   };
 
   const fetchUsers = async () => {
@@ -241,7 +294,11 @@ export function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (canInvites) fetchCodes();
+    if (canInvites) {
+      fetchCodes();
+      fetchInviteSettings();
+      fetchEvents();
+    }
     if (canViewUsers) fetchUsers();
     if (canRoles) fetchRoles();
     if (canBadges) fetchBadges();
@@ -276,9 +333,9 @@ export function AdminDashboard() {
       return;
     }
 
-    setCodes((prev) => [...(data.data as InviteCode[]), ...prev]);
     setCount(1);
     setExpiresDays("");
+    await fetchCodes();
   };
 
   const handleRevoke = async (id: string) => {
@@ -292,6 +349,102 @@ export function AdminDashboard() {
       setCodes((prev) =>
         prev.map((c) => (c.id === id ? { ...c, revokedAt: new Date().toISOString() } : c))
       );
+    }
+  };
+
+  const handleToggleGeneration = async (enabled: boolean) => {
+    setEventMsg("");
+    const token = getToken();
+    const res = await fetch("/api/admin/invite-settings", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userGenerationEnabled: enabled }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setInviteSettings((prev) => (prev ? { ...prev, userGenerationEnabled: enabled } : prev));
+    } else {
+      setEventMsg(data.error ?? "Failed to update invite settings");
+    }
+  };
+
+  const handleCreateEvent = async (e: FormEvent) => {
+    e.preventDefault();
+    setEventMsg("");
+    setLoading(true);
+    const expiryDays = eventUnit === "weeks" ? eventExpiry * 7 : eventExpiry;
+    const token = getToken();
+    const res = await fetch("/api/admin/invite-events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ count: eventCount, expiryDays }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!data.success) {
+      setEventMsg(data.error ?? "Failed to run invite event");
+      return;
+    }
+    setEventMsg(
+      `Granted ${data.data.grantedUsers} user(s) ${eventCount} invite credit(s) each, expiring ${new Date(data.data.allowanceExpiresAt).toLocaleDateString()}.`
+    );
+    await fetchEvents();
+    await fetchCodes();
+    setTimeout(() => setEventMsg(""), 5000);
+  };
+
+  const handleInviteBan = async (u: User, banned: boolean) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ inviteBanned: banned }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setUsers((prev) =>
+        prev.map((x) =>
+          x.id === u.id
+            ? {
+                ...x,
+                inviteBanned: data.data.inviteBanned,
+                inviteBannedAt: data.data.inviteBannedAt,
+                inviteAllowance: data.data.inviteAllowance,
+              }
+            : x
+        )
+      );
+    } else {
+      window.alert(data.error ?? "Failed to update invite ban");
+    }
+  };
+
+  const handleDeleteUser = async (u: User) => {
+    if (!window.confirm(
+      `Permanently delete user "${u.username}"?\n\n` +
+      "This erases their account, all profiles, badges, webhooks, passkeys, invite codes, auth logs and uploads from the database and disk. This is irreversible (GDPR erasure)."
+    )) return;
+    const token = getToken();
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      if (canBans) fetchBans();
+      if (canLogs) fetchLogs();
+    } else {
+      window.alert(data.error ?? "Failed to delete user");
     }
   };
 
@@ -409,6 +562,12 @@ export function AdminDashboard() {
       name: roleForm.name,
       description: roleForm.description,
       permissions: roleForm.permissions,
+      inviteBatchLimit: Number(roleForm.inviteBatchLimit) || 0,
+      inviteOutstandingLimit: Number(roleForm.inviteOutstandingLimit) || 0,
+      inviteCooldownMinutes: Number(roleForm.inviteCooldownMinutes) || 0,
+      inviteDefaultExpiryDays: Number(roleForm.inviteDefaultExpiryDays) || 30,
+      inviteMinExpiryDays: Number(roleForm.inviteMinExpiryDays) || 1,
+      inviteMaxExpiryDays: Number(roleForm.inviteMaxExpiryDays) || 365,
     };
     const url = roleForm.id ? `/api/admin/roles/${roleForm.id}` : "/api/admin/roles";
     const res = await fetch(url, {
@@ -425,7 +584,7 @@ export function AdminDashboard() {
       return;
     }
     setRoleMsg("Saved");
-    setRoleForm({ id: null, name: "", description: "", permissions: [] });
+    setRoleForm({ id: null, name: "", description: "", permissions: [], inviteBatchLimit: "0", inviteOutstandingLimit: "0", inviteCooldownMinutes: "0", inviteDefaultExpiryDays: "30", inviteMinExpiryDays: "1", inviteMaxExpiryDays: "365" });
     fetchRoles();
     setTimeout(() => setRoleMsg(""), 2000);
   };
@@ -546,7 +705,118 @@ export function AdminDashboard() {
             <div className="grid gap-6 sm:grid-cols-3 mb-8">
               <StatCard label="Total" value={codes.length} />
               <StatCard label="Used" value={codes.filter((c) => c.usedById).length} />
-              <StatCard label="Available" value={codes.filter((c) => !c.usedById && !c.revokedAt).length} />
+              <StatCard label="Available" value={codes.filter((c) => !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now())).length} />
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-white mb-1">User invite generation</h2>
+                  <p className="text-sm text-zinc-500">
+                    Allow non-admin users to generate invite codes. Role quotas and event allowances still
+                    apply; invite-banned users stay excluded.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleGeneration(!inviteSettings?.userGenerationEnabled)}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                    inviteSettings?.userGenerationEnabled ? "bg-violet-500" : "bg-zinc-700"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                      inviteSettings?.userGenerationEnabled ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-zinc-500 mt-3">
+                {inviteSettings === null
+                  ? "Loading…"
+                  : inviteSettings.userGenerationEnabled
+                  ? `Enabled — ${inviteSettings.eligibleUserCount} user(s) eligible.`
+                  : "Disabled — users with a generation-enabled role still need this switch on."}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
+              <h2 className="text-lg font-semibold text-white mb-1">Invite event</h2>
+              <p className="text-sm text-zinc-500 mb-4">
+                Grant every non-banned user an invite allowance. They generate the codes themselves; the
+                allowance and any code created from it expire on the chosen date.
+              </p>
+
+              {eventMsg && (
+                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+                  eventMsg.startsWith("Failed") || eventMsg.startsWith("Please")
+                    ? "bg-red-500/10 border border-red-500/20 text-red-400"
+                    : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                }`}>
+                  {eventMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateEvent} className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                    Invites per user
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={eventCount}
+                    onChange={(e) => setEventCount(Number(e.target.value))}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Allowance expires in</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={eventExpiry}
+                      onChange={(e) => setEventExpiry(Number(e.target.value))}
+                      className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                    />
+                    <select
+                      value={eventUnit}
+                      onChange={(e) => setEventUnit(e.target.value as "days" | "weeks")}
+                      className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                    >
+                      <option value="days">days</option>
+                      <option value="weeks">weeks</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-end">
+                  <Button type="submit" disabled={loading} className="whitespace-nowrap">
+                    {loading ? "Granting…" : "Run event"}
+                  </Button>
+                </div>
+              </form>
+
+              {events.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-white mb-3">Recent events</h3>
+                  <div className="space-y-2">
+                    {events.map((ev) => (
+                      <div key={ev.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-2.5">
+                        <span className="text-zinc-300">
+                          +{ev.count} invite{ev.count === 1 ? "" : "s"} per user
+                        </span>
+                        <span className="text-zinc-500">expires {ev.expiryDays}d</span>
+                        <span className="text-zinc-500">by {ev.createdBy?.username ?? "deleted admin"}</span>
+                        <span className="text-xs text-zinc-600 ml-auto">
+                          {new Date(ev.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
@@ -593,59 +863,99 @@ export function AdminDashboard() {
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-              <h2 className="text-lg font-semibold text-white mb-4">All Invite Codes</h2>
-
-              {codes.length === 0 ? (
-                <p className="text-sm text-zinc-500">No codes yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                        <th className="pb-3 font-medium">Code</th>
-                        <th className="pb-3 font-medium">Status</th>
-                        <th className="pb-3 font-medium">Expires</th>
-                        <th className="pb-3 font-medium">Created</th>
-                        <th className="pb-3 font-medium"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800/40">
-                      {codes.map((code) => (
-                        <tr key={code.id}>
-                          <td className="py-3 font-mono text-zinc-300">{code.code}</td>
-                          <td className="py-3">
-                            {code.revokedAt ? (
-                              <span className="text-red-400">Revoked</span>
-                            ) : code.usedById ? (
-                              <span className="text-zinc-500">Used</span>
-                            ) : (
-                              <span className="text-emerald-400">Available</span>
-                            )}
-                          </td>
-                          <td className="py-3 text-zinc-500">
-                            {code.expiresAt
-                              ? new Date(code.expiresAt).toLocaleDateString()
-                              : "Never"}
-                          </td>
-                          <td className="py-3 text-zinc-500">
-                            {new Date(code.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="py-3">
-                            {!code.usedById && !code.revokedAt && (
-                              <button
-                                onClick={() => handleRevoke(code.id)}
-                                className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                              >
-                                Revoke
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <h2 className="text-lg font-semibold text-white">All Invite Codes</h2>
+                <div className="flex items-center gap-2">
+                  {(["all", "available", "mine"] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setInviteFilter(f)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        inviteFilter === f
+                          ? "bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40"
+                          : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                      }`}
+                    >
+                      {f === "all" ? "All" : f === "available" ? "Available" : "Created by me"}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              {(() => {
+                const filtered = codes.filter((c) => {
+                  if (inviteFilter === "mine") return c.createdById === user?.id;
+                  if (inviteFilter === "available") {
+                    return !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now());
+                  }
+                  return true;
+                });
+                if (filtered.length === 0) {
+                  return <p className="text-sm text-zinc-500">{codes.length === 0 ? "No codes yet." : "No invite codes match this filter."}</p>;
+                }
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
+                          <th className="pb-3 font-medium">Code</th>
+                          <th className="pb-3 font-medium">Status</th>
+                          <th className="pb-3 font-medium">Created by</th>
+                          <th className="pb-3 font-medium">Expires</th>
+                          <th className="pb-3 font-medium">Created</th>
+                          <th className="pb-3 font-medium"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-800/40">
+                        {filtered.map((code) => (
+                          <tr key={code.id}>
+                            <td className="py-3 font-mono text-zinc-300">
+                              {code.code}
+                              {code.fromAllowance && (
+                                <span className="ml-2 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-400 border border-violet-500/20">
+                                  EVENT
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3">
+                              {code.revokedAt ? (
+                                <span className="text-red-400">Revoked</span>
+                              ) : code.usedById ? (
+                                <span className="text-zinc-500">
+                                  Used{code.usedBy ? ` by ${code.usedBy.username}` : ""}
+                                </span>
+                              ) : (
+                                <span className="text-emerald-400">Available</span>
+                              )}
+                            </td>
+                            <td className="py-3 text-zinc-400">
+                              {code.createdBy?.username ?? code.createdById}
+                            </td>
+                            <td className="py-3 text-zinc-500">
+                              {code.expiresAt
+                                ? new Date(code.expiresAt).toLocaleDateString()
+                                : "Never"}
+                            </td>
+                            <td className="py-3 text-zinc-500">
+                              {new Date(code.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="py-3">
+                              {!code.usedById && !code.revokedAt && (
+                                <button
+                                  onClick={() => handleRevoke(code.id)}
+                                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                  Revoke
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}
@@ -672,7 +982,14 @@ export function AdminDashboard() {
                   <tbody className="divide-y divide-zinc-800/40">
                     {users.map((u) => (
                       <tr key={u.id}>
-                        <td className="py-3 font-mono text-zinc-300">{u.username}</td>
+                        <td className="py-3 font-mono text-zinc-300">
+                          {u.username}
+                          {u.inviteBanned && (
+                            <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20">
+                              INVITE BANNED
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 text-zinc-400">{u.email}</td>
                         <td className="py-3">
                           <span
@@ -704,13 +1021,42 @@ export function AdminDashboard() {
                         </td>
                         <td className="py-3">
                           {canManageUsers && (
-                            <button
-                              onClick={() => openEditProfile(u)}
-                              className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
-                            >
-                              <Edit className="h-3 w-3" />
-                              Edit Profile
-                            </button>
+                            <div className="flex items-center gap-3">
+                              {u.id !== user?.id && (
+                                <button
+                                  onClick={() => handleInviteBan(u, !u.inviteBanned)}
+                                  className={`text-xs transition-colors flex items-center gap-1 ${
+                                    u.inviteBanned
+                                      ? "text-emerald-400 hover:text-emerald-300"
+                                      : "text-amber-400 hover:text-amber-300"
+                                  }`}
+                                  title={
+                                    u.inviteBanned
+                                      ? "Allow this user to join invite events and generate invites again"
+                                      : "Block this user from invite events and invite generation (revokes their unused invites)"
+                                  }
+                                >
+                                  {u.inviteBanned ? "Unban invites" : "Ban invites"}
+                                </button>
+                              )}
+                              {u.id !== user?.id && (
+                                <button
+                                  onClick={() => handleDeleteUser(u)}
+                                  className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+                                  title="Permanently delete this user (GDPR erasure)"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  Delete
+                                </button>
+                              )}
+                              <button
+                                onClick={() => openEditProfile(u)}
+                                className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                              >
+                                <Edit className="h-3 w-3" />
+                                Edit Profile
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -762,6 +1108,91 @@ export function AdminDashboard() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Invite generation
+                  </label>
+                  <p className="text-xs text-zinc-500 mb-3">
+                    Requires the "Generate own invite codes" permission. Batch limit 0 disables role-based
+                    generation. Outstanding limit 0 = unlimited. Cooldown 0 = none. Expiry bounds apply to
+                    every code the role generates.
+                  </p>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                        Max per batch (0 = off)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={roleForm.inviteBatchLimit}
+                        onChange={(e) => setRoleForm({ ...roleForm, inviteBatchLimit: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                        Max unused at once (0 = ∞)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={roleForm.inviteOutstandingLimit}
+                        onChange={(e) => setRoleForm({ ...roleForm, inviteOutstandingLimit: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                        Cooldown (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={roleForm.inviteCooldownMinutes}
+                        onChange={(e) => setRoleForm({ ...roleForm, inviteCooldownMinutes: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                        Default expiry (days)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={roleForm.inviteDefaultExpiryDays}
+                        onChange={(e) => setRoleForm({ ...roleForm, inviteDefaultExpiryDays: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                        Min expiry (days)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={roleForm.inviteMinExpiryDays}
+                        onChange={(e) => setRoleForm({ ...roleForm, inviteMinExpiryDays: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                        Max expiry (days)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={roleForm.inviteMaxExpiryDays}
+                        onChange={(e) => setRoleForm({ ...roleForm, inviteMaxExpiryDays: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-2">Permissions</label>
                   <div className="grid sm:grid-cols-2 gap-2">
                     {PERMISSION_ORDER.map((perm) => {
@@ -808,7 +1239,7 @@ export function AdminDashboard() {
                     {roleForm.id ? "Save Role" : "Create Role"}
                   </Button>
                   {roleForm.id && (
-                    <Button variant="secondary" onClick={() => setRoleForm({ id: null, name: "", description: "", permissions: [] })}>
+                    <Button variant="secondary" onClick={() => setRoleForm({ id: null, name: "", description: "", permissions: [], inviteBatchLimit: "0", inviteOutstandingLimit: "0", inviteCooldownMinutes: "0", inviteDefaultExpiryDays: "30", inviteMinExpiryDays: "1", inviteMaxExpiryDays: "365" })}>
                       Cancel
                     </Button>
                   )}
@@ -851,6 +1282,12 @@ export function AdminDashboard() {
                               ))
                             )}
                           </div>
+                          <p className="text-[11px] text-zinc-600 mt-2">
+                            Invites:{" "}
+                            {r.inviteBatchLimit > 0
+                              ? `${r.inviteBatchLimit}/batch · ${r.inviteOutstandingLimit > 0 ? `${r.inviteOutstandingLimit} outstanding` : "∞ outstanding"} · ${r.inviteCooldownMinutes}min cooldown · expiry ${r.inviteDefaultExpiryDays}d (${r.inviteMinExpiryDays}–${r.inviteMaxExpiryDays})`
+                              : "generation disabled"}
+                          </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button
@@ -860,6 +1297,12 @@ export function AdminDashboard() {
                                 name: r.name,
                                 description: r.description ?? "",
                                 permissions: r.permissions,
+                                inviteBatchLimit: String(r.inviteBatchLimit ?? 0),
+                                inviteOutstandingLimit: String(r.inviteOutstandingLimit ?? 0),
+                                inviteCooldownMinutes: String(r.inviteCooldownMinutes ?? 0),
+                                inviteDefaultExpiryDays: String(r.inviteDefaultExpiryDays ?? 30),
+                                inviteMinExpiryDays: String(r.inviteMinExpiryDays ?? 1),
+                                inviteMaxExpiryDays: String(r.inviteMaxExpiryDays ?? 365),
                               })
                             }
                             className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"

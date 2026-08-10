@@ -9,6 +9,7 @@ import { SecurityTab } from "@/components/auth/SecurityTab";
 import { WebhooksTab } from "@/components/settings/WebhooksTab";
 import { DiscordTab } from "@/components/settings/DiscordTab";
 import { DataTab } from "@/components/settings/DataTab";
+import { InvitesTab } from "@/components/settings/InvitesTab";
 import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
@@ -36,6 +37,9 @@ import {
   Layers,
   Star,
   Link2,
+  Lock,
+  Crown,
+  Building2,
 } from "lucide-react";
 
 const platforms = [
@@ -60,6 +64,7 @@ const themePresets = [
     text: "#e4e4e7",
     accent: "#7c3aed",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Ocean",
@@ -68,6 +73,7 @@ const themePresets = [
     text: "#e2e8f0",
     accent: "#0ea5e9",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Sunset",
@@ -76,6 +82,7 @@ const themePresets = [
     text: "#fef2f2",
     accent: "#f97316",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Forest",
@@ -84,6 +91,7 @@ const themePresets = [
     text: "#ecfdf5",
     accent: "#22c55e",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Lavender",
@@ -92,6 +100,7 @@ const themePresets = [
     text: "#f3e8ff",
     accent: "#a855f7",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Rose",
@@ -100,6 +109,7 @@ const themePresets = [
     text: "#fdf2f8",
     accent: "#ec4899",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Arctic",
@@ -108,6 +118,7 @@ const themePresets = [
     text: "#1e293b",
     accent: "#6366f1",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
   },
   {
     name: "Minimal",
@@ -116,23 +127,114 @@ const themePresets = [
     text: "#18181b",
     accent: "#18181b",
     fontFamily: "Inter, system-ui, sans-serif",
+    tier: "free" as const,
+  },
+  {
+    name: "Aurora",
+    bg: "#071426",
+    cardBg: "rgba(10,25,45,0.65)",
+    text: "#e0f2fe",
+    accent: "#22d3ee",
+    fontFamily: "Inter, system-ui, sans-serif",
+    tier: "premium" as const,
+  },
+  {
+    name: "Royal",
+    bg: "#0b0712",
+    cardBg: "rgba(28,17,42,0.65)",
+    text: "#f5f3ff",
+    accent: "#a78bfa",
+    fontFamily: "Inter, system-ui, sans-serif",
+    tier: "premium" as const,
+  },
+  {
+    name: "Golden",
+    bg: "#120d04",
+    cardBg: "rgba(35,28,10,0.6)",
+    text: "#fffbeb",
+    accent: "#f59e0b",
+    fontFamily: "Inter, system-ui, sans-serif",
+    tier: "premium" as const,
+  },
+  {
+    name: "Obsidian",
+    bg: "#05060a",
+    cardBg: "rgba(16,18,26,0.7)",
+    text: "#eef2ff",
+    accent: "#34d399",
+    fontFamily: "Inter, system-ui, sans-serif",
+    tier: "enterprise" as const,
+  },
+  {
+    name: "Nebula",
+    bg: "#0a0614",
+    cardBg: "rgba(30,10,45,0.6)",
+    text: "#fae8ff",
+    accent: "#d946ef",
+    fontFamily: "Inter, system-ui, sans-serif",
+    tier: "enterprise" as const,
+  },
+  {
+    name: "Pearl",
+    bg: "#f4f1eb",
+    cardBg: "rgba(255,255,255,0.85)",
+    text: "#1c1917",
+    accent: "#b45309",
+    fontFamily: "Inter, system-ui, sans-serif",
+    tier: "enterprise" as const,
   },
 ];
+
+function LockedTab({ feature, required }: { feature: string; required: "premium" | "enterprise" }) {
+  const { user } = useAuth();
+  const tier = user?.tier ?? "FREE";
+  const overridden = required === "enterprise"
+    ? user?.permissions?.includes("api.enterprise")
+    : user?.permissions?.includes("api.advanced") || user?.permissions?.includes("api.enterprise");
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 sm:p-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-800/60 mb-4">
+        {required === "enterprise" ? (
+          <Building2 className="h-6 w-6 text-amber-400" />
+        ) : (
+          <Crown className="h-6 w-6 text-violet-400" />
+        )}
+      </div>
+      <h3 className="text-lg font-semibold text-white">{feature} is a {required === "enterprise" ? "Enterprise" : "Premium"} feature</h3>
+      <p className="mt-2 text-sm text-zinc-400 max-w-md mx-auto">
+        {overridden
+          ? `Your role already unlocks this — ask an admin to grant your role the ${
+              required === "enterprise" ? "api.enterprise" : "api.advanced"
+            } permission.`
+          : `Your account is on the ${tier.toLowerCase()} tier. Upgrade to ${required === "enterprise" ? "Enterprise" : "Premium"} to unlock ${feature.toLowerCase()}.`}
+      </p>
+      <div className="mt-5 flex items-center justify-center gap-2 text-xs text-zinc-500">
+        <Lock className="h-3.5 w-3.5" />
+        Requires {required === "enterprise" ? "Enterprise" : "Premium"} · API level “{required === "enterprise" ? "enterprise" : "advanced"}”
+      </div>
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { user, logout } = useAuth();
   const isAdmin = user?.isAdmin === true;
+  const apiLevel = user?.apiLevel ?? "basic";
+  const hasAdvanced = apiLevel === "advanced" || apiLevel === "enterprise";
+  const hasEnterprise = apiLevel === "enterprise";
 
   usePageMeta({ title: "Dashboard", description: `Manage your ${branding.name} profiles, links, appearance, and settings.`, url: "/dashboard" });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
   const [limits, setLimits] = useState<{ profiles: number; aliases: number }>({ profiles: 1, aliases: 0 });
   const [primaryId, setPrimaryId] = useState<string | null>(null);
+  const [ownedBadges, setOwnedBadges] = useState<string[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord">("profile");
+  const [tab, setTab] = useState<"profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord" | "invites">("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
@@ -194,8 +296,8 @@ export function Dashboard() {
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["profiles", "profile", "links", "appearance", "analytics", "email", "music", "security", "webhooks", "data", "discord"].includes(tabParam)) {
-      setTab(tabParam as "profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord");
+    if (tabParam && ["profiles", "profile", "links", "appearance", "analytics", "email", "music", "security", "webhooks", "data", "discord", "invites"].includes(tabParam)) {
+      setTab(tabParam as "profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord" | "invites");
       const next = new URLSearchParams(searchParams);
       next.delete("tab");
       setSearchParams(next, { replace: true });
@@ -209,6 +311,7 @@ export function Dashboard() {
       setProfiles(data.profiles);
       setLimits(data.limits);
       setPrimaryId(data.primaryId);
+      setOwnedBadges(data.ownedBadges ?? []);
       setSelectedProfileId((prev) =>
         prev && data.profiles.some((p) => p.id === prev) ? prev : (data.primaryId ?? data.profiles[0]?.id ?? null)
       );
@@ -726,19 +829,26 @@ export function Dashboard() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
-          {(["profiles", "profile", "links", "appearance", "analytics", "email", "music", "webhooks", "data", "discord", "security"] as const).map((t) => (
+          {(["profiles", "profile", "links", "appearance", "analytics", "email", "music", "webhooks", "data", "discord", "invites", "security"] as const).map((t) => {
+            const locked =
+              (t === "analytics" || t === "data" || t === "discord") && !hasAdvanced
+                ? true
+                : t === "webhooks" && !hasEnterprise;
+            return (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
                 tab === t
                   ? "text-violet-400 border-b-2 border-violet-400"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : "Security"}
+              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : t === "invites" ? "Invites" : "Security"}
+              {locked && <Lock className="h-3 w-3 opacity-70" />}
             </button>
-          ))}
+            );
+          })}
         </div>
 
         {uploadError && (
@@ -845,8 +955,9 @@ export function Dashboard() {
                     <p className="text-xs font-medium text-zinc-400 mb-2">Badges</p>
                     <div className="flex flex-wrap gap-2">
                       {badgeCatalog.map((badge) => {
+                        const owned = ownedBadges.includes(badge.id);
                         const active = p.badges?.includes(badge.id) ?? false;
-                        return (
+                        return owned ? (
                           <button
                             key={badge.id}
                             onClick={() => handleToggleBadge(p.id, badge.id)}
@@ -860,6 +971,18 @@ export function Dashboard() {
                           >
                             <BadgePill badge={badge} />
                           </button>
+                        ) : (
+                          <span
+                            key={badge.id}
+                            className="relative inline-flex cursor-not-allowed rounded-full opacity-40 grayscale"
+                            style={{ border: `1px solid ${badge.color}40` }}
+                            title="Badge not earned — it must be granted by an admin"
+                          >
+                            <BadgePill badge={badge} />
+                            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-800 ring-1 ring-zinc-600">
+                              <Lock className="h-2.5 w-2.5 text-zinc-400" />
+                            </span>
+                          </span>
                         );
                       })}
                       {badgeCatalog.length === 0 && (
@@ -1150,6 +1273,17 @@ export function Dashboard() {
                   }`}
                   style={{ backgroundColor: preset.bg }}
                 >
+                  {preset.tier !== "free" && (
+                    <span
+                      className={`absolute top-2 right-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                        preset.tier === "enterprise"
+                          ? "bg-amber-400/15 text-amber-300"
+                          : "bg-violet-400/15 text-violet-300"
+                      }`}
+                    >
+                      {preset.tier === "enterprise" ? "Enterprise" : "Premium"}
+                    </span>
+                  )}
                   <div className="flex items-center gap-3 mb-3">
                     <div
                       className="h-6 w-6 rounded-full ring-2 ring-white/20"
@@ -1205,7 +1339,8 @@ export function Dashboard() {
         )}
 
         {tab === "analytics" && (
-          <div className="space-y-6">
+          hasAdvanced ? (
+            <div className="space-y-6">
             {analyticsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
@@ -1440,7 +1575,10 @@ export function Dashboard() {
             ) : (
               <p className="text-sm text-zinc-500 text-center py-12">No analytics data available</p>
             )}
-          </div>
+            </div>
+          ) : (
+            <LockedTab feature="Analytics" required="premium" />
+          )
         )}
 
         {tab === "music" && (
@@ -1752,15 +1890,31 @@ export function Dashboard() {
         )}
 
         {tab === "webhooks" && (
-          <WebhooksTab />
+          hasEnterprise ? (
+            <WebhooksTab />
+          ) : (
+            <LockedTab feature="Webhooks" required="enterprise" />
+          )
         )}
 
         {tab === "discord" && (
-          <DiscordTab profileId={profile?.id} />
+          hasAdvanced ? (
+            <DiscordTab profileId={profile?.id} />
+          ) : (
+            <LockedTab feature="Discord" required="premium" />
+          )
         )}
 
         {tab === "data" && (
-          <DataTab profileId={profile?.id} />
+          hasAdvanced ? (
+            <DataTab profileId={profile?.id} />
+          ) : (
+            <LockedTab feature="Data" required="premium" />
+          )
+        )}
+
+        {tab === "invites" && (
+          <InvitesTab />
         )}
 
         {tab === "email" && (
