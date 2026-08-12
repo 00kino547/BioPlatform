@@ -8,6 +8,7 @@
 | `APP_TAGLINE` | Short tagline | `Your digital identity, beautifully crafted.` |
 | `APP_DESCRIPTION` | Full description | `Create a stunning profile page...` |
 | `APP_URL` | Public URL | `http://localhost:80` |
+| `APP_URL_HOST` | Bare hostname of the app's own domain (e.g. `example.com`). Nginx uses it to detect app-host requests and only route social-crawler root requests from **custom** domains to the backend for server-rendered OG. | _(empty → only $host matching is skipped, app host never detected)_ |
 | `APP_GITHUB_URL` | GitHub repository URL | `https://github.com/00kino547/BioPlatform` |
 
 ## Frontend
@@ -102,6 +103,18 @@ The Discord integration (account link, presence widget, link previews, "Post to 
 | `DISCORD_REDIRECT_URI` | OAuth2 redirect URI (must match the Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
 | `DISCORD_BOT_TOKEN` | Bot token that tracks live presence (enable the privileged **Presence Intent** and invite the bot to a server your users share) | _(empty)_ |
 | `DISCORD_GUILD_INVITE` | Optional Discord server invite shown as a "Join presence hub" button in the Dashboard Discord tab | _(empty)_ |
+
+## ACME (automatic TLS for custom domains)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ACME_ENABLED` | When `true`, the backend automatically issues and renews Let's Encrypt certificates (HTTP-01) for every ACTIVE custom domain and manages the nginx custom-domain config. Requires each custom domain's DNS to point at this server and port 80 to be reachable. | `false` |
+| `ACME_DIRECTORY_URL` | ACME directory URL. Use the Let's Encrypt staging URL for testing to avoid rate limits. | `https://acme-v02.api.letsencrypt.org/directory` |
+| `ACME_EMAIL` | Contact email registered with the ACME account. | _(empty)_ |
+| `ACME_RENEW_BEFORE_DAYS` | Renew certificates that expire within this many days. | `30` |
+| `ACME_INTERVAL_MINUTES` | How often the backend checks for certificates that need issuing or renewing (also regenerates the nginx custom-domain config). | `60` |
+| `ACME_MAX_DOMAINS_PER_RUN` | Maximum domains processed per check (safety against ACME rate limits). | `20` |
+| `ACME_CERTS_PATH` | Directory where certificates, the ACME account key, and the generated nginx config live. In Docker this is the same host folder mounted into nginx at `/etc/nginx/certs` (`./certs`). | `certs` |
 
 > Create the application in the [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). Register the redirect URI under **OAuth2 → Redirects**, then copy the Client ID and Client Secret. Authorized users grant only `identify` with `prompt=consent` (account link + webhook embeds). For live presence, create a **Bot** user under the same app (Bot → Add Bot), enable the privileged "Presence Intent" (Settings → Bot → Privileged Gateway Intents), copy the bot token, and invite the bot to a server. A user's status is visible only while they are in a server shared with the bot.
 

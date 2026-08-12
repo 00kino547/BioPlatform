@@ -10,6 +10,7 @@ import { WebhooksTab } from "@/components/settings/WebhooksTab";
 import { DiscordTab } from "@/components/settings/DiscordTab";
 import { DataTab } from "@/components/settings/DataTab";
 import { InvitesTab } from "@/components/settings/InvitesTab";
+import { DomainTab } from "@/components/settings/DomainTab";
 import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
@@ -223,6 +224,7 @@ export function Dashboard() {
   const apiLevel = user?.apiLevel ?? "basic";
   const hasAdvanced = apiLevel === "advanced" || apiLevel === "enterprise";
   const hasEnterprise = apiLevel === "enterprise";
+  const hasCustomDomain = (user?.tier === "PRO" || user?.tier === "ENTERPRISE") && user?.permissions?.includes("profiles.customDomain");
 
   usePageMeta({ title: "Dashboard", description: `Manage your ${branding.name} profiles, links, appearance, and settings.`, url: "/dashboard" });
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -234,7 +236,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord" | "invites">("profile");
+  const [tab, setTab] = useState<"profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord" | "invites" | "domain">("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
@@ -829,11 +831,13 @@ export function Dashboard() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
-          {(["profiles", "profile", "links", "appearance", "analytics", "email", "music", "webhooks", "data", "discord", "invites", "security"] as const).map((t) => {
+          {(["profiles", "profile", "links", "appearance", "analytics", "email", "music", "webhooks", "data", "discord", "invites", "domain", "security"] as const).map((t) => {
             const locked =
               (t === "analytics" || t === "data" || t === "discord") && !hasAdvanced
                 ? true
-                : t === "webhooks" && !hasEnterprise;
+                : t === "webhooks" && !hasEnterprise
+                  ? true
+                  : t === "domain" && !hasCustomDomain;
             return (
             <button
               key={t}
@@ -844,7 +848,7 @@ export function Dashboard() {
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : t === "invites" ? "Invites" : "Security"}
+              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : t === "invites" ? "Invites" : t === "domain" ? "Domain" : "Security"}
               {locked && <Lock className="h-3 w-3 opacity-70" />}
             </button>
             );
@@ -1995,6 +1999,10 @@ export function Dashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {tab === "domain" && (
+          <DomainTab profileId={profile?.id} profiles={profiles} />
         )}
       </main>
 

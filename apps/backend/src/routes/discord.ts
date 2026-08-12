@@ -15,6 +15,7 @@ import {
   decryptDiscordSecret,
   isDiscordWebhookUrl,
   buildDiscordAvatarUrl,
+  buildBotInviteUrl,
   DISCORD_STATUS_LABELS,
 } from "../lib/discord.js";
 import {
@@ -68,6 +69,7 @@ router.get("/", requireAuth, requireApiLevel("advanced"), async (req, res) => {
       configured: isDiscordConfigured(),
       connected: Boolean(connection),
       botConfigured: Boolean(getEnv().DISCORD_BOT_TOKEN),
+      botInviteUrl: buildBotInviteUrl(),
       presenceHubInvite: presenceHubUrl(getEnv().DISCORD_GUILD_INVITE),
       sessionActive: connection ? isSessionActive() : false,
       discord: connection

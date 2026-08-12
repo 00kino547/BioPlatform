@@ -6,15 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0-dev-beta.1] - 2026-08-12
+
 ### Security
 - Private-profile presence leak closed: `GET /api/profiles/:identifier/presence` now returns 404 for non-public profiles (it previously exposed online status and current activity to anyone who knew the slug).
 - Invite generation is now atomic: the allowance check and the spend run inside a single transaction with `SELECT … FOR UPDATE` on the user row, closing the check-then-spend race that could overdraw an allowance and mint more codes than credits.
-- Discord presence cache entries expire after 5 minutes (with a periodic sweep) instead of persisting indefinitely, so a stale "online"/activity never lingers on profiles after the user leaves the shared guild or removes the integration.
+- Discord presence is now event-driven like Discord's own clients: the cached status holds the last value the gateway reported and only flips to "offline" when Discord actually broadcasts an offline update — idle users no longer show as offline after a few minutes of no activity. Memory is still bounded by a background sweep that evicts entries unused for 2 hours (plus a full resync on gateway reconnect), so stale entries from users who leave the shared guild eventually clear.
 - `requireAdmin` now requires a real admin-gate permission (`users.view/manage`, `profiles.manage`, `invites.manage`, `bans.manage`, `roles.manage`, `badges.manage`, `logs.view`) instead of passing any role with ≥1 permission (e.g. `api.basic`).
 - `user.deleted` webhooks now actually fire: the event is awaited **before** the account row is deleted — previously the delete cascaded the user's webhooks first, so no delivery was ever attempted.
 - Webhook transport hardened: destinations must be `https:` and every resolved IP must be public (loopback/private/ULA/multicast are rejected, with a DNS re-check on each redirect), and redirects are only followed to `https:` — no more plaintext sniffing, HTTP downgrades, or SSRF to internal services.
+- Boolean env vars are parsed correctly: `ACME_ENABLED` and `SMTP_ENABLED` used `z.coerce.boolean()`, which coerces the string `"false"` to `true` — so with the env default `ACME_ENABLED=false` in `docker-compose.yml` the ACME certificate service ran even when explicitly disabled (and the same latent bug affected SMTP). Both now parse via an explicit `"true"`/`"1"` check, so `false` means disabled.
+
+### Added
+- **Custom domain support (self-serve)** — users on the PRO/ENTERPRISE tier whose role has the new `profiles.customDomain` permission can connect their own domain from a new Dashboard **Domain** tab: request a plain hostname (validated server-side, app host/`www.` rejected, one per profile, REJECTED entries reusable), prove ownership with a DNS TXT record (`_bioplatform.<domain>`, value `bioplatform-verify=<hex>`, checked live by the backend with a 10s timeout), then an admin activates it from the new **Custom Domains** tab (`GET/POST /api/admin/custom-domains[/:id/approve|reject]`, `profiles.manage` gate, only VERIFIED → ACTIVE). Active domains are resolved by `resolveCustomDomain` middleware (`ProfileDomain` model + `CustomDomainStatus` enum, migration `docs/migrations/2026-08-11_custom-domains.sql`).
+- **Custom-domain root + host-aware OG** — the domain root serves either the landing page or a user-selected public profile (`PUT …/domain` rootTarget, validated against public slugs) and is mirrored client-side by `CustomDomainRoot` + `DomainContext` (`GET /api/domain`); social crawlers hitting a custom-domain root or profile URL get server-rendered OG from the backend with canonical/OG URLs pointing at the custom domain (nginx app-host map from `APP_URL_HOST` routes only non-app-host root bots to the backend, per-domain TLS `server` blocks generated from `./certs/<domain>/cert.pem`+`key.pem`, skipping with a warning when absent).
+- **Automatic TLS for custom domains (ACME)** — with `ACME_ENABLED=true` the backend issues and auto-renews Let's Encrypt certificates (HTTP-01, `acme-client`) for every ACTIVE domain: an ACME account key is persisted under `./certs/acme/`, challenges are answered by a new `GET /.well-known/acme-challenge/:token` backend route, and certificates are written to `./certs/<domain>/` and tracked on the `ProfileDomain` row (`TlsStatus` enum `NONE/PENDING/ISSUED/FAILED`, `tlsIssuedAt/tlsExpiresAt/tlsError`). The backend now owns the generated nginx `custom-domains.conf` (per-domain HTTP blocks exposing the challenge + HTTPS→redirect, plus HTTPS blocks when a cert exists); the nginx entrypoint watches the file and reloads automatically when it changes, so manual cert drops are also picked up (default hourly). Admins can force issuance per domain (`POST /api/admin/custom-domains/:id/issue-cert`); the admin Custom Domains tab shows a TLS column and an **Issue cert** button, and the user Domain tab shows the certificate status/renewal date. New env vars: `ACME_ENABLED`, `ACME_DIRECTORY_URL`, `ACME_EMAIL`, `ACME_RENEW_BEFORE_DAYS`, `ACME_INTERVAL_MINUTES`, `ACME_MAX_DOMAINS_PER_RUN`, `ACME_CERTS_PATH`.
 
 ### Changed
+- Discord bot invite button: the Discord settings tab now offers **Invite the bot to your server** (a new `botInviteUrl` field on `GET /api/discord`, built from `DISCORD_CLIENT_ID`), so any user can add the instance bot to a server they manage and start sharing presence without joining a shared hub. The bot was already multi-guild aware (per-user presence cache keyed by Discord user id, fed by every `GUILD_CREATE` and `PRESENCE_UPDATE`), so it works in any number of servers.
 - Cloudflare Tunnel client IPs: nginx now restores the real visitor IP from Cloudflare's `CF-Connecting-IP` header for trusted sources only (new `CF_TRUSTED_IPS` env var, default `172.18.0.0/16,127.0.0.1,::1` — the docker bridge gateway plus loopback), so backend logs, analytics, and auth rate limiting record public IPs instead of the tunnel's local address. Keep `TRUST_PROXY=1`; raising it would trust spoofed `X-Forwarded-For` values.
 
 ### Fixed
@@ -193,6 +202,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
+[1.3.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.1-dev-beta.1...v1.3.0-dev-beta.1
+[1.2.1-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.0-dev-beta.1...v1.2.1-dev-beta.1
 [1.2.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.1.0-dev-beta.1...v1.2.0-dev-beta.1
 [1.1.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.0.1-dev-beta.2...v1.1.0-dev-beta.1
 [1.0.1-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.0.1-dev-beta.1...v1.0.1-dev-beta.2

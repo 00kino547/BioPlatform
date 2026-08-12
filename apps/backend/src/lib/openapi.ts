@@ -2,7 +2,7 @@ export const openapi = {
   openapi: "3.0.3",
   info: {
     title: "BioPlatform API",
-    version: "1.2.0-dev-beta.1",
+    version: "1.3.0-dev-beta.1",
     description:
       "REST API for the BioPlatform link-in-bio service. Authenticated endpoints require a Bearer token returned by /api/auth/login or /api/auth/register. Public profile data is available without authentication.",
   },
@@ -19,6 +19,7 @@ export const openapi = {
     { name: "Discord" },
     { name: "Invites" },
     { name: "Badges" },
+    { name: "Custom Domains" },
     { name: "Admin" },
   ],
   paths: {
@@ -924,6 +925,122 @@ export const openapi = {
         responses: { "200": { description: "Deleted" }, "400": { description: "System badges cannot be deleted" } },
       },
     },
+
+    "/domain": {
+      get: {
+        tags: ["Custom Domains"],
+        summary: "Custom-domain info for the current host (public)",
+        security: [],
+        responses: {
+          "200": {
+            description: "Whether the current host is an active custom domain, its root target slug, and canonical URL",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        active: { type: "boolean" },
+                        host: { type: "string" },
+                        slug: { type: ["string", "null"] },
+                        canonical: { type: ["string", "null"] },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    "/profiles/me/{profileId}/domain": {
+      get: {
+        tags: ["Custom Domains"],
+        summary: "Get this profile's custom-domain request (owner only)",
+        responses: { "200": { description: "ProfileDomain or null" } },
+      },
+      post: {
+        tags: ["Custom Domains"],
+        summary: "Request a custom domain (PRO/Enterprise tier + profiles.customDomain permission; owner only)",
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["domain"], properties: { domain: { type: "string", description: "Plain hostname, e.g. example.com (no scheme/path/port/www)" } } } } },
+        },
+        responses: {
+          "201": { description: "Domain request created in PENDING_VERIFICATION" },
+          "403": { description: "Missing tier or permission" },
+          "409": { description: "Profile already has a request, or the domain is in use" },
+        },
+      },
+      put: {
+        tags: ["Custom Domains"],
+        summary: "Set the root target of the custom domain (owner only)",
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", properties: { rootTarget: { type: ["string", "null"], description: "Public profile slug, or null for the landing page" } } } } },
+        },
+        responses: { "200": { description: "Updated ProfileDomain" } },
+      },
+      delete: {
+        tags: ["Custom Domains"],
+        summary: "Disconnect the custom domain from this profile (owner only)",
+        responses: { "200": { description: "Removed" } },
+      },
+    },
+
+    "/profiles/me/{profileId}/domain/verify": {
+      post: {
+        tags: ["Custom Domains"],
+        summary: "Re-check the TXT record for a PENDING_VERIFICATION request (owner only)",
+        responses: {
+          "200": { description: "Domain verified (status → VERIFIED)" },
+          "400": { description: "TXT record not found yet, or request not pending" },
+        },
+      },
+    },
+
+    "/admin/custom-domains": {
+      get: {
+        tags: ["Admin"],
+        summary: "List all custom-domain requests (admin: profiles.manage)",
+        responses: { "200": { description: "Requests with owner and profile slug" } },
+      },
+    },
+
+    "/admin/custom-domains/{id}/approve": {
+      post: {
+        tags: ["Admin"],
+        summary: "Activate a VERIFIED custom domain (admin: profiles.manage)",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Activated (status → ACTIVE)", }, "400": { description: "Only VERIFIED requests can be approved" } },
+      },
+    },
+
+    "/admin/custom-domains/{id}/reject": {
+      post: {
+        tags: ["Admin"],
+        summary: "Reject a custom-domain request (admin: profiles.manage)",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Rejected (status → REJECTED)" }, "400": { description: "Already rejected" } },
+      },
+    },
+
+    "/admin/custom-domains/{id}/issue-cert": {
+      post: {
+        tags: ["Admin"],
+        summary: "Immediately issue/renew the TLS certificate for an ACTIVE domain via ACME (admin: profiles.manage)",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Certificate issued and nginx reloaded" },
+          "400": { description: "Domain not ACTIVE, or ACME is disabled" },
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -1110,6 +1227,26 @@ export const openapi = {
         properties: {
           platform: { type: "string", description: "Must be a platform from the allowlist" },
           url: { type: "string", description: "Valid http(s)/mailto URL" },
+        },
+      },
+      ProfileDomain: {
+        type: "object",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          profileId: { type: "string", format: "uuid" },
+          domain: { type: "string" },
+          status: { type: "string", enum: ["PENDING_VERIFICATION", "VERIFIED", "ACTIVE", "REJECTED"] },
+          verificationToken: { type: "string", description: "TXT value (bioplatform-verify=<hex>) for _bioplatform.<domain>" },
+          verifiedAt: { type: ["string", "null"], format: "date-time" },
+          approvedAt: { type: ["string", "null"], format: "date-time" },
+          rejectedAt: { type: ["string", "null"], format: "date-time" },
+          rootTarget: { type: ["string", "null"], description: "Public profile slug served at the root, or null for the landing page" },
+          tlsStatus: { type: "string", enum: ["NONE", "PENDING", "ISSUED", "FAILED"], description: "State of the automatic TLS certificate" },
+          tlsIssuedAt: { type: ["string", "null"], format: "date-time" },
+          tlsExpiresAt: { type: ["string", "null"], format: "date-time" },
+          tlsError: { type: ["string", "null"], description: "Last ACME issuance error, if any" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
         },
       },
       Theme: {

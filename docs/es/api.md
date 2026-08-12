@@ -225,7 +225,7 @@ Vinculación OAuth2 de la cuenta más un bot compartido para la presencia en viv
 
 | Método | Endpoint | Descripción |
 | --- | --- | --- |
-| `GET` | `/api/discord` | Estado de la integración: `configured`, `connected`, `botConfigured`, `presenceHubInvite`, `sessionActive`, la cuenta conectada (`username`, `globalName`, `avatar`), ajustes (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured` y una instantánea de presencia en caché. |
+| `GET` | `/api/discord` | Estado de la integración: `configured`, `connected`, `botConfigured`, `botInviteUrl`, `presenceHubInvite`, `sessionActive`, la cuenta conectada (`username`, `globalName`, `avatar`), ajustes (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured` y una instantánea de presencia en caché. |
 | `GET` | `/api/discord/connect` | Devuelve `{ url }` — la URL de autorización OAuth2 de Discord (scope `identify`, `prompt=consent`). Requiere que la integración esté configurada. |
 | `GET` | `/api/discord/callback` | Callback de OAuth2 (se visita en el navegador). Intercambia el código, crea/actualiza la `DiscordConnection` y redirige a `/dashboard?tab=discord&discord=connected|error`. |
 | `POST` | `/api/discord/disconnect` | Desconectar Discord: elimina la conexión y desactiva compartir presencia. |
@@ -254,6 +254,28 @@ El embed "Post to Discord" mantiene un único mensaje sincronizado: el id del me
 - `DELETE /api/admin/users/:id` — borrado completo GDPR (cuenta, perfiles, archivos subidos, webhooks, passkeys, códigos de invitación y las referencias del usuario en el registro de autenticación y en los baneos de cuenta).
 
 El acceso de administración se basa en permisos (ver [Guía de Administración](./admin-guide.md) → Roles y Permisos).
+
+## Dominios Personalizados
+
+Los dominios personalizados son de autoservicio con aprobación de administrador, restringidos al tier PRO/Enterprise **y** al permiso `profiles.customDomain`.
+
+**Público.** `GET /api/domain` devuelve el estado de dominio personalizado del host actual: `{ active, host, slug, canonical }`. `slug` es el destino de raíz (slug de perfil público servido en la raíz) o `null` para la página de inicio.
+
+**Solo propietario** (el perfil debe pertenecer al llamante):
+
+- `GET /api/profiles/me/:profileId/domain` — el `ProfileDomain` del perfil o `null`.
+- `POST /api/profiles/me/:profileId/domain` — solicitar un dominio con `{ domain }` (un hostname simple: sin scheme, ruta, puerto ni `www.`; se rechazan el dominio de la app y los dominios ya usados, uno por perfil). Crea una entrada `PENDING_VERIFICATION` y la devuelve con el `verificationToken`.
+- `POST /api/profiles/me/:profileId/domain/verify` — vuelve a resolver el registro TXT. En éxito, el estado pasa a `VERIFIED` (esperando administrador).
+- `PUT /api/profiles/me/:profileId/domain` — define `{ rootTarget }` como un slug de perfil **público** (la raíz muestra ese perfil) o `null` (la raíz muestra la página de inicio).
+- `DELETE /api/profiles/me/:profileId/domain` — desconecta el dominio y lo libera.
+
+**Administración** (`profiles.manage`):
+
+- `GET /api/admin/custom-domains` — todas las solicitudes, de la más reciente a la más antigua, con propietario (usuario/email/tier) y slug del perfil.
+- `POST /api/admin/custom-domains/:id/approve` — activa una solicitud **VERIFIED** (→ `ACTIVE`).
+- `POST /api/admin/custom-domains/:id/reject` — rechaza una solicitud (→ `REJECTED`; el usuario puede entonces enviar una nueva).
+
+Flujo de estados: `PENDING_VERIFICATION` → `VERIFIED` (pasa la comprobación TXT del usuario) → `ACTIVE` (aprueba el administrador). Las entradas `REJECTED` son reutilizables.
 
 ## Límites de peticiones
 

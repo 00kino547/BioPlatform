@@ -88,6 +88,25 @@ cp .env.example .env
 | `ENABLE_INTERNAL_NGINX` | Enable Nginx container | `true` |
 | `NGINX_PORT` | Nginx HTTP port | `80` |
 | `NGINX_HTTPS_PORT` | Nginx HTTPS port | `443` |
+| `APP_URL_HOST` | Bare hostname of the app's own domain (e.g. `example.com`). Nginx generates an app-host map at startup so social crawlers requesting the **root** of a **custom** domain get server-rendered OG from the backend, while the app host keeps its static SPA OG. | _(empty)_ |
+| `ACME_ENABLED` | Enable automatic TLS (Let's Encrypt) for ACTIVE custom domains. | `false` |
+| `ACME_DIRECTORY_URL` | ACME directory URL (staging for testing). | `https://acme-v02.api.letsencrypt.org/directory` |
+| `ACME_EMAIL` | ACME account contact email. | _(empty)_ |
+| `ACME_RENEW_BEFORE_DAYS` | Renew certs expiring within this many days. | `30` |
+| `ACME_INTERVAL_MINUTES` | How often the backend checks certs and regenerates nginx config. | `60` |
+| `ACME_MAX_DOMAINS_PER_RUN` | Max domains issued per check. | `20` |
+| `ACME_CERTS_PATH` | Certificate/nginx-config directory (same host folder as nginx `/etc/nginx/certs` in Docker). | `certs` |
+
+### Custom domains & TLS
+
+Users can request a custom domain (PRO/Enterprise tier + `profiles.customDomain` permission), prove ownership with a TXT record (`_bioplatform.<domain>`), and an admin activates it after the TXT check passes. Active custom domains get:
+
+- **Automatic TLS (ACME)**: with `ACME_ENABLED=true`, the backend issues and auto-renews Let's Encrypt certificates (HTTP-01) for every ACTIVE domain, writes them to `./certs/<domain>/`, regenerates the nginx config, and triggers a reload. Custom-domain HTTP server blocks expose `/.well-known/acme-challenge/` (proxied to the backend) and redirect everything else to HTTPS. Admin can force issuance per domain (Admin → Custom Domains → "Issue cert"). Requires the domain to point at this server with port 80 open.
+- **Manual TLS**: drop a certificate and key per domain in `./certs/<domain>/cert.pem` + `key.pem` (gitignored). The backend picks them up on its next check (default hourly) and regenerates the nginx config; nginx reloads automatically.
+- **Host-aware routing**: the custom-domain root serves the configured root target (a public profile) or the landing page; the SPA resolves the same redirect client-side.
+- **Host-aware OG**: social crawlers hitting the root or a profile URL on a custom domain get server-rendered meta with canonical/OG URLs pointing at the custom domain.
+
+Quick tunnels (`cloudflared tunnel --url …`) cannot route arbitrary custom domains — use a **named tunnel** with per-domain ingress rules so traffic for each custom domain reaches nginx with the correct `Host` header (and route `/.well-known/acme-challenge/*` to the backend).
 
 ## Storage
 

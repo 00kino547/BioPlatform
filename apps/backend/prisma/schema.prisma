@@ -13,6 +13,20 @@ enum UserTier {
   ENTERPRISE
 }
 
+enum CustomDomainStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  ACTIVE
+  REJECTED
+}
+
+enum TlsStatus {
+  NONE
+  PENDING
+  ISSUED
+  FAILED
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   username     String    @unique
@@ -117,6 +131,7 @@ model Profile {
   linkClicks LinkClick[]
   musicTracks MusicTrack[]
   discordConnection DiscordConnection?
+  customDomain ProfileDomain?
 
   @@index([userId])
   @@map("profiles")
@@ -132,6 +147,29 @@ model ProfileAlias {
 
   @@index([profileId])
   @@map("profile_aliases")
+}
+
+model ProfileDomain {
+  id            String              @id @default(uuid()) @db.Uuid
+  profileId     String              @unique @db.Uuid @map("profile_id")
+  domain        String              @unique
+  status        CustomDomainStatus  @default(PENDING_VERIFICATION) @map("status")
+  verificationToken String         @map("verification_token")
+  verifiedAt    DateTime?           @map("verified_at")
+  approvedAt    DateTime?           @map("approved_at")
+  rejectedAt    DateTime?           @map("rejected_at")
+  rootTarget    String?             @map("root_target")
+  tlsStatus     TlsStatus           @default(NONE) @map("tls_status")
+  tlsIssuedAt   DateTime?           @map("tls_issued_at")
+  tlsExpiresAt  DateTime?           @map("tls_expires_at")
+  tlsError      String?             @map("tls_error")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("profile_domains")
 }
 
 model DiscordConnection {

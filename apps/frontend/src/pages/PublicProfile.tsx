@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api, type PublicProfile, type Badge, type DiscordPresence } from "@/lib/api";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
+import { useDomain } from "@/contexts/DomainContext";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { FloatingMusicPlayer } from "@/components/music/MusicPlayer";
 import { EnterGate } from "@/components/EnterGate";
@@ -31,6 +32,7 @@ function fallbackInitial(name: string) {
 
 export function PublicProfilePage() {
   const { username } = useParams<{ username: string }>();
+  const { info: domainInfo } = useDomain();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -38,11 +40,14 @@ export function PublicProfilePage() {
   const [entered, setEntered] = useState(false);
   const [livePresence, setLivePresence] = useState<DiscordPresence | null | undefined>(undefined);
 
+  const customBase = domainInfo?.active && domainInfo.canonical ? domainInfo.canonical : null;
+
   usePageMeta({
     title: profile ? `${profile.displayName || profile.username} (@${profile.username})` : "Profile",
     description: profile?.bio || branding.description,
     url: `/${username ?? ""}`,
-    image: profile ? `${branding.url}/api/profiles/${profile.username}/og.png` : branding.ogImage,
+    image: profile ? `${customBase ?? branding.url}/api/profiles/${profile.username}/og.png` : branding.ogImage,
+    baseUrl: customBase ?? undefined,
   });
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_SLUGS } from "../lib/permissi
 import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.js";
 import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
+import { issueCertificateForDomain } from "../lib/acme.js";
 
 const router = Router();
 
@@ -744,6 +745,81 @@ router.delete("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), async
 
   await prisma.badge.delete({ where: { id: badge.id } });
   res.json({ success: true });
+});
+
+router.get("/custom-domains", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (_req, res) => {
+  const entries = await prisma.profileDomain.findMany({
+    include: {
+      profile: {
+        include: { user: { select: { id: true, username: true, email: true, tier: true } } },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({
+    success: true,
+    data: entries.map((e) => ({
+      id: e.id,
+      profileId: e.profileId,
+      profileSlug: e.profile.slug,
+      owner: e.profile.user,
+      domain: e.domain,
+      status: e.status,
+      rootTarget: e.rootTarget,
+      verificationToken: e.verificationToken,
+      verifiedAt: e.verifiedAt,
+      approvedAt: e.approvedAt,
+      rejectedAt: e.rejectedAt,
+      tlsStatus: e.tlsStatus,
+      tlsIssuedAt: e.tlsIssuedAt,
+      tlsExpiresAt: e.tlsExpiresAt,
+      tlsError: e.tlsError,
+      createdAt: e.createdAt,
+    })),
+  });
+});
+
+router.post("/custom-domains/:id/approve", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const entry = await prisma.profileDomain.findUnique({ where: { id: req.params.id } });
+  if (!entry) {
+    return res.status(404).json({ success: false, error: "Custom domain request not found" });
+  }
+  if (entry.status !== "VERIFIED") {
+    return res.status(400).json({ success: false, error: `Only a VERIFIED domain can be approved (current status: ${entry.status}).` });
+  }
+  const updated = await prisma.profileDomain.update({
+    where: { id: entry.id },
+    data: { status: "ACTIVE", approvedAt: new Date() },
+  });
+  res.json({ success: true, data: updated });
+});
+
+router.post("/custom-domains/:id/reject", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const entry = await prisma.profileDomain.findUnique({ where: { id: req.params.id } });
+  if (!entry) {
+    return res.status(404).json({ success: false, error: "Custom domain request not found" });
+  }
+  if (entry.status === "REJECTED") {
+    return res.status(400).json({ success: false, error: "Domain is already rejected." });
+  }
+  const updated = await prisma.profileDomain.update({
+    where: { id: entry.id },
+    data: { status: "REJECTED", rejectedAt: new Date() },
+  });
+  res.json({ success: true, data: updated });
+});
+
+router.post("/custom-domains/:id/issue-cert", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (req: Request<{ id: string }>, res) => {
+  const entry = await prisma.profileDomain.findUnique({ where: { id: req.params.id } });
+  if (!entry) {
+    return res.status(404).json({ success: false, error: "Custom domain request not found" });
+  }
+  const result = await issueCertificateForDomain(entry.domain);
+  if (!result.ok) {
+    return res.status(400).json({ success: false, error: result.message });
+  }
+  const updated = await prisma.profileDomain.findUnique({ where: { id: entry.id } });
+  res.json({ success: true, data: updated });
 });
 
 export default router;

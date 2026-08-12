@@ -88,6 +88,25 @@ cp .env.example .env
 | `ENABLE_INTERNAL_NGINX` | Habilitar contenedor Nginx | `true` |
 | `NGINX_PORT` | Puerto HTTP de Nginx | `80` |
 | `NGINX_HTTPS_PORT` | Puerto HTTPS de Nginx | `443` |
+| `APP_URL_HOST` | Hostname (sin scheme) del propio dominio de la app (p. ej. `example.com`). Nginx genera un mapa del dominio de la app al arrancar para que los crawlers sociales que piden la **raíz** de un dominio **personalizado** reciban el OG renderizado en servidor desde el backend, mientras que el dominio de la app conserva su OG estático del SPA. | _(vacío)_ |
+| `ACME_ENABLED` | Activa el TLS automático (Let's Encrypt) para dominios personalizados ACTIVE. | `false` |
+| `ACME_DIRECTORY_URL` | URL del directorio ACME (staging para pruebas). | `https://acme-v02.api.letsencrypt.org/directory` |
+| `ACME_EMAIL` | Email de contacto de la cuenta ACME. | _(vacío)_ |
+| `ACME_RENEW_BEFORE_DAYS` | Renueva los certificados que expiren en menos de este número de días. | `30` |
+| `ACME_INTERVAL_MINUTES` | Cada cuánto revisa el backend los certificados y regenera la configuración nginx. | `60` |
+| `ACME_MAX_DOMAINS_PER_RUN` | Máximo de dominios emitidos por comprobación. | `20` |
+| `ACME_CERTS_PATH` | Directorio de certificados/configuración nginx (misma carpeta del host que nginx monta en `/etc/nginx/certs` en Docker). | `certs` |
+
+### Dominios personalizados y TLS
+
+Los usuarios pueden solicitar un dominio personalizado (tier PRO/Enterprise + permiso `profiles.customDomain`), demostrar la propiedad con un registro TXT (`_bioplatform.<domain>`), y un administrador lo activa una vez pasada la comprobación TXT. Los dominios personalizados activos reciben:
+
+- **TLS automático (ACME)**: con `ACME_ENABLED=true`, el backend emite y renueva automáticamente certificados de Let's Encrypt (HTTP-01) para cada dominio ACTIVE, los escribe en `./certs/<domain>/`, regenera la configuración nginx y dispara una recarga. Los bloques HTTP de dominios personalizados exponen `/.well-known/acme-challenge/` (con proxy al backend) y redirigen todo lo demás a HTTPS. El admin puede forzar la emisión por dominio (Admin → Custom Domains → "Issue cert"). Requiere que el dominio apunte a este servidor con el puerto 80 abierto.
+- **TLS manual**: coloca un certificado y clave por dominio en `./certs/<domain>/cert.pem` + `key.pem` (ignorados por git). El backend los detecta en su siguiente comprobación (por defecto cada hora) y regenera la configuración nginx; nginx se recarga automáticamente.
+- **Enrutado sensible al host**: la raíz del dominio personalizado sirve el destino de raíz configurado (un perfil público) o la página de inicio; el SPA resuelve la misma redirección en el cliente.
+- **OG sensible al host**: los crawlers sociales que piden la raíz o la URL de un perfil en un dominio personalizado reciben meta con URLs canónicas/OG que apuntan al dominio personalizado.
+
+Los túneles rápidos (`cloudflared tunnel --url …`) no pueden enrutar dominios personalizados arbitrarios — usa un **túnel con nombre** con reglas de ingress por dominio para que el tráfico de cada dominio personalizado llegue a nginx con la cabecera `Host` correcta (y enruta `/.well-known/acme-challenge/*` al backend).
 
 ## Almacenamiento
 

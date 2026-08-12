@@ -24,7 +24,7 @@ export interface CachedPresence {
 
 const presenceCache = new Map<string, CachedPresence>();
 
-const PRESENCE_TTL_MS = 5 * 60 * 1000;
+const PRESENCE_TTL_MS = 2 * 60 * 60 * 1000;
 const PRESENCE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 let presenceSweepStarted = false;
@@ -59,13 +59,7 @@ const FATAL_CLOSE_CODES = new Set([4004, 4013, 4014]);
 const NON_RESUMABLE_CLOSE_CODES = new Set([4010, 4011, 4012, 4015, 4016]);
 
 export function getCachedPresence(discordId: string): CachedPresence | null {
-  const entry = presenceCache.get(discordId);
-  if (!entry) return null;
-  if (Date.now() - entry.updatedAt > PRESENCE_TTL_MS) {
-    presenceCache.delete(discordId);
-    return null;
-  }
-  return entry;
+  return presenceCache.get(discordId) ?? null;
 }
 
 export function isBotConnected(): boolean {

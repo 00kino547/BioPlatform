@@ -23,24 +23,28 @@ apps/backend/src/
 │   ├── profileTransfer.ts# Spreadsheet export/import (xlsx/ods/csv via @e965/xlsx, macro reject, formula-injection guard)
 │   ├── discord.ts        # Discord OAuth2: scopes, state create/verify, code exchange + refresh grant, @me fetch, avatar URLs, purpose-scoped secret encryption (token/webhook), webhook URL validation
 │   ├── discordGateway.ts # Shared bot gateway session (GUILDS|GUILD_PRESENCES intents, heartbeat/resume/reconnect, fatal-close handling), in-memory presence cache keyed by user id, describeActivities
-│   ├── profileOg.ts      # OG data builder for a public profile (presence line + counts) → PNG card + HTML meta page
+│   ├── profileOg.ts      # OG data builder for a public profile (presence line + counts) → PNG card + HTML meta page (host-aware: custom-domain canonical/base URLs)
 │   ├── ogCard.ts         # Server-rendered 1200x630 OG card PNG (@napi-rs/canvas)
-│   ├── og.ts             # OpenGraph/Twitter meta HTML (escapeHtml + buildOgPage)
+│   ├── og.ts             # OpenGraph/Twitter meta HTML (escapeHtml + buildOgPage + buildLandingOgPage)
+│   ├── customDomains.ts  # Custom domains: hostname validator, app-host detection, TXT verification token + DNS check, PRO/ENTERPRISE + permission gate, status list
+│   ├── acme.ts           # ACME (Let's Encrypt) service: HTTP-01 challenge map, account key, issue/renew certs, nginx custom-domains.conf generator, interval loop
 │   └── openapi.ts        # OpenAPI 3.0 document served at /api/openapi.json
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
 ├── middleware/rateLimit.ts # Auth anti-brute-force middleware (cookie issuance, 2-of-3 fingerprint block, policy-aware account lock, outcome + log recording)
+├── middleware/domain.ts   # resolveCustomDomain: maps active ProfileDomain → req.customDomain (skips app host)
 └── routes/
     ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA, passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Multi-profile CRUD (list/create, get/update/delete per profileId, set-primary), aliases CRUD, badges toggle, avatar/banner upload+delete, spreadsheet export/import, public profile by slug/alias (incl. discord presence), click tracking, OG card PNG
-    ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log
+    ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown) — ?profileId scoped
     ├── email.ts          # Email notification settings (SMTP config, test endpoint) — ?profileId scoped
     ├── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete) — ?profileId scoped
     ├── webhook.ts        # Webhook CRUD (list, create, patch, rotate-secret, test, deliveries, delete)
+    ├── domain.ts         # Custom domains: public GET /api/domain (host/active/root), user self-serve request/verify/root/remove
     └── discord.ts        # Discord: status, OAuth connect/callback, disconnect, settings, post-to-webhook, session restore on boot — ?profileId scoped
 apps/backend/prisma/
-├── schema.prisma         # User (tier, trackLimit, profileLimit, aliasLimit, badges, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile (slug, isPrimary, badges, incl. showDiscordPresence/showDiscordActivity/discordWebhookUrlEncrypted), ProfileAlias (slug per profile), DiscordConnection, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan, AuthLog, Webhook, WebhookDelivery models
+├── schema.prisma         # User (tier, trackLimit, profileLimit, aliasLimit, badges, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile (slug, isPrimary, badges, customDomain relation, incl. showDiscordPresence/showDiscordActivity/discordWebhookUrlEncrypted), ProfileDomain (custom domains + TLS cert status fields), ProfileAlias (slug per profile), DiscordConnection, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan, AuthLog, Webhook, WebhookDelivery models
 └── seed.ts               # Bootstrap admin + invite codes
 ```
 
@@ -49,13 +53,15 @@ apps/backend/prisma/
 ```
 apps/frontend/src/
 ├── main.tsx              # Entry point
-├── App.tsx               # Root component + React Router (/, /login, /register, /unlock, /dashboard, /admin, /privacy, /terms, /:username)
+├── App.tsx               # Root component + React Router (/, /login, /register, /unlock, /dashboard, /admin, /privacy, /terms, /:username) — wraps in DomainProvider, CustomDomainRoot resolves the custom-domain root (redirect to root-target profile slug, else Landing)
 ├── index.css             # TailwindCSS + animations + scroll-reveal
 ├── config/branding.ts    # Branding env vars (VITE_*)
 ├── contexts/
-│   └── AuthContext.tsx    # Auth state (login, register, logout)
+│   ├── AuthContext.tsx    # Auth state (login, register, logout)
+│   └── DomainContext.tsx  # Custom-domain info for the current host (active, host, root slug, canonical) via GET /api/domain
 ├── lib/
-│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges, upload, export/import, analytics, email, music, webhooks, discord) — profile-scoped calls take profileId
+│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges, upload, export/import, analytics, email, music, webhooks, discord, custom domains) — profile-scoped calls take profileId
+│   ├── seo.ts            # usePageMeta + JSON-LD (optional baseUrl for custom domains)
 │   └── utils.ts          # cn() utility
 ├── components/
 │   ├── ui/
@@ -70,7 +76,9 @@ apps/frontend/src/
 │   ├── settings/
 │   │   ├── WebhooksTab.tsx    # Dashboard Webhooks tab (create/edit/toggle/test/rotate/secret/deliveries)
 │   │   ├── DataTab.tsx        # Dashboard Data tab (spreadsheet export/import)
-│   │   └── DiscordTab.tsx     # Dashboard Discord tab (connect/disconnect, presence toggles, webhook + post)
+│   │   ├── InvitesTab.tsx     # Dashboard Invites tab (generate/revoke codes, allowance, cooldown)
+│   │   ├── DomainTab.tsx      # Dashboard Domain tab (request TXT-verified custom domain, verify, root target, disconnect)
+│   │   └── DiscordTab.tsx     # Dashboard Discord tab (connect/disconnect, presence toggles, webhook + post, invite bot)
 │   ├── music/
 │   │   └── MusicPlayer.tsx   # Playlist picker + embedded player (local/Spotify/YouTube, full version + Open in Spotify)
 │   ├── discord/
@@ -89,9 +97,9 @@ apps/frontend/src/
 │   ├── Login.tsx         # Multi-step login (identifier → passwordless/password → 2FA, email unlock)
 │   ├── Register.tsx      # Register form (invite code required)
 │   ├── Unlock.tsx        # Email unlock link handler (/unlock?token=)
-│   ├── Dashboard.tsx     # Profile editor (Profiles, Profile, Links, Appearance, Analytics, Email, Music, Webhooks, Data, Discord, Security tabs) with multi-profile switcher
-│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Bans, Logs tabs, profile editing modal, tier control, Unlock account actions)
-│   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer + Discord presence widget)
+│   ├── Dashboard.tsx     # Profile editor (Profiles, Profile, Links, Appearance, Analytics, Email, Music, Webhooks, Data, Discord, Invites, Domain, Security tabs) with multi-profile switcher
+│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Roles, Badges, Bans, Logs, Custom Domains tabs, profile editing modal, tier control, Unlock account actions)
+│   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer + Discord presence widget; custom-domain host-aware canonical/OG via useDomain)
 │   ├── ApiDocs.tsx       # In-app API reference (/api-docs, renders /api/openapi.json)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)
 │   └── Terms.tsx         # Terms of Service page (/terms)
@@ -112,7 +120,9 @@ packages/shared/src/
 docker-compose.yml    # Service orchestration (postgres, backend, frontend, nginx profile)
 pnpm-workspace.yaml   # Workspace + pnpm config (allowBuilds, node-linker)
 .env / .env.example   # Environment variables
-nginx/nginx.conf      # Reverse proxy config (/api, /uploads, SPA fallback)
+nginx/nginx.conf      # Reverse proxy config (/api, /uploads, ACME challenge, SPA fallback, custom-domains.conf include, app-host map)
+nginx/site.conf       # Server block (ACME challenge proxy, bot root rule, social-crawler OG proxying, security headers)
+nginx/entrypoint.sh   # Startup: real-IP conf, HSTS, backend-managed custom-domains.conf watch + reload, app-host map
 ```
 
 ## Documentation

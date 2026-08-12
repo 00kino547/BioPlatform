@@ -126,6 +126,24 @@ Haz clic en **Crear Insignia** para añadir una; una vista previa en vivo muestr
 
 Las insignias se asignan a los usuarios en **Usuarios → Editar Perfil**. Una vez que un usuario tiene una insignia, puede activarla en cada perfil desde su panel, y se muestra como un icono de color en la página pública. El catálogo es público en `GET /api/badges`.
 
+## Dominios Personalizados
+
+La pestaña **Custom Domains** lista cada solicitud de dominio personalizado de autoservicio, de la más reciente a la más antigua, con el propietario (usuario, tier, email), el perfil al que pertenece, su destino de raíz, estado, fecha de solicitud y estado TLS. Los dominios personalizados pasan por un flujo de dos pasos:
+
+1. **Verificación del usuario** — el usuario añade un registro TXT (`_bioplatform.<domain>` con el valor mostrado) y pulsa **Verify now** en su panel. La instancia resuelve el registro DNS directamente; la solicitud pasa de *Pending TXT* a **Verified**.
+2. **Aprobación del administrador** — solo una solicitud **Verified** puede **activarse**. Pulsa **Activate** para pasarla a *Active* (su dominio canónico queda en vivo para el perfil). Usa **Reject** para rechazar una solicitud (en estado *Pending TXT* o *Verified*); una solicitud rechazada permite al usuario enviar una nueva.
+
+Una vez que un dominio está **Active**, la columna **TLS** sigue su certificado automático:
+- *valid to \<fecha\>* — ACME emitió el certificado; se renueva solo cerca de la expiración.
+- *issuing…* — el backend está obteniendo el certificado.
+- *failed* (pasa el cursor para ver el error) — falló la emisión; arregla el DNS/puerto 80 y pulsa **Issue cert** para reintentar.
+- *none* — todavía sin certificado. Pulsa **Issue cert** para solicitar uno de inmediato (el backend también reintenta automáticamente).
+
+Ten en cuenta:
+- La activación requiere que la instancia enrute realmente el dominio (ingress del túnel con el `Host` correcto, más un certificado TLS — ver la [Guía de Despliegue](./deployment.md)).
+- Solo el **propietario** del perfil puede gestionar su dominio. El permiso `profiles.manage` es necesario para ver/aprobar/rechazar/emitir aquí.
+- **El DNS y el TLS deben estar instalados** antes de que la activación sea útil; el perfil redirige al dominio personalizado solo cuando la instancia lo sirve. El TLS automático necesita `ACME_ENABLED=true` y el dominio accesible en el puerto 80.
+
 ## Cómo Funcionan los Baneos y Bloqueos
 
 El sistema de autenticación bloquea tras intentos de inicio de sesión fallidos repetidos. Existen dos tipos de baneos:

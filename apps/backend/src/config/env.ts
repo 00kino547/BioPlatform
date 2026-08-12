@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+function boolFromEnv(v: string): boolean {
+  return v === "true" || v === "1";
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(3000),
@@ -18,7 +22,7 @@ const envSchema = z.object({
   AUTH_LOG_CLEANUP_INTERVAL_MINUTES: z.coerce.number().int().default(60),
   STORAGE_PROVIDER: z.enum(["local", "r2", "b2", "s3"]).default("local"),
   LOCAL_STORAGE_PATH: z.string().default("./uploads"),
-  SMTP_ENABLED: z.coerce.boolean().default(false),
+  SMTP_ENABLED: z.string().default("false").transform(boolFromEnv),
   SMTP_PROVIDER: z.enum(["gmail", "custom"]).default("gmail"),
   SMTP_HOST: z.string().default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().default(587),
@@ -37,6 +41,13 @@ const envSchema = z.object({
   DISCORD_REDIRECT_URI: z.string().default(""),
   DISCORD_BOT_TOKEN: z.string().default(""),
   DISCORD_GUILD_INVITE: z.string().default(""),
+  ACME_ENABLED: z.string().default("false").transform(boolFromEnv),
+  ACME_DIRECTORY_URL: z.string().url().default("https://acme-v02.api.letsencrypt.org/directory"),
+  ACME_EMAIL: z.string().default(""),
+  ACME_RENEW_BEFORE_DAYS: z.coerce.number().int().min(1).default(30),
+  ACME_INTERVAL_MINUTES: z.coerce.number().int().min(5).default(60),
+  ACME_MAX_DOMAINS_PER_RUN: z.coerce.number().int().min(1).default(20),
+  ACME_CERTS_PATH: z.string().default("certs"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -8,6 +8,7 @@
 | `APP_TAGLINE` | Lema corto | `Your digital identity, beautifully crafted.` |
 | `APP_DESCRIPTION` | Descripción completa | `Create a stunning profile page...` |
 | `APP_URL` | URL pública | `http://localhost:80` |
+| `APP_URL_HOST` | Hostname (sin scheme) del propio dominio de la app (p. ej. `example.com`). Nginx lo usa para detectar peticiones al dominio de la app y solo enrutar a los crawlers sociales que piden la **raíz** de dominios **personalizados** al backend para servir el OG renderizado en servidor. | _(vacío → no se detecta el dominio de la app)_ |
 | `APP_GITHUB_URL` | URL del repositorio GitHub | `https://github.com/00kino547/BioPlatform` |
 
 ## Frontend
@@ -100,6 +101,18 @@ La integración de Discord (vinculación de cuenta, widget de presencia, previsu
 | `DISCORD_REDIRECT_URI` | URI de redirección de OAuth2 (debe coincidir con el Discord Developer Portal) | `http://localhost:80/api/discord/callback` |
 | `DISCORD_BOT_TOKEN` | Token del bot que rastrea la presencia en vivo (habilita el **Presence Intent** privilegiado e invita al bot a un servidor que compartan tus usuarios) | _(vacío)_ |
 | `DISCORD_GUILD_INVITE` | Invitación opcional a un servidor de Discord que se muestra como botón "Join presence hub" en la pestaña Discord del Dashboard | _(vacío)_ |
+
+## ACME (TLS automático para dominios personalizados)
+
+| Variable | Descripción | Por defecto |
+|----------|-------------|-------------|
+| `ACME_ENABLED` | Cuando es `true`, el backend emite y renueva automáticamente certificados de Let's Encrypt (HTTP-01) para cada dominio personalizado ACTIVE y gestiona la configuración nginx de dominios personalizados. Requiere que el DNS de cada dominio apunte a este servidor y que el puerto 80 sea accesible. | `false` |
+| `ACME_DIRECTORY_URL` | URL del directorio ACME. Usa la URL de staging de Let's Encrypt para pruebas y evitar límites de tasa. | `https://acme-v02.api.letsencrypt.org/directory` |
+| `ACME_EMAIL` | Email de contacto registrado en la cuenta ACME. | _(vacío)_ |
+| `ACME_RENEW_BEFORE_DAYS` | Renueva los certificados que expiren en menos de este número de días. | `30` |
+| `ACME_INTERVAL_MINUTES` | Cada cuánto revisa el backend los certificados que necesitan emisión o renovación (también regenera la configuración nginx de dominios personalizados). | `60` |
+| `ACME_MAX_DOMAINS_PER_RUN` | Máximo de dominios procesados por comprobación (protección frente a los límites de tasa de ACME). | `20` |
+| `ACME_CERTS_PATH` | Directorio donde viven los certificados, la clave de cuenta ACME y la configuración nginx generada. En Docker es la misma carpeta del host montada en nginx en `/etc/nginx/certs` (`./certs`). | `certs` |
 
 > Crea la aplicación en el [Discord Developer Portal](https://discord.com/developers/applications) (Applications → New Application). Registra la URI de redirección en **OAuth2 → Redirects** y copia el Client ID y el Client Secret. Los usuarios autorizados otorgan solo `identify` con `prompt=consent` (vinculación de cuenta + embeds de webhook). Para la presencia en vivo, crea un usuario **Bot** en la misma aplicación (Bot → Add Bot), activa el "Presence Intent" privilegiado (Settings → Bot → Privileged Gateway Intents), copia el token del bot e invita al bot a un servidor. El estado de un usuario solo es visible mientras esté en un servidor compartido con el bot.
 

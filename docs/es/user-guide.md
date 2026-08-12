@@ -74,6 +74,7 @@ La pestaña **Discord** (solo presente cuando la instancia tiene Discord configu
 - **Mostrar presencia en tu perfil** — al activarlo, los visitantes ven una tarjeta de estado en vivo (online/idle/dnd/offline, actividad actual, canción actual, estado personalizado) en tu página pública y en las previsualizaciones de enlaces compartidos (imagen OpenGraph). No se muestra nada hasta que lo actives. La presencia en vivo proviene de un bot de la instancia, así que debes estar en un servidor que comparta el bot y la instancia debe configurar `DISCORD_BOT_TOKEN`.
 - **Mostrar detalles de actividad** — controla por separado si aparecen los detalles de actividad (juegos, Spotify, estado personalizado); el estado online en sí siempre se muestra una vez activado compartir presencia.
 - **Join presence hub** — si la instancia publica una invitación a un servidor (`DISCORD_GUILD_INVITE`), un botón "Join presence hub" la abre para que te unas al servidor donde vive el bot de presencia y empieces a compartir tu estado.
+- **Invite the bot to your server** — como alternativa, un botón "Invite the bot to your server" abre el flujo de invitación de bot de Discord para el bot de la instancia (`DISCORD_CLIENT_ID`). Puedes añadir el bot a cualquier servidor que administres, así que la presencia funciona sin unirte a un hub compartido. El bot funciona en cualquier número de servidores.
 - **Post to Discord** — pega una URL de webhook (canal → Integraciones → Webhooks) para obtener un botón "Post to Discord" que comparte un embed enriquecido con el enlace a tu perfil, avatar, bio y estado actual.
 
 **Privacidad:** no se recopila ni almacena ningún dato de presencia en el servidor más allá de los tokens OAuth cifrados; la presencia se lee en vivo mediante un único bot compartido y se guarda en caché solo en memoria. Un usuario que nunca conecta ni opta nunca es rastreado.
@@ -92,6 +93,21 @@ La pestaña **Invitaciones** es donde gestionas los códigos de registro y cualq
 - **Reembolsos** — un código de evento que vence *sin usarse antes* de que venza tu allowance se reembolsa: el crédito vuelve a tu allowance en tu siguiente visita a la pestaña, así no se desperdicia nada.
 
 Los códigos que ya no necesites pueden **revocarse** (excepto una vez usados). Si un administrador te baneó de invitaciones, la pestaña muestra un aviso y ya no puedes generar ni recibir allowance.
+
+## Dominios Personalizados
+
+La pestaña **Domain** (disponible en cuentas PRO/Enterprise cuyo rol tenga el permiso `profiles.customDomain`) te permite poner tu propio dominio frente a tu perfil:
+
+1. **Solicitud** — introduce un hostname simple como `example.com` (sin `https://`, ruta, puerto ni `www.`). Un dominio personalizado por perfil.
+2. **Verifica la propiedad** — añade un registro TXT a tu proveedor de DNS: nombre de registro `_bioplatform.example.com` con el valor exacto mostrado. El DNS puede tardar unos minutos en propagarse; pulsa **Verify now** una vez añadido.
+3. **Aprobación** — tras pasar la comprobación TXT, un administrador revisa y activa tu dominio. Mientras tanto queda como **Verified · awaiting approval**.
+4. **Uso** — una vez **Active**, tu dominio personalizado sirve tu perfil. Elige qué muestra la raíz (`https://example.com/`): la **página de inicio** (tu perfil sigue en `/tu-slug`) o uno de tus **perfiles públicos** directamente.
+
+El OG de la raíz (embeds de Discord/X/Telegram) se renderiza en servidor y apunta a tu dominio personalizado. Desconectar elimina el dominio y lo libera para reutilizarlo.
+
+**DNS y TLS:** tras la activación, apunta los registros `A`/`AAAA` de tu dominio (o un `CNAME`) al túnel/ingress de la instancia. Si la instancia tiene el TLS automático activado, se emite un certificado para ti y la pestaña Domain muestra "HTTPS certificate active" con su fecha de renovación; en caso contrario, un administrador instala uno manualmente (ver la [Guía de Despliegue](./deployment.md)). El perfil redirige aquí solo cuando la instancia enruta el dominio hacia ti.
+
+> Nota: las passkeys de la instancia funcionan actualmente solo en el dominio principal de la instancia, no en tu dominio personalizado.
 
 ## Me han bloqueado — ¿qué hago?
 

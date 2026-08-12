@@ -3,6 +3,7 @@ import { getEnv } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
 import { startWebhookRetrySweep } from "./lib/webhook.js";
 import { startBotSession } from "./lib/discordGateway.js";
+import { startAcmeLoop, acmeTick } from "./lib/acme.js";
 
 const env = getEnv();
 
@@ -40,6 +41,14 @@ async function main() {
   if (env.DISCORD_BOT_TOKEN) {
     startBotSession(env.DISCORD_BOT_TOKEN);
     console.log("Discord presence bot session started");
+  }
+
+  if (env.ACME_ENABLED) {
+    startAcmeLoop();
+    console.log("ACME certificate service started");
+  } else {
+    void acmeTick();
+    console.log("ACME certificate service disabled (ACME_ENABLED not set)");
   }
 
   app.listen(env.PORT, () => {

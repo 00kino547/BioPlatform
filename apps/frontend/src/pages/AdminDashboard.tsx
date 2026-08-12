@@ -79,12 +79,32 @@ interface AuthLogEntry {
   createdAt: string;
 }
 
-type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs";
+interface AdminDomainEntry {
+  id: string;
+  profileId: string;
+  profileSlug: string;
+  owner: { id: string; username: string; email: string; tier: string } | null;
+  domain: string;
+  status: "PENDING_VERIFICATION" | "VERIFIED" | "ACTIVE" | "REJECTED";
+  rootTarget: string | null;
+  verificationToken: string;
+  verifiedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  tlsStatus: "NONE" | "PENDING" | "ISSUED" | "FAILED";
+  tlsIssuedAt: string | null;
+  tlsExpiresAt: string | null;
+  tlsError: string | null;
+  createdAt: string;
+}
+
+type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs" | "domains";
 
 const PERMISSION_LABELS: Record<string, string> = {
   "users.view": "View users",
   "users.manage": "Manage users",
   "profiles.manage": "Manage profiles",
+  "profiles.customDomain": "Use custom domains",
   "invites.manage": "Manage invite codes",
   "invites.generate": "Generate own invite codes",
   "bans.manage": "Manage bans & lockouts",
@@ -110,6 +130,7 @@ export function AdminDashboard() {
   const canBadges = perms.has("badges.manage");
   const canBans = perms.has("bans.manage");
   const canLogs = perms.has("logs.view");
+  const canDomains = perms.has("profiles.manage");
 
   const allowedTabs: Tab[] = [
     ...(canInvites ? (["codes"] as Tab[]) : []),
@@ -118,6 +139,7 @@ export function AdminDashboard() {
     ...(canBadges ? (["badges"] as Tab[]) : []),
     ...(canBans ? (["bans"] as Tab[]) : []),
     ...(canLogs ? (["logs"] as Tab[]) : []),
+    ...(canDomains ? (["domains"] as Tab[]) : []),
   ];
   const [tab, setTab] = useState<Tab>(allowedTabs[0] ?? "codes");
   const [codes, setCodes] = useState<InviteCode[]>([]);
@@ -127,6 +149,7 @@ export function AdminDashboard() {
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
   const [bans, setBans] = useState<AuthBan[]>([]);
   const [logs, setLogs] = useState<AuthLogEntry[]>([]);
+  const [domains, setDomains] = useState<AdminDomainEntry[]>([]);
   const [count, setCount] = useState(1);
   const [expiresDays, setExpiresDays] = useState("");
   const [inviteSettings, setInviteSettings] = useState<{ userGenerationEnabled: boolean; eligibleUserCount: number } | null>(null);
@@ -264,6 +287,57 @@ export function AdminDashboard() {
     if (data.success) setLogs(data.data);
   };
 
+  const fetchDomains = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/custom-domains", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setDomains(data.data);
+  };
+
+  const handleApproveDomain = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/custom-domains/${id}/approve`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchDomains();
+    } else {
+      window.alert(data.error ?? "Failed to approve domain");
+    }
+  };
+
+  const handleRejectDomain = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/custom-domains/${id}/reject`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchDomains();
+    } else {
+      window.alert(data.error ?? "Failed to reject domain");
+    }
+  };
+
+  const handleIssueCert = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/custom-domains/${id}/issue-cert`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchDomains();
+    } else {
+      window.alert(data.error ?? "Failed to issue certificate");
+    }
+  };
+
   const handleUnban = async (id: string) => {
     const token = getToken();
     const res = await fetch(`/api/admin/auth-bans/${id}`, {
@@ -304,6 +378,7 @@ export function AdminDashboard() {
     if (canBadges) fetchBadges();
     if (canBans) fetchBans();
     if (canLogs) fetchLogs();
+    if (canDomains) fetchDomains();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -695,7 +770,7 @@ export function AdminDashboard() {
                   : "text-zinc-400 hover:text-zinc-300"
               }`}
             >
-              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : "Logs"}
+              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : t === "domains" ? "Custom Domains" : "Logs"}
             </button>
           ))}
         </div>
@@ -1579,6 +1654,124 @@ export function AdminDashboard() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "domains" && (
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+            <h2 className="text-lg font-semibold text-white mb-1">Custom Domains</h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              Self-serve custom domain requests. Users prove ownership with a TXT record; review verified
+              requests and activate or reject them here.
+            </p>
+
+            {domains.length === 0 ? (
+              <p className="text-sm text-zinc-500">No custom domain requests yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
+                      <th className="pb-3 font-medium">Domain</th>
+                      <th className="pb-3 font-medium">Owner</th>
+                      <th className="pb-3 font-medium">Profile</th>
+                      <th className="pb-3 font-medium">Status</th>
+                      <th className="pb-3 font-medium">TLS</th>
+                      <th className="pb-3 font-medium">Requested</th>
+                      <th className="pb-3 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/40">
+                    {domains.map((d) => (
+                      <tr key={d.id}>
+                        <td className="py-3 font-mono text-zinc-200">{d.domain}</td>
+                        <td className="py-3 text-zinc-300">
+                          @{d.owner?.username ?? "—"}
+                          <span className="block text-xs text-zinc-500">
+                            {d.owner?.tier ?? ""} {d.owner?.email ? `· ${d.owner.email}` : ""}
+                          </span>
+                        </td>
+                        <td className="py-3 text-zinc-300">
+                          {d.profileSlug}
+                          {d.rootTarget ? (
+                            <span className="block text-xs text-zinc-500">root → {d.rootTarget}</span>
+                          ) : (
+                            <span className="block text-xs text-zinc-600">root → landing</span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          {d.status === "VERIFIED" ? (
+                            <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-400">
+                              Verified
+                            </span>
+                          ) : d.status === "ACTIVE" ? (
+                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                              Active
+                            </span>
+                          ) : d.status === "REJECTED" ? (
+                            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-400">
+                              Rejected
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                              Pending TXT
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          {d.status === "ACTIVE" && d.tlsStatus === "ISSUED" ? (
+                            <span className="text-xs text-emerald-400" title={d.tlsError ?? undefined}>
+                              valid to {d.tlsExpiresAt ? new Date(d.tlsExpiresAt).toLocaleDateString() : "—"}
+                            </span>
+                          ) : d.status === "ACTIVE" && d.tlsStatus === "PENDING" ? (
+                            <span className="text-xs text-amber-400">issuing…</span>
+                          ) : d.status === "ACTIVE" && d.tlsStatus === "FAILED" ? (
+                            <span className="text-xs text-red-400" title={d.tlsError ?? undefined}>
+                              failed
+                            </span>
+                          ) : d.status === "ACTIVE" ? (
+                            <span className="text-xs text-zinc-500">none</span>
+                          ) : (
+                            <span className="text-xs text-zinc-700">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-zinc-500 whitespace-nowrap">
+                          {new Date(d.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 whitespace-nowrap">
+                          {d.status === "VERIFIED" ? (
+                            <button
+                              onClick={() => handleApproveDomain(d.id)}
+                              className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+                            >
+                              Activate
+                            </button>
+                          ) : (
+                            <span className="text-xs text-zinc-600">—</span>
+                          )}
+                          {(d.status === "VERIFIED" || d.status === "PENDING_VERIFICATION") && (
+                            <button
+                              onClick={() => handleRejectDomain(d.id)}
+                              className="ml-2 rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/25 transition-colors"
+                            >
+                              Reject
+                            </button>
+                          )}
+                          {d.status === "ACTIVE" && d.tlsStatus !== "ISSUED" && d.tlsStatus !== "PENDING" && (
+                            <button
+                              onClick={() => handleIssueCert(d.id)}
+                              className="ml-2 rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-400 hover:bg-violet-500/25 transition-colors"
+                            >
+                              Issue cert
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

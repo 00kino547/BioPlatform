@@ -2,6 +2,7 @@ export const PERMISSIONS = {
   USERS_VIEW: "users.view",
   USERS_MANAGE: "users.manage",
   PROFILES_MANAGE: "profiles.manage",
+  PROFILES_CUSTOM_DOMAIN: "profiles.customDomain",
   INVITES_MANAGE: "invites.manage",
   INVITES_GENERATE: "invites.generate",
   BANS_MANAGE: "bans.manage",

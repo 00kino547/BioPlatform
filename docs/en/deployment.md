@@ -127,10 +127,61 @@ sources, so backend logs, analytics, and auth rate limiting see public IPs inste
 tunnel/local address. Keep `TRUST_PROXY=1`; do **not** raise it, or spoofed
 `X-Forwarded-For` values become trusted.
 
+## Custom Domains
+
+Users can self-serve a custom domain (PRO/Enterprise tier + `profiles.customDomain`
+permission): they request a hostname, add a TXT record (`_bioplatform.<domain>`) that the
+backend verifies live, and an admin activates it from the admin panel. To actually serve a
+custom domain you must also:
+
+1. **Route it** — quick tunnels (`cloudflared tunnel --url …`) only carry traffic for the
+   tunnel's own hostname. Use a **named tunnel** with an ingress rule per custom domain so
+   requests arrive at nginx with the correct `Host` header (and point the domain's
+   `A`/`AAAA`/`CNAME` records at the tunnel).
+2. **Install a certificate** — two options:
+
+   **Automatic (ACME).** Set `ACME_ENABLED=true` (plus `ACME_EMAIL`) and point each custom
+   domain's `A`/`AAAA` record at this server with port 80 reachable from the internet. The
+   backend then issues and auto-renews Let's Encrypt certificates (HTTP-01 challenge) for
+   every ACTIVE domain, writes them to `./certs/<domain>/`, regenerates the nginx config and
+   reloads nginx automatically. Custom-domain HTTP server blocks always expose
+   `/.well-known/acme-challenge/` (proxied to the backend) and redirect everything else to
+   HTTPS. An admin can also trigger issuance immediately per domain (Admin → Custom Domains →
+   "Issue cert"). Use
+   `ACME_DIRECTORY_URL=https://acme-staging-v02.api.letsencrypt.org/directory` for testing.
+   Behind a named tunnel, add an ingress rule routing `/.well-known/acme-challenge/*` to the
+   backend.
+
+   **Manual.** Drop the certificate and key into a per-domain directory:
+
+   ```
+   certs/
+     example.com/
+       cert.pem      # your certificate (or fullchain)
+       key.pem       # your private key
+   ```
+
+   The backend picks up manual certs on its next ACME check (default every 60 minutes) and
+   regenerates the nginx config; nginx reloads automatically. Until the cert exists, the
+   domain falls through to the main servers.
+
+   Each block listens for both `example.com` and `www.example.com`, reuses the production
+   SSL parameters, sends HSTS, and proxies the API/upload/SPA the same way as the main site.
+   Set `APP_URL_HOST` (bare hostname, e.g. `preview.example.com`) so nginx knows which host
+   is the app's own domain: social crawlers hitting the **root** of a **custom** domain are
+   then served server-rendered OG from the backend, while the app host keeps its static SPA
+   OG.
+
+The custom-domain root behavior (landing page vs. a specific public profile) is configured
+by the user in their **Dashboard → Domain** tab; social crawlers and the SPA both honor it.
+Note that instance-hosted passkeys currently only work on the main `WEBAUTHN_ORIGIN` domain,
+not on custom domains.
+
 ## Production Checklist
 
 - [ ] Strong `JWT_SECRET` (32+ random characters)
 - [ ] `TLS_MODE=production` with real certs in `./certs/` (no self-signed certs)
+- [ ] Custom domains: `ACME_ENABLED=true` + `ACME_EMAIL`, or manual per-domain certs
 - [ ] `NODE_ENV=production`
 - [ ] HTTPS enabled (reverse proxy or Cloudflare)
 - [ ] `APP_URL` set to your domain

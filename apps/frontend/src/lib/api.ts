@@ -282,6 +282,7 @@ export interface DiscordStatus {
   configured: boolean;
   connected: boolean;
   botConfigured: boolean;
+  botInviteUrl: string | null;
   presenceHubInvite: string | null;
   sessionActive: boolean;
   discord: DiscordAccount | null;
@@ -291,6 +292,27 @@ export interface DiscordStatus {
   };
   webhookConfigured: boolean;
   presence: DiscordPresence | null;
+}
+
+export type CustomDomainStatus = "PENDING_VERIFICATION" | "VERIFIED" | "ACTIVE" | "REJECTED";
+export type TlsStatus = "NONE" | "PENDING" | "ISSUED" | "FAILED";
+
+export interface ProfileDomain {
+  id: string;
+  profileId: string;
+  domain: string;
+  status: CustomDomainStatus;
+  verificationToken: string;
+  verifiedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  rootTarget: string | null;
+  tlsStatus: TlsStatus;
+  tlsIssuedAt: string | null;
+  tlsExpiresAt: string | null;
+  tlsError: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AnalyticsData {
@@ -589,6 +611,29 @@ export const api = {
     const res = await fetch(`${API_URL}/profiles/${username}`, { headers, credentials: "include" });
     return res.json() as Promise<{ success: boolean; data?: PublicProfile; error?: string }>;
   },
+
+  getDomainInfo: async () => {
+    const res = await fetch(`${API_URL}/domain`, { credentials: "include" });
+    return res.json() as Promise<{
+      success: boolean;
+      data?: { active: boolean; host: string; slug: string | null; canonical: string | null };
+      error?: string;
+    }>;
+  },
+
+  getProfileDomain: (profileId: string) => request<ProfileDomain | null>(`/profiles/me/${profileId}/domain`),
+
+  requestProfileDomain: (profileId: string, domain: string) =>
+    request<ProfileDomain>(`/profiles/me/${profileId}/domain`, { method: "POST", body: JSON.stringify({ domain }) }),
+
+  verifyProfileDomain: (profileId: string) =>
+    request<ProfileDomain>(`/profiles/me/${profileId}/domain/verify`, { method: "POST" }),
+
+  setProfileDomainRoot: (profileId: string, rootTarget: string | null) =>
+    request<ProfileDomain>(`/profiles/me/${profileId}/domain`, { method: "PUT", body: JSON.stringify({ rootTarget }) }),
+
+  removeProfileDomain: (profileId: string) =>
+    request<ProfileDomain | null>(`/profiles/me/${profileId}/domain`, { method: "DELETE" }),
 
   getProfilePresence: async (username: string) => {
     const res = await fetch(`${API_URL}/profiles/${username}/presence`, { credentials: "include" });

@@ -225,7 +225,7 @@ OAuth2 account link plus a shared bot for live presence (bot must share a guild 
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `botConfigured`, `presenceHubInvite`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
+| `GET` | `/api/discord` | Integration status: `configured`, `connected`, `botConfigured`, `botInviteUrl`, `presenceHubInvite`, `sessionActive`, the connected account (`username`, `globalName`, `avatar`), settings (`showDiscordPresence`, `showDiscordActivity`), `webhookConfigured`, and a cached presence snapshot. |
 | `GET` | `/api/discord/connect` | Returns `{ url }` — the Discord OAuth2 authorize URL (scope `identify`, `prompt=consent`). Requires the integration to be configured. |
 | `GET` | `/api/discord/callback` | OAuth2 callback (visited in the browser). Exchanges the code, upserts the `DiscordConnection`, redirects to `/dashboard?tab=discord&discord=connected|error`. |
 | `POST` | `/api/discord/disconnect` | Disconnect Discord: deletes the connection, turns off presence sharing. |
@@ -254,6 +254,28 @@ The "Post to Discord" embed keeps a single message in sync: the posted message i
 - `DELETE /api/admin/users/:id` — full GDPR erasure (account, profiles, uploads, webhooks, passkeys, invite codes, and the user's auth-log and account-ban references).
 
 Admin access is permission-based (see [Admin Guide](./admin-guide.md) → Roles &amp; Permissions).
+
+## Custom Domains
+
+Custom domains are self-serve with admin approval, gated on the PRO/Enterprise tier **and** the `profiles.customDomain` permission.
+
+**Public.** `GET /api/domain` returns the current host's custom-domain state: `{ active, host, slug, canonical }`. `slug` is the root target (public profile slug served at the root) or `null` for the landing page.
+
+**Owner-only** (profile must belong to the caller):
+
+- `GET /api/profiles/me/:profileId/domain` — the profile's `ProfileDomain` or `null`.
+- `POST /api/profiles/me/:profileId/domain` — request a domain with `{ domain }` (a plain hostname: no scheme, path, port, or `www.`; the app host and already-used domains are rejected, one per profile). Creates a `PENDING_VERIFICATION` entry and returns it with the `verificationToken`.
+- `POST /api/profiles/me/:profileId/domain/verify` — re-resolves the TXT record. On success the status becomes `VERIFIED` (waiting for an admin).
+- `PUT /api/profiles/me/:profileId/domain` — set `{ rootTarget }` to a **public** profile slug (root shows that profile) or `null` (root shows the landing page).
+- `DELETE /api/profiles/me/:profileId/domain` — disconnect the domain and free it.
+
+**Admin** (`profiles.manage`):
+
+- `GET /api/admin/custom-domains` — all requests, newest first, with owner (username/email/tier) and profile slug.
+- `POST /api/admin/custom-domains/:id/approve` — activates a **VERIFIED** request (→ `ACTIVE`).
+- `POST /api/admin/custom-domains/:id/reject` — rejects a request (→ `REJECTED`; the user can then submit a new one).
+
+Status flow: `PENDING_VERIFICATION` → `VERIFIED` (user TXT check passes) → `ACTIVE` (admin approves). `REJECTED` entries are reusable.
 
 ## Rate limits
 

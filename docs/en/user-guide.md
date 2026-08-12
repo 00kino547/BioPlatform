@@ -74,6 +74,7 @@ The **Discord** tab (only present when the instance has configured Discord) lets
 - **Show presence on your profile** — when enabled, visitors see a live status card (online/idle/dnd/offline, current activity, current song, custom status) on your public page and in shared link previews (OpenGraph image). Nothing is shown until you turn this on. Live presence comes from an instance bot, so you must be in a server that shares the bot and the instance must set `DISCORD_BOT_TOKEN`.
 - **Show activity details** — separately controls whether activity details (games, Spotify, custom status) appear; the online status itself is always shown once presence sharing is on.
 - **Join presence hub** — if the instance publishes a server invite (`DISCORD_GUILD_INVITE`), a "Join presence hub" button opens it so you can join the server where the presence bot lives and start sharing your status.
+- **Invite the bot to your server** — alternatively, a "Invite the bot to your server" button opens Discord's bot-invite flow for the instance bot (`DISCORD_CLIENT_ID`). You can add the bot to any server you manage, so presence works without joining a shared hub. The bot works in any number of servers.
 - **Post to Discord** — paste a webhook URL (channel → Integrations → Webhooks) to get a "Post to Discord" button that shares a rich embed with your profile link, avatar, bio, and current status.
 
 **Privacy:** no presence data is collected or stored server-side beyond the encrypted OAuth tokens; presence is read live by a single shared bot and cached in memory only. A user who never connects or opts in is never tracked.
@@ -92,6 +93,21 @@ The **Invites** tab is where you manage registration codes and any invite credit
 - **Refunds** — an event code that expires unused *before* your allowance does is refunded: the credit returns to your allowance on your next visit to the tab, so nothing is wasted.
 
 Codes you no longer need can be **revoked** (except once they've been used). If you were banned from invites by an admin, the tab shows a notice and you can no longer generate or receive allowance.
+
+## Custom Domains
+
+The **Domain** tab (available on PRO/Enterprise accounts whose role has the `profiles.customDomain` permission) lets you put your own domain in front of your profile:
+
+1. **Request** — enter a plain hostname like `example.com` (no `https://`, path, port, or `www.`). One custom domain per profile.
+2. **Verify ownership** — add a TXT record to your DNS provider: record name `_bioplatform.example.com` with the exact value shown. DNS can take a few minutes to propagate; click **Verify now** once added.
+3. **Approval** — after the TXT check passes, an administrator reviews and activates your domain. Until then it stays **Verified · awaiting approval**.
+4. **Use it** — once **Active**, your custom domain serves your profile. Choose what the root (`https://example.com/`) shows: the **landing page** (your profile stays at `/your-slug`) or one of your **public profiles** directly.
+
+The root's OG preview (Discord/X/Telegram embeds) is server-rendered and points at your custom domain. Disconnecting removes the domain and frees it for reuse.
+
+**DNS + TLS:** after activation, point your domain's `A`/`AAAA` records (or a `CNAME`) at the instance's tunnel/ingress. If the instance has automatic TLS enabled, a certificate is issued for you and the Domain tab shows "HTTPS certificate active" with its renewal date; otherwise an administrator installs one manually (see the [Deployment Guide](./deployment.md)). The profile redirects here only once the instance routes the domain to you.
+
+> Note: instance-hosted passkeys currently only work on the instance's main domain, not on your custom domain.
 
 ## I'm locked out — what now?
 

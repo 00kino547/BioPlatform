@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { DomainProvider, useDomain } from "@/contexts/DomainContext";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -41,6 +42,24 @@ function Landing() {
   );
 }
 
+function CustomDomainRoot() {
+  const { info, loading } = useDomain();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
+      </div>
+    );
+  }
+
+  if (info?.active && info.slug) {
+    return <Navigate to={`/${info.slug}`} replace />;
+  }
+
+  return <Landing />;
+}
+
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
@@ -63,9 +82,10 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="min-h-screen bg-background text-foreground">
-          <Routes>
-            <Route path="/" element={<Landing />} />
+        <DomainProvider>
+          <div className="min-h-screen bg-background text-foreground">
+            <Routes>
+              <Route path="/" element={<CustomDomainRoot />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unlock" element={<Unlock />} />
@@ -93,7 +113,8 @@ function App() {
             <Route path="/:username" element={<PublicProfilePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </div>
+          </div>
+        </DomainProvider>
       </AuthProvider>
     </BrowserRouter>
   );

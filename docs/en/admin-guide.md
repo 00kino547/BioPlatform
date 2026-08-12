@@ -126,6 +126,24 @@ Click **Create Badge** to add one; a live preview shows how it renders. System b
 
 Badges are assigned to users in **Users → Edit Profile**. Once a user has a badge, they can toggle it on each profile in their dashboard, and it renders as a colored icon on the public page. The catalog is public at `GET /api/badges`.
 
+## Custom Domains
+
+The **Custom Domains** tab lists every self-serve custom-domain request, newest first, with the owner (username, tier, email), the profile it belongs to, its root target, status, request date, and TLS status. Custom domains go through a two-step flow:
+
+1. **User verification** — the user adds a TXT record (`_bioplatform.<domain>` with the shown value) and clicks **Verify now** in their Dashboard. The instance resolves the DNS record directly; the request moves from *Pending TXT* to **Verified**.
+2. **Admin approval** — only a **Verified** request can be **Activated**. Click **Activate** to move it to *Active* (its canonical domain becomes live for the profile). Use **Reject** to refuse a request (for *Pending TXT* or *Verified*); a rejected request lets the user submit a new one.
+
+Once a domain is **Active**, the **TLS** column tracks its automatic certificate:
+- *valid to \<date\>* — ACME issued the certificate; it auto-renews when close to expiry.
+- *issuing…* — the backend is obtaining the certificate.
+- *failed* (hover for the error) — issuance failed; fix DNS/port 80 and click **Issue cert** to retry.
+- *none* — no certificate yet. Click **Issue cert** to request one immediately (the backend also retries automatically).
+
+Keep in mind:
+- Activation requires the instance to actually route the domain (tunnel ingress with the right `Host`, plus a TLS certificate — see the [Deployment Guide](./deployment.md)).
+- Only the **owner** of the profile can manage its domain. `profiles.manage` permission is required to view/approve/reject/issue here.
+- **DNS + TLS must be installed** before activation is useful; the profile redirects to the custom domain only when the instance serves it. Automatic TLS needs `ACME_ENABLED=true` and the domain reachable on port 80.
+
 ## How Bans &amp; Lockouts Work
 
 The auth system locks after repeated failed login attempts. Two kinds of bans exist:

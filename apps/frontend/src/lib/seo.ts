@@ -16,13 +16,19 @@ export interface PageMetaOptions {
   description?: string;
   url?: string;
   image?: string | null;
+  baseUrl?: string;
 }
 
-export function usePageMeta({ title, description, url, image }: PageMetaOptions) {
+export function usePageMeta({ title, description, url, image, baseUrl }: PageMetaOptions) {
   useEffect(() => {
     const fullTitle = title.includes(branding.name) ? title : `${title} — ${branding.name}`;
     const desc = description || branding.description;
-    const canonical = url ? `${branding.url}${url}` : branding.url;
+    const root = (baseUrl ?? branding.url).replace(/\/+$/, "");
+    const canonical = url
+      ? url.startsWith("http")
+        ? url
+        : `${root}${url.startsWith("/") ? url : `/${url}`}`
+      : root;
 
     document.title = fullTitle;
     setMeta("name", "description", desc);

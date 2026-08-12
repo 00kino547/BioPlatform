@@ -19,7 +19,22 @@ export interface ProfileOgData {
   canonicalUrl: string;
 }
 
-export async function loadProfileOgData(identifier: string): Promise<ProfileOgData | null> {
+export interface ProfileOgOptions {
+  host?: string;
+  root?: boolean;
+}
+
+function canonicalFor(host: string | undefined, root: boolean, slug: string): string {
+  if (host) {
+    return `https://${host}${root ? "" : `/${slug}`}`;
+  }
+  return toAbsoluteUrl(`/${slug}`) ?? `${getEnv().APP_URL}/${slug}`;
+}
+
+export async function loadProfileOgData(
+  identifier: string,
+  options: ProfileOgOptions = {}
+): Promise<ProfileOgData | null> {
   const profile = await resolvePublicProfile(identifier, {
     slug: true,
     isPublic: true,
@@ -50,7 +65,7 @@ export async function loadProfileOgData(identifier: string): Promise<ProfileOgDa
     trackCount: profile.musicTracks.length,
     badges: profile.badges.map((b) => ({ slug: b.slug, label: b.label, color: b.color })),
     socialLinks: (socialLinks ?? []).map((l) => ({ platform: typeof l.platform === "string" ? l.platform : "link" })),
-    canonicalUrl: toAbsoluteUrl(`/${profile.slug}`) ?? `${getEnv().APP_URL}/${profile.slug}`,
+    canonicalUrl: canonicalFor(options.host, options.root ?? false, profile.slug),
   };
 }
 
@@ -98,12 +113,17 @@ function ogVersion(og: ProfileOgData): string {
   return createHash("sha1").update(ogCacheKey(og)).digest("hex").slice(0, 8);
 }
 
-export async function profileOgImageUrl(identifier: string): Promise<string | null> {
-  const og = await loadProfileOgData(identifier);
+export async function profileOgImageUrl(
+  identifier: string,
+  options: ProfileOgOptions = {}
+): Promise<string | null> {
+  const og = await loadProfileOgData(identifier, options);
   if (!og) return null;
-  const base = toAbsoluteUrl(`/api/profiles/${identifier}/og.png`);
-  const url = base ?? `${getEnv().APP_URL}/api/profiles/${identifier}/og.png`;
-  return `${url}?v=${ogVersion(og)}`;
+  const path = `/api/profiles/${identifier}/og.png`;
+  const base = options.host
+    ? `https://${options.host}${path}`
+    : (toAbsoluteUrl(path) ?? `${getEnv().APP_URL}${path}`);
+  return `${base}?v=${ogVersion(og)}`;
 }
 
 export async function renderProfileOgPng(identifier: string): Promise<Buffer | null> {
@@ -133,11 +153,14 @@ export async function renderProfileOgCached(identifier: string): Promise<{ buffe
   return { buffer, etag };
 }
 
-export async function renderProfileOgPage(identifier: string): Promise<string | null> {
-  const og = await loadProfileOgData(identifier);
+export async function renderProfileOgPage(
+  identifier: string,
+  options: ProfileOgOptions = {}
+): Promise<string | null> {
+  const og = await loadProfileOgData(identifier, options);
   if (!og) return null;
   const env = getEnv();
-  const imageUrl = await profileOgImageUrl(og.username);
+  const imageUrl = await profileOgImageUrl(og.username, options);
   return buildOgPage({
     username: og.username,
     displayName: og.displayName,

@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Activity,
   Users,
+  Bot,
 } from "lucide-react";
 
 const POLL_MS = 30_000;
@@ -195,6 +196,16 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
           <Button onClick={handleConnect} className="mt-5">
             <Link2 className="h-4 w-4" /> Connect Discord
           </Button>
+          {status.botInviteUrl && (
+            <a
+              href={status.botInviteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-zinc-800 px-5 py-2.5 text-sm font-medium text-zinc-200 transition-all duration-200 hover:bg-zinc-700 cursor-pointer"
+            >
+              <Bot className="h-4 w-4" /> Invite the bot to your server
+            </a>
+          )}
         </div>
       ) : (
         <>
@@ -255,6 +266,16 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:bg-violet-700 cursor-pointer"
                 >
                   <Users className="h-4 w-4" /> Join presence hub
+                </a>
+              )}
+              {status.botInviteUrl && (
+                <a
+                  href={status.botInviteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-zinc-800 px-5 py-2.5 text-sm font-medium text-zinc-200 transition-all duration-200 hover:bg-zinc-700 cursor-pointer"
+                >
+                  <Bot className="h-4 w-4" /> Invite the bot to your server
                 </a>
               )}
             </div>

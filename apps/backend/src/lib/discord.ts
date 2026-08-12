@@ -62,6 +62,17 @@ export function verifyOAuthState(state: string): string | null {
   }
 }
 
+export function buildBotInviteUrl(): string | null {
+  const env = getEnv();
+  if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_CLIENT_ID) return null;
+  const params = new URLSearchParams({
+    client_id: env.DISCORD_CLIENT_ID,
+    permissions: "0",
+    scope: "bot",
+  });
+  return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
+
 export function buildDiscordAuthorizeUrl(state: string): string {
   const env = getEnv();
   const params = new URLSearchParams({

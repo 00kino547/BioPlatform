@@ -98,9 +98,62 @@ la analítica y el límite de intentos de autenticación ven IPs públicas en ve
 túnel/local. Mantén `TRUST_PROXY=1`; **no** lo subas, o se confiará en valores
 `X-Forwarded-For` falsificados.
 
+## Dominios Personalizados
+
+Los usuarios pueden solicitar un dominio personalizado de autoservicio (tier PRO/Enterprise +
+permiso `profiles.customDomain`): solicitan un hostname, añaden un registro TXT
+(`_bioplatform.<domain>`) que el backend verifica en vivo, y un administrador lo activa desde
+el panel de administración. Para servir realmente un dominio personalizado también debes:
+
+1. **Enrutarlo** — los túneles rápidos (`cloudflared tunnel --url …`) solo transportan
+   tráfico para el hostname propio del túnel. Usa un **túnel con nombre** con una regla de
+   ingress por dominio personalizado para que las peticiones lleguen a nginx con la cabecera
+   `Host` correcta (y apunta los registros `A`/`AAAA`/`CNAME` del dominio al túnel).
+2. **Instalar un certificado** — dos opciones:
+
+   **Automática (ACME).** Pon `ACME_ENABLED=true` (más `ACME_EMAIL`) y apunta el registro
+   `A`/`AAAA` de cada dominio personalizado a este servidor con el puerto 80 accesible desde
+   internet. El backend emite y renueva automáticamente certificados de Let's Encrypt (challenge
+   HTTP-01) para cada dominio ACTIVE, los escribe en `./certs/<domain>/`, regenera la
+   configuración de nginx y recarga nginx automáticamente. Los bloques HTTP de los dominios
+   personalizados exponen siempre `/.well-known/acme-challenge/` (con proxy al backend) y
+   redirigen todo lo demás a HTTPS. Un administrador también puede forzar la emisión por dominio
+   (Admin → Custom Domains → "Issue cert"). Usa
+   `ACME_DIRECTORY_URL=https://acme-staging-v02.api.letsencrypt.org/directory` para pruebas.
+   Detrás de un túnel con nombre, añade una regla de ingress que enrute
+   `/.well-known/acme-challenge/*` al backend.
+
+   **Manual.** Coloca el certificado y la clave en un directorio por dominio:
+
+   ```
+   certs/
+     example.com/
+       cert.pem      # tu certificado (o fullchain)
+       key.pem       # tu clave privada
+   ```
+
+   El backend detecta los certificados manuales en su siguiente comprobación ACME (por defecto
+   cada 60 minutos) y regenera la configuración de nginx; nginx se recarga automáticamente.
+   Hasta que exista el certificado, el dominio cae a los servidores principales.
+
+   Cada bloque escucha tanto `example.com` como `www.example.com`, reutiliza los parámetros
+   SSL de producción, envía HSTS y hace proxy del API/uploads/SPA igual que el sitio
+   principal. Define `APP_URL_HOST` (hostname simple, p. ej.
+   `preview.example.com`) para que nginx sepa qué host es el dominio propio de la app: los
+   crawlers sociales que piden la **raíz** de un dominio **personalizado** reciben entonces
+   el OG renderizado en servidor desde el backend, mientras que el dominio de la app conserva
+   su OG estático del SPA.
+
+El comportamiento de la raíz del dominio personalizado (página de inicio vs. un perfil
+público concreto) lo configura el usuario en **Dashboard → Domain**; tanto los crawlers
+sociales como el SPA lo respetan. Nota: las passkeys de la instancia funcionan actualmente
+solo en el dominio principal de `WEBAUTHN_ORIGIN`, no en los dominios personalizados.
+
 ## Lista de Verificación en Producción
 
 - [ ] `JWT_SECRET` fuerte (32+ caracteres aleatorios)
+- [ ] `TLS_MODE=production` con certificados reales en `./certs/` (sin certificados autofirmados)
+- [ ] Dominios personalizados: `ACME_ENABLED=true` + `ACME_EMAIL`, o certificados manuales por dominio
 - [ ] `NODE_ENV=production`
 - [ ] HTTPS habilitado (proxy inverso o Cloudflare)
 - [ ] `APP_URL` configurado con tu dominio
