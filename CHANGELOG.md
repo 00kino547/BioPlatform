@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Admin badge form: the `slug` field in the admin **Badges** tab is now labelled **Internal ID** (frontend-only rename; the API field and DB column stay `slug`), with a hint that it is a machine-readable identifier auto-derived from the label when left empty.
 - Reverse-proxy client IP restoration is now generic: nginx restores the real client IP from the standard `X-Forwarded-For` chain set by **any** reverse proxy in front (Cloudflare Tunnel, Nginx, Caddy, Traefik, HAProxy, …) instead of Cloudflare's `CF-Connecting-IP` header specifically. Trusted sources are configured via `CF_TRUSTED_IPS` (default now `172.16.0.0/12,127.0.0.1,::1` — the docker bridge range plus loopback), and nginx overwrites `X-Real-IP`/`X-Forwarded-For` with the computed client IP so a client-supplied chain can never reach the backend.
+- The Dashboard **Appearance** tab is now split into three sections: **Themes** (fully functional, unchanged behavior), plus **Layout** and **Background** placeholders that reserve space for future functionality and show a clear "Coming Soon" state (no logic, uploads, storage, or backend changes yet).
 
 ## [1.3.0-dev-beta.1] - 2026-08-12
 

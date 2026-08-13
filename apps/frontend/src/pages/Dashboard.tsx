@@ -41,6 +41,7 @@ import {
   Lock,
   Crown,
   Building2,
+  Image,
 } from "lucide-react";
 
 const platforms = [
@@ -1257,88 +1258,141 @@ export function Dashboard() {
 
         {tab === "appearance" && (
           <div className="space-y-6">
-            <p className="text-sm text-zinc-400">
-              Choose a theme for your public profile page.
-            </p>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-white">Themes</h3>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Choose a theme for your public profile page.
+                </p>
+              </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {themePresets.map((preset) => (
-                <button
-                  key={preset.name}
-                  onClick={() =>
-                    setSelectedTheme(
-                      selectedTheme === preset.name ? null : preset.name
-                    )
-                  }
-                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${
-                    selectedTheme === preset.name
-                      ? "border-violet-500 ring-1 ring-violet-500/30"
-                      : "border-zinc-800 hover:border-zinc-600"
-                  }`}
-                  style={{ backgroundColor: preset.bg }}
-                >
-                  {preset.tier !== "free" && (
-                    <span
-                      className={`absolute top-2 right-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                        preset.tier === "enterprise"
-                          ? "bg-amber-400/15 text-amber-300"
-                          : "bg-violet-400/15 text-violet-300"
-                      }`}
-                    >
-                      {preset.tier === "enterprise" ? "Enterprise" : "Premium"}
-                    </span>
-                  )}
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className="h-6 w-6 rounded-full ring-2 ring-white/20"
-                      style={{ backgroundColor: preset.accent }}
-                    />
-                    <span
-                      className="text-sm font-medium"
-                      style={{ color: preset.text }}
-                    >
-                      {preset.name}
-                    </span>
-                  </div>
-
-                  <div
-                    className="rounded-lg p-3 text-center"
-                    style={{ backgroundColor: preset.cardBg }}
-                  >
-                    <div
-                      className="mx-auto h-8 w-8 rounded-full mb-2"
-                      style={{ backgroundColor: preset.accent }}
-                    />
-                    <div
-                      className="h-2 w-20 mx-auto rounded mb-1"
-                      style={{ backgroundColor: preset.text }}
-                    />
-                    <div
-                      className="h-2 w-14 mx-auto rounded"
-                      style={{ backgroundColor: `${preset.text}40` }}
-                    />
-                  </div>
-
-                  <div className="flex gap-1.5 mt-3">
-                    {[preset.accent, `${preset.accent}80`, `${preset.accent}40`].map(
-                      (c, i) => (
-                        <div
-                          key={i}
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: c }}
-                        />
+              <div className="grid gap-4 sm:grid-cols-2">
+                {themePresets.map((preset) => (
+                  <button
+                    key={preset.name}
+                    onClick={() =>
+                      setSelectedTheme(
+                        selectedTheme === preset.name ? null : preset.name
                       )
+                    }
+                    className={`relative rounded-xl border-2 p-4 text-left transition-all ${
+                      selectedTheme === preset.name
+                        ? "border-violet-500 ring-1 ring-violet-500/30"
+                        : "border-zinc-800 hover:border-zinc-600"
+                    }`}
+                    style={{ backgroundColor: preset.bg }}
+                  >
+                    {preset.tier !== "free" && (
+                      <span
+                        className={`absolute top-2 right-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                          preset.tier === "enterprise"
+                            ? "bg-amber-400/15 text-amber-300"
+                            : "bg-violet-400/15 text-violet-300"
+                        }`}
+                      >
+                        {preset.tier === "enterprise" ? "Enterprise" : "Premium"}
+                      </span>
                     )}
-                  </div>
-                </button>
-              ))}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div
+                        className="h-6 w-6 rounded-full ring-2 ring-white/20"
+                        style={{ backgroundColor: preset.accent }}
+                      />
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: preset.text }}
+                      >
+                        {preset.name}
+                      </span>
+                    </div>
+
+                    <div
+                      className="rounded-lg p-3 text-center"
+                      style={{ backgroundColor: preset.cardBg }}
+                    >
+                      <div
+                        className="mx-auto h-8 w-8 rounded-full mb-2"
+                        style={{ backgroundColor: preset.accent }}
+                      />
+                      <div
+                        className="h-2 w-20 mx-auto rounded mb-1"
+                        style={{ backgroundColor: preset.text }}
+                      />
+                      <div
+                        className="h-2 w-14 mx-auto rounded"
+                        style={{ backgroundColor: `${preset.text}40` }}
+                      />
+                    </div>
+
+                    <div className="flex gap-1.5 mt-3">
+                      {[preset.accent, `${preset.accent}80`, `${preset.accent}40`].map(
+                        (c, i) => (
+                          <div
+                            key={i}
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: c }}
+                          />
+                        )
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {selectedTheme && (
+                <p className="text-xs text-zinc-500 text-center">
+                  Selected: {selectedTheme} — click Save to apply
+                </p>
+              )}
             </div>
 
-            {selectedTheme && (
-              <p className="text-xs text-zinc-500 text-center">
-                Selected: {selectedTheme} — click Save to apply
-              </p>
-            )}
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+              <div className="flex items-center gap-3">
+                <Layers className="h-5 w-5 text-zinc-500" />
+                <div>
+                  <h3 className="text-base font-semibold text-white">Layout</h3>
+                  <p className="text-sm text-zinc-400 mt-0.5">
+                    Choose how your profile is arranged.
+                  </p>
+                </div>
+                <span className="ml-auto inline-flex items-center rounded-full bg-zinc-800 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Coming Soon
+                </span>
+              </div>
+              <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-16 text-center">
+                <Layers className="h-8 w-8 text-zinc-600" />
+                <p className="mt-4 text-sm font-medium text-zinc-400">
+                  Layout customization is on the way
+                </p>
+                <p className="mt-1.5 text-xs text-zinc-600">
+                  This space is reserved for card styles, spacing, and layout options.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+              <div className="flex items-center gap-3">
+                <Image className="h-5 w-5 text-zinc-500" />
+                <div>
+                  <h3 className="text-base font-semibold text-white">Background</h3>
+                  <p className="text-sm text-zinc-400 mt-0.5">
+                    Customize the background of your public profile.
+                  </p>
+                </div>
+                <span className="ml-auto inline-flex items-center rounded-full bg-zinc-800 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Coming Soon
+                </span>
+              </div>
+              <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-16 text-center">
+                <Image className="h-8 w-8 text-zinc-600" />
+                <p className="mt-4 text-sm font-medium text-zinc-400">
+                  Background customization is on the way
+                </p>
+                <p className="mt-1.5 text-xs text-zinc-600">
+                  This space is reserved for background images and effects.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
