@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0-dev-beta.2] - 2026-08-13
+
 ### Security
 - **Token-purpose confusion could bypass 2FA (CRITICAL).** `requireAuth` and `getViewerId` accepted *any* JWT signed with `JWT_SECRET` as a full session bearer — including the short-lived `purpose: "twofactor"` token issued after a password login and the `purpose: "unlock"` email-unlock token — so a password-only attacker could skip TOTP/passkey. Session tokens are now signed with `purpose: "auth"`, and both middlewares reject any other purpose (401).
 - **Webhook SSRF via redirects and DNS rebinding (HIGH).** Delivery used `fetch()` with automatic redirect following, so `Location` targets (including HTTP downgrades) were never re-validated; and the hostname was resolved separately from the later connect, so DNS-rebinding and IPv4-mapped-IPv6 (`::ffff:7f00:1`) answers evaded the private-IP check. Delivery now follows redirects manually, re-validates every hop with `isSafeWebhookTarget`, enforces `MAX_REDIRECTS`, allows `https:` only, resolves once and pins the socket to the validated IP via `lookup`, and rejects every private/reserved range (RFC1918, CGNAT, link-local, loopback, multicast, NAT64, IPv4-mapped-IPv6, …) with a `net.BlockList`.
@@ -219,6 +221,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
+[1.3.0-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.1...v1.3.0-dev-beta.2
 [1.3.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.1-dev-beta.1...v1.3.0-dev-beta.1
 [1.2.1-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.0-dev-beta.1...v1.2.1-dev-beta.1
 [1.2.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.1.0-dev-beta.1...v1.2.0-dev-beta.1
