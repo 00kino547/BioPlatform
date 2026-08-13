@@ -53,19 +53,25 @@ function startWithSound(
   player: YtPlayerInstance,
   onUnmuted: () => void,
   onMuted: () => void
-): void {
+): number[] {
+  const timers: number[] = [];
   player.playVideo();
-  window.setTimeout(() => {
-    if (player.getPlayerState() === window.YT?.PlayerState.PLAYING) {
-      onUnmuted();
-      return;
-    }
-    player.mute();
-    player.playVideo();
+  timers.push(
     window.setTimeout(() => {
-      onMuted();
-    }, 300);
-  }, 600);
+      if (player.getPlayerState() === window.YT?.PlayerState.PLAYING) {
+        onUnmuted();
+        return;
+      }
+      player.mute();
+      player.playVideo();
+      timers.push(
+        window.setTimeout(() => {
+          onMuted();
+        }, 300)
+      );
+    }, 600)
+  );
+  return timers;
 }
 
 const PROVIDER_PRIORITY: Record<MusicTrack["provider"], number> = {
@@ -227,11 +233,19 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YtPlayerInstance | null>(null);
   const startedRef = useRef(started);
+  const soundTimersRef = useRef<number[]>([]);
   const [muted, setMuted] = useState(false);
 
   useEffect(() => {
     startedRef.current = started;
   }, [started]);
+
+  useEffect(() => {
+    return () => {
+      soundTimersRef.current.forEach((t) => window.clearTimeout(t));
+      soundTimersRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,7 +276,7 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
             frame.style.width = "100%";
             frame.style.height = "100%";
             if (startedRef.current) {
-              startWithSound(player, () => setMuted(false), () => setMuted(true));
+              soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
             } else {
               player.pauseVideo();
             }
@@ -281,8 +295,10 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
+    soundTimersRef.current.forEach((t) => window.clearTimeout(t));
+    soundTimersRef.current = [];
     if (started) {
-      startWithSound(player, () => setMuted(false), () => setMuted(true));
+      soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
     } else {
       player.pauseVideo();
     }

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { DomainProvider, useDomain } from "@/contexts/DomainContext";
@@ -11,15 +12,16 @@ import { Showcase } from "@/components/landing/Showcase";
 import { Pricing } from "@/components/landing/Pricing";
 import { FAQ } from "@/components/landing/FAQ";
 import { Footer } from "@/components/landing/Footer";
-import { Login } from "@/pages/Login";
-import { Register } from "@/pages/Register";
-import { Unlock } from "@/pages/Unlock";
-import { Dashboard } from "@/pages/Dashboard";
-import { AdminDashboard } from "@/pages/AdminDashboard";
-import { PublicProfilePage } from "@/pages/PublicProfile";
-import { Privacy } from "@/pages/Privacy";
-import { Terms } from "@/pages/Terms";
-import { ApiDocs } from "@/pages/ApiDocs";
+
+const Login = lazy(() => import("@/pages/Login").then((m) => ({ default: m.Login })));
+const Register = lazy(() => import("@/pages/Register").then((m) => ({ default: m.Register })));
+const Unlock = lazy(() => import("@/pages/Unlock").then((m) => ({ default: m.Unlock })));
+const Dashboard = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.Dashboard })));
+const AdminDashboard = lazy(() => import("@/pages/AdminDashboard").then((m) => ({ default: m.AdminDashboard })));
+const PublicProfilePage = lazy(() => import("@/pages/PublicProfile").then((m) => ({ default: m.PublicProfilePage })));
+const Privacy = lazy(() => import("@/pages/Privacy").then((m) => ({ default: m.Privacy })));
+const Terms = lazy(() => import("@/pages/Terms").then((m) => ({ default: m.Terms })));
+const ApiDocs = lazy(() => import("@/pages/ApiDocs").then((m) => ({ default: m.ApiDocs })));
 
 function Landing() {
   usePageMeta({
@@ -78,41 +80,51 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PageFallback() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <DomainProvider>
           <div className="min-h-screen bg-background text-foreground">
-            <Routes>
-              <Route path="/" element={<CustomDomainRoot />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/unlock" element={<Unlock />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute>
-                  <AdminGuard>
-                    <AdminDashboard />
-                  </AdminGuard>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/api-docs" element={<ApiDocs />} />
-            <Route path="/:username" element={<PublicProfilePage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            <Suspense fallback={<PageFallback />}>
+              <Routes>
+                <Route path="/" element={<CustomDomainRoot />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/unlock" element={<Unlock />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <AdminGuard>
+                        <AdminDashboard />
+                      </AdminGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/api-docs" element={<ApiDocs />} />
+                <Route path="/:username" element={<PublicProfilePage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
           </div>
         </DomainProvider>
       </AuthProvider>

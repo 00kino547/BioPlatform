@@ -118,6 +118,8 @@ const PERMISSION_LABELS: Record<string, string> = {
 
 const PERMISSION_ORDER = Object.keys(PERMISSION_LABELS);
 
+const PAGE_SIZE = 50;
+
 export function AdminDashboard() {
   const { user, logout } = useAuth();
   const perms = new Set(user?.permissions ?? []);
@@ -145,6 +147,10 @@ export function AdminDashboard() {
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [inviteFilter, setInviteFilter] = useState<"all" | "available" | "mine">("all");
   const [users, setUsers] = useState<User[]>([]);
+  const [invitesPage, setInvitesPage] = useState(0);
+  const [invitesTotal, setInvitesTotal] = useState(0);
+  const [usersPage, setUsersPage] = useState(0);
+  const [usersTotal, setUsersTotal] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
   const [bans, setBans] = useState<AuthBan[]>([]);
@@ -215,13 +221,16 @@ export function AdminDashboard() {
   });
   const [badgeMsg, setBadgeMsg] = useState("");
 
-  const fetchCodes = async () => {
+  const fetchCodes = async (page = invitesPage, filter = inviteFilter) => {
     const token = getToken();
-    const res = await fetch("/api/admin/invites", {
+    const res = await fetch(`/api/admin/invites?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}&filter=${filter}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.success) setCodes(data.data);
+    if (data.success) {
+      setCodes(data.data);
+      if (data.pagination) setInvitesTotal(data.pagination.total);
+    }
   };
 
   const fetchInviteSettings = async () => {
@@ -242,13 +251,16 @@ export function AdminDashboard() {
     if (data.success) setEvents(data.data);
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page = usersPage) => {
     const token = getToken();
-    const res = await fetch("/api/admin/users", {
+    const res = await fetch(`/api/admin/users?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.success) setUsers(data.data);
+    if (data.success) {
+      setUsers(data.data);
+      if (data.pagination) setUsersTotal(data.pagination.total);
+    }
   };
 
   const fetchBans = async () => {
@@ -516,6 +528,7 @@ export function AdminDashboard() {
     const data = await res.json();
     if (data.success) {
       setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      void fetchUsers(usersPage);
       if (canBans) fetchBans();
       if (canLogs) fetchLogs();
     } else {
@@ -944,7 +957,11 @@ export function AdminDashboard() {
                   {(["all", "available", "mine"] as const).map((f) => (
                     <button
                       key={f}
-                      onClick={() => setInviteFilter(f)}
+                      onClick={() => {
+                        setInviteFilter(f);
+                        setInvitesPage(0);
+                        void fetchCodes(0, f);
+                      }}
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                         inviteFilter === f
                           ? "bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40"
@@ -957,32 +974,23 @@ export function AdminDashboard() {
                 </div>
               </div>
 
-              {(() => {
-                const filtered = codes.filter((c) => {
-                  if (inviteFilter === "mine") return c.createdById === user?.id;
-                  if (inviteFilter === "available") {
-                    return !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now());
-                  }
-                  return true;
-                });
-                if (filtered.length === 0) {
-                  return <p className="text-sm text-zinc-500">{codes.length === 0 ? "No codes yet." : "No invite codes match this filter."}</p>;
-                }
-                return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                          <th className="pb-3 font-medium">Code</th>
-                          <th className="pb-3 font-medium">Status</th>
-                          <th className="pb-3 font-medium">Created by</th>
-                          <th className="pb-3 font-medium">Expires</th>
-                          <th className="pb-3 font-medium">Created</th>
-                          <th className="pb-3 font-medium"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-800/40">
-                        {filtered.map((code) => (
+              {codes.length === 0 ? (
+                <p className="text-sm text-zinc-500">{inviteFilter === "all" ? "No codes yet." : "No invite codes match this filter."}</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
+                        <th className="pb-3 font-medium">Code</th>
+                        <th className="pb-3 font-medium">Status</th>
+                        <th className="pb-3 font-medium">Created by</th>
+                        <th className="pb-3 font-medium">Expires</th>
+                        <th className="pb-3 font-medium">Created</th>
+                        <th className="pb-3 font-medium"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/40">
+                      {codes.map((code) => (
                           <tr key={code.id}>
                             <td className="py-3 font-mono text-zinc-300">
                               {code.code}
@@ -1029,8 +1037,37 @@ export function AdminDashboard() {
                       </tbody>
                     </table>
                   </div>
-                );
-              })()}
+              )}
+              {invitesTotal > PAGE_SIZE && (
+                <div className="mt-4 flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      const page = Math.max(invitesPage - 1, 0);
+                      setInvitesPage(page);
+                      void fetchCodes(page, inviteFilter);
+                    }}
+                    disabled={invitesPage === 0}
+                    className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs text-zinc-500">
+                    {invitesTotal === 0 ? 0 : invitesPage * PAGE_SIZE + 1}–
+                    {Math.min((invitesPage + 1) * PAGE_SIZE, invitesTotal)} of {invitesTotal}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const page = invitesPage + 1;
+                      setInvitesPage(page);
+                      void fetchCodes(page, inviteFilter);
+                    }}
+                    disabled={(invitesPage + 1) * PAGE_SIZE >= invitesTotal}
+                    className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1121,6 +1158,36 @@ export function AdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {usersTotal > PAGE_SIZE && (
+              <div className="mt-4 flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    const page = Math.max(usersPage - 1, 0);
+                    setUsersPage(page);
+                    void fetchUsers(page);
+                  }}
+                  disabled={usersPage === 0}
+                  className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-zinc-500">
+                  {usersTotal === 0 ? 0 : usersPage * PAGE_SIZE + 1}–
+                  {Math.min((usersPage + 1) * PAGE_SIZE, usersTotal)} of {usersTotal}
+                </span>
+                <button
+                  onClick={() => {
+                    const page = usersPage + 1;
+                    setUsersPage(page);
+                    void fetchUsers(page);
+                  }}
+                  disabled={(usersPage + 1) * PAGE_SIZE >= usersTotal}
+                  className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
               </div>
             )}
           </div>

@@ -394,7 +394,7 @@ export const openapi = {
         tags: ["Badges"],
         summary: "List all badges (public)",
         security: [],
-        description: "The badge catalog with labels, colors and icon names. Used to render badges as colored icons.",
+        description: "The badge catalog with labels, colors and icon names. Used to render badges as colored icons. Served with `Cache-Control: public, max-age=300` and an ETag (304 on revalidation).",
         responses: { "200": { description: "Array of badges" } },
       },
     },
@@ -469,7 +469,8 @@ export const openapi = {
         summary: "Get a public profile by slug or alias",
         security: [],
         parameters: [{ name: "identifier", in: "path", required: true, schema: { type: "string" }, description: "A profile slug or an alias slug" }],
-        responses: { "200": { description: "Public profile (no email/PII)", content: { "application/json": { schema: { $ref: "#/components/schemas/PublicProfile" } } } }, "404": { description: "Not found or private" } },
+        description: "Served with `Cache-Control: no-cache` and a content-based ETag — browsers revalidate every time (304 when unchanged) so profile edits and live presence are never stale and public views are still counted.",
+        responses: { "200": { description: "Public profile (no email/PII)", content: { "application/json": { schema: { $ref: "#/components/schemas/PublicProfile" } } } }, "304": { description: "Not modified (If-None-Match matches)" }, "404": { description: "Not found or private" } },
       },
     },
     "/profiles/{identifier}/presence": {
@@ -759,9 +760,14 @@ export const openapi = {
     "/admin/invites": {
       get: {
         tags: ["Admin"],
-        summary: "List all invite codes (admin only)",
-        description: "Every invite code across all creators, with the creator and (when used) the account that redeemed it.",
-        responses: { "200": { description: "Array of invite codes" } },
+        summary: "List invite codes (admin only, paginated)",
+        description: "Every invite code across all creators, with the creator and (when used) the account that redeemed it. Supports `limit` (default 50, max 100), `offset`, and `filter` (`all` | `available` = unused/unexpired/unrevoked | `mine` = created by the caller). Returns `{ data, pagination: { total, limit, offset } }`.",
+        parameters: [
+          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 } },
+          { name: "offset", in: "query", required: false, schema: { type: "integer", minimum: 0 } },
+          { name: "filter", in: "query", required: false, schema: { type: "string", enum: ["all", "available", "mine"] } },
+        ],
+        responses: { "200": { description: "{ data, pagination }" } },
       },
     },
     "/admin/invite-settings": {
@@ -797,8 +803,13 @@ export const openapi = {
     "/admin/users": {
       get: {
         tags: ["Admin"],
-        summary: "List all users (admin only)",
-        responses: { "200": { description: "Array of users" } },
+        summary: "List users (admin only, paginated)",
+        description: "All users, newest first. Supports `limit` (default 50, max 100) and `offset`. Returns `{ data, pagination: { total, limit, offset } }`.",
+        parameters: [
+          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 } },
+          { name: "offset", in: "query", required: false, schema: { type: "integer", minimum: 0 } },
+        ],
+        responses: { "200": { description: "{ data, pagination }" } },
       },
     },
     "/admin/users/{id}": {

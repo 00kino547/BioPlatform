@@ -81,7 +81,7 @@ export function PublicProfilePage() {
       if (!stopped && res.success) setLivePresence(res.data ?? null);
     };
 
-    const timer = window.setInterval(tick, 15_000);
+    const timer = window.setInterval(tick, 30_000);
     const onVisibility = () => {
       if (!document.hidden) void tick();
     };

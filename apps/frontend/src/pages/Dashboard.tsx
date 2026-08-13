@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
@@ -219,6 +219,27 @@ function LockedTab({ feature, required }: { feature: string; required: "premium"
   );
 }
 
+function buildDayChart(
+  series: { date: string; count: number }[],
+  uniqueSeries: { date: string; count: number }[]
+): { max: number; days: { date: string; label: string; total: number; unique: number }[] } {
+  const allCounts = [...series.map((d) => d.count), ...uniqueSeries.map((d) => d.count)];
+  const max = Math.max(...allCounts, 1);
+  const days: { date: string; label: string; total: number; unique: number }[] = [];
+  const now = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dateStr = d.toISOString().split("T")[0];
+    days.push({
+      date: dateStr,
+      label: new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      total: series.find((v) => v.date === dateStr)?.count ?? 0,
+      unique: uniqueSeries.find((v) => v.date === dateStr)?.count ?? 0,
+    });
+  }
+  return { max, days };
+}
+
 export function Dashboard() {
   const { user, logout } = useAuth();
   const isAdmin = user?.isAdmin === true;
@@ -265,6 +286,14 @@ export function Dashboard() {
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const viewsChart = useMemo(
+    () => (analytics ? buildDayChart(analytics.viewsByDay, analytics.uniqueViewsByDay) : null),
+    [analytics]
+  );
+  const clicksChart = useMemo(
+    () => (analytics ? buildDayChart(analytics.clicksByDay, analytics.uniqueClicksByDay) : null),
+    [analytics]
+  );
 
   const [emailSettings, setEmailSettings] = useState<EmailNotificationSettings>({
     smtpConfigured: false,
@@ -1438,28 +1467,14 @@ export function Dashboard() {
                           <div key={p} className="border-t border-dashed border-zinc-800/80" />
                         ))}
                       </div>
-                      {(() => {
-                        const allCounts = [...analytics.viewsByDay.map((d) => d.count), ...analytics.uniqueViewsByDay.map((d) => d.count)];
-                        const max = Math.max(...allCounts, 1);
-                        const allDays: { date: string; total: number; unique: number }[] = [];
-                        const now = new Date();
-                        for (let i = 29; i >= 0; i--) {
-                          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-                          const dateStr = d.toISOString().split("T")[0];
-                          allDays.push({
-                            date: dateStr,
-                            total: analytics.viewsByDay.find((v) => v.date === dateStr)?.count ?? 0,
-                            unique: analytics.uniqueViewsByDay.find((v) => v.date === dateStr)?.count ?? 0,
-                          });
-                        }
-                        return allDays.map((day, i) => (
+                      {viewsChart?.days.map((day, i) => (
                           <div
                             key={i}
                             className="flex-1 flex flex-col h-full relative group"
                           >
                             <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
-                                <p className="text-[11px] font-semibold text-white">{new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                                <p className="text-[11px] font-semibold text-white">{day.label}</p>
                                 <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
                                 <p className="text-xs"><span className="text-sky-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
                               </div>
@@ -1469,7 +1484,7 @@ export function Dashboard() {
                               <div
                                 className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
                                 style={{
-                                  height: `${(day.total / max) * 100}%`,
+                                  height: `${(day.total / viewsChart.max) * 100}%`,
                                   minHeight: day.total > 0 ? "6px" : "2px",
                                   background: `linear-gradient(to top, #7c3aed, #a78bfa)`,
                                   opacity: day.total > 0 ? 0.85 : 0.25,
@@ -1478,7 +1493,7 @@ export function Dashboard() {
                               <div
                                 className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
                                 style={{
-                                  height: `${(day.unique / max) * 100}%`,
+                                  height: `${(day.unique / viewsChart.max) * 100}%`,
                                   minHeight: day.unique > 0 ? "6px" : "2px",
                                   background: `linear-gradient(to top, #0ea5e9, #38bdf8)`,
                                   opacity: day.unique > 0 ? 0.85 : 0.25,
@@ -1488,13 +1503,12 @@ export function Dashboard() {
                             <div className="h-6 flex items-end justify-center">
                               {i % 5 === 0 && (
                                 <span className="text-[9px] text-zinc-600 whitespace-nowrap">
-                                  {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                  {day.label}
                                 </span>
                               )}
                             </div>
                           </div>
-                        ));
-                      })()}
+                        ))}
                     </div>
                   ) : (
                     <p className="text-sm text-zinc-500 text-center py-8">No views yet</p>
@@ -1567,28 +1581,14 @@ export function Dashboard() {
                           <div key={p} className="border-t border-dashed border-zinc-800/80" />
                         ))}
                       </div>
-                      {(() => {
-                        const allCounts = [...analytics.clicksByDay.map((d) => d.count), ...analytics.uniqueClicksByDay.map((d) => d.count)];
-                        const max = Math.max(...allCounts, 1);
-                        const allDays: { date: string; total: number; unique: number }[] = [];
-                        const now = new Date();
-                        for (let i = 29; i >= 0; i--) {
-                          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-                          const dateStr = d.toISOString().split("T")[0];
-                          allDays.push({
-                            date: dateStr,
-                            total: analytics.clicksByDay.find((v) => v.date === dateStr)?.count ?? 0,
-                            unique: analytics.uniqueClicksByDay.find((v) => v.date === dateStr)?.count ?? 0,
-                          });
-                        }
-                        return allDays.map((day, i) => (
+                      {clicksChart?.days.map((day, i) => (
                           <div
                             key={i}
                             className="flex-1 flex flex-col h-full relative group"
                           >
                             <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
-                                <p className="text-[11px] font-semibold text-white">{new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                                <p className="text-[11px] font-semibold text-white">{day.label}</p>
                                 <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
                                 <p className="text-xs"><span className="text-amber-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
                               </div>
@@ -1598,7 +1598,7 @@ export function Dashboard() {
                               <div
                                 className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
                                 style={{
-                                  height: `${(day.total / max) * 100}%`,
+                                  height: `${(day.total / clicksChart.max) * 100}%`,
                                   minHeight: day.total > 0 ? "6px" : "2px",
                                   background: `linear-gradient(to top, #059669, #34d399)`,
                                   opacity: day.total > 0 ? 0.85 : 0.25,
@@ -1607,7 +1607,7 @@ export function Dashboard() {
                               <div
                                 className="flex-1 rounded-t-md transition-all duration-150 hover:brightness-125"
                                 style={{
-                                  height: `${(day.unique / max) * 100}%`,
+                                  height: `${(day.unique / clicksChart.max) * 100}%`,
                                   minHeight: day.unique > 0 ? "6px" : "2px",
                                   background: `linear-gradient(to top, #d97706, #fbbf24)`,
                                   opacity: day.unique > 0 ? 0.85 : 0.25,
@@ -1617,13 +1617,12 @@ export function Dashboard() {
                             <div className="h-6 flex items-end justify-center">
                               {i % 5 === 0 && (
                                 <span className="text-[9px] text-zinc-600 whitespace-nowrap">
-                                  {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                  {day.label}
                                 </span>
                               )}
                             </div>
                           </div>
-                        ));
-                      })()}
+                        ))}
                     </div>
                   ) : (
                     <p className="text-sm text-zinc-500 text-center py-8">No clicks yet</p>

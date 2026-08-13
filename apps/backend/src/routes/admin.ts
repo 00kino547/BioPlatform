@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requirePermission } from "../middleware/admin.js";
@@ -21,6 +22,17 @@ import { getEnv } from "../config/env.js";
 import { issueCertificateForDomain } from "../lib/acme.js";
 
 const router = Router();
+
+const DEFAULT_PAGE_LIMIT = 50;
+const MAX_PAGE_LIMIT = 100;
+
+function paginationParams(query: Request["query"]): { take: number; skip: number; limit: number; offset: number } {
+  const rawLimit = typeof query.limit === "string" ? Number.parseInt(query.limit, 10) : Number.NaN;
+  const rawOffset = typeof query.offset === "string" ? Number.parseInt(query.offset, 10) : Number.NaN;
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), MAX_PAGE_LIMIT) : DEFAULT_PAGE_LIMIT;
+  const offset = Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : 0;
+  return { take: limit, skip: offset, limit, offset };
+}
 
 const TIER_RANK: Record<string, number> = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
 
@@ -133,13 +145,23 @@ function serializeUser(u: {
 
 router.use(requireAuth, requireAdmin);
 
-router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (_req, res) => {
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: userSelect,
-  });
+router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (req, res) => {
+  const { take, skip, limit, offset } = paginationParams(req.query);
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: userSelect,
+      take,
+      skip,
+    }),
+    prisma.user.count(),
+  ]);
 
-  res.json({ success: true, data: users.map(serializeUser) });
+  res.json({
+    success: true,
+    data: users.map(serializeUser),
+    pagination: { total, limit, offset },
+  });
 });
 
 router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
@@ -636,25 +658,44 @@ router.delete("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (
 // Badges
 // ---------------------------------------------------------------------
 
-router.get("/invites", requirePermission(PERMISSIONS.INVITES_MANAGE), async (_req, res) => {
-  const codes = await prisma.inviteCode.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      code: true,
-      createdById: true,
-      usedById: true,
-      usedAt: true,
-      expiresAt: true,
-      revokedAt: true,
-      fromAllowance: true,
-      createdAt: true,
-      createdBy: { select: { id: true, username: true } },
-      usedBy: { select: { id: true, username: true } },
-    },
-  });
+router.get("/invites", requirePermission(PERMISSIONS.INVITES_MANAGE), async (req, res) => {
+  const { take, skip, limit, offset } = paginationParams(req.query);
+  const filter = req.query.filter;
+  const where: Prisma.InviteCodeWhereInput =
+    filter === "available"
+      ? {
+          usedById: null,
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        }
+      : filter === "mine"
+        ? { createdById: req.userId }
+        : {};
 
-  res.json({ success: true, data: codes });
+  const [codes, total] = await Promise.all([
+    prisma.inviteCode.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take,
+      skip,
+      select: {
+        id: true,
+        code: true,
+        createdById: true,
+        usedById: true,
+        usedAt: true,
+        expiresAt: true,
+        revokedAt: true,
+        fromAllowance: true,
+        createdAt: true,
+        createdBy: { select: { id: true, username: true } },
+        usedBy: { select: { id: true, username: true } },
+      },
+    }),
+    prisma.inviteCode.count({ where }),
+  ]);
+
+  res.json({ success: true, data: codes, pagination: { total, limit, offset } });
 });
 
 const inviteSettingsSchema = z.object({

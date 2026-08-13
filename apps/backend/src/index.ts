@@ -7,7 +7,11 @@ import { startAcmeLoop, acmeTick } from "./lib/acme.js";
 
 const env = getEnv();
 
+let pruningAuthLogs = false;
+
 async function pruneAuthLogs() {
+  if (pruningAuthLogs) return;
+  pruningAuthLogs = true;
   try {
     const now = new Date();
     const expired = await prisma.authLog.deleteMany({
@@ -24,12 +28,13 @@ async function pruneAuthLogs() {
     }
   } catch (error) {
     console.error("Failed to prune auth logs:", error);
+  } finally {
+    pruningAuthLogs = false;
   }
 }
 
 setInterval(() => {
-void pruneAuthLogs();
-startWebhookRetrySweep();
+  void pruneAuthLogs();
 }, env.AUTH_LOG_CLEANUP_INTERVAL_MINUTES * 60 * 1000);
 
 void pruneAuthLogs();
@@ -37,6 +42,8 @@ void pruneAuthLogs();
 async function main() {
   await prisma.$connect();
   console.log("Database connected");
+
+  startWebhookRetrySweep();
 
   if (env.DISCORD_BOT_TOKEN) {
     startBotSession(env.DISCORD_BOT_TOKEN);

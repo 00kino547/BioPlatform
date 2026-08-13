@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- **TLS private keys and user data no longer enter Docker build contexts.** `.dockerignore` now excludes `certs/` (certificates and private keys), `uploads/` (avatars/banners), database dumps and backups, and local DB files — previously these were part of every build context sent to the Docker daemon.
+- **ACME challenge tokens are bounded in memory.** The in-memory challenge map now stores a creation timestamp and prunes entries older than 10 minutes (also on each read), so a burst of challenge attempts can no longer grow it without limit.
+
+### Performance
+- **Hashed static assets are now immutable-cached.** The frontend nginx config serves `/assets/*` with `Cache-Control: public, max-age=31536000, immutable` (content-hashed names never change) while `index.html` is served `no-cache` — repeat visits revalidate only the app shell and load every chunk straight from the browser cache.
+- **Admin lists are paginated server-side.** `GET /api/admin/users` and `GET /api/admin/invites` accept `limit` (default 50, max 100) and `offset` and return `{ data, pagination: { total, limit, offset } }`; `/invites` also supports `filter` (`all` | `available` = unused/unexpired/unrevoked | `mine` = created by the caller). The admin panel now pages through results (Previous/Next + `x–y of total`) instead of loading the whole table on every visit.
+- **Public API responses are cacheable.** `GET /api/badges` is served `Cache-Control: public, max-age=300` and `GET /api/profiles/:identifier` `no-cache`, both with a content-based `ETag` so clients revalidate with a cheap `304`. The profile revalidates on every fetch — edits and live presence are never stale, and public views are still counted.
+- **Presence polling halved (15s → 30s).** Presence state stays centralized server-side (Discord gateway cache with a TTL sweep), so the client-side poll exists only to pick up live updates.
+- **Dashboard render cost reduced.** The 30-day analytics chart series are built once with `useMemo` instead of inside the render body, and route pages are code-split via `React.lazy` + `Suspense` (the landing shell loads first; Dashboard, Admin, public profile, legal and API-docs chunks load on demand).
+- **Analytics queries run in parallel.** The seven 30-day `$queryRaw` aggregates on `/api/analytics/me` now run via `Promise.all` instead of serially.
+- **OG render avoids a double DB load.** `profileOgImageUrl` accepts an already-loaded profile data object, so `renderProfileOgPage` no longer re-reads the profile to build the card URL.
+- **nginx upstream keepalive.** Upstream pools use `keepalive 32` and a `$connection_upgrade` map now drops the `Connection` header on non-WebSocket requests (previously every proxied request was sent with `Connection: upgrade`), letting nginx reuse upstream connections.
+- **Scroll-reveal no longer animates `filter: blur`** (only opacity + transform), removing a per-frame paint cost on landing-page reveals.
+- **Index analysis: no new indexes (deliberate).** `EXPLAIN ANALYZE` on the analytics queries showed `page_views` (242 rows) and `link_clicks` (2 rows) already carry the composite indexes `(profileId, createdAt)` and `(profileId, visitorId)`, and a forced index scan (0.133 ms) only marginally beat the seq scan (0.187 ms). No index was added — revisit when the tables grow.
+- Notes: the Google Fonts setup and Docker CPU/RAM limits were reviewed and intentionally left unchanged (out of scope for this work); the frontend's >500 kB initial-chunk Vite warning also persists.
+
+### Fixed
+- **Webhook retry sweep is now re-entrant and non-N+1.** The sweep guards against overlapping runs, fetches the webhook row in the same query as the due deliveries, processes them in `nextRetryAt` order, and starts only after the database connection is ready (previously it fired at module load).
+- **Auth-log pruning is guarded against overlapping runs** (the interval could previously overlap and run two concurrent delete sweeps).
+- **YouTube music player leaks no timers.** The start-with-sound timeout chain is now tracked and cleared when the player unmounts or the `started` flag flips, so a destroyed player can no longer receive a late mute/unmute tick.
+
+### Changed
+- Admin panel **Users** and **Invite Codes** tabs now page and filter server-side, and invite filters are permission-aware (`mine` returns codes the caller created).
+- `GET /api/profiles/:identifier` and the admin list endpoints are documented in `docs/en|es/api.md` and the OpenAPI spec (cache headers, pagination and `filter` params).
+
 ## [1.3.0-dev-beta.2] - 2026-08-13
 
 ### Security

@@ -113,13 +113,21 @@ function ogVersion(og: ProfileOgData): string {
   return createHash("sha1").update(ogCacheKey(og)).digest("hex").slice(0, 8);
 }
 
+export function profileOgImageUrl(og: ProfileOgData, options?: ProfileOgOptions): Promise<string | null>;
 export async function profileOgImageUrl(
   identifier: string,
+  options?: ProfileOgOptions
+): Promise<string | null>;
+export async function profileOgImageUrl(
+  identifierOrOg: string | ProfileOgData,
   options: ProfileOgOptions = {}
 ): Promise<string | null> {
-  const og = await loadProfileOgData(identifier, options);
+  const og =
+    typeof identifierOrOg === "string"
+      ? await loadProfileOgData(identifierOrOg, options)
+      : identifierOrOg;
   if (!og) return null;
-  const path = `/api/profiles/${identifier}/og.png`;
+  const path = `/api/profiles/${og.username}/og.png`;
   const base = options.host
     ? `https://${options.host}${path}`
     : (toAbsoluteUrl(path) ?? `${getEnv().APP_URL}${path}`);
@@ -160,7 +168,7 @@ export async function renderProfileOgPage(
   const og = await loadProfileOgData(identifier, options);
   if (!og) return null;
   const env = getEnv();
-  const imageUrl = await profileOgImageUrl(og.username, options);
+  const imageUrl = await profileOgImageUrl(og, options);
   return buildOgPage({
     username: og.username,
     displayName: og.displayName,

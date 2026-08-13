@@ -4,7 +4,21 @@ import * as acme from "acme-client";
 import { prisma } from "./prisma.js";
 import { getEnv } from "../config/env.js";
 
-export const acmeChallenges = new Map<string, string>();
+interface AcmeChallengeEntry {
+  keyAuthorization: string;
+  createdAt: number;
+}
+
+export const acmeChallenges = new Map<string, AcmeChallengeEntry>();
+
+const ACME_CHALLENGE_TTL_MS = 10 * 60 * 1000;
+
+function pruneAcmeChallenges(): void {
+  const cutoff = Date.now() - ACME_CHALLENGE_TTL_MS;
+  for (const [token, entry] of acmeChallenges) {
+    if (entry.createdAt < cutoff) acmeChallenges.delete(token);
+  }
+}
 
 const NGINX_CERTS_ROOT = "/etc/nginx/certs";
 const NGINX_CONF_NAME = "custom-domains.conf";
@@ -133,7 +147,9 @@ export async function regenerateNginxConf(): Promise<void> {
 }
 
 export function getChallenge(token: string): string | undefined {
-  return acmeChallenges.get(token);
+  pruneAcmeChallenges();
+  const entry = acmeChallenges.get(token);
+  return entry?.keyAuthorization;
 }
 
 async function issueCertificateForDomain(domain: string): Promise<{ ok: boolean; message: string }> {
@@ -175,7 +191,8 @@ async function issueCertificateForDomain(domain: string): Promise<{ ok: boolean;
       email: env.ACME_EMAIL || undefined,
       termsOfServiceAgreed: true,
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
-        acmeChallenges.set(challenge.token, keyAuthorization);
+        acmeChallenges.set(challenge.token, { keyAuthorization, createdAt: Date.now() });
+        pruneAcmeChallenges();
       },
       challengeRemoveFn: async (_authz, challenge) => {
         acmeChallenges.delete(challenge.token);

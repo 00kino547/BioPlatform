@@ -69,62 +69,59 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
       `,
     ]);
 
-  const viewsByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
-    SELECT DATE(created_at)::text as date, COUNT(*) as count
-    FROM page_views
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY DATE(created_at)
-    ORDER BY date ASC
-  `;
-
-  const uniqueViewsByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
-    SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
-    FROM page_views
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY DATE(created_at)
-    ORDER BY date ASC
-  `;
-
-  const clicksByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
-    SELECT DATE(created_at)::text as date, COUNT(*) as count
-    FROM link_clicks
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY DATE(created_at)
-    ORDER BY date ASC
-  `;
-
-  const uniqueClicksByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
-    SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
-    FROM link_clicks
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY DATE(created_at)
-    ORDER BY date ASC
-  `;
-
-  const clicksByPlatform = await prisma.$queryRaw<{ platform: string; count: bigint }[]>`
-    SELECT platform, COUNT(*) as count
-    FROM link_clicks
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY platform
-    ORDER BY count DESC
-  `;
-
-  const uniqueClicksByPlatform = await prisma.$queryRaw<{ platform: string; count: bigint }[]>`
-    SELECT platform, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
-    FROM link_clicks
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY platform
-    ORDER BY count DESC
-  `;
-
-  const topReferrers = await prisma.$queryRaw<{ referer: string; count: bigint }[]>`
-    SELECT COALESCE(referer, 'Direct') as referer, COUNT(*) as count
-    FROM page_views
-    WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
-    GROUP BY referer
-    ORDER BY count DESC
-    LIMIT 5
-  `;
+  const [viewsByDay, uniqueViewsByDay, clicksByDay, uniqueClicksByDay, clicksByPlatform, uniqueClicksByPlatform, topReferrers] =
+    await Promise.all([
+      prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT DATE(created_at)::text as date, COUNT(*) as count
+        FROM page_views
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `,
+      prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM page_views
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `,
+      prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT DATE(created_at)::text as date, COUNT(*) as count
+        FROM link_clicks
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `,
+      prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM link_clicks
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `,
+      prisma.$queryRaw<{ platform: string; count: bigint }[]>`
+        SELECT platform, COUNT(*) as count
+        FROM link_clicks
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY platform
+        ORDER BY count DESC
+      `,
+      prisma.$queryRaw<{ platform: string; count: bigint }[]>`
+        SELECT platform, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
+        FROM link_clicks
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY platform
+        ORDER BY count DESC
+      `,
+      prisma.$queryRaw<{ referer: string; count: bigint }[]>`
+        SELECT COALESCE(referer, 'Direct') as referer, COUNT(*) as count
+        FROM page_views
+        WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
+        GROUP BY referer
+        ORDER BY count DESC
+        LIMIT 5
+      `,
+    ]);
 
   res.json({
     success: true,

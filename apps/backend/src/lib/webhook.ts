@@ -471,20 +471,27 @@ export async function sendTestWebhook(webhookId: string, userId: string): Promis
   return { success: true };
 }
 
+let retrySweepRunning = false;
+
 async function retryDueDeliveries(): Promise<void> {
+  if (retrySweepRunning) return;
+  retrySweepRunning = true;
   try {
     const due = await prisma.webhookDelivery.findMany({
       where: { status: "pending", nextRetryAt: { lte: new Date() } },
+      orderBy: { nextRetryAt: "asc" },
       take: 50,
+      include: { webhook: true },
     });
     for (const delivery of due) {
-      const webhook = await prisma.webhook.findUnique({ where: { id: delivery.webhookId } });
-      if (!webhook || !webhook.active) continue;
+      if (!delivery.webhook.active) continue;
       const payload = delivery.payload as unknown;
-      await attemptDelivery(webhook, delivery, delivery.event, payload);
+      await attemptDelivery(delivery.webhook, delivery, delivery.event, payload);
     }
   } catch (err) {
     console.error("Webhook retry sweep failed:", err);
+  } finally {
+    retrySweepRunning = false;
   }
 }
 

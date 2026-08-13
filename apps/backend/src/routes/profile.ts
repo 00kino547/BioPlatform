@@ -31,6 +31,7 @@ import { renderProfileOgCached } from "../lib/profileOg.js";
 import { getCachedPresence, describeActivities } from "../lib/discordGateway.js";
 import { buildDiscordAvatarUrl, DISCORD_STATUS_LABELS } from "../lib/discord.js";
 import { refreshDiscordPostForProfile } from "../lib/discordPost.js";
+import { contentEtag, clientHasFreshBody } from "../lib/httpCache.js";
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -904,7 +905,7 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
     });
   }
 
-  res.json({
+  const body = {
     success: true,
     data: {
       requestedSlug: identifier,
@@ -928,7 +929,14 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
       discord,
       updatedAt: profile.updatedAt,
     },
-  });
+  };
+  const etag = contentEtag(body);
+  res.setHeader("ETag", etag);
+  res.setHeader("Cache-Control", "no-cache");
+  if (clientHasFreshBody(req, etag)) {
+    return res.status(304).end();
+  }
+  res.json(body);
 });
 
 router.post("/click", publicRateLimit, async (req, res) => {

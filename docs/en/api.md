@@ -75,7 +75,7 @@ Every account has one or more **profiles**, each with its own slug, theme, links
 | `DELETE` | `/api/profiles/me/banner` | Remove your banner. Optional `?profileId=`. |
 | `GET` | `/api/profiles/me/export?format=xlsx\|ods` | Download your profile as a spreadsheet. Optional `?profileId=`. |
 | `POST` | `/api/profiles/me/import` | Import your profile from a spreadsheet (multipart `file`). Optional `?profileId=`. |
-| `GET` | `/api/profiles/:identifier` | Get a public profile by its **slug or alias**. Response includes `requestedSlug` (what you asked for) and the canonical `slug`, plus `badges`. No email or PII. Includes a `discord` presence object only when the owner connected Discord and opted in to sharing presence. |
+| `GET` | `/api/profiles/:identifier` | Get a public profile by its **slug or alias**. Response includes `requestedSlug` (what you asked for) and the canonical `slug`, plus `badges`. No email or PII. Includes a `discord` presence object only when the owner connected Discord and opted in to sharing presence. Served with a content-based `ETag` and `Cache-Control: no-cache` — clients revalidate on every fetch and get a `304` when the profile is unchanged (so edits and live presence are never stale, and public views are still counted). |
 | `GET` | `/api/profiles/:identifier/presence` | Lightweight live presence snapshot (no profile fields): `status`, `statusLabel`, `activities`, `line`, `customStatus`, `updatedAt`. Returns `data: null` when the owner has no Discord connection or opted out of sharing presence. Same visibility rules as `:identifier`. |
 | `GET` | `/api/profiles/:identifier/og.png` | Server-rendered 1200×630 PNG card (banner backdrop, avatar, display name + `@username`, bio, **all** badges, social tiles, link/track counts) used as the OpenGraph image for shared profile links. Contains only stable profile data — live presence is intentionally **not** baked in, since Discord caches embed images for a long time. Cached in memory (~5 min, keyed by profile content) and sent with an `ETag` + `Cache-Control: public, max-age=300`. The `og:image` URL carries a content version (`?v=…`) so crawlers refetch when the profile changes. |
 | `POST` | `/api/profiles/click` | Record a social-link click (public; `profileId` + `platform`). |
@@ -246,7 +246,7 @@ The "Post to Discord" embed keeps a single message in sync: the posted message i
 
 **Admin endpoints** under `/api/admin/*` manage users, tiers, password resets, profiles, auth bans, manual unlocks, auth logs, **roles**, **badges**, and **invites**:
 
-- `GET /api/admin/invites` — every invite code across all creators, with the creator and — when used — the account that redeemed it.
+- `GET /api/admin/invites` — every invite code across all creators, with the creator and — when used — the account that redeemed it. Paginated: `limit` (default 50, max 100), `offset`, and `filter` (`all` | `available` = unused/unexpired/unrevoked | `mine` = created by the caller); returns `{ data, pagination: { total, limit, offset } }`.
 - `GET /api/admin/invite-settings` / `PUT /api/admin/invite-settings` — read or set `{ userGenerationEnabled }`, the master switch for non-admin invite generation (admin panel only, no environment variable).
 - `GET /api/admin/invite-events` — audit list of past invite events.
 - `POST /api/admin/invite-events` — run an invite event: `{ count, expiryDays }` grants every non-invite-banned user `count` allowance credits expiring after `expiryDays` days (returns `{ grantedUsers, event, allowanceExpiresAt }`).

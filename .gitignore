@@ -10,6 +10,7 @@ coverage
 # Cache
 .cache
 .turbo
+.eslintcache
 *.tsbuildinfo
 
 # Environment
@@ -41,6 +42,9 @@ certs/*
 
 # Local AI files
 NOTES.md
+
+# Uploads (user-generated files, e.g. avatars/banners; LOCAL_STORAGE_PATH)
+uploads/
 
 # Databases & backups (may contain real credentials/data)
 *.db
