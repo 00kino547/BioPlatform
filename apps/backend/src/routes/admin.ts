@@ -8,13 +8,21 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requirePermission } from "../middleware/admin.js";
 import { updateProfileSchema, toPrismaJson, profileSlugSchema, stripHtml } from "../lib/validation.js";
 import { upsertPrimaryProfile, getPrimaryProfile } from "../lib/profile.js";
-import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLE_SLUGS } from "../lib/permissions.js";
+import {
+  ALL_PERMISSIONS,
+  PERMISSIONS,
+  SYSTEM_ROLE_SLUGS,
+  hasPermission,
+  permissionsFor,
+} from "../lib/permissions.js";
 import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.js";
 import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
 import { issueCertificateForDomain } from "../lib/acme.js";
 
 const router = Router();
+
+const TIER_RANK: Record<string, number> = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
 
 const updateUserSchema = z.object({
   username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/).optional(),
@@ -155,10 +163,36 @@ router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (r
     return res.status(404).json({ success: false, error: "User not found" });
   }
 
-  if (updates.roleId) {
-    const role = await prisma.role.findUnique({ where: { id: updates.roleId } });
-    if (!role) {
-      return res.status(400).json({ success: false, error: "Role not found" });
+  if (updates.roleId || updates.tier) {
+    const caller = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      include: { role: true },
+    });
+    if (!caller || !hasPermission(caller.role, PERMISSIONS.ROLES_MANAGE)) {
+      return res
+        .status(403)
+        .json({ success: false, error: "Changing roles or tiers requires the roles.manage permission" });
+    }
+
+    if (updates.roleId) {
+      const role = await prisma.role.findUnique({ where: { id: updates.roleId } });
+      if (!role) {
+        return res.status(400).json({ success: false, error: "Role not found" });
+      }
+      const callerPerms = new Set(permissionsFor(caller.role));
+      if (!permissionsFor(role).every((p) => callerPerms.has(p))) {
+        return res
+          .status(403)
+          .json({ success: false, error: "Cannot assign a role with permissions beyond your own" });
+      }
+    }
+
+    if (updates.tier) {
+      const callerTierRank = TIER_RANK[caller.tier] ?? 0;
+      const assignedRank = TIER_RANK[updates.tier];
+      if (assignedRank > callerTierRank) {
+        return res.status(403).json({ success: false, error: "Cannot assign a tier above your own tier" });
+      }
     }
   }
 
@@ -308,6 +342,10 @@ router.post("/users/:id/reset-password", requirePermission(PERMISSIONS.USERS_MAN
 
   const { id } = req.params;
   const { newPassword } = parsed.data;
+
+  if (id === req.userId) {
+    return res.status(400).json({ success: false, error: "You cannot reset your own password" });
+  }
 
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) {

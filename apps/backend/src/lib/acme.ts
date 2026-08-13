@@ -9,6 +9,8 @@ export const acmeChallenges = new Map<string, string>();
 const NGINX_CERTS_ROOT = "/etc/nginx/certs";
 const NGINX_CONF_NAME = "custom-domains.conf";
 
+const ACME_RETRY_BACKOFF_MS = 60 * 60 * 1000;
+
 export function acmeEnabled(): boolean {
   return getEnv().ACME_ENABLED;
 }
@@ -216,21 +218,41 @@ export async function acmeTick(): Promise<void> {
     await regenerateNginxConf();
     if (!acmeEnabled()) return;
     const env = getEnv();
-    const due = await prisma.profileDomain.findMany({
-      where: { status: "ACTIVE" },
+    const renewBeforeMs = env.ACME_RENEW_BEFORE_DAYS * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const renewBy = new Date(now + renewBeforeMs);
+    const retryBackoffBefore = new Date(now - ACME_RETRY_BACKOFF_MS);
+
+    const renewals = await prisma.profileDomain.findMany({
+      where: {
+        status: "ACTIVE",
+        tlsStatus: "ISSUED",
+        tlsExpiresAt: { not: null, lte: renewBy },
+      },
       orderBy: { tlsExpiresAt: "asc" },
       take: env.ACME_MAX_DOMAINS_PER_RUN,
     });
-    const renewBeforeMs = env.ACME_RENEW_BEFORE_DAYS * 24 * 60 * 60 * 1000;
-    const now = Date.now();
 
-    for (const entry of due) {
+    const remaining = env.ACME_MAX_DOMAINS_PER_RUN - renewals.length;
+    let retries: typeof renewals = [];
+    if (remaining > 0) {
+      retries = await prisma.profileDomain.findMany({
+        where: {
+          status: "ACTIVE",
+          NOT: { tlsStatus: "ISSUED" },
+          OR: [{ tlsStatus: "NONE" }, { updatedAt: { lt: retryBackoffBefore } }],
+        },
+        orderBy: { updatedAt: "asc" },
+        take: remaining,
+      });
+    }
+
+    for (const entry of [...renewals, ...retries]) {
       const hasFiles = await hasCertFiles(entry.domain);
       const issued = entry.tlsStatus === "ISSUED";
-      const failed = entry.tlsStatus === "FAILED";
       const expiringSoon =
         entry.tlsExpiresAt !== null && entry.tlsExpiresAt.getTime() - now < renewBeforeMs;
-      if (hasFiles && issued && !expiringSoon && !failed) continue;
+      if (hasFiles && issued && !expiringSoon) continue;
       const result = await issueCertificateForDomain(entry.domain);
       console.log(`[acme] ${entry.domain}: ${result.message}`);
     }

@@ -4,6 +4,7 @@ import { getEnv } from "../config/env.js";
 
 export interface AuthPayload {
   userId: string;
+  purpose?: "auth" | "twofactor" | "unlock";
 }
 
 declare global {
@@ -25,6 +26,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   try {
     const payload = jwt.verify(token, getEnv().JWT_SECRET) as AuthPayload;
+    if (payload.purpose !== undefined && payload.purpose !== "auth") {
+      return res.status(401).json({ success: false, error: "Invalid token" });
+    }
     req.userId = payload.userId;
     next();
   } catch {

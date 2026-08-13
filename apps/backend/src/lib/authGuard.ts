@@ -204,7 +204,7 @@ export async function fingerprintBlock(fingerprint: Fingerprint): Promise<BlockR
   });
 
   const blocked = rows.filter((row) => isBlocked(row));
-  if (blocked.length < 2) return null;
+  if (blocked.length === 0) return null;
 
   return {
     permanent: blocked.some((row) => row.permanent),

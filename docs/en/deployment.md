@@ -113,19 +113,31 @@ server {
 }
 ```
 
-### Cloudflare Tunnel
+### Reverse Proxy (Cloudflare Tunnel)
 
 ```bash
 cloudflared tunnel --url http://localhost:80
 ```
 
 When the tunnel terminates at this repo's nginx (the included `docker-compose.yml`),
-set `CF_TRUSTED_IPS` in `.env` to the source IPs/CIDRs that cloudflared connects from
-(default `172.18.0.0/16,127.0.0.1,::1` — the docker bridge gateway plus loopback). Nginx
-restores the real client IP from Cloudflare's `CF-Connecting-IP` header only for those
-sources, so backend logs, analytics, and auth rate limiting see public IPs instead of the
-tunnel/local address. Keep `TRUST_PROXY=1`; do **not** raise it, or spoofed
-`X-Forwarded-For` values become trusted.
+set `CF_TRUSTED_IPS` in `.env` to the source IPs/CIDRs that the reverse proxy connects
+from (default `172.16.0.0/12,127.0.0.1,::1` — the docker bridge range plus loopback).
+Nginx restores the real client IP from the standard `X-Forwarded-For` chain only for
+those sources (any reverse proxy that appends the client IP — Cloudflare Tunnel,
+Nginx, Caddy, Traefik, HAProxy, ...), so backend logs, analytics, and auth rate
+limiting see public IPs instead of the tunnel/local address. Nginx overwrites
+`X-Forwarded-For`/`X-Real-IP` with the computed client IP, so a forged client-supplied
+chain never reaches the backend.
+
+The nginx published ports (`NGINX_PORT`/`NGINX_HTTPS_PORT`) are bound to loopback
+(`127.0.0.1`) in `docker-compose.yml` (like postgres and the backend), so only
+host-local processes can reach nginx — no remote client can connect directly to forge
+the proxy headers; every request must arrive via the trusted reverse proxy. Local
+traffic that comes through docker-proxy (which masquerades its source as the docker
+bridge gateway) is surfaced as `127.0.0.1` instead of the gateway address. Keep
+`TRUST_PROXY=1`; do **not** raise it, or spoofed `X-Forwarded-For` values become
+trusted. Binding the ports to `0.0.0.0` (direct public exposure) voids the
+anti-spoofing guarantee.
 
 ## Custom Domains
 

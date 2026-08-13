@@ -71,6 +71,16 @@ Every public page must include: visual hierarchy, proper spacing, interactive el
 All branding via `VITE_*` env vars in `apps/frontend/src/config/branding.ts`.
 Never hardcode project name — always use `branding.name`, `branding.tagline`, etc.
 
+## Release & Versioning
+
+### GitHub Release Prerelease Policy
+
+- Every GitHub release must be marked as **Pre-release** unless it is a final stable release.
+- Any version containing a prerelease identifier such as `-dev`, `-alpha`, `-beta`, or `-rc` MUST be published with GitHub's **Pre-release** flag enabled.
+- Final stable versions without a prerelease identifier (for example `1.3.0`) MUST NOT be marked as Pre-release.
+- Never mark a `dev`, `alpha`, `beta`, or `rc` release as the latest/stable release.
+- This applies to all release channels and versions unless explicitly overridden by the project owner.
+
 ## AI Instructions
 
 Before changing code:

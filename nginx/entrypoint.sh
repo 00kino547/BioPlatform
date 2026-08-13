@@ -65,15 +65,19 @@ else
   printf '# HSTS disabled (development mode, SEND_HSTS_ON_DEV not true)\n' > "$hsts_conf"
 fi
 
-# Restore the real client IP from Cloudflare's CF-Connecting-IP header.
-# Only trust sources that cloudflared connects from (docker bridge gateway + loopback).
+# Restore the real client IP from the standard X-Forwarded-For chain.
+# This works with any reverse proxy in front (Cloudflare Tunnel, Nginx,
+# Caddy, Traefik, HAProxy, ...) as long as it appends the client IP to
+# X-Forwarded-For. Only trust sources the proxy connects from
+# (docker bridge gateway + loopback), so direct clients cannot spoof it.
 real_ip_conf=/etc/nginx/conf.d/real_ip.conf
-trusted_ips=${CF_TRUSTED_IPS:-172.18.0.0/16,127.0.0.1,::1}
+trusted_ips=${CF_TRUSTED_IPS:-172.16.0.0/12,127.0.0.1,::1}
 {
   for ip in $(printf '%s\n' "$trusted_ips" | tr ',' ' '); do
     [ -n "$ip" ] && printf 'set_real_ip_from %s;\n' "$ip"
   done
-  printf 'real_ip_header CF-Connecting-IP;\n'
+  printf 'real_ip_header X-Forwarded-For;\n'
+  printf 'real_ip_recursive on;\n'
 } > "$real_ip_conf"
 
 # Custom-domain server blocks are generated and managed by the backend ACME

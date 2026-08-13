@@ -123,17 +123,14 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
           const accBlock = await accountBlock(account.id);
           if (accBlock) {
             const policy = getEnv().AUTH_LOCK_POLICY;
-            if (policy === "trusted_ip" && account.trustedIp) {
-              // trusted IP proceeds without unlocking; outcomes are still recorded below
-            } else if (policy === "email" && isEmailEnabled()) {
+            if (policy === "email" && isEmailEnabled()) {
               await logBlocked(req, res, "Account locked (email unlock required)", accBlock);
               res.status(403).json({ success: false, error: EMAIL_UNLOCK_MESSAGE, unlockRequired: true });
               return;
-            } else {
-              await logBlocked(req, res, "Account locked", accBlock);
-              sendBlock(res, accBlock);
-              return;
             }
+            await logBlocked(req, res, "Account locked", accBlock);
+            sendBlock(res, accBlock);
+            return;
           }
         }
 

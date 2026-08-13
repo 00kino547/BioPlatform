@@ -52,7 +52,7 @@
 | `JWT_SECRET` | Secreto para firmar tokens JWT | — (requerido) |
 | `JWT_EXPIRES_IN` | Expiración del token JWT | `7d` |
 | `TRUST_PROXY` | Número de saltos de proxy de confianza (IP real del cliente para el rate limiting de autenticación) | `1` |
-| `CF_TRUSTED_IPS` | IPs/CIDRs de origen separadas por comas autorizadas a fijar `CF-Connecting-IP` en nginx (desde dónde se conecta cloudflared; ver `docs/es/deployment.md` → Cloudflare Tunnel). Solo se confía en la cabecera de estos orígenes. | `172.18.0.0/16,127.0.0.1,::1` |
+| `CF_TRUSTED_IPS` | IPs/CIDRs de origen separadas por comas de proxies de confianza cuya `X-Forwarded-For` nginx confía para restaurar la IP real del cliente (desde dónde se conecta el proxy inverso; ver `docs/es/deployment.md` → Proxy Inverso). Solo se confía en la cabecera de estos orígenes. | `172.16.0.0/12,127.0.0.1,::1` |
 | `AUTH_LOCK_POLICY` | Política de bloqueo de cuenta: `block` (rechazar todo), `trusted_ip` (las IP registradas + de último acceso pueden iniciar sesión sin desbloquear), `email` (desbloqueo mediante enlace por correo) | `trusted_ip` |
 | `AUTH_LOCK_DURATION_MINUTES` | Duración del bloqueo en minutos tras agotarse los intentos gratuitos; `-1` = bloqueo permanente | `-1` |
 | `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL en minutos del enlace de desbloqueo por correo (política `email`) | `30` |

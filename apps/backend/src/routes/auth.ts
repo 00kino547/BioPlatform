@@ -74,8 +74,14 @@ interface TwoFactorPayload {
   purpose: "twofactor";
 }
 
+interface AuthPayload {
+  userId: string;
+  purpose: "auth";
+}
+
 function signToken(userId: string, expiresIn: string) {
-  return jwt.sign({ userId }, getEnv().JWT_SECRET, { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] });
+  const payload: AuthPayload = { userId, purpose: "auth" };
+  return jwt.sign(payload, getEnv().JWT_SECRET, { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] });
 }
 
 function signTwoFactorToken(userId: string) {
@@ -700,6 +706,26 @@ const unlockRequestSchema = z.object({
   identifier: z.string().min(1).max(128),
 });
 
+const UNLOCK_IP_LIMIT_MAX = 5;
+const UNLOCK_IP_WINDOW_MS = 60 * 60 * 1000;
+const unlockIpHits = new Map<string, number[]>();
+
+const UNLOCK_ACCOUNT_COOLDOWN_MS = 10 * 60 * 1000;
+const lastUnlockSentAt = new Map<string, number>();
+
+function unlockIpRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const cutoff = now - UNLOCK_IP_WINDOW_MS;
+  const hits = (unlockIpHits.get(ip) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= UNLOCK_IP_LIMIT_MAX) {
+    unlockIpHits.set(ip, hits);
+    return true;
+  }
+  hits.push(now);
+  unlockIpHits.set(ip, hits);
+  return false;
+}
+
 const unlockVerifySchema = z.object({
   token: z.string().min(1),
 });
@@ -718,16 +744,27 @@ router.post("/unlock", async (req, res) => {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
   }
 
+  const ip = req.ip ?? "unknown";
+  if (unlockIpRateLimited(ip)) {
+    return res.status(429).json({ success: false, error: "Too many unlock requests. Please try again later." });
+  }
+
   const user = await findUserByIdentifier(parsed.data.identifier);
   if (!user) {
-    return res.json({ success: true, data: { sent: false } });
+    return res.json({ success: true, data: { sent: true } });
   }
 
   const ban = await prisma.authBan.findUnique({
     where: { kind_value: { kind: "ACCOUNT", value: user.id } },
   });
   if (!ban || !(ban.permanent || (ban.lockedUntil && ban.lockedUntil > new Date()))) {
-    return res.json({ success: true, data: { sent: false } });
+    return res.json({ success: true, data: { sent: true } });
+  }
+
+  const now = Date.now();
+  const lastSent = lastUnlockSentAt.get(user.id) ?? 0;
+  if (now - lastSent < UNLOCK_ACCOUNT_COOLDOWN_MS) {
+    return res.json({ success: true, data: { sent: true } });
   }
 
   const token = jwt.sign({ userId: user.id, purpose: "unlock" }, getEnv().JWT_SECRET, {
@@ -748,6 +785,8 @@ router.post("/unlock", async (req, res) => {
   if (!result.success) {
     return res.status(500).json({ success: false, error: "Failed to send unlock email" });
   }
+
+  lastUnlockSentAt.set(user.id, now);
 
   res.json({ success: true, data: { sent: true } });
 });
@@ -792,6 +831,23 @@ router.post("/unlock/verify", async (req, res) => {
 
 setInterval(() => {
   void cleanupExpiredChallenges();
+
+  const ipCutoff = Date.now() - UNLOCK_IP_WINDOW_MS;
+  for (const [ip, hits] of unlockIpHits) {
+    const remaining = hits.filter((t) => t > ipCutoff);
+    if (remaining.length === 0) {
+      unlockIpHits.delete(ip);
+    } else {
+      unlockIpHits.set(ip, remaining);
+    }
+  }
+
+  const sentCutoff = Date.now() - UNLOCK_ACCOUNT_COOLDOWN_MS;
+  for (const [accountId, at] of lastUnlockSentAt) {
+    if (at < sentCutoff) {
+      lastUnlockSentAt.delete(accountId);
+    }
+  }
 }, 30 * 60 * 1000);
 
 export default router;

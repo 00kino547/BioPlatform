@@ -58,7 +58,8 @@ function getViewerId(req: Request): string | undefined {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) return undefined;
   try {
-    const payload = jwt.verify(header.slice(7), getEnv().JWT_SECRET) as { userId: string };
+    const payload = jwt.verify(header.slice(7), getEnv().JWT_SECRET) as { userId: string; purpose?: string };
+    if (payload.purpose !== undefined && payload.purpose !== "auth") return undefined;
     return payload.userId;
   } catch {
     return undefined;
@@ -81,6 +82,10 @@ const PUBLIC_LIMIT_MAX = 60;
 const PUBLIC_LIMIT_WINDOW_MS = 60 * 1000;
 const publicHits = new Map<string, number[]>();
 
+const PROFILE_CLICK_LIMIT_MAX = 60;
+const PROFILE_CLICK_WINDOW_MS = 60 * 1000;
+const profileClickHits = new Map<string, number[]>();
+
 function publicRateLimit(req: Request, res: Response, next: NextFunction) {
   const ip = req.ip ?? "unknown";
   const now = Date.now();
@@ -95,6 +100,19 @@ function publicRateLimit(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function profileClickRateLimited(profileId: string): boolean {
+  const now = Date.now();
+  const cutoff = now - PROFILE_CLICK_WINDOW_MS;
+  const hits = (profileClickHits.get(profileId) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= PROFILE_CLICK_LIMIT_MAX) {
+    profileClickHits.set(profileId, hits);
+    return true;
+  }
+  hits.push(now);
+  profileClickHits.set(profileId, hits);
+  return false;
+}
+
 setInterval(() => {
   const cutoff = Date.now() - PUBLIC_LIMIT_WINDOW_MS;
   for (const [ip, hits] of publicHits) {
@@ -103,6 +121,16 @@ setInterval(() => {
       publicHits.delete(ip);
     } else {
       publicHits.set(ip, remaining);
+    }
+  }
+
+  const profileCutoff = Date.now() - PROFILE_CLICK_WINDOW_MS;
+  for (const [profileId, hits] of profileClickHits) {
+    const remaining = hits.filter((t) => t > profileCutoff);
+    if (remaining.length === 0) {
+      profileClickHits.delete(profileId);
+    } else {
+      profileClickHits.set(profileId, remaining);
     }
   }
 }, PUBLIC_LIMIT_WINDOW_MS);
@@ -918,11 +946,26 @@ router.post("/click", publicRateLimit, async (req, res) => {
 
   const profile = await prisma.profile.findUnique({
     where: { id: profileId },
-    select: { userId: true, notifyOnClick: true },
+    select: { userId: true, notifyOnClick: true, isPublic: true, socialLinks: true },
   });
 
   if (!profile) {
     return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+
+  if (!profile.isPublic && profile.userId !== viewerId) {
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+
+  const socialLinks = Array.isArray(profile.socialLinks)
+    ? (profile.socialLinks as { platform: string; url: string }[])
+    : [];
+  if (!socialLinks.some((l) => String(l.platform).toLowerCase() === platformLower)) {
+    return res.status(400).json({ success: false, error: "Platform not found on this profile" });
+  }
+
+  if (profileClickRateLimited(profileId)) {
+    return res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
   }
 
   if (profile.userId !== viewerId) {

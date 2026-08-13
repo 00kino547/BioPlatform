@@ -1416,7 +1416,7 @@ export function AdminDashboard() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Slug <span className="text-zinc-500">(optional)</span>
+                      Internal ID <span className="text-zinc-500">(optional)</span>
                     </label>
                     <input
                       type="text"
@@ -1425,6 +1425,9 @@ export function AdminDashboard() {
                       placeholder="gold-member"
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                     />
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Machine-readable identifier. Auto-generated from the label when empty.
+                    </p>
                   </div>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">

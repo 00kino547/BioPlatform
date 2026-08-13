@@ -1,6 +1,8 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "crypto";
 import dns from "node:dns/promises";
+import https from "node:https";
 import net from "node:net";
+import type { LookupOptions } from "node:dns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.js";
 import { getEnv } from "../config/env.js";
@@ -80,29 +82,43 @@ export function isValidWebhookUrl(value: string): boolean {
   );
 }
 
+const privateNetworks = new net.BlockList();
+privateNetworks.addRange("0.0.0.0", "0.255.255.255", "ipv4");
+privateNetworks.addRange("10.0.0.0", "10.255.255.255", "ipv4");
+privateNetworks.addRange("100.64.0.0", "100.127.255.255", "ipv4");
+privateNetworks.addRange("127.0.0.0", "127.255.255.255", "ipv4");
+privateNetworks.addRange("169.254.0.0", "169.254.255.255", "ipv4");
+privateNetworks.addRange("172.16.0.0", "172.31.255.255", "ipv4");
+privateNetworks.addRange("192.0.0.0", "192.0.0.255", "ipv4");
+privateNetworks.addRange("192.0.2.0", "192.0.2.255", "ipv4");
+privateNetworks.addRange("192.88.99.0", "192.88.99.255", "ipv4");
+privateNetworks.addRange("192.168.0.0", "192.168.255.255", "ipv4");
+privateNetworks.addRange("198.18.0.0", "198.19.255.255", "ipv4");
+privateNetworks.addRange("198.51.100.0", "198.51.100.255", "ipv4");
+privateNetworks.addRange("203.0.113.0", "203.0.113.255", "ipv4");
+privateNetworks.addRange("224.0.0.0", "239.255.255.255", "ipv4");
+privateNetworks.addRange("240.0.0.0", "255.255.255.255", "ipv4");
+privateNetworks.addAddress("::", "ipv6");
+privateNetworks.addAddress("::1", "ipv6");
+privateNetworks.addRange("2001:db8::", "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff", "ipv6");
+privateNetworks.addRange("64:ff9b::", "64:ff9b:ffff:ffff:ffff:ffff:ffff:ffff", "ipv6");
+privateNetworks.addRange("fc00::", "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "ipv6");
+privateNetworks.addRange("fe80::", "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "ipv6");
+privateNetworks.addRange("fec0::", "feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "ipv6");
+privateNetworks.addRange("ff00::", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "ipv6");
+
 function isPrivateIpAddress(address: string): boolean {
-  if (net.isIPv4(address)) {
-    const [a, b] = address.split(".").map(Number);
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    if (a === 192 && b === 0) return true;
-    if (a === 198 && (b === 18 || b === 19)) return true;
-    return false;
-  }
-  const lower = address.toLowerCase();
-  if (lower === "::" || lower === "::1") return true;
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
-  if (lower.startsWith("fe80")) return true;
-  if (lower.startsWith("ff")) return true;
-  return false;
+  if (net.isIP(address) === 0) return true;
+  return privateNetworks.check(address, net.isIPv6(address) ? "ipv6" : "ipv4");
 }
 
-async function isPublicWebhookHost(hostname: string): Promise<boolean> {
+interface PublicHostResolution {
+  hostname: string;
+  address: string;
+  family: number;
+}
+
+async function resolvePublicWebhookHost(hostname: string): Promise<PublicHostResolution | null> {
   try {
     const addresses = await Promise.race([
       dns.lookup(hostname, { all: true, verbatim: true }),
@@ -110,13 +126,17 @@ async function isPublicWebhookHost(hostname: string): Promise<boolean> {
         setTimeout(() => reject(new Error("DNS lookup timed out")), 3000)
       ),
     ]);
-    return addresses.length > 0 && addresses.every((entry) => !isPrivateIpAddress(entry.address));
+    if (addresses.length === 0) return null;
+    if (!addresses.every((entry) => !isPrivateIpAddress(entry.address))) return null;
+    return { hostname, address: addresses[0].address, family: addresses[0].family };
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function isSafeWebhookTarget(value: string): Promise<{ ok: boolean; error?: string }> {
+async function isSafeWebhookTarget(
+  value: string
+): Promise<{ ok: true; resolution: PublicHostResolution } | { ok: false; error: string }> {
   let url: URL;
   try {
     url = new URL(value);
@@ -126,10 +146,11 @@ async function isSafeWebhookTarget(value: string): Promise<{ ok: boolean; error?
   if (url.protocol !== "https:") {
     return { ok: false, error: "Webhook URLs must use https" };
   }
-  if (!(await isPublicWebhookHost(url.hostname))) {
+  const resolution = await resolvePublicWebhookHost(url.hostname);
+  if (!resolution) {
     return { ok: false, error: "Webhook target must resolve to a public address" };
   }
-  return { ok: true };
+  return { ok: true, resolution };
 }
 
 const DISCORD_WEBHOOK_HOSTS = new Set(["discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com"]);
@@ -258,6 +279,50 @@ export function renderPayloadTemplate(template: string, payload: WebhookPayload)
   return JSON.parse(rendered);
 }
 
+interface WebhookHttpResponse {
+  status: number;
+  location: string | null;
+}
+
+function requestWebhook(
+  target: string,
+  resolution: PublicHostResolution,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number
+): Promise<WebhookHttpResponse> {
+  const url = new URL(target);
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: url.hostname,
+        port: url.port === "" ? 443 : Number(url.port),
+        path: `${url.pathname}${url.search}`,
+        method: "POST",
+        headers,
+        servername: url.hostname,
+        rejectUnauthorized: true,
+        timeout: timeoutMs,
+        lookup: (_hostname: string, opts: LookupOptions, callback) => {
+          if (opts.all === true) {
+            callback(null, [{ address: resolution.address, family: resolution.family }]);
+          } else {
+            callback(null, resolution.address, resolution.family);
+          }
+        },
+      },
+      (res) => {
+        res.resume();
+        const location = typeof res.headers.location === "string" ? res.headers.location : null;
+        resolve({ status: res.statusCode ?? 0, location });
+      }
+    );
+    req.on("timeout", () => req.destroy(new Error("Webhook delivery timed out")));
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
 async function deliver(
   webhook: { id: string; url: string; secretEncrypted: string },
   delivery: { id: string },
@@ -266,24 +331,26 @@ async function deliver(
 ): Promise<{ success: boolean; status: number | null; error: string | null; nextRetryAt: Date | null }> {
   const secret = decryptSecret(webhook.secretEncrypted);
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
-
   let redirects = 0;
   let url = webhook.url;
+  const deadline = Date.now() + DELIVERY_TIMEOUT_MS;
   try {
     let status: number | null = null;
-    let response: Response | null = null;
     while (true) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        return { success: false, status: null, error: "Webhook delivery timed out", nextRetryAt: null };
+      }
       const targetCheck = await isSafeWebhookTarget(url);
       if (!targetCheck.ok) {
         return { success: false, status: null, error: targetCheck.error ?? "Webhook target rejected", nextRetryAt: null };
       }
       const body = JSON.stringify(isDiscordWebhookUrl(url) ? toDiscordMessage(payload) : payload);
       const signature = signWebhookPayload(secret, body);
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
+      const response = await requestWebhook(
+        url,
+        targetCheck.resolution,
+        {
           "Content-Type": "application/json",
           "X-BioPlatform-Event": event,
           "X-BioPlatform-Webhook-Id": webhook.id,
@@ -292,14 +359,13 @@ async function deliver(
           "User-Agent": "BioPlatform-Webhook/1.0",
         },
         body,
-        signal: controller.signal,
-      });
+        Math.min(DELIVERY_TIMEOUT_MS, remaining)
+      );
       status = response.status;
-      if (response.status < 300 || response.status >= 400) break;
+      if (status < 300 || status >= 400) break;
       if (redirects >= MAX_REDIRECTS) break;
-      const location = response.headers.get("location");
-      if (!location) break;
-      const next = new URL(location, url);
+      if (!response.location) break;
+      const next = new URL(response.location, url);
       if (next.protocol !== "https:") break;
       url = next.toString();
       redirects += 1;
@@ -313,15 +379,12 @@ async function deliver(
       nextRetryAt: null,
     };
   } catch (err) {
-    const aborted = err instanceof Error && err.name === "AbortError";
     return {
       success: false,
       status: null,
-      error: aborted ? "Webhook delivery timed out" : err instanceof Error ? err.message : "Webhook delivery failed",
+      error: err instanceof Error ? err.message : "Webhook delivery failed",
       nextRetryAt: null,
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

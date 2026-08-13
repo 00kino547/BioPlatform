@@ -52,7 +52,7 @@
 | `JWT_SECRET` | JWT signing secret (min 32 chars) | — (required) |
 | `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
 | `TRUST_PROXY` | Number of trusted proxy hops (used to resolve the real client IP for auth rate limiting) | `1` |
-| `CF_TRUSTED_IPS` | Comma-separated source IPs/CIDRs allowed to set `CF-Connecting-IP` in nginx (where cloudflared connects from; see `docs/en/deployment.md` → Cloudflare Tunnel). Only these sources' header is trusted. | `172.18.0.0/16,127.0.0.1,::1` |
+| `CF_TRUSTED_IPS` | Comma-separated trusted proxy source IPs/CIDRs whose `X-Forwarded-For` nginx trusts to restore the real client IP (where the reverse proxy connects from; see `docs/en/deployment.md` → Reverse Proxy). Only these sources' header is trusted. | `172.16.0.0/12,127.0.0.1,::1` |
 | `AUTH_LOCK_POLICY` | Account lock policy: `block` (reject all), `trusted_ip` (registered + last-login IPs may sign in without unlocking), `email` (unlock requires an email link) | `trusted_ip` |
 | `AUTH_LOCK_DURATION_MINUTES` | Lock duration in minutes after the free attempts run out; `-1` = permanent lock | `-1` |
 | `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL in minutes for the email unlock link (`email` policy) | `30` |

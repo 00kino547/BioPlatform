@@ -26,7 +26,7 @@ interface TransferProfile {
 }
 
 function formulaUnsafe(value: string): boolean {
-  if (/^[=+@\t\r\n]/.test(value)) return true;
+  if (/^[=+@\t\r\n-]/.test(value)) return true;
   for (let i = 0; i < value.length; i += 1) {
     const code = value.charCodeAt(i);
     if ((code >= 0x00 && code <= 0x08) || (code >= 0x0b && code <= 0x0c) || (code >= 0x0e && code <= 0x1f)) {
@@ -36,24 +36,28 @@ function formulaUnsafe(value: string): boolean {
   return false;
 }
 
+function sanitizeExportValue(value: string): string {
+  return formulaUnsafe(value) ? `'${value}` : value;
+}
+
 export function buildExportRows(profile: TransferProfile | null): [string, string][] {
   const rows: [string, string][] = [];
   if (!profile) return rows;
 
-  rows.push(["displayName", profile.displayName ?? ""]);
-  rows.push(["bio", profile.bio ?? ""]);
-  rows.push(["location", profile.location ?? ""]);
-  rows.push(["website", profile.website ?? ""]);
+  rows.push(["displayName", sanitizeExportValue(profile.displayName ?? "")]);
+  rows.push(["bio", sanitizeExportValue(profile.bio ?? "")]);
+  rows.push(["location", sanitizeExportValue(profile.location ?? "")]);
+  rows.push(["website", sanitizeExportValue(profile.website ?? "")]);
   rows.push(["isPublic", profile.isPublic ? "true" : "false"]);
 
   for (const link of profile.socialLinks ?? []) {
-    rows.push([`social.${link.platform}`, link.url]);
+    rows.push([`social.${link.platform}`, sanitizeExportValue(link.url)]);
   }
 
   for (const key of THEME_FIELDS) {
     const value = profile.theme?.[key];
     if (value != null) {
-      rows.push([`theme.${key}`, String(value)]);
+      rows.push([`theme.${key}`, sanitizeExportValue(String(value))]);
     }
   }
 

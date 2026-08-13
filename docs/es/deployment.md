@@ -83,20 +83,32 @@ server {
 }
 ```
 
-### Cloudflare Tunnel
+### Proxy Inverso (Cloudflare Tunnel)
 
 ```bash
 cloudflared tunnel --url http://localhost:80
 ```
 
 Cuando el túnel termina en el nginx de este repositorio (el `docker-compose.yml`
-incluido), define `CF_TRUSTED_IPS` en `.env` con las IPs/CIDRs de origen desde las que se
-conecta cloudflared (por defecto `172.18.0.0/16,127.0.0.1,::1` — el gateway del puente de
-Docker más loopback). Nginx restaura la IP real del cliente desde la cabecera
-`CF-Connecting-IP` de Cloudflare solo para esos orígenes, por lo que los logs del backend,
-la analítica y el límite de intentos de autenticación ven IPs públicas en vez de la IP del
-túnel/local. Mantén `TRUST_PROXY=1`; **no** lo subas, o se confiará en valores
-`X-Forwarded-For` falsificados.
+incluido), define `CF_TRUSTED_IPS` en `.env` con las IPs/CIDRs de origen desde las que
+se conecta el proxy inverso (por defecto `172.16.0.0/12,127.0.0.1,::1` — el rango del
+puente de Docker más loopback). Nginx restaura la IP real del cliente desde la cadena
+estándar `X-Forwarded-For` solo para esos orígenes (cualquier proxy inverso que añada la
+IP del cliente — Cloudflare Tunnel, Nginx, Caddy, Traefik, HAProxy, …), por lo que los
+logs del backend, la analítica y el límite de intentos de autenticación ven IPs públicas
+en vez de la IP del túnel/local. Nginx sobrescribe `X-Forwarded-For`/`X-Real-IP` con la
+IP del cliente calculada, así que una cadena falsificada enviada por el cliente nunca
+llega al backend.
+
+Los puertos publicados de nginx (`NGINX_PORT`/`NGINX_HTTPS_PORT`) están enlazados a
+loopback (`127.0.0.1`) en `docker-compose.yml` (igual que postgres y el backend), de modo
+que solo los procesos locales del host pueden alcanzar nginx — ningún cliente remoto puede
+conectarse directamente para falsificar las cabeceras del proxy; cada petición debe llegar
+a través del proxy inverso de confianza. El tráfico local que llega por docker-proxy (que
+enmascara su origen como el gateway del puente de Docker) se registra como `127.0.0.1` en
+vez de la dirección del gateway. Mantén `TRUST_PROXY=1`; **no** lo subas, o se confiará en
+valores `X-Forwarded-For` falsificados. Enlazar los puertos a `0.0.0.0` (exposición pública
+directa) anula la garantía anti-falsificación.
 
 ## Dominios Personalizados
 
