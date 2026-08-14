@@ -158,8 +158,12 @@ el panel de administración. Para servir realmente un dominio personalizado tamb
 
 El comportamiento de la raíz del dominio personalizado (página de inicio vs. un perfil
 público concreto) lo configura el usuario en **Dashboard → Domain**; tanto los crawlers
-sociales como el SPA lo respetan. Nota: las passkeys de la instancia funcionan actualmente
-solo en el dominio principal de `WEBAUTHN_ORIGIN`, no en los dominios personalizados.
+sociales como el SPA lo respetan. Las passkeys funcionan en el dominio principal de
+`WEBAUTHN_ORIGIN` y también en los dominios personalizados activos: para los dominios
+personalizados, el relying-party ID y el origen esperado se derivan de la cabecera `Host`
+de la petición (el hostname del dominio personalizado), por lo que las passkeys están
+limitadas por dominio — una registrada en el dominio principal funciona allí, y una
+registrada en un dominio personalizado funciona en ese dominio personalizado.
 
 ## Lista de Verificación en Producción
 

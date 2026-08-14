@@ -23,13 +23,46 @@ export interface WebauthnEnv {
   origin: string | string[];
 }
 
-export function getWebauthnEnv(): WebauthnEnv {
+function normalizeHost(host: string | undefined): string | null {
+  if (!host) return null;
+  let value = host.split(",")[0].trim();
+  if (value.startsWith("[")) {
+    const close = value.indexOf("]");
+    if (close === -1) return null;
+    value = value.slice(0, close + 1);
+  } else {
+    const colon = value.indexOf(":");
+    if (colon !== -1) value = value.slice(0, colon);
+  }
+  value = value.toLowerCase().replace(/\.$/, "");
+  if (!value || value.length > 253) return null;
+  if (!/^[a-z0-9.-]+$/.test(value)) return null;
+  return value;
+}
+
+function originHostname(origin: string): string | null {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+export function getWebauthnEnv(host?: string): WebauthnEnv {
   const env = getEnv();
   const origins = env.WEBAUTHN_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean);
-  return {
+  const configured: WebauthnEnv = {
     rpID: env.WEBAUTHN_RP_ID,
     rpName: env.WEBAUTHN_RP_NAME,
     origin: origins.length > 1 ? origins : (origins[0] ?? env.WEBAUTHN_ORIGIN),
+  };
+  const hostname = normalizeHost(host);
+  if (!hostname) return configured;
+  if (origins.some((o) => originHostname(o) === hostname)) return configured;
+  return {
+    rpID: hostname,
+    rpName: env.WEBAUTHN_RP_NAME,
+    origin: [`https://${hostname}`],
   };
 }
 
@@ -80,8 +113,9 @@ export async function generateRegisterOptions(opts: {
   displayName: string;
   residentKey: "resident" | "nonResident";
   excludeCredentials: string[];
+  host?: string;
 }): Promise<PublicKeyCredentialCreationOptionsJSON> {
-  const { rpID, rpName } = getWebauthnEnv();
+  const { rpID, rpName } = getWebauthnEnv(opts.host);
   const options = await generateRegistrationOptions({
     rpName,
     rpID,
@@ -101,9 +135,10 @@ export async function generateRegisterOptions(opts: {
 
 export async function verifyRegister(
   userId: string,
-  response: RegistrationResponseJSON
+  response: RegistrationResponseJSON,
+  host?: string
 ): Promise<{ verified: boolean; credential: { id: string; publicKey: string; counter: number; transports: string[] } }> {
-  const { rpID, origin } = getWebauthnEnv();
+  const { rpID, origin } = getWebauthnEnv(host);
   const challengeRecord = await prisma.webAuthnChallenge.findFirst({
     where: { userId, purpose: "register" },
     orderBy: { createdAt: "desc" },
@@ -148,8 +183,9 @@ export async function generateLoginOptions(opts: {
   allowCredentials: { id: string; transports: string[] }[];
   userVerification: "preferred" | "discouraged";
   purpose?: "login" | "twofactor";
+  host?: string;
 }): Promise<PublicKeyCredentialRequestOptionsJSON> {
-  const { rpID } = getWebauthnEnv();
+  const { rpID } = getWebauthnEnv(opts.host);
   const options = await generateAuthenticationOptions({
     rpID,
     allowCredentials: opts.allowCredentials.map((c) => ({ id: c.id, transports: c.transports as AuthenticatorTransportFuture[] })),
@@ -169,9 +205,10 @@ export async function verifyLogin(
     publicKey: string;
     counter: bigint;
     transports: string[];
-  } | null>
+  } | null>,
+  host?: string
 ): Promise<{ verified: boolean }> {
-  const { rpID, origin } = getWebauthnEnv();
+  const { rpID, origin } = getWebauthnEnv(host);
   const challengeRecord = await prisma.webAuthnChallenge.findFirst({
     where: { userId, purpose },
     orderBy: { createdAt: "desc" },

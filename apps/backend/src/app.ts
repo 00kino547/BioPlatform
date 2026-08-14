@@ -14,6 +14,7 @@ import discordRoutes from "./routes/discord.js";
 import badgeRoutes from "./routes/badges.js";
 import { renderProfileOgPage } from "./lib/profileOg.js";
 import { buildLandingOgPage } from "./lib/og.js";
+import { buildRobotsTxt, buildSitemapXml, buildLlmstxt, buildLlmstxtFull } from "./lib/seo.js";
 import { openapi } from "./lib/openapi.js";
 import domainRoutes from "./routes/domain.js";
 import { resolveCustomDomain } from "./middleware/domain.js";
@@ -48,6 +49,30 @@ app.get("/.well-known/acme-challenge/:token", (req, res) => {
   res.send(body);
 });
 
+app.get("/robots.txt", async (_req, res) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(await buildRobotsTxt());
+});
+
+app.get("/sitemap.xml", async (_req, res) => {
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=600");
+  res.send(await buildSitemapXml());
+});
+
+app.get("/llms.txt", async (_req, res) => {
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(await buildLlmstxt());
+});
+
+app.get("/llms-full.txt", async (_req, res) => {
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(await buildLlmstxtFull());
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/invites", inviteRoutes);
 app.use("/api/admin", adminRoutes);
@@ -60,7 +85,7 @@ app.use("/api/discord", discordRoutes);
 app.use("/api/badges", badgeRoutes);
 app.use("/api", domainRoutes);
 
-const RESERVED_PATHS = new Set(["api", "health", "favicon.ico", "robots.txt", "uploads"]);
+const RESERVED_PATHS = new Set(["api", "health", "favicon.ico", "robots.txt", "sitemap.xml", "llms.txt", "llms-full.txt", "uploads"]);
 
 app.get("/", async (req, res) => {
   const host = (req.hostname ?? "").toLowerCase().replace(/\.$/, "");
@@ -68,15 +93,16 @@ app.get("/", async (req, res) => {
     return res.status(404).end();
   }
   const canonicalUrl = `https://${host}`;
+  const landingOgImage = `${env.APP_URL.replace(/\/+$/, "")}/og.png`;
   if (req.customDomain.rootTarget) {
     const html = await renderProfileOgPage(req.customDomain.rootTarget, { host, root: true });
     if (!html) {
-      const landing = buildLandingOgPage({ appName: env.APP_NAME, appTagline: env.APP_TAGLINE, canonicalUrl });
+      const landing = buildLandingOgPage({ appName: env.APP_NAME, appTagline: env.APP_TAGLINE, canonicalUrl, imageUrl: landingOgImage });
       return res.setHeader("Content-Type", "text/html; charset=utf-8").send(landing);
     }
     return res.setHeader("Content-Type", "text/html; charset=utf-8").send(html);
   }
-  const landing = buildLandingOgPage({ appName: env.APP_NAME, appTagline: env.APP_TAGLINE, canonicalUrl });
+  const landing = buildLandingOgPage({ appName: env.APP_NAME, appTagline: env.APP_TAGLINE, canonicalUrl, imageUrl: landingOgImage });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(landing);
 });

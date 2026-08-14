@@ -1,9 +1,9 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { DomainProvider, useDomain } from "@/contexts/DomainContext";
 import { branding } from "@/config/branding";
-import { usePageMeta } from "@/lib/seo";
+import { usePageMeta, useJsonLd } from "@/lib/seo";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Navbar } from "@/components/layout/Navbar";
 import { Hero } from "@/components/landing/Hero";
@@ -29,6 +29,31 @@ function Landing() {
     description: branding.description,
     url: "/",
   });
+  const origin = useMemo(() => window.location.origin.replace(/\/+$/, ""), []);
+  const softwareJsonLd = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: branding.name,
+      description: branding.description,
+      url: origin,
+      applicationCategory: "WebApplication",
+      operatingSystem: "Web",
+    }),
+    [origin]
+  );
+  const websiteJsonLd = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: branding.name,
+      description: branding.description,
+      url: origin,
+    }),
+    [origin]
+  );
+  useJsonLd("software-app", softwareJsonLd);
+  useJsonLd("website", websiteJsonLd);
   return (
     <>
       <Navbar />

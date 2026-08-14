@@ -8,7 +8,7 @@ Your profile lives at `/@username` (or `/username`) and is generated from your D
 
 - **Display name, bio, location, website** — shown on your public page.
 - **Avatar & banner** — uploaded images (5 MB max per upload).
-- **Social links** — pick a platform from the list (GitHub, X, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email, and more). URLs are validated; email links get `mailto:` automatically. Discord usernames must use the new format (no discriminator), or paste a server invite link.
+- **Social links** — pick a platform from the list (GitHub, X, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email, GitLab, Reddit, Pinterest, Snapchat, Threads, Bluesky, Mastodon, WhatsApp, Telegram, Signal, Kick, Steam, SoundCloud, and more). URLs are validated; email links get `mailto:` automatically. Discord usernames must use the new format (no discriminator), or paste a server invite link.
 - **Public toggle** — when off, only you (when signed in) can see your page.
 
 ## Multiple Profiles & Aliases
@@ -107,7 +107,7 @@ The root's OG preview (Discord/X/Telegram embeds) is server-rendered and points 
 
 **DNS + TLS:** after activation, point your domain's `A`/`AAAA` records (or a `CNAME`) at the instance's tunnel/ingress. If the instance has automatic TLS enabled, a certificate is issued for you and the Domain tab shows "HTTPS certificate active" with its renewal date; otherwise an administrator installs one manually (see the [Deployment Guide](./deployment.md)). The profile redirects here only once the instance routes the domain to you.
 
-> Note: instance-hosted passkeys currently only work on the instance's main domain, not on your custom domain.
+> Note: a passkey is bound to the domain where you registered it — one added on the instance's main domain works there, and one added on your custom domain works on that custom domain.
 
 ## I'm locked out — what now?
 

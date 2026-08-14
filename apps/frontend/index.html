@@ -3,35 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="llms.txt" href="%VITE_APP_URL%/llms.txt" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>%VITE_APP_NAME% — %VITE_APP_TAGLINE%</title>
     <meta name="description" content="%VITE_APP_DESCRIPTION%" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="theme-color" content="#09090b" />
     <link rel="canonical" href="%VITE_APP_URL%" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="%VITE_APP_NAME%" />
     <meta property="og:title" content="%VITE_APP_NAME% — %VITE_APP_TAGLINE%" />
     <meta property="og:description" content="%VITE_APP_DESCRIPTION%" />
     <meta property="og:url" content="%VITE_APP_URL%" />
     <meta property="og:image" content="%VITE_APP_OG_IMAGE%" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="%VITE_APP_NAME% — %VITE_APP_TAGLINE%" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="%VITE_APP_NAME% — %VITE_APP_TAGLINE%" />
     <meta name="twitter:description" content="%VITE_APP_DESCRIPTION%" />
     <meta name="twitter:image" content="%VITE_APP_OG_IMAGE%" />
+    <meta name="twitter:image:alt" content="%VITE_APP_NAME% — %VITE_APP_TAGLINE%" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "%VITE_APP_NAME%",
-        "description": "%VITE_APP_DESCRIPTION%",
-        "url": "%VITE_APP_URL%",
-        "applicationCategory": "WebApplication",
-        "operatingSystem": "Web"
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

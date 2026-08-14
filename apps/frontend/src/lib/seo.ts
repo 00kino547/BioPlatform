@@ -11,6 +11,23 @@ function setMeta(attr: "name" | "property", key: string, content: string) {
   el.setAttribute("content", content);
 }
 
+export function useJsonLd(id: string, data: object | null) {
+  useEffect(() => {
+    if (!data) return;
+    let el = document.getElementById(`ld-${id}`) as HTMLScriptElement | null;
+    if (!el) {
+      el = document.createElement("script");
+      el.id = `ld-${id}`;
+      el.type = "application/ld+json";
+      document.head.appendChild(el);
+    }
+    el.textContent = JSON.stringify(data);
+    return () => {
+      document.getElementById(`ld-${id}`)?.remove();
+    };
+  }, [id, data]);
+}
+
 export interface PageMetaOptions {
   title: string;
   description?: string;

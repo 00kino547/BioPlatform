@@ -20,6 +20,19 @@ export const ALLOWED_PLATFORMS = new Set([
   "linkedin",
   "spotify",
   "email",
+  "gitlab",
+  "reddit",
+  "pinterest",
+  "snapchat",
+  "threads",
+  "bluesky",
+  "mastodon",
+  "whatsapp",
+  "telegram",
+  "signal",
+  "kick",
+  "steam",
+  "soundcloud",
 ]);
 
 const ALLOWED_URL_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);

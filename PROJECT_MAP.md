@@ -28,12 +28,13 @@ apps/backend/src/
 │   ├── og.ts             # OpenGraph/Twitter meta HTML (escapeHtml + buildOgPage + buildLandingOgPage)
 │   ├── customDomains.ts  # Custom domains: hostname validator, app-host detection, TXT verification token + DNS check, PRO/ENTERPRISE + permission gate, status list
 │   ├── acme.ts           # ACME (Let's Encrypt) service: HTTP-01 challenge map, account key, issue/renew certs, nginx custom-domains.conf generator, interval loop
+│   ├── seo.ts            # robots.txt/sitemap.xml/llms.txt/llms-full.txt builders with TTL cache
 │   └── openapi.ts        # OpenAPI 3.0 document served at /api/openapi.json
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
 ├── middleware/rateLimit.ts # Auth anti-brute-force middleware (cookie issuance, 2-of-3 fingerprint block, policy-aware account lock, outcome + log recording)
 ├── middleware/domain.ts   # resolveCustomDomain: maps active ProfileDomain → req.customDomain (skips app host)
 └── routes/
-    ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA, passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify
+    ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA (host-aware rpID/origin for custom domains), passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Multi-profile CRUD (list/create, get/update/delete per profileId, set-primary), aliases CRUD, badges toggle, avatar/banner upload+delete, spreadsheet export/import, public profile by slug/alias (incl. discord presence), click tracking, OG card PNG
     ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert

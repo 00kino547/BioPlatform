@@ -15,7 +15,7 @@ export interface ProfileOgData {
   linkCount: number;
   trackCount: number;
   badges: { slug: string; label: string; color: string }[];
-  socialLinks: { platform: string }[];
+  socialLinks: { platform: string; url: string | null }[];
   canonicalUrl: string;
 }
 
@@ -52,7 +52,7 @@ export async function loadProfileOgData(
 
   const theme = profile.theme as { accent?: unknown } | null | undefined;
   const accent = typeof theme?.accent === "string" ? theme.accent : null;
-  const socialLinks = (Array.isArray(profile.socialLinks) ? profile.socialLinks : null) as { platform?: string }[] | null;
+  const socialLinks = (Array.isArray(profile.socialLinks) ? profile.socialLinks : null) as { platform?: string; url?: string }[] | null;
 
   return {
     username: profile.slug,
@@ -64,7 +64,7 @@ export async function loadProfileOgData(
     linkCount: socialLinks?.length ?? 0,
     trackCount: profile.musicTracks.length,
     badges: profile.badges.map((b) => ({ slug: b.slug, label: b.label, color: b.color })),
-    socialLinks: (socialLinks ?? []).map((l) => ({ platform: typeof l.platform === "string" ? l.platform : "link" })),
+    socialLinks: (socialLinks ?? []).map((l) => ({ platform: typeof l.platform === "string" ? l.platform : "link", url: typeof l.url === "string" ? l.url : null })),
     canonicalUrl: canonicalFor(options.host, options.root ?? false, profile.slug),
   };
 }
@@ -173,6 +173,8 @@ export async function renderProfileOgPage(
     username: og.username,
     displayName: og.displayName,
     bio: og.bio,
+    avatar: og.avatar,
+    sameAs: og.socialLinks.filter((l): l is { platform: string; url: string } => l.url !== null && /^https?:\/\//i.test(l.url)).map((l) => l.url),
     appName: env.APP_NAME,
     appTagline: env.APP_TAGLINE,
     imageUrl: imageUrl ?? "",

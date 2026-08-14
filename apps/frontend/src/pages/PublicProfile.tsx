@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, type PublicProfile, type Badge, type DiscordPresence } from "@/lib/api";
 import { branding } from "@/config/branding";
-import { usePageMeta } from "@/lib/seo";
+import { usePageMeta, useJsonLd } from "@/lib/seo";
 import { useDomain } from "@/contexts/DomainContext";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { FloatingMusicPlayer } from "@/components/music/MusicPlayer";
@@ -49,6 +49,27 @@ export function PublicProfilePage() {
     image: profile ? `${customBase ?? branding.url}/api/profiles/${profile.username}/og.png` : branding.ogImage,
     baseUrl: customBase ?? undefined,
   });
+
+  const profileJsonLd = useMemo(() => {
+    if (!profile) return null;
+    const root = (customBase ?? branding.url).replace(/\/+$/, "");
+    const sameAs = (profile.socialLinks ?? [])
+      .map((l) => l.url)
+      .filter((url): url is string => /^https?:\/\//i.test(url));
+    return {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      mainEntity: {
+        "@type": "Person",
+        name: profile.displayName || profile.username,
+        url: `${root}/${profile.slug}`,
+        image: `${root}/api/profiles/${profile.username}/og.png`,
+        description: profile.bio ?? undefined,
+        sameAs: sameAs.length > 0 ? sameAs : undefined,
+      },
+    };
+  }, [profile, customBase]);
+  useJsonLd("profile", profileJsonLd);
 
   useEffect(() => {
     api.getBadges().then((res) => {

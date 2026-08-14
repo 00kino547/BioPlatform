@@ -186,8 +186,10 @@ custom domain you must also:
 
 The custom-domain root behavior (landing page vs. a specific public profile) is configured
 by the user in their **Dashboard → Domain** tab; social crawlers and the SPA both honor it.
-Note that instance-hosted passkeys currently only work on the main `WEBAUTHN_ORIGIN` domain,
-not on custom domains.
+Passkeys work on the main `WEBAUTHN_ORIGIN` domain as well as on active custom domains: for
+custom domains the relying-party ID and expected origin are derived from the request's `Host`
+header (the custom domain's hostname), so passkeys are scoped per domain — a passkey registered
+on the main domain works there, and one registered on a custom domain works on that custom domain.
 
 ## Production Checklist
 

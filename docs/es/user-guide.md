@@ -8,7 +8,7 @@ Tu perfil vive en `/@usuario` (o `/usuario`) y se genera desde el panel → pest
 
 - **Nombre, bio, ubicación, sitio web** — se muestran en tu página pública.
 - **Avatar y banner** — imágenes subidas (máximo 5 MB por subida).
-- **Enlaces sociales** — elige una plataforma de la lista (GitHub, X, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email y más). Las URLs se validan; los enlaces de email se completan con `mailto:` automáticamente. Los usuarios de Discord deben usar el formato nuevo (sin discriminador) o pegar un enlace de invitación al servidor.
+- **Enlaces sociales** — elige una plataforma de la lista (GitHub, X, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email, GitLab, Reddit, Pinterest, Snapchat, Threads, Bluesky, Mastodon, WhatsApp, Telegram, Signal, Kick, Steam, SoundCloud y más). Las URLs se validan; los enlaces de email se completan con `mailto:` automáticamente. Los usuarios de Discord deben usar el formato nuevo (sin discriminador) o pegar un enlace de invitación al servidor.
 - **Interruptor público** — cuando está desactivado, solo tú (con sesión iniciada) puedes ver tu página.
 
 ## Múltiples Perfiles y Aliases
@@ -107,7 +107,7 @@ El OG de la raíz (embeds de Discord/X/Telegram) se renderiza en servidor y apun
 
 **DNS y TLS:** tras la activación, apunta los registros `A`/`AAAA` de tu dominio (o un `CNAME`) al túnel/ingress de la instancia. Si la instancia tiene el TLS automático activado, se emite un certificado para ti y la pestaña Domain muestra "HTTPS certificate active" con su fecha de renovación; en caso contrario, un administrador instala uno manualmente (ver la [Guía de Despliegue](./deployment.md)). El perfil redirige aquí solo cuando la instancia enruta el dominio hacia ti.
 
-> Nota: las passkeys de la instancia funcionan actualmente solo en el dominio principal de la instancia, no en tu dominio personalizado.
+> Nota: un passkey está vinculado al dominio donde lo registraste — uno añadido en el dominio principal de la instancia funciona allí, y uno añadido en tu dominio personalizado funciona en ese dominio personalizado.
 
 ## Me han bloqueado — ¿qué hago?
 

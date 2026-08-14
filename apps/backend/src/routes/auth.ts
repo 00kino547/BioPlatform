@@ -20,6 +20,11 @@ import { dispatchWebhookEvent } from "../lib/webhook.js";
 
 const router = Router();
 
+function requestHost(req: { headers: { host?: string | string[] } }): string | undefined {
+  const host = req.headers.host;
+  return typeof host === "string" ? host.split(",")[0].trim() : undefined;
+}
+
 router.use(authRateLimit);
 
 const registerSchema = z.object({
@@ -336,6 +341,7 @@ router.post("/login/passkey/options", async (req, res) => {
     userId: user.id,
     allowCredentials: passkeys.map((p) => ({ id: p.credentialId, transports: p.transports })),
     userVerification: "preferred",
+    host: requestHost(req),
   });
 
   res.json({ success: true, data: { options, identifier: parsed.data.identifier } });
@@ -362,7 +368,8 @@ router.post("/login/passkey/verify", async (req, res) => {
     parsed.data.response as never,
     "login",
     async (credentialId) =>
-      prisma.passkey.findFirst({ where: { userId: user.id, credentialId } })
+      prisma.passkey.findFirst({ where: { userId: user.id, credentialId } }),
+    requestHost(req)
   );
 
   if (!result.verified) {
@@ -425,6 +432,7 @@ router.post("/2fa/passkey/options", async (req, res) => {
     allowCredentials: passkeys.map((p) => ({ id: p.credentialId, transports: p.transports })),
     userVerification: "discouraged",
     purpose: "twofactor",
+    host: requestHost(req),
   });
 
   res.json({ success: true, data: { options } });
@@ -448,7 +456,8 @@ router.post("/2fa/passkey/verify", async (req, res) => {
     parsed.data.response as never,
     "twofactor",
     async (credentialId) =>
-      prisma.passkey.findFirst({ where: { userId, credentialId } })
+      prisma.passkey.findFirst({ where: { userId, credentialId } }),
+    requestHost(req)
   );
 
   if (!result.verified) {
@@ -487,6 +496,7 @@ router.post("/passkeys/options", requireAuth, async (req, res) => {
     displayName: user.username,
     residentKey: parsed.data.residentKey,
     excludeCredentials: existing.map((p) => p.credentialId),
+    host: requestHost(req),
   });
 
   res.json({ success: true, data: options });
@@ -504,7 +514,7 @@ router.post("/passkeys/register", requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
   }
 
-  const result = await verifyRegister(req.userId!, parsed.data.response as never);
+  const result = await verifyRegister(req.userId!, parsed.data.response as never, requestHost(req));
   if (!result.verified) {
     return res.status(401).json({ success: false, error: "Passkey registration failed" });
   }
