@@ -176,7 +176,7 @@ function LocalAudioPlayer({ src, accent, started }: { src: string; accent: strin
       controls
       autoPlay={started}
       playsInline
-      preload="auto"
+      preload={started ? "auto" : "none"}
       className="w-full"
       style={{ accentColor: accent }}
       src={src}
@@ -235,6 +235,7 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   const startedRef = useRef(started);
   const soundTimersRef = useRef<number[]>([]);
   const [muted, setMuted] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     startedRef.current = started;
@@ -250,7 +251,7 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   useEffect(() => {
     let cancelled = false;
     const extractedId = youtubeVideoId(url);
-    if (!extractedId || !containerRef.current) return;
+    if (!started || !extractedId || !containerRef.current) return;
     const videoId: string = extractedId;
 
     loadYouTubeApi().then(() => {
@@ -261,13 +262,14 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
         host: "https://www.youtube-nocookie.com",
         playerVars: {
           rel: "0",
-          autoplay: startedRef.current ? "1" : "0",
+          autoplay: "1",
           playsinline: "1",
           origin: window.location.origin,
         },
         events: {
           onReady: () => {
             playerRef.current = player;
+            setReady(true);
             const frame = player.getIframe();
             frame.setAttribute(
               "allow",
@@ -289,8 +291,9 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
       cancelled = true;
       playerRef.current?.destroy();
       playerRef.current = null;
+      setReady(false);
     };
-  }, [url]);
+  }, [url, started]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -341,20 +344,22 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   return (
     <div className="relative w-full rounded-lg bg-black/20 overflow-hidden">
       <div className="mx-auto aspect-video w-full max-w-[34rem]" ref={containerRef} />
-      <button
-        onClick={toggleMute}
-        title={muted ? "Unmute" : "Mute"}
-        aria-label={muted ? "Unmute" : "Mute"}
-        className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-colors"
-        style={{
-          backgroundColor: `${accent}cc`,
-          color: "#fff",
-          boxShadow: "0 1px 6px rgba(0,0,0,0.35)",
-        }}
-      >
-        {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-        {muted && "Tap to unmute"}
-      </button>
+      {ready && (
+        <button
+          onClick={toggleMute}
+          title={muted ? "Unmute" : "Mute"}
+          aria-label={muted ? "Unmute" : "Mute"}
+          className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-colors"
+          style={{
+            backgroundColor: `${accent}cc`,
+            color: "#fff",
+            boxShadow: "0 1px 6px rgba(0,0,0,0.35)",
+          }}
+        >
+          {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          {muted && "Tap to unmute"}
+        </button>
+      )}
     </div>
   );
 }

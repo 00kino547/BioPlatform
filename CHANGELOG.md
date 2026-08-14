@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Performance
+- **Music no longer downloads media before you enter a profile.** Local tracks switch from eager `preload="auto"` to `preload="none"` until the EnterGate is dismissed (`started`), then return to `preload="auto"` and start playing on entry — a 3–7 MB MP3 is no longer fetched on a cold visit (measured: `/zdrayk` page weight 7,632 KiB → 500 KiB, LCP 39.7 s → 2.5 s, Lighthouse perf 73 → 96). YouTube embeds are now initialized lazily: the IFrame API, embed iframe, player JS/CSS and video buffering load only after the user enters the gate. Previously a cold visit with a YouTube track pulled ~1 MB of YouTube assets plus ~9 MB of buffered video and caused a layout-shift spike on the floating player (`/00kino547` CLS 0.221 → 0.001, page weight 4,527 KiB → 3,462 KiB, perf 62 → 73; `/nord` perf 73 → 79, LCP 20.3 s → 5.3 s). Spotify embeds, track switching, the mute control, the start-with-sound chain and autoplay-after-entry are unchanged. The harmless third-party `Unrecognized feature: 'web-share'` warning from YouTube's widget API still appears only after the player is actually used.
+
 ## [1.3.0-dev-beta.2] - 2026-08-14
 
 ### Added
