@@ -4,6 +4,7 @@ import { api, type PublicProfile, type Badge, type DiscordPresence } from "@/lib
 import { branding } from "@/config/branding";
 import { usePageMeta, useJsonLd } from "@/lib/seo";
 import { useDomain } from "@/contexts/DomainContext";
+import { bannerSrcSet, avatarSrcSet } from "@/lib/media";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { FloatingMusicPlayer } from "@/components/music/MusicPlayer";
 import { EnterGate } from "@/components/EnterGate";
@@ -157,6 +158,10 @@ export function PublicProfilePage() {
         <div className="w-full max-w-4xl mb-5 sm:mb-6 rounded-2xl overflow-hidden">
           <img
             src={profile.banner}
+            srcSet={bannerSrcSet(profile.banner)}
+            sizes="(min-width: 928px) 896px, 92vw"
+            fetchPriority="high"
+            decoding="async"
             alt="Banner"
             className="w-full object-cover"
             style={{ height: "clamp(7rem, 16vw, 11rem)" }}
@@ -172,6 +177,9 @@ export function PublicProfilePage() {
           {profile.avatar ? (
             <img
               src={profile.avatar}
+              srcSet={avatarSrcSet(profile.avatar)}
+              sizes="80px"
+              decoding="async"
               alt={profile.displayName ?? profile.username}
               className="shrink-0 rounded-full object-cover ring-4 ring-black/30"
               style={{ width: "clamp(3.5rem, 9vw, 5rem)", height: "clamp(3.5rem, 9vw, 5rem)" }}

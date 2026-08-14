@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { avatarSrcSet } from "@/lib/media";
 
 interface EnterGateProps {
   name: string;
@@ -47,6 +48,9 @@ export function EnterGate({ name, username, avatar, accent, textColor, onEnter }
         {avatar ? (
           <img
             src={avatar}
+            srcSet={avatarSrcSet(avatar)}
+            sizes="96px"
+            decoding="async"
             alt={name}
             className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover ring-4 ring-white/10"
           />

@@ -10,6 +10,7 @@ allowBuilds:
   "@prisma/engines": true
   prisma: true
   bcrypt: true
+  sharp: true
 
 minimumReleaseAgeExclude:
   - nodemailer@9.0.4

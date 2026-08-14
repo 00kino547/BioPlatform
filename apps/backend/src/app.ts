@@ -19,6 +19,7 @@ import { openapi } from "./lib/openapi.js";
 import domainRoutes from "./routes/domain.js";
 import { resolveCustomDomain } from "./middleware/domain.js";
 import { getChallenge } from "./lib/acme.js";
+import { optimizeUploadImage } from "./lib/media.js";
 
 const env = getEnv();
 const app = express();
@@ -30,7 +31,11 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(resolveCustomDomain);
 
-app.use("/uploads", express.static(path.resolve(env.LOCAL_STORAGE_PATH)));
+app.use(
+  "/uploads",
+  optimizeUploadImage,
+  express.static(path.resolve(env.LOCAL_STORAGE_PATH), { maxAge: "365d", immutable: true })
+);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
