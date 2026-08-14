@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0-dev-beta.2] - 2026-08-14
+
 ### Added
 - **SEO files are now real, cached endpoints.** `/robots.txt`, `/sitemap.xml`, `/llms.txt` and `/llms-full.txt` are generated server-side by the backend (TTL-cached, `Cache-Control: public`) and served by nginx instead of falling through to the SPA shell — `robots.txt` used to return the app HTML (Lighthouse `robots-txt` failure). The sitemap lists the home page plus every public profile with `lastmod`; `llms.txt`/`llms-full.txt` give AI agents a markdown index of profiles with bio and social links. Reserved by the SPA router.
 - **Server-rendered pages for social + AI crawlers.** The backend renders profile pages (and the landing page) for bot user-agents via nginx (30+ social and AI/LLM agents incl. GPTBot, ClaudeBot, AnthropicAI, PerplexityBot, ChatGPT-User, OAI-SearchBot, Google-Extended, Bytespider, CCBot, Amazonbot, cohere-ai, Meta-ExternalAgent, Applebot-Extended): richer Open Graph meta (`og:image:width/height/alt`, `og:locale`), `robots` meta, and JSON-LD structured data (`ProfilePage` + `Person` with `sameAs` from social links, `WebSite` on the landing page). The SPA injects equivalent `Person`/`WebSite` JSON-LD client-side via a `useJsonLd` helper (the old inline script was removed so it no longer trips the CSP).
@@ -38,8 +40,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Admin panel **Users** and **Invite Codes** tabs now page and filter server-side, and invite filters are permission-aware (`mine` returns codes the caller created).
 - `GET /api/profiles/:identifier` and the admin list endpoints are documented in `docs/en|es/api.md` and the OpenAPI spec (cache headers, pagination and `filter` params).
-
-## [1.3.0-dev-beta.2] - 2026-08-13
 
 ### Security
 - **Token-purpose confusion could bypass 2FA (CRITICAL).** `requireAuth` and `getViewerId` accepted *any* JWT signed with `JWT_SECRET` as a full session bearer — including the short-lived `purpose: "twofactor"` token issued after a password login and the `purpose: "unlock"` email-unlock token — so a password-only attacker could skip TOTP/passkey. Session tokens are now signed with `purpose: "auth"`, and both middlewares reject any other purpose (401).
