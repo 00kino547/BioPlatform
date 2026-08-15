@@ -19,6 +19,7 @@ import {
 import { profileScope, upsertPrimaryProfile, resolveProfileId } from "../lib/profile.js";
 import { getProfileLimit, getAliasLimit } from "../lib/limits.js";
 import { dispatchWebhookEvent } from "../lib/webhook.js";
+import { orderBadges } from "../lib/badges.js";
 import {
   buildExportBuffer,
   EXPORT_CONTENT_TYPES,
@@ -51,8 +52,9 @@ function parseCookies(header: string | undefined): Record<string, string> {
   return cookies;
 }
 
-function serializeOwnProfile<T extends Record<string, unknown> & { badges?: { id: string }[] }>(profile: T) {
-  return { ...profile, badges: (profile.badges ?? []).map((b) => b.id) };
+function serializeOwnProfile<T extends Record<string, unknown> & { badges?: { id: string }[]; badgeOrder?: string[] }>(profile: T) {
+  const { badges = [], badgeOrder, ...rest } = profile;
+  return { ...rest, badges: orderBadges(badges, badgeOrder).map((b) => b.id) };
 }
 
 function getViewerId(req: Request): string | undefined {
@@ -573,7 +575,48 @@ router.post("/me/:profileId/badges", requireAuth, async (req: Request<{ profileI
     select: { badges: { select: { id: true } } },
   });
 
-  res.json({ success: true, data: { badges: updated.badges.map((b) => b.id) } });
+  res.json({ success: true, data: { badges: orderBadges(updated.badges, profile.badgeOrder).map((b) => b.id) } });
+});
+
+const badgeOrderSchema = z
+  .object({
+    order: z.array(z.string().uuid()).max(50),
+  })
+  .refine((data) => new Set(data.order).size === data.order.length, {
+    message: "Badge order cannot contain duplicates",
+  });
+
+router.put("/me/:profileId/badges/order", requireAuth, async (req: Request<{ profileId: string }>, res) => {
+  const parsed = badgeOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const profile = await prisma.profile.findFirst({
+    where: { id: req.params.profileId, userId: req.userId! },
+    select: { id: true, badges: { select: { id: true } } },
+  });
+  if (!profile) {
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+
+  const owned = new Set(profile.badges.map((b) => b.id));
+  if (parsed.data.order.some((id) => !owned.has(id))) {
+    return res.status(400).json({
+      success: false,
+      error: "Badge order can only include badges on this profile",
+    });
+  }
+
+  await prisma.profile.update({
+    where: { id: profile.id },
+    data: { badgeOrder: parsed.data.order },
+  });
+
+  res.json({
+    success: true,
+    data: { badges: orderBadges(profile.badges, parsed.data.order).map((b) => b.id) },
+  });
 });
 
 router.post("/me/avatar", requireAuth, handleUpload("avatar"), async (req, res) => {
@@ -911,7 +954,7 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
       requestedSlug: identifier,
       slug: profile.slug,
       isPrimary: profile.isPrimary,
-      badges: profile.badges.map((b) => b.id),
+      badges: orderBadges(profile.badges, profile.badgeOrder).map((b) => b.id),
       username: profile.user.username,
       createdAt: profile.user.createdAt,
       id: profile.id,

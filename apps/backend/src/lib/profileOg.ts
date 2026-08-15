@@ -4,6 +4,7 @@ import { buildOgPage } from "./og.js";
 import { getEnv } from "../config/env.js";
 import { toAbsoluteUrl } from "./discord.js";
 import { resolvePublicProfile } from "./profile.js";
+import { orderBadges } from "./badges.js";
 
 export interface ProfileOgData {
   username: string;
@@ -44,7 +45,8 @@ export async function loadProfileOgData(
     banner: true,
     theme: true,
     socialLinks: true,
-    badges: { select: { slug: true, label: true, color: true } },
+    badgeOrder: true,
+    badges: { select: { id: true, slug: true, label: true, color: true } },
     musicTracks: { select: { id: true } },
   });
 
@@ -63,7 +65,7 @@ export async function loadProfileOgData(
     accent,
     linkCount: socialLinks?.length ?? 0,
     trackCount: profile.musicTracks.length,
-    badges: profile.badges.map((b) => ({ slug: b.slug, label: b.label, color: b.color })),
+    badges: orderBadges(profile.badges, profile.badgeOrder).map((b) => ({ slug: b.slug, label: b.label, color: b.color })),
     socialLinks: (socialLinks ?? []).map((l) => ({ platform: typeof l.platform === "string" ? l.platform : "link", url: typeof l.url === "string" ? l.url : null })),
     canonicalUrl: canonicalFor(options.host, options.root ?? false, profile.slug),
   };

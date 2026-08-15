@@ -389,6 +389,23 @@ export const openapi = {
         responses: { "200": { description: "Updated badge list", content: { "application/json": { schema: { type: "object", properties: { badges: { type: "array", items: { type: "string", format: "uuid" } } } } } } } },
       },
     },
+    "/profiles/me/{profileId}/badges/order": {
+      put: {
+        tags: ["Profiles"],
+        summary: "Set the display order of a profile's badges",
+        description: "Accepts the full list of badge ids on the profile in the desired display order. Only badge ids currently on the profile are accepted; unknown or duplicate ids are rejected. Badges not listed keep their previous relative position after the ordered ones. The same order is used on the public profile, the own-profile endpoints and the OG card.",
+        parameters: [{ name: "profileId", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["order"], properties: { order: { type: "array", items: { type: "string", format: "uuid" } } } } } },
+        },
+        responses: {
+          "200": { description: "Order saved", content: { "application/json": { schema: { type: "object", properties: { badges: { type: "array", items: { type: "string", format: "uuid" } } } } } } },
+          "400": { description: "Unknown, duplicate or unauthorized badge ids" },
+          "404": { description: "Profile not found" },
+        },
+      },
+    },
     "/badges": {
       get: {
         tags: ["Badges"],

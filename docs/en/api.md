@@ -69,6 +69,7 @@ Every account has one or more **profiles**, each with its own slug, theme, links
 | `POST` | `/api/profiles/me/:profileId/aliases` | Add an alias (body: `slug`). |
 | `DELETE` | `/api/profiles/me/:profileId/aliases/:aliasId` | Delete an alias. |
 | `POST` | `/api/profiles/me/:profileId/badges` | Toggle a badge on a profile (body: `badge` — a badge id — + `enabled`). Badges come from the user's badge set assigned by admins. |
+| `PUT` | `/api/profiles/me/:profileId/badges/order` | Set the display order of a profile's badges (body: `order` — an array of badge ids on this profile). Only badge ids currently on the profile are accepted; unknown or duplicate ids are rejected (400). Badges not listed keep their previous relative position after the ordered ones. The saved order is used by the public profile, the own-profile endpoints, and the OG card. |
 | `POST` | `/api/profiles/me/avatar` | Upload an avatar (multipart, 5 MB max, JPEG/PNG/GIF/WebP). Optional `?profileId=` scopes to a profile. |
 | `DELETE` | `/api/profiles/me/avatar` | Remove your avatar. Optional `?profileId=`. |
 | `POST` | `/api/profiles/me/banner` | Upload a banner (multipart, same limits). Optional `?profileId=`. |

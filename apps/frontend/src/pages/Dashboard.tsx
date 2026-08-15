@@ -42,6 +42,9 @@ import {
   Crown,
   Building2,
   Image,
+  GripVertical,
+  Medal,
+  Loader2,
 } from "lucide-react";
 
 const platforms = [
@@ -751,6 +754,64 @@ export function Dashboard() {
     }
   };
 
+  const [badgeOrderIds, setBadgeOrderIds] = useState<string[]>([]);
+  const [badgeOrderBusy, setBadgeOrderBusy] = useState(false);
+  const [badgeOrderMsg, setBadgeOrderMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [badgeDragIndex, setBadgeDragIndex] = useState<number | null>(null);
+
+  const profileBadgeIds = profile?.badges;
+  const activeProfileId = profile?.id;
+
+  useEffect(() => {
+    setBadgeOrderIds(profileBadgeIds?.slice() ?? []);
+    setBadgeDragIndex(null);
+  }, [profileBadgeIds]);
+
+  useEffect(() => {
+    setBadgeOrderMsg(null);
+  }, [activeProfileId]);
+
+  const orderedActiveBadges = badgeOrderIds
+    .map((id) => badgeCatalog.find((b) => b.id === id))
+    .filter((b): b is Badge => Boolean(b));
+
+  const handleBadgeDragStart = (index: number) => (e: React.DragEvent) => {
+    setBadgeDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+  };
+
+  const handleBadgeDragOver = (index: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    if (badgeDragIndex === null || badgeDragIndex === index) return;
+    const next = [...badgeOrderIds];
+    const [moved] = next.splice(badgeDragIndex, 1);
+    if (!moved) return;
+    next.splice(index, 0, moved);
+    setBadgeOrderIds(next);
+    setBadgeDragIndex(index);
+  };
+
+  const handleBadgeDragEnd = () => {
+    setBadgeDragIndex(null);
+  };
+
+  const saveBadgeOrder = async () => {
+    if (!profile) return;
+    setBadgeOrderBusy(true);
+    setBadgeOrderMsg(null);
+    const res = await api.reorderProfileBadges(profile.id, badgeOrderIds);
+    setBadgeOrderBusy(false);
+    if (res.success && res.data) {
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, badges: res.data!.badges } : p))
+      );
+      setBadgeOrderMsg({ type: "success", text: "Badge order saved" });
+    } else {
+      setBadgeOrderMsg({ type: "error", text: res.error ?? "Failed to save badge order" });
+    }
+  };
+
   const loadAliases = async (profileId: string) => {
     const res = await api.getAliases(profileId);
     if (res.success && res.data) {
@@ -1411,6 +1472,98 @@ export function Dashboard() {
                 </p>
               </div>
             </div>
+
+                <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+                  <div className="flex items-center gap-3">
+                    <Medal className="h-5 w-5 text-zinc-500" />
+                    <div>
+                      <h3 className="text-base font-semibold text-white">Badge Order</h3>
+                      <p className="text-sm text-zinc-400 mt-0.5">
+                        Drag badges to set the order they appear on your public profile.
+                      </p>
+                    </div>
+                  </div>
+
+                  {profileBadgeIds && profileBadgeIds.length > 0 ? (
+                    <>
+                      {badgeCatalog.length === 0 ? (
+                        <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-10 text-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+                          <p className="text-sm text-zinc-500">Loading badges…</p>
+                        </div>
+                      ) : (
+                        <div className="mt-6 space-y-2">
+                          {orderedActiveBadges.map((badge, index) => (
+                            <div
+                              key={badge.id}
+                              draggable
+                              onDragStart={handleBadgeDragStart(index)}
+                              onDragOver={handleBadgeDragOver(index)}
+                              onDragEnd={handleBadgeDragEnd}
+                              onDrop={handleBadgeDragEnd}
+                              className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all select-none cursor-grab active:cursor-grabbing ${
+                                badgeDragIndex === index
+                                  ? "border-violet-500/60 bg-violet-500/10 opacity-60 scale-[1.01]"
+                                  : "border-zinc-800 bg-zinc-900/30 hover:border-zinc-600"
+                              }`}
+                            >
+                              <GripVertical className="h-4 w-4 shrink-0 text-zinc-500" />
+                              <BadgePill badge={badge} />
+                              <span className="ml-auto text-xs text-zinc-500 tabular-nums">
+                                {index + 1}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                        <Button onClick={saveBadgeOrder} disabled={badgeOrderBusy}>
+                          {badgeOrderBusy ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Saving…
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                        {badgeOrderMsg && (
+                          <p
+                            className={`flex items-center gap-1.5 text-sm ${
+                              badgeOrderMsg.type === "success"
+                                ? "text-emerald-400"
+                                : "text-red-400"
+                            }`}
+                          >
+                            {badgeOrderMsg.type === "success" ? (
+                              <CheckCircle className="h-4 w-4" />
+                            ) : (
+                              <XCircle className="h-4 w-4" />
+                            )}
+                            {badgeOrderMsg.text}
+                          </p>
+                        )}
+                      </div>
+                      <p className="mt-3 text-xs text-zinc-500">
+                        Badges earned later automatically appear after the ones you ordered.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-12 text-center">
+                      <Medal className="h-8 w-8 text-zinc-600" />
+                      <p className="mt-4 text-sm font-medium text-zinc-400">
+                        No active badges on this profile yet
+                      </p>
+                      <p className="mt-1.5 text-xs text-zinc-600">
+                        Enable badges from the Profiles tab to start reordering them.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
               <div className="flex items-center gap-3">

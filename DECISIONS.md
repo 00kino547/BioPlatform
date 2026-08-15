@@ -143,6 +143,14 @@
 - PublicProfile applies theme via inline styles
 - Default theme (Midnight) applied when no theme is set
 
+## Badge ordering stored server-side
+
+- Display order persisted as `Profile.badgeOrder String[]` (default `[]`) — not a client-side preference
+- One shared `orderBadges()` helper applies the order in every representation (own-profile serializer, badge toggle response, public profile, OG card/page) so there is no duplicated ordering logic
+- `badgeOrder` holds only badge ids; unknown/stale ids are inert at render time, and new badges automatically follow the ordered ones — so toggling badges on/off never corrupts the saved order
+- The order endpoint validates that every submitted id is currently on the profile (400 on unknown/duplicate ids) so arbitrary orderings can't be stored
+- Drag-and-drop uses native HTML5 drag events (no drag library), matching the CSS-over-libraries direction of the project
+
 ## Analytics: PageView and LinkClick models
 
 - Separate models for page views and link clicks (not combined)

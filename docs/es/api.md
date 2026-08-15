@@ -69,6 +69,7 @@ Cada cuenta tiene uno o más **perfiles**, cada uno con su propio slug, tema, en
 | `POST` | `/api/profiles/me/:profileId/aliases` | Añadir un alias (cuerpo: `slug`). |
 | `DELETE` | `/api/profiles/me/:profileId/aliases/:aliasId` | Eliminar un alias. |
 | `POST` | `/api/profiles/me/:profileId/badges` | Activar/desactivar una insignia en un perfil (cuerpo: `badge` — un id de insignia — + `enabled`). Las insignias provienen del conjunto asignado por los administradores al usuario. |
+| `PUT` | `/api/profiles/me/:profileId/badges/order` | Definir el orden de visualización de las insignias de un perfil (cuerpo: `order` — un array de ids de insignia de este perfil). Solo se aceptan ids de insignias que estén actualmente en el perfil; los ids desconocidos o duplicados se rechazan (400). Las insignias no listadas mantienen su posición relativa anterior después de las ordenadas. El orden guardado se usa en el perfil público, en los endpoints del perfil propio y en la tarjeta OG. |
 | `POST` | `/api/profiles/me/avatar` | Subir un avatar (multipart, máximo 5 MB, JPEG/PNG/GIF/WebP). El `?profileId=` opcional lo limita a un perfil. |
 | `DELETE` | `/api/profiles/me/avatar` | Eliminar tu avatar. `?profileId=` opcional. |
 | `POST` | `/api/profiles/me/banner` | Subir un banner (multipart, mismos límites). `?profileId=` opcional. |

@@ -106,6 +106,7 @@ model Profile {
   slug          String   @unique
   isPrimary     Boolean  @default(false) @map("is_primary")
   badges        Badge[]
+  badgeOrder    String[] @default([]) @map("badge_order")
   displayName   String?  @map("display_name")
   bio           String?
   avatar        String?

@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test --test-force-exit --import ./tests/setup-env.ts tests/*.test.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

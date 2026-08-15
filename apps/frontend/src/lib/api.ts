@@ -563,6 +563,12 @@ export const api = {
       body: JSON.stringify({ badge: badgeId, enabled }),
     }),
 
+  reorderProfileBadges: (profileId: string, order: string[]) =>
+    request<{ badges: string[] }>(`/profiles/me/${profileId}/badges/order`, {
+      method: "PUT",
+      body: JSON.stringify({ order }),
+    }),
+
   getBadges: () => request<Badge[]>("/badges"),
 
   uploadAvatar: async (file: File, profileId?: string) => {
