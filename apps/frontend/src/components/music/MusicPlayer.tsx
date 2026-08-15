@@ -307,28 +307,6 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
     }
   }, [started]);
 
-  useEffect(() => {
-    let wasPlaying = false;
-    const onBlur = () => {
-      if (!startedRef.current) return;
-      const p = playerRef.current;
-      wasPlaying = p ? p.getPlayerState() === window.YT?.PlayerState.PLAYING : false;
-    };
-    const onFocus = () => {
-      if (!startedRef.current) return;
-      const p = playerRef.current;
-      if (!p || !wasPlaying) return;
-      if (p.getPlayerState() !== window.YT?.PlayerState.PLAYING) p.playVideo();
-      wasPlaying = false;
-    };
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, []);
-
   const toggleMute = () => {
     const player = playerRef.current;
     if (!player) return;

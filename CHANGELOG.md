@@ -4,6 +4,12 @@ All notable changes to BioPlatform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- Pausing a YouTube track no longer resumes playback after a window focus change caused by clicking elsewhere on the profile.
+- Presence activity buttons now detect their destination from both the Discord activity type and platform name, linking Spotify, YouTube, Twitch, SoundCloud, and Apple Music activities to their native search pages before using the generic fallback.
+
 ## [1.3.0-dev-beta.2] - 2026-08-15
 
 ### Added

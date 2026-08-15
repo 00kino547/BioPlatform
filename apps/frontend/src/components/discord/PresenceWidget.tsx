@@ -69,16 +69,35 @@ function activityLabel(activity: DiscordActivity): string {
 }
 
 function resolveButtonUrl(activity: DiscordActivity, label: string): string {
-  const query = [activity.name, activity.details, activity.state].filter(Boolean).join(" ");
+  const query = [activity.details, activity.state, activity.name].filter(Boolean).join(" ");
   const lower = label.toLowerCase();
+  const activityName = activity.name.toLowerCase();
 
-  if (activity.type === 2) {
+  if (activity.type === 2 || activityName.includes("spotify") || lower.includes("spotify")) {
     const track = [activity.details, activity.state].filter(Boolean).join(" ");
     return `https://open.spotify.com/search/${encodeURIComponent(track || query)}`;
   }
 
-  if (lower.includes("watch") || lower.includes("view") || activity.type === 3) {
+  if (
+    activity.type === 3 ||
+    activityName.includes("youtube") ||
+    lower.includes("youtube") ||
+    lower.includes("watch") ||
+    lower.includes("view")
+  ) {
     return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+  }
+
+  if (activityName.includes("twitch") || activity.type === 1 || lower.includes("twitch") || lower.includes("stream")) {
+    return `https://www.twitch.tv/search?term=${encodeURIComponent(query)}`;
+  }
+
+  if (activityName.includes("soundcloud") || lower.includes("soundcloud")) {
+    return `https://soundcloud.com/search?q=${encodeURIComponent(query)}`;
+  }
+
+  if (activityName.includes("apple music") || lower.includes("apple music")) {
+    return `https://music.apple.com/us/search?term=${encodeURIComponent(query)}`;
   }
 
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
