@@ -31,10 +31,16 @@ Frontend en `http://localhost:5173`, backend en `http://localhost:3000`.
 ### Entorno
 
 1. Copia `.env.example` a `.env`
-2. Configura `DATABASE_URL` para PostgreSQL
+2. Configura una `POSTGRES_PASSWORD` única y usa el mismo valor en `DATABASE_URL` al ejecutar fuera de Docker Compose
 3. Establece un `JWT_SECRET` fuerte
-4. Configura `APP_URL` con tu dominio
-5. Ejecuta con `--profile nginx` para producción
+4. Configura `ADMIN_EMAIL` y una `ADMIN_PASSWORD` única para el administrador inicial
+5. Configura `APP_URL`, `APP_URL_HOST`, las URL `VITE_APP_*` y los valores de WebAuthn para tu dominio
+6. Ejecuta con `--profile nginx` para producción
+
+El contenedor backend aplica automáticamente el esquema de Prisma y ejecuta la semilla
+idempotente antes de iniciar la API. La semilla crea el administrador inicial y los primeros
+códigos de invitación solo cuando ese correo de administrador no existe; nunca sobrescribe
+una contraseña de administrador existente.
 
 ## Despliegue Manual
 

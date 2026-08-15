@@ -54,7 +54,8 @@ async function resolveAccount(req: Request): Promise<AuthAccount | null> {
   return resolveAuthAccount(req.path, req.body ?? {}, fingerprint.ip);
 }
 
-function reasonFor(path: string, status: number): string {
+function reasonFor(path: string, status: number, customReason?: unknown): string {
+  if (typeof customReason === "string" && customReason.length > 0) return customReason;
   if (path === "/login") return "Invalid password";
   if (path === "/login/passkey/verify") return "Passkey authentication failed";
   if (path === "/2fa/totp") return "Invalid 2FA code";
@@ -73,13 +74,13 @@ async function recordOutcome(req: Request, res: Response, status: number, body: 
 
   if (success) {
     await recordSuccess(fingerprint, account?.id ?? null);
-  } else if (status >= 400 && status < 500) {
+  } else if (status >= 400 && status < 500 && (req.path !== "/register" || res.locals.countAuthFailure === true)) {
     const penalties = await recordFailure(fingerprint, account ?? null);
     await logAuthFailure({
       fingerprint,
       username: account?.username ?? null,
       accountId: account?.id ?? null,
-      reason: reasonFor(req.path, status),
+      reason: reasonFor(req.path, status, res.locals.authFailureReason),
       penalty: pickWorstPenalty(penalties),
     });
   }

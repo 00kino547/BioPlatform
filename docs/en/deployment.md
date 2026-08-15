@@ -30,10 +30,15 @@ Frontend at `http://localhost:5173`, backend at `http://localhost:3000`.
 ### Environment
 
 1. Copy `.env.example` to `.env`
-2. Set `DATABASE_URL` for PostgreSQL
+2. Set a unique `POSTGRES_PASSWORD` and use the same value in `DATABASE_URL` when running outside Docker Compose
 3. Set a strong `JWT_SECRET`
-4. Configure `APP_URL` to your domain
-5. Run with `--profile nginx` for production
+4. Set `ADMIN_EMAIL` and a unique `ADMIN_PASSWORD` for the bootstrap administrator
+5. Configure `APP_URL`, `APP_URL_HOST`, the `VITE_APP_*` URLs, and the WebAuthn values to your domain
+6. Run with `--profile nginx` for production
+
+The backend container applies the Prisma schema and runs the idempotent seed automatically
+before starting the API. The seed creates the bootstrap admin and initial invite codes only
+when that admin email does not already exist; it never overwrites an existing admin password.
 
 ## Manual Deployment
 

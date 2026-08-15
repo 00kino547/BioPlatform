@@ -32,7 +32,7 @@ Público. Devuelve `{ "status": "ok", "timestamp": "..." }`.
 
 | Método | Endpoint | Descripción |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Crear una cuenta. Cuerpo: `username`, `email`, `password` (mínimo 12 caracteres), `inviteCode` opcional. Devuelve `token` + `user`. |
+| `POST` | `/api/auth/register` | Crear una cuenta. Cuerpo: `username` (3–32 caracteres en minúscula, números, `_` o `-`), `email` (correo válido, máximo 254 caracteres), `password` (8–128 caracteres) e `inviteCode` (1–128 caracteres). Los errores de validación y de cuenta duplicada incluyen `fieldErrors` por campo. Devuelve `token` + `user`. |
 | `POST` | `/api/auth/login/start` | Descubrir los métodos de inicio de sesión de un identificador. Siempre devuelve `{ found: true }` para evitar la enumeración de cuentas. |
 | `POST` | `/api/auth/login` | Iniciar sesión con `identifier` (usuario o email) + `password`. Devuelve `token` + `user`, o `requiresTwoFactor` cuando el 2FA está activado. |
 | `POST` | `/api/auth/login/passkey/options` | Opciones de aserción WebAuthn para iniciar sesión sin contraseña (`identifier`). |

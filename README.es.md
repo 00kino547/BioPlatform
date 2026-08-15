@@ -78,6 +78,11 @@ docker compose up -d --build
 
 La aplicación estará disponible en http://localhost:80.
 
+En cada inicio del contenedor backend se aplica el esquema de la base de datos y se crean
+de forma idempotente los roles, insignias, cuenta de administrador y primeros códigos de
+invitación. Configura `ADMIN_EMAIL` y una `ADMIN_PASSWORD` única en `.env` antes del primer
+inicio; los siguientes inicios no sobrescriben una cuenta de administrador existente.
+
 ## Docker Compose
 
 Servicios:

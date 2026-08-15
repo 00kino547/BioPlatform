@@ -4,6 +4,14 @@ All notable changes to BioPlatform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- Registration now reports specific validation errors for the username, email, password, and invite code in the form and API response.
+
+### Security
+- Registration failures now increment the auth blacklist counters only when the submitted invite code is invalid, used, revoked, or expired; ordinary validation failures and duplicate account details no longer consume auth failure attempts.
+
 ## [1.3.0-rc.1] - 2026-08-15
 
 ### Fixed
@@ -262,6 +270,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.1...HEAD
 [1.3.0-rc.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.2...v1.3.0-rc.1
 [1.3.0-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.1...v1.3.0-dev-beta.2
 [1.3.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.1-dev-beta.1...v1.3.0-dev-beta.1
