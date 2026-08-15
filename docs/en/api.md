@@ -32,7 +32,7 @@ Public. Returns `{ "status": "ok", "timestamp": "..." }`.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Create an account. Body: `username`, `email`, `password` (min 12 chars), optional `inviteCode`. Returns `token` + `user`. |
+| `POST` | `/api/auth/register` | Create an account. Body: `username` (3–32 lowercase letters, numbers, `_` or `-`), `email` (valid email, max 254 chars), `password` (8–128 chars), and `inviteCode` (1–128 chars). Validation and duplicate-account errors include `fieldErrors` keyed by field. Returns `token` + `user`. |
 | `POST` | `/api/auth/login/start` | Discover login methods for an identifier. Always returns `{ found: true }` to prevent account enumeration. |
 | `POST` | `/api/auth/login` | Log in with `identifier` (username or email) + `password`. Returns `token` + `user`, or `requiresTwoFactor` when 2FA is enabled. |
 | `POST` | `/api/auth/login/passkey/options` | WebAuthn assertion options for passwordless login (`identifier`). |

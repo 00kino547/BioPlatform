@@ -17,7 +17,7 @@ interface AuthContextValue {
     email: string;
     password: string;
     inviteCode: string;
-  }) => Promise<string | null>;
+  }) => Promise<{ error?: string; fieldErrors?: Record<string, string> }>;
   refreshUser: () => Promise<void>;
   logout: () => void;
 }
@@ -121,10 +121,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     inviteCode: string;
   }) => {
     const res = await api.register(data);
-    if (!res.success || !res.data) return res.error ?? "Registration failed";
+    if (!res.success || !res.data) {
+      return {
+        error: res.error ?? "Registration failed",
+        fieldErrors: res.fieldErrors,
+      };
+    }
 
     completeAuth(res.data.token, res.data.user);
-    return null;
+    return {};
   };
 
   const refreshUser = async () => {

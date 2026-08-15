@@ -48,6 +48,7 @@ apps/backend/src/
 apps/backend/prisma/
 ├── schema.prisma         # User (tier, trackLimit, profileLimit, aliasLimit, badges, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile (slug, isPrimary, badges, customDomain relation, incl. showDiscordPresence/showDiscordActivity/discordWebhookUrlEncrypted), ProfileDomain (custom domains + TLS cert status fields), ProfileAlias (slug per profile), DiscordConnection, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan, AuthLog, Webhook, WebhookDelivery models
 └── seed.ts               # Bootstrap admin + invite codes
+apps/backend/docker-entrypoint.sh # Applies the Prisma schema and idempotently seeds bootstrap data before the API starts
 apps/backend/tests/
 ├── setup-env.ts          # Test env bootstrap (loads .env, points DATABASE_URL at bioplatform_test)
 └── badges-order.test.ts  # Unit + integration tests for badge ordering (Node test runner via tsx)

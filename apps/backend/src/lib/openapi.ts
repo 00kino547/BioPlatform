@@ -52,18 +52,22 @@ export const openapi = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["username", "email", "password"],
+                required: ["username", "email", "password", "inviteCode"],
                 properties: {
-                  username: { type: "string", description: "Unique public username" },
-                  email: { type: "string", format: "email" },
-                  password: { type: "string", minLength: 12, description: "Password (bcrypt, 12 rounds)" },
-                  inviteCode: { type: "string", description: "Invite code if registration requires one" },
+                  username: { type: "string", minLength: 3, maxLength: 32, pattern: "^[a-z0-9_-]+$", description: "Unique public username" },
+                  email: { type: "string", format: "email", maxLength: 254 },
+                  password: { type: "string", minLength: 8, maxLength: 128, description: "Password (bcrypt, 12 rounds)" },
+                  inviteCode: { type: "string", minLength: 1, maxLength: 128, description: "Valid registration invite code" },
                 },
               },
             },
           },
         },
-        responses: { "201": { description: "Created. Returns token and user." }, "400": { description: "Validation error" } },
+        responses: {
+          "201": { description: "Created. Returns token and user." },
+          "400": { description: "Validation error. The response includes fieldErrors keyed by registration field." },
+          "409": { description: "Username or email is already taken. The response includes fieldErrors." },
+        },
       },
     },
     "/auth/login/start": {

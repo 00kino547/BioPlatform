@@ -81,6 +81,11 @@ docker compose up -d --build
 
 The app will be available at http://localhost:80.
 
+On every backend container start, the database schema is applied and the bootstrap roles,
+badges, admin account, and first invite codes are seeded. Set `ADMIN_EMAIL` and a unique
+`ADMIN_PASSWORD` in `.env` before the first launch; later starts do not overwrite an
+existing admin account.
+
 ## Docker Compose Services
 
 - `postgres` — PostgreSQL 16 database

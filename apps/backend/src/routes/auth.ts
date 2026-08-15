@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -28,10 +28,26 @@ function requestHost(req: { headers: { host?: string | string[] } }): string | u
 router.use(authRateLimit);
 
 const registerSchema = z.object({
-  username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/),
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
-  inviteCode: z.string().min(1),
+  username: z
+    .string({ required_error: "Username is required", invalid_type_error: "Username must be text" })
+    .min(3, "Username must be at least 3 characters")
+    .max(32, "Username must be 32 characters or fewer")
+    .regex(/^[a-z0-9_-]+$/, "Username can only contain lowercase letters, numbers, underscores, and hyphens"),
+  email: z
+    .string({ required_error: "Email is required", invalid_type_error: "Email must be text" })
+    .trim()
+    .min(1, "Email is required")
+    .max(254, "Email must be 254 characters or fewer")
+    .email("Email must be a valid email address"),
+  password: z
+    .string({ required_error: "Password is required", invalid_type_error: "Password must be text" })
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be 128 characters or fewer"),
+  inviteCode: z
+    .string({ required_error: "Invite code is required", invalid_type_error: "Invite code must be text" })
+    .trim()
+    .min(1, "Invite code is required")
+    .max(128, "Invite code must be 128 characters or fewer"),
 });
 
 const identifierSchema = z.object({
@@ -73,6 +89,27 @@ const totpCodeSchema = z.object({
 const twoFactorTokenSchema = z.object({
   token: z.string().min(1),
 });
+
+function registerFieldErrors(error: z.ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+    if (typeof field === "string" && !fieldErrors[field]) {
+      fieldErrors[field] = issue.message;
+    }
+  }
+  return fieldErrors;
+}
+
+function invalidInvite(res: Response, error: string) {
+  res.locals.countAuthFailure = true;
+  res.locals.authFailureReason = error;
+  return res.status(400).json({
+    success: false,
+    error,
+    fieldErrors: { inviteCode: error },
+  });
+}
 
 interface TwoFactorPayload {
   userId: string;
@@ -149,7 +186,8 @@ router.post("/register", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       success: false,
-      error: parsed.error.issues[0].message,
+      error: "Please fix the highlighted fields.",
+      fieldErrors: registerFieldErrors(parsed.error),
     });
   }
 
@@ -161,28 +199,39 @@ router.post("/register", async (req, res) => {
   });
 
   if (!code) {
-    return res.status(400).json({ success: false, error: "Invalid invite code" });
+    return invalidInvite(res, "Invite code is invalid");
   }
 
   if (code.usedById) {
-    return res.status(400).json({ success: false, error: "Invite code already used" });
+    return invalidInvite(res, "Invite code has already been used");
   }
 
   if (code.revokedAt) {
-    return res.status(400).json({ success: false, error: "Invite code has been revoked" });
+    return invalidInvite(res, "Invite code has been revoked");
   }
 
   if (code.expiresAt && code.expiresAt < new Date()) {
-    return res.status(400).json({ success: false, error: "Invite code expired" });
+    return invalidInvite(res, "Invite code has expired");
   }
 
-  const existingUser = await prisma.user.findFirst({
+  const existingUsers = await prisma.user.findMany({
     where: { OR: [{ email: normalizedEmail }, { username }] },
+    select: { email: true, username: true },
   });
 
-  if (existingUser) {
-    const field = existingUser.email === normalizedEmail ? "email" : "username";
-    return res.status(409).json({ success: false, error: `Username or ${field} already taken` });
+  if (existingUsers.length > 0) {
+    const fieldErrors: Record<string, string> = {};
+    if (existingUsers.some((user) => user.username === username)) {
+      fieldErrors.username = "Username is already taken";
+    }
+    if (existingUsers.some((user) => user.email === normalizedEmail)) {
+      fieldErrors.email = "Email is already registered";
+    }
+    return res.status(409).json({
+      success: false,
+      error: "Please choose a different username or email.",
+      fieldErrors,
+    });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -236,10 +285,14 @@ router.post("/register", async (req, res) => {
     });
   } catch (err) {
     if (err instanceof Error && err.message === "INVITE_ALREADY_USED") {
-      return res.status(409).json({ success: false, error: "Invite code already used" });
+      return invalidInvite(res, "Invite code has already been used");
     }
     if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return res.status(409).json({ success: false, error: "Username or email already taken" });
+      return res.status(409).json({
+        success: false,
+        error: "Username or email is already taken.",
+        fieldErrors: { username: "Username or email is already taken", email: "Username or email is already taken" },
+      });
     }
     throw err;
   }

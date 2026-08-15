@@ -21,6 +21,7 @@
 
 ## Completed
 
+- [x] Registration validation and invite failure counting — register reports field-specific validation errors, and only invalid invite attempts increment auth blacklist counters
 - [x] SEO + agent browsing — real `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` served from the backend (TTL-cached) with nginx locations and SPA reservations; server-rendered OG pages (richer OG meta + `ProfilePage`/`Person`/`WebSite` JSON-LD with `sameAs`) served to 30+ social + AI crawler UAs via an nginx `$is_bot` map; client-side `useJsonLd` replaces the removed inline script. Lighthouse SEO 92 → 100 (the remaining best-practices 92 console error is Cloudflare's injected inline challenge script, blocked by CSP — documented)
 - [x] Passkeys on custom domains — WebAuthn rpID/origin derived per request from the `Host` header for hosts outside `WEBAUTHN_ORIGIN` (custom domains keep the app-host env config); passkeys are per-domain scoped; en/es docs + CHANGELOG updated
 - [x] Social platform expansion — added GitLab, Reddit, Pinterest, Snapchat, Threads, Bluesky, Mastodon, WhatsApp, Telegram, Signal, Kick, Steam, SoundCloud to `ALLOWED_PLATFORMS`, the Dashboard platform picker, `PlatformIcon` (SVG + color + display name); en/es docs + CHANGELOG updated
