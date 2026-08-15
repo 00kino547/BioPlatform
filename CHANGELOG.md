@@ -4,11 +4,12 @@ All notable changes to BioPlatform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.3.0-rc.1] - 2026-08-15
 
 ### Fixed
 - Pausing a YouTube track no longer resumes playback after a window focus change caused by clicking elsewhere on the profile.
 - Presence activity buttons now detect their destination from both the Discord activity type and platform name, linking Spotify, YouTube, Twitch, SoundCloud, and Apple Music activities to their native search pages before using the generic fallback.
+- OpenGraph badge pills now render in the saved profile order instead of appearing in reverse from right-to-left canvas layout.
 
 ## [1.3.0-dev-beta.2] - 2026-08-15
 
@@ -261,6 +262,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
+[1.3.0-rc.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.2...v1.3.0-rc.1
 [1.3.0-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.1...v1.3.0-dev-beta.2
 [1.3.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.1-dev-beta.1...v1.3.0-dev-beta.1
 [1.2.1-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.0-dev-beta.1...v1.2.1-dev-beta.1
