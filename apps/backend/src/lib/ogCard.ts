@@ -226,18 +226,17 @@ export async function renderOgCard(input: OgCardInput): Promise<Buffer> {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  let badgeX = WIDTH - 70;
+  let badgeX = 60;
   let badgeY = 84;
   for (const badge of input.badges ?? []) {
     ctx.font = "600 18px OgBold, Inter, sans-serif";
     const width = ctx.measureText(badge.label).width + 34;
-    if (badgeX - width < 60) {
-      badgeX = WIDTH - 70;
+    if (badgeX + width > WIDTH - 70) {
+      badgeX = 60;
       badgeY += 40;
     }
-    badgeX -= width;
     drawBadgePill(ctx, badge.label, badge.color, badgeX, badgeY);
-    badgeX -= 10;
+    badgeX += width + 10;
   }
 
   const avatarImage = await loadAvatarImage(input.avatar);
