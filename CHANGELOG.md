@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Presence activity buttons now detect their destination from both the Discord activity type and platform name, linking Spotify, YouTube, Twitch, SoundCloud, and Apple Music activities to their native search pages before using the generic fallback.
 - OpenGraph badge pills now render in the saved profile order instead of appearing in reverse from right-to-left canvas layout.
 
-## [1.3.0-dev-beta.2] - 2026-08-15
+## [1.3.0-dev-beta.2] - 2026-08-14
 
 ### Added
 - **Badge ordering.** Badges on a profile now have a user-controlled display order. In the dashboard's **Appearance** tab you can drag badges to reorder them and save; the order persists per profile and is used everywhere badges render: the public profile page, the own-profile endpoints, and the social/AI card (`og:image` + OG page). New badges earned later automatically appear after the ordered ones. The order is stored in a new `badgeOrder` column (`string[]`) on `profiles`, validated by the new `PUT /api/profiles/me/:profileId/badges/order` endpoint (only badge ids currently on the profile are accepted; duplicates and unknown ids are rejected). Profiles with no saved order are unaffected. Docs (`api.md`, `user-guide`) updated. The backend test suite (Node/tsx built-in runner against a dedicated `bioplatform_test` database) covers the ordering unit helper plus endpoint and public/OG integration behavior.
