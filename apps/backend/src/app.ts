@@ -12,6 +12,7 @@ import musicRoutes from "./routes/music.js";
 import webhookRoutes from "./routes/webhook.js";
 import discordRoutes from "./routes/discord.js";
 import badgeRoutes from "./routes/badges.js";
+import versionRoutes from "./routes/version.js";
 import { renderProfileOgPage } from "./lib/profileOg.js";
 import { buildLandingOgPage } from "./lib/og.js";
 import { buildRobotsTxt, buildSitemapXml, buildLlmstxt, buildLlmstxtFull } from "./lib/seo.js";
@@ -88,6 +89,7 @@ app.use("/api/music", musicRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/discord", discordRoutes);
 app.use("/api/badges", badgeRoutes);
+app.use("/api/version", versionRoutes);
 app.use("/api", domainRoutes);
 
 const RESERVED_PATHS = new Set(["api", "health", "favicon.ico", "robots.txt", "sitemap.xml", "llms.txt", "llms-full.txt", "uploads"]);

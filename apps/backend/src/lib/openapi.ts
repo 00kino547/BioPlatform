@@ -10,6 +10,7 @@ export const openapi = {
   security: [{ bearerAuth: [] }],
   tags: [
     { name: "Health" },
+    { name: "Version" },
     { name: "Auth" },
     { name: "Profiles" },
     { name: "Analytics" },
@@ -37,6 +38,63 @@ export const openapi = {
               },
             },
           },
+        },
+      },
+    },
+
+    "/version": {
+      get: {
+        tags: ["Version"],
+        summary: "Software version and update check",
+        description:
+          "Returns the installed version and, when enabled, the latest version and severity derived from the public CHANGELOG. No authentication required for the cached result. Passing ?force=1 bypasses the cache and re-fetches from GitHub and requires an authenticated administrator. When a critical or security update is pending, security-sensitive endpoints (passkeys, TOTP, password change, admin user/role/badge mutations, webhook create/update/rotate/delete) return 403 with updateRequired:true.",
+        security: [],
+        parameters: [
+          { name: "force", in: "query", required: false, schema: { type: "string", enum: ["1"] }, description: "Bypass the cached result and re-fetch from GitHub. Requires an authenticated administrator." },
+        ],
+        responses: {
+          "200": {
+            description: "Version check data",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        enabled: { type: "boolean", description: "Whether the update check is enabled on the server" },
+                        installed: { type: "string", description: "Installed version of the app" },
+                        latest: { type: "string", nullable: true, description: "Latest released version from the CHANGELOG" },
+                        outdated: { type: "boolean" },
+                        severity: { type: "string", enum: ["none", "update", "security", "critical"] },
+                        skippedVersions: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              version: { type: "string" },
+                              date: { type: "string", nullable: true },
+                              sections: { type: "array", items: { type: "object", properties: { heading: { type: "string" }, items: { type: "array", items: { type: "string" } } } } },
+                            },
+                          },
+                        },
+                        skippedCount: { type: "integer" },
+                        releaseUrl: { type: "string" },
+                        releasesUrl: { type: "string" },
+                        changelogUrl: { type: "string" },
+                        checkedAt: { type: "string", format: "date-time" },
+                        source: { type: "string", enum: ["github-raw", "github-api", "jsdelivr", "cache", "none"], description: "Where the CHANGELOG was fetched from" },
+                        error: { type: "string", nullable: true, description: "Present when the check failed; the app stays fully functional (fail-open)" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "500": { description: "Version check failed" },
         },
       },
     },

@@ -30,19 +30,21 @@ apps/backend/src/
 │   ├── badges.ts         # Badge ordering helper (orderBadges: saved order first, remaining badges keep original order, stale/duplicate ids ignored)
 │   ├── acme.ts           # ACME (Let's Encrypt) service: HTTP-01 challenge map, account key, issue/renew certs, nginx custom-domains.conf generator, interval loop
 │   ├── seo.ts            # robots.txt/sitemap.xml/llms.txt/llms-full.txt builders with TTL cache
+│   ├── versionCheck.ts   # GitHub update check: changelog fetch (raw → API → jsDelivr, fail-open), semver compare, severity (security/critical), TTL cache + stale-while-error, lockdown middleware (requireNoUpdateLockdown)
 │   └── openapi.ts        # OpenAPI 3.0 document served at /api/openapi.json
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
 ├── middleware/rateLimit.ts # Auth anti-brute-force middleware (cookie issuance, 2-of-3 fingerprint block, policy-aware account lock, outcome + log recording)
 ├── middleware/domain.ts   # resolveCustomDomain: maps active ProfileDomain → req.customDomain (skips app host)
 └── routes/
-    ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA (host-aware rpID/origin for custom domains), passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify
+    ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA (host-aware rpID/origin for custom domains), passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify — passkey/TOTP/change-password gated by update lockdown
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Multi-profile CRUD (list/create, get/update/delete per profileId, set-primary), aliases CRUD, badges toggle + order, avatar/banner upload+delete, spreadsheet export/import, public profile by slug/alias (incl. discord presence), click tracking, OG card PNG
-    ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert
+    ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert — user/role/badge mutations gated by update lockdown
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown) — ?profileId scoped
     ├── email.ts          # Email notification settings (SMTP config, test endpoint) — ?profileId scoped
     ├── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete) — ?profileId scoped
-    ├── webhook.ts        # Webhook CRUD (list, create, patch, rotate-secret, test, deliveries, delete)
+    ├── webhook.ts        # Webhook CRUD (list, create, patch, rotate-secret, test, deliveries, delete) — create/update/rotate/delete gated by update lockdown
+    ├── version.ts        # Public GET /api/version (installed/latest/severity, ?force=1 bypasses cache)
     ├── domain.ts         # Custom domains: public GET /api/domain (host/active/root), user self-serve request/verify/root/remove
     └── discord.ts        # Discord: status, OAuth connect/callback, disconnect, settings, post-to-webhook, session restore on boot — ?profileId scoped
 apps/backend/prisma/
@@ -67,21 +69,26 @@ apps/frontend/src/
 │   ├── AuthContext.tsx    # Auth state (login, register, logout)
 │   └── DomainContext.tsx  # Custom-domain info for the current host (active, host, root slug, canonical) via GET /api/domain
 ├── lib/
-│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges + badge order, upload, export/import, analytics, email, music, webhooks, discord, custom domains) — profile-scoped calls take profileId
+│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges + badge order, upload, export/import, analytics, email, music, webhooks, discord, custom domains, version check) — profile-scoped calls take profileId
 │   ├── seo.ts            # usePageMeta + JSON-LD (optional baseUrl for custom domains)
+│   ├── useVersionCheck.ts # Update-check hook: module-level cache + in-flight dedupe, useVersionCheck + useUpdateLockdown (locked = security/critical)
 │   └── utils.ts          # cn() utility
 ├── components/
 │   ├── ui/
-│   │   ├── button.tsx        # Button (5 variants)
+│   │   ├── button.tsx        # Button (5 variants, href renders an anchor)
 │   │   ├── card.tsx          # Card (6 subcomponents)
 │   │   ├── badge.tsx         # Badge (5 variants)
+│   │   ├── dialog.tsx        # Modal dialog (esc/overlay close)
 │   │   ├── scroll-reveal.tsx # IntersectionObserver wrapper
 │   │   └── PlatformIcon.tsx  # SVG icons for social platforms (11 platforms)
+│   ├── updates/
+│   │   ├── UpdateDialog.tsx  # Shared update dialog: severity chip, skipped-release changelog sections, GitHub release link, re-check (force)
+│   │   └── VersionBadge.tsx  # Public footer version badge (green/amber/red on severity), opens UpdateDialog
 │   ├── auth/
 │   │   ├── ProtectedRoute.tsx # Redirect to /login if unauthenticated
-│   │   └── SecurityTab.tsx    # Dashboard Security tab (passkeys + TOTP management)
+│   │   └── SecurityTab.tsx    # Dashboard Security tab (passkeys + TOTP management) — locked down during critical/security update
 │   ├── settings/
-│   │   ├── WebhooksTab.tsx    # Dashboard Webhooks tab (create/edit/toggle/test/rotate/secret/deliveries)
+│   │   ├── WebhooksTab.tsx    # Dashboard Webhooks tab (create/edit/toggle/test/rotate/secret/deliveries) — mutations locked down during critical/security update
 │   │   ├── DataTab.tsx        # Dashboard Data tab (spreadsheet export/import)
 │   │   ├── InvitesTab.tsx     # Dashboard Invites tab (generate/revoke codes, allowance, cooldown)
 │   │   ├── DomainTab.tsx      # Dashboard Domain tab (request TXT-verified custom domain, verify, root target, disconnect)
@@ -99,13 +106,13 @@ apps/frontend/src/
 │       ├── Showcase.tsx      # Browser + mobile mockups, theme selector
 │       ├── Pricing.tsx       # 3-tier pricing
 │       ├── FAQ.tsx           # Accordion FAQ (6 questions)
-│       └── Footer.tsx        # Footer with links, social
+│       └── Footer.tsx        # Footer with links, social, version badge (UpdateDialog)
 ├── pages/
 │   ├── Login.tsx         # Multi-step login (identifier → passwordless/password → 2FA, email unlock)
 │   ├── Register.tsx      # Register form (invite code required)
 │   ├── Unlock.tsx        # Email unlock link handler (/unlock?token=)
 │   ├── Dashboard.tsx     # Profile editor (Profiles, Profile, Links, Appearance, Analytics, Email, Music, Webhooks, Data, Discord, Invites, Domain, Security tabs) with multi-profile switcher
-│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Roles, Badges, Bans, Logs, Custom Domains tabs, profile editing modal, tier control, Unlock account actions)
+│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Roles, Badges, Bans, Logs, Custom Domains tabs, profile editing modal, tier control, Unlock account actions) — Updates button + auto-popup dialog, high-security ops disabled during update lockdown
 │   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer + Discord presence widget; custom-domain host-aware canonical/OG via useDomain)
 │   ├── ApiDocs.tsx       # In-app API reference (/api-docs, renders /api/openapi.json)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)

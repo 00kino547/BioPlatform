@@ -12,6 +12,7 @@ import {
   isValidPayloadTemplate,
   sendTestWebhook,
 } from "../lib/webhook.js";
+import { requireNoUpdateLockdown } from "../lib/versionCheck.js";
 
 const router = Router();
 
@@ -129,7 +130,7 @@ router.get("/", async (req, res) => {
   res.json({ success: true, data: webhooks.map((w) => publicWebhook({ ...w, lastDelivery: w.deliveries[0] ?? null })) });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireNoUpdateLockdown, async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -169,7 +170,7 @@ router.post("/", async (req, res) => {
   });
 });
 
-router.patch("/:id", async (req: Request<{ id: string }>, res) => {
+router.patch("/:id", requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const webhook = await getOwnedWebhook(req, res, req.params.id);
   if (!webhook) return;
 
@@ -199,7 +200,7 @@ router.patch("/:id", async (req: Request<{ id: string }>, res) => {
   });
 });
 
-router.post("/:id/rotate-secret", async (req: Request<{ id: string }>, res) => {
+router.post("/:id/rotate-secret", requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const webhook = await getOwnedWebhook(req, res, req.params.id);
   if (!webhook) return;
 
@@ -243,7 +244,7 @@ router.get("/:id/deliveries", async (req: Request<{ id: string }>, res) => {
   res.json({ success: true, data: deliveries });
 });
 
-router.delete("/:id", async (req: Request<{ id: string }>, res) => {
+router.delete("/:id", requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const webhook = await getOwnedWebhook(req, res, req.params.id);
   if (!webhook) return;
 

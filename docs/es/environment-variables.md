@@ -59,6 +59,17 @@
 | `AUTH_LOG_RETENTION_DAYS` | Retención del registro de autenticación en días antes de que la tarea de limpieza lo elimine | `30` |
 | `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | Cada cuántos minutos se ejecuta la tarea de limpieza del registro de autenticación | `60` |
 
+## Comprobación de actualizaciones
+
+El backend consulta periódicamente el CHANGELOG público de `APP_GITHUB_URL` para decidir si hay una actualización disponible y cuán grave es. Cuando el resultado es `security` o `critical`, los endpoints sensibles de seguridad (passkeys, TOTP, cambio de contraseña, mutaciones de usuarios/roles/badges de admin, creación/edición/rotación/borrado de webhooks) devuelven `403` hasta que la aplicación se actualice. Un fallo nunca bloquea la aplicación (`GET /api/version` falla de forma segura).
+
+| Variable | Descripción | Predeterminado |
+|----------|-------------|---------|
+| `UPDATE_CHECK_ENABLED` | Cuando es `false`, la comprobación de actualizaciones está desactivada y `/api/version` siempre informa la versión instalada con severidad `none` | `true` |
+| `UPDATE_CHECK_INTERVAL_MINUTES` | Cada cuántos minutos se realiza una comprobación nueva (tanto el planificador de fondo como la caché de peticiones). También se ejecuta una comprobación automáticamente en cada reinicio del contenedor/stack. Usa `?force=1` para omitir la caché | `720` |
+| `UPDATE_CHECK_STALE_MAX_MINUTES` | Edad máxima de un resultado en caché que aún se sirve cuando una consulta nueva falla (stale-while-error) | `1440` |
+| `UPDATE_CRITICAL_STALE_THRESHOLD` | Número de versiones omitidas que por sí solo eleva la severidad a `critical` | `3` |
+
 ## WebAuthn (passkeys)
 
 | Variable | Descripción | Por defecto |

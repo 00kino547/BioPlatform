@@ -2,6 +2,7 @@ import app from "./app.js";
 import { getEnv } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
 import { startWebhookRetrySweep } from "./lib/webhook.js";
+import { startUpdateChecker } from "./lib/versionCheck.js";
 import { startBotSession } from "./lib/discordGateway.js";
 import { startAcmeLoop, acmeTick } from "./lib/acme.js";
 
@@ -44,6 +45,8 @@ async function main() {
   console.log("Database connected");
 
   startWebhookRetrySweep();
+  startUpdateChecker();
+  console.log("Update checker started");
 
   if (env.DISCORD_BOT_TOKEN) {
     startBotSession(env.DISCORD_BOT_TOKEN);

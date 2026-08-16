@@ -1,5 +1,6 @@
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
+import { VersionBadge } from "@/components/updates/VersionBadge";
 import { branding } from "@/config/branding";
 
 function GitHubIcon({ className }: { className?: string }) {
@@ -91,14 +92,17 @@ export function Footer() {
           <p className="text-xs text-zinc-600">
             &copy; {new Date().getFullYear()} {branding.name}. All rights reserved.
           </p>
-          <a
-            href={branding.githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            Powered by {branding.name}
-          </a>
+          <div className="flex items-center gap-3">
+            <VersionBadge />
+            <a
+              href={branding.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            >
+              Powered by {branding.name}
+            </a>
+          </div>
         </div>
       </Container>
     </footer>

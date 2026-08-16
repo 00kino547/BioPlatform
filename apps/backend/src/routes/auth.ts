@@ -17,6 +17,7 @@ import {
 import { authRateLimit } from "../middleware/rateLimit.js";
 import { isEmailEnabled, sendEmail, buildUnlockEmail } from "../lib/email.js";
 import { dispatchWebhookEvent } from "../lib/webhook.js";
+import { requireNoUpdateLockdown } from "../lib/versionCheck.js";
 
 const router = Router();
 
@@ -528,7 +529,7 @@ router.post("/2fa/passkey/verify", async (req, res) => {
   res.json({ success: true, data: { token, user: await userPublic(user) } });
 });
 
-router.post("/passkeys/options", requireAuth, async (req, res) => {
+router.post("/passkeys/options", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const parsed = z
     .object({ residentKey: z.enum(["resident", "nonResident"]).default("nonResident") })
     .safeParse(req.body);
@@ -555,7 +556,7 @@ router.post("/passkeys/options", requireAuth, async (req, res) => {
   res.json({ success: true, data: options });
 });
 
-router.post("/passkeys/register", requireAuth, async (req, res) => {
+router.post("/passkeys/register", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const parsed = z
     .object({
       response: registrationResponseSchema,
@@ -618,7 +619,7 @@ router.get("/passkeys", requireAuth, async (req, res) => {
   });
 });
 
-router.delete("/passkeys/:id", requireAuth, async (req, res) => {
+router.delete("/passkeys/:id", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const passkey = await prisma.passkey.findFirst({
     where: { id: req.params.id as string, userId: req.userId! },
   });
@@ -631,7 +632,7 @@ router.delete("/passkeys/:id", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-router.post("/totp/setup", requireAuth, async (req, res) => {
+router.post("/totp/setup", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId! } });
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
@@ -647,7 +648,7 @@ router.post("/totp/setup", requireAuth, async (req, res) => {
   res.json({ success: true, data: { secret, otpauthUrl } });
 });
 
-router.post("/totp/enable", requireAuth, async (req, res) => {
+router.post("/totp/enable", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const parsed = totpCodeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -670,7 +671,7 @@ router.post("/totp/enable", requireAuth, async (req, res) => {
   res.json({ success: true, data: { totpEnabled: true } });
 });
 
-router.post("/totp/disable", requireAuth, async (req, res) => {
+router.post("/totp/disable", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const parsed = totpCodeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -728,7 +729,7 @@ router.get("/me", requireAuth, async (req, res) => {
   });
 });
 
-router.post("/change-password", requireAuth, async (req, res) => {
+router.post("/change-password", requireAuth, requireNoUpdateLockdown, async (req, res) => {
   const parsed = changePasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({

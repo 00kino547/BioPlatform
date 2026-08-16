@@ -1,12 +1,14 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
+import { UpdateDialog } from "@/components/updates/UpdateDialog";
+import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { getToken, type Badge, type Role, type InviteGrantEvent } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
-import { X, Edit, Save, Trash2 } from "lucide-react";
+import { X, Edit, Save, Trash2, ShieldAlert } from "lucide-react";
 
 interface InviteCode {
   id: string;
@@ -220,6 +222,17 @@ export function AdminDashboard() {
     icon: "Award",
   });
   const [badgeMsg, setBadgeMsg] = useState("");
+
+  const { locked } = useUpdateLockdown();
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const autoOpenedUpdate = useRef(false);
+
+  useEffect(() => {
+    if (locked && !autoOpenedUpdate.current) {
+      autoOpenedUpdate.current = true;
+      setUpdateOpen(true);
+    }
+  }, [locked]);
 
   const fetchCodes = async (page = invitesPage, filter = inviteFilter) => {
     const token = getToken();
@@ -761,6 +774,15 @@ export function AdminDashboard() {
                 {user?.role?.name ?? "Staff"}
               </span>
             </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setUpdateOpen(true)}
+              className={locked ? "border-red-500/30 text-red-300" : undefined}
+            >
+              <ShieldAlert className={`h-4 w-4 ${locked ? "text-red-400" : ""}`} />
+              Updates
+            </Button>
             <Button variant="secondary" size="sm" onClick={logout}>
               Sign out
             </Button>
@@ -771,6 +793,19 @@ export function AdminDashboard() {
       <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
         <h1 className="text-2xl font-bold text-white mb-2">Admin Dashboard</h1>
         <p className="text-zinc-400 mb-8">Manage invite codes, users, roles, badges and security.</p>
+
+        {locked && (
+          <div className="mb-8 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-red-300">
+              <p className="font-semibold">A critical or security update is required.</p>
+              <p className="mt-0.5 text-red-300/80">
+                Deleting users and changing roles, badges, tiers or invite bans is disabled until the app is
+                updated. Other administration continues to work.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1 w-fit overflow-x-auto">
           {allowedTabs.map((t) => (
@@ -1137,8 +1172,9 @@ export function AdminDashboard() {
                               {u.id !== user?.id && (
                                 <button
                                   onClick={() => handleDeleteUser(u)}
-                                  className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
-                                  title="Permanently delete this user (GDPR erasure)"
+                                  disabled={locked}
+                                  title={locked ? "Locked until the app is updated" : "Permanently delete this user (GDPR erasure)"}
+                                  className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   <Trash2 className="h-3 w-3" />
                                   Delete
@@ -1146,7 +1182,9 @@ export function AdminDashboard() {
                               )}
                               <button
                                 onClick={() => openEditProfile(u)}
-                                className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                                disabled={locked}
+                                title={locked ? "Locked until the app is updated" : undefined}
+                                className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Edit className="h-3 w-3" />
                                 Edit Profile
@@ -1322,12 +1360,12 @@ export function AdminDashboard() {
                   <div className="grid sm:grid-cols-2 gap-2">
                     {PERMISSION_ORDER.map((perm) => {
                       const checked = roleForm.permissions.includes(perm);
-                      const locked = roleForm.id !== null && roles.find((r) => r.id === roleForm.id)?.slug === "admin";
+                      const permLocked = roleForm.id !== null && roles.find((r) => r.id === roleForm.id)?.slug === "admin";
                       return (
                         <button
                           key={perm}
                           type="button"
-                          disabled={locked}
+                          disabled={permLocked}
                           onClick={() =>
                             setRoleForm((prev) => ({
                               ...prev,
@@ -1337,7 +1375,7 @@ export function AdminDashboard() {
                             }))
                           }
                           className={`flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm text-left transition-colors ${
-                            locked
+                            permLocked
                               ? "border-zinc-800 bg-zinc-900/30 text-zinc-600 cursor-not-allowed"
                               : checked
                               ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
@@ -1359,7 +1397,7 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button type="submit">
+                  <Button type="submit" disabled={locked}>
                     <Save className="h-4 w-4" />
                     {roleForm.id ? "Save Role" : "Create Role"}
                   </Button>
@@ -1430,7 +1468,9 @@ export function AdminDashboard() {
                                 inviteMaxExpiryDays: String(r.inviteMaxExpiryDays ?? 365),
                               })
                             }
-                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                            disabled={locked}
+                            title={locked ? "Locked until the app is updated" : undefined}
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Edit className="h-3 w-3" />
                             Edit
@@ -1438,7 +1478,9 @@ export function AdminDashboard() {
                           {!r.isSystem && (
                             <button
                               onClick={() => handleRoleDelete(r.id)}
-                              className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                              disabled={locked}
+                              title={locked ? "Locked until the app is updated" : undefined}
+                              className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1535,7 +1577,7 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button type="submit">
+                  <Button type="submit" disabled={locked}>
                     <Save className="h-4 w-4" />
                     {badgeForm.id ? "Save Badge" : "Create Badge"}
                   </Button>
@@ -1569,13 +1611,17 @@ export function AdminDashboard() {
                                 icon: b.icon,
                               })
                             }
-                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                            disabled={locked}
+                            title={locked ? "Locked until the app is updated" : undefined}
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Edit className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => handleBadgeDelete(b.id)}
-                            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                            disabled={locked}
+                            title={locked ? "Locked until the app is updated" : undefined}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -2058,7 +2104,9 @@ export function AdminDashboard() {
                     <button
                       type="button"
                       onClick={() => handleInviteBan(editingUser, !editingUser.inviteBanned)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      disabled={locked}
+                      title={locked ? "Locked until the app is updated" : undefined}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                         editingUser.inviteBanned
                           ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
                           : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
@@ -2072,7 +2120,7 @@ export function AdminDashboard() {
                   <Button variant="secondary" onClick={() => setEditingUser(null)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleSaveProfile} disabled={editLoading}>
+                  <Button onClick={handleSaveProfile} disabled={editLoading || locked}>
                     <Save className="h-4 w-4" />
                     {editSaved ? "Saved!" : "Save"}
                   </Button>
@@ -2082,6 +2130,8 @@ export function AdminDashboard() {
           </div>
         </div>
       )}
+
+      <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} recheckable />
     </div>
   );
 }

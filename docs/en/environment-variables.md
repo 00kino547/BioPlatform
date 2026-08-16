@@ -59,6 +59,17 @@
 | `AUTH_LOG_RETENTION_DAYS` | Auth log retention in days before the cleanup job deletes entries | `30` |
 | `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | How often the auth log cleanup job runs (in minutes) | `60` |
 
+## Update check
+
+The backend periodically fetches the public CHANGELOG from `APP_GITHUB_URL` to decide whether an update is available and how severe it is. On a `security` or `critical` result, security-sensitive endpoints (passkeys, TOTP, password change, admin user/role/badge mutations, webhook create/update/rotate/delete) return `403` until the app is updated. Failures never lock down the app (`GET /api/version` fails open).
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UPDATE_CHECK_ENABLED` | When `false`, the version check is disabled entirely and `/api/version` always reports the installed version with severity `none` | `true` |
+| `UPDATE_CHECK_INTERVAL_MINUTES` | How often a fresh check is performed (both the background scheduler and the request cache). A check also runs automatically on every container/stack restart. Use `?force=1` to bypass the cache | `720` |
+| `UPDATE_CHECK_STALE_MAX_MINUTES` | Maximum age of a cached result that is still served when a fresh fetch fails (stale-while-error) | `1440` |
+| `UPDATE_CRITICAL_STALE_THRESHOLD` | Number of skipped releases that alone raises the severity to `critical` | `3` |
+
 ## WebAuthn (passkeys)
 
 | Variable | Description | Default |

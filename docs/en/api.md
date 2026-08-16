@@ -28,6 +28,38 @@ An **admin can override the tier default** by granting the `api.basic`, `api.adv
 
 Public. Returns `{ "status": "ok", "timestamp": "..." }`.
 
+## Version
+
+### `GET /api/version`
+
+Public. Software version and update check. Returns the installed version and — when the update check is enabled on the server — the latest released version and a severity derived from the public CHANGELOG of the GitHub repository (`APP_GITHUB_URL`).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | boolean | Whether the update check is enabled on the server |
+| `installed` | string | Installed version of the app |
+| `latest` | string \| null | Latest released version from the CHANGELOG (skips `[Unreleased]`) |
+| `outdated` | boolean | `true` when the installed version is behind the latest |
+| `severity` | `none` \| `update` \| `security` \| `critical` | `security` when any skipped release has security fixes; `critical` when security is combined with a very old install or many skipped releases, when the installed version is older than every documented release, or when the number of skipped releases reaches `UPDATE_CRITICAL_STALE_THRESHOLD` |
+| `skippedVersions` | array | Releases newer than the installed version with their changelog sections, for UI rendering |
+| `skippedCount` | integer | Number of skipped releases |
+| `releaseUrl` / `releasesUrl` / `changelogUrl` | string | Links to the GitHub release/changelog |
+| `checkedAt` | string | ISO timestamp of the check |
+| `source` | `github-raw` \| `github-api` \| `jsdelivr` \| `cache` \| `none` | Where the CHANGELOG was fetched from |
+| `error` | string \| null | Present when the check failed |
+
+Query parameter `?force=1` bypasses the server-side cache (default TTL 12 h) and re-fetches from GitHub. It requires an authenticated **administrator** — public callers always get the cached/background result (this also prevents the endpoint from being used to hammer GitHub). The re-check button is therefore only shown in the admin panel, not on public pages.
+
+**Fail-open:** if the check cannot reach GitHub (private repo, network error, rate limit), the endpoint still returns `200` with `outdated: false`, `severity: "none"`, and an `error` field. The app never locks down on a failed check.
+
+**Update lockdown:** while a `security` or `critical` update is pending, security-sensitive endpoints return `403` with `{ success: false, error, updateRequired: true, severity, latest }`:
+
+- Auth: `POST /auth/passkeys/options`, `POST /auth/passkeys/register`, `DELETE /auth/passkeys/:id`, `POST /auth/totp/setup`, `POST /auth/totp/enable`, `POST /auth/totp/disable`, `POST /auth/change-password`
+- Admin: `PATCH /admin/users/:id`, `DELETE /admin/users/:id`, `POST /admin/users/:id/reset-password`, `POST /admin/roles`, `PATCH /admin/roles/:id`, `DELETE /admin/roles/:id`, `POST /admin/badges`, `PATCH /admin/badges/:id`, `DELETE /admin/badges/:id`
+- Webhooks: `POST /webhooks`, `PATCH /webhooks/:id`, `POST /webhooks/:id/rotate-secret`, `DELETE /webhooks/:id`
+
+Read-only and non-security endpoints keep working normally during the lockdown.
+
 ## Auth
 
 | Method | Endpoint | Description |

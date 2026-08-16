@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Webhook, type WebhookEvent, type WebhookDelivery, WEBHOOK_EVENTS } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Send, KeyRound, RefreshCw, Copy, CheckCircle, XCircle, ChevronDown, ChevronUp, History, Pencil } from "lucide-react";
+import { useUpdateLockdown } from "@/lib/useVersionCheck";
+import { Plus, Trash2, Send, KeyRound, RefreshCw, Copy, CheckCircle, XCircle, ChevronDown, ChevronUp, History, Pencil, ShieldAlert } from "lucide-react";
 
 const EVENT_LABELS: Record<WebhookEvent, string> = {
   "profile.viewed": "Profile viewed",
@@ -25,6 +26,7 @@ const EVENT_DESCS: Record<WebhookEvent, string> = {
 
 export function WebhooksTab() {
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const { locked, data } = useUpdateLockdown();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -256,6 +258,21 @@ export function WebhooksTab() {
         </div>
       )}
 
+      {locked && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+          <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-red-300">
+            <p className="font-semibold">
+              A critical or security update is required (v{data?.latest ?? "…"} available).
+            </p>
+            <p className="mt-0.5 text-red-300/80">
+              Creating, editing, pausing, rotating secrets or deleting webhooks is locked until the app is
+              updated. Test deliveries still work.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
         <h4 className="text-sm font-medium text-white">About webhooks</h4>
         <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
@@ -291,7 +308,7 @@ export function WebhooksTab() {
       )}
 
       {!creating ? (
-        <Button onClick={() => setCreating(true)}>
+        <Button onClick={() => setCreating(true)} disabled={locked}>
           <Plus className="h-4 w-4" /> New Webhook
         </Button>
       ) : (
@@ -365,7 +382,7 @@ export function WebhooksTab() {
             </button>
           </label>
           <div className="flex gap-3">
-            <Button onClick={handleCreate} disabled={busy}>
+            <Button onClick={handleCreate} disabled={busy || locked}>
               <Plus className="h-4 w-4" /> {busy ? "Creating..." : "Create"}
             </Button>
             <Button variant="secondary" onClick={() => setCreating(false)}>
@@ -429,7 +446,7 @@ export function WebhooksTab() {
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <Button onClick={handleSaveEdit}>Save</Button>
+                    <Button onClick={handleSaveEdit} disabled={locked}>Save</Button>
                     <Button variant="secondary" onClick={() => setEditingId(null)}>
                       Cancel
                     </Button>
@@ -450,22 +467,25 @@ export function WebhooksTab() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => handleToggleActive(w)}
-                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${w.active ? "bg-violet-600" : "bg-zinc-700"}`}
-                        title={w.active ? "Active" : "Paused"}
+                        disabled={locked}
+                        title={locked ? "Locked until the app is updated" : w.active ? "Active" : "Paused"}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${w.active ? "bg-violet-600" : "bg-zinc-700"}`}
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${w.active ? "translate-x-6" : "translate-x-1"}`} />
                       </button>
                       <button
                         onClick={() => startEdit(w)}
-                        className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                        title="Edit"
+                        disabled={locked}
+                        className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={locked ? "Locked until the app is updated" : "Edit"}
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleRotate(w.id)}
-                        className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                        title="Rotate signing secret"
+                        disabled={locked}
+                        className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={locked ? "Locked until the app is updated" : "Rotate signing secret"}
                       >
                         <KeyRound className="h-4 w-4" />
                       </button>
@@ -479,8 +499,9 @@ export function WebhooksTab() {
                       </button>
                       <button
                         onClick={() => handleDelete(w.id)}
-                        className="p-2 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition-colors"
-                        title="Delete"
+                        disabled={locked}
+                        className="p-2 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={locked ? "Locked until the app is updated" : "Delete"}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
