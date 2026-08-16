@@ -20,12 +20,16 @@ export function InvitesTab() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await api.getInvites();
-    if (res.success && res.data) {
-      setCodes(res.data.data);
-      setMeta(res.data.meta);
-    } else {
-      setError(res.error ?? "Could not load invites");
+    try {
+      const res = await api.getInvites();
+      if (res.success && Array.isArray(res.data)) {
+        setCodes(res.data);
+        setMeta(res.meta ?? null);
+      } else {
+        setError(res.error ?? "Could not load invites");
+      }
+    } catch {
+      setError("Could not load invites");
     }
     setLoading(false);
   }, []);
@@ -47,9 +51,9 @@ export function InvitesTab() {
       setError(res.error ?? "Could not generate invites");
       return;
     }
-    if (res.data) {
-      setCodes(res.data.data);
-      setMeta(res.data.meta);
+    if (Array.isArray(res.data)) {
+      setCodes(res.data);
+      setMeta(res.meta ?? null);
     }
     setMessage("Invites generated!");
     setCount(1);

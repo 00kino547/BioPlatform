@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Registration now reports specific validation errors for the username, email, password, and invite code in the form and API response.
+- The dashboard **Invites** tab crashed the whole page instead of loading: the API returns `{ success, data: <codes>, meta: <generation status> }` but the tab read the response as if the codes array and meta were nested under `data.data`/`data.meta`, so `codes` became `undefined` and rendering threw `Cannot read properties of undefined (reading 'length')`. The tab now consumes the real response shape (and tolerates unexpected responses), so it loads for every user — including when invite generation is disabled — instead of unmounting the dashboard.
 
 ### Security
 - Registration failures now increment the auth blacklist counters only when the submitted invite code is invalid, used, revoked, or expired; ordinary validation failures and duplicate account details no longer consume auth failure attempts.
