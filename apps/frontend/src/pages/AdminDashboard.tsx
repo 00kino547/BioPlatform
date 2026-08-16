@@ -47,7 +47,7 @@ interface UserProfile {
   banner: string | null;
   location: string | null;
   website: string | null;
-  socialLinks: { platform: string; url: string }[] | null;
+  socialLinks: { platform: string; url: string; label?: string }[] | null;
   isPublic: boolean;
 }
 

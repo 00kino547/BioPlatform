@@ -183,10 +183,16 @@ export interface ProfileAlias {
   createdAt: string;
 }
 
+export interface SocialLink {
+  platform: string;
+  url: string;
+  label?: string;
+}
+
 export interface Profile {
   id: string;
-  userId: string;
   slug: string;
+  requestedSlug: string;
   isPrimary: boolean;
   badges: string[];
   aliases?: ProfileAlias[];
@@ -196,7 +202,7 @@ export interface Profile {
   banner: string | null;
   location: string | null;
   website: string | null;
-  socialLinks: { platform: string; url: string }[] | null;
+  socialLinks: SocialLink[] | null;
   theme: {
     bg?: string;
     cardBg?: string;
@@ -234,7 +240,7 @@ export interface PublicProfile {
   banner: string | null;
   location: string | null;
   website: string | null;
-  socialLinks: { platform: string; url: string }[] | null;
+  socialLinks: SocialLink[] | null;
   theme: {
     bg?: string;
     cardBg?: string;
@@ -411,7 +417,7 @@ export interface ProfileUpdate {
   bio?: string | null;
   location?: string | null;
   website?: string | null;
-  socialLinks?: { platform: string; url: string }[] | null;
+  socialLinks?: SocialLink[] | null;
   theme?: Profile["theme"];
   isPublic?: boolean;
 }

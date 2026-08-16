@@ -11,7 +11,7 @@ import { DiscordTab } from "@/components/settings/DiscordTab";
 import { DataTab } from "@/components/settings/DataTab";
 import { InvitesTab } from "@/components/settings/InvitesTab";
 import { DomainTab } from "@/components/settings/DomainTab";
-import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge } from "@/lib/api";
+import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge, type SocialLink } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
 import {
@@ -29,6 +29,8 @@ import {
   Send,
   CheckCircle,
   XCircle,
+  Check,
+  X,
   Music,
   Upload,
   ChevronUp,
@@ -294,11 +296,16 @@ export function Dashboard() {
   const [location, setLocation] = useState("");
   const [website, setWebsite] = useState("");
   const [isPublic, setIsPublic] = useState(true);
-  const [socialLinks, setSocialLinks] = useState<{ platform: string; url: string }[]>([]);
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
 
   const [newPlatform, setNewPlatform] = useState("Twitter");
   const [newUrl, setNewUrl] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editPlatform, setEditPlatform] = useState("Twitter");
+  const [editUrl, setEditUrl] = useState("");
+  const [editLabel, setEditLabel] = useState("");
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -526,10 +533,9 @@ export function Dashboard() {
     }
   };
 
-  const addLink = () => {
-    if (!newUrl) return;
-    let url = newUrl.trim();
-    const platformLower = newPlatform.toLowerCase();
+  const normalizeLinkUrl = (platform: string, raw: string): { url?: string; error?: string } => {
+    let url = raw.trim();
+    const platformLower = platform.toLowerCase();
     if (platformLower === "email") {
       if (!url.startsWith("mailto:")) {
         url = `mailto:${url}`;
@@ -548,30 +554,78 @@ export function Dashboard() {
             (/^\/invite\/.+/.test(parsed.pathname) ||
               (h === "discord.gg" && /^\/.+/.test(parsed.pathname) && !parsed.pathname.startsWith("/invite")));
           if (!isInvite) {
-            setUploadError("Invalid Discord link. Use a discord.gg invite or a username.");
-            return;
+            return { error: "Invalid Discord link. Use a discord.gg invite or a username." };
           }
           url = candidate;
         } catch {
-          setUploadError("Invalid Discord URL.");
-          return;
+          return { error: "Invalid Discord URL." };
         }
       } else {
         if (!/^[a-z0-9_.]{2,32}$/i.test(url) || /\.\./.test(url) || /^\./.test(url) || /\.$/.test(url)) {
-          setUploadError("Invalid Discord username. Use 2-32 characters: letters, numbers, underscores, or periods.");
-          return;
+          return { error: "Invalid Discord username. Use 2-32 characters: letters, numbers, underscores, or periods." };
         }
       }
     } else if (!/^https?:\/\//i.test(url)) {
       url = `https://${url}`;
     }
+    return { url };
+  };
+
+  const addLink = () => {
+    if (!newUrl) return;
+    const result = normalizeLinkUrl(newPlatform, newUrl);
+    if (result.error) {
+      setUploadError(result.error);
+      return;
+    }
     setUploadError("");
-    setSocialLinks([...socialLinks, { platform: newPlatform, url }]);
+    setSocialLinks([
+      ...socialLinks,
+      {
+        platform: newPlatform,
+        url: result.url!,
+        ...(newLabel.trim() ? { label: newLabel.trim() } : {}),
+      },
+    ]);
     setNewUrl("");
+    setNewLabel("");
   };
 
   const removeLink = (index: number) => {
     setSocialLinks(socialLinks.filter((_, i) => i !== index));
+  };
+
+  const startEditLink = (index: number) => {
+    setEditPlatform(socialLinks[index].platform);
+    setEditUrl(socialLinks[index].url);
+    setEditLabel(socialLinks[index].label ?? "");
+    setEditingIndex(index);
+  };
+
+  const cancelEditLink = () => {
+    setEditingIndex(null);
+  };
+
+  const saveEditLink = () => {
+    if (editingIndex === null || !editUrl) return;
+    const result = normalizeLinkUrl(editPlatform, editUrl);
+    if (result.error) {
+      setUploadError(result.error);
+      return;
+    }
+    setUploadError("");
+    setSocialLinks(
+      socialLinks.map((link, i) =>
+        i === editingIndex
+          ? {
+              platform: editPlatform,
+              url: result.url!,
+              ...(editLabel.trim() ? { label: editLabel.trim() } : {}),
+            }
+          : link
+      )
+    );
+    setEditingIndex(null);
   };
 
   const handleSaveEmail = async () => {
@@ -1325,6 +1379,19 @@ export function Dashboard() {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+            <input
+              type="text"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addLink();
+                }
+              }}
+              placeholder="Label (optional) — e.g. My Discord Server"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            />
 
             {socialLinks.length === 0 && (
               <p className="text-sm text-zinc-500 text-center py-8">
@@ -1332,30 +1399,93 @@ export function Dashboard() {
               </p>
             )}
 
-            {socialLinks.map((link, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <PlatformIcon platform={link.platform} className="h-4 w-4 text-violet-400" />
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      {platformDisplayNames[link.platform.toLowerCase()] ?? link.platform}
-                    </p>
-                    <p className="text-xs text-zinc-400 truncate max-w-xs">
-                      {link.url.startsWith("mailto:") ? link.url.slice(7) : link.url}
-                    </p>
+            {socialLinks.map((link, i) =>
+              editingIndex === i ? (
+                <div
+                  key={i}
+                  className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3"
+                >
+                  <div className="flex gap-2">
+                    <select
+                      value={editPlatform}
+                      onChange={(e) => setEditPlatform(e.target.value)}
+                      className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                      {platforms.map((p) => (
+                        <option key={p} value={p}>
+                          {platformDisplayNames[p.toLowerCase()] ?? p}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type={editPlatform.toLowerCase() === "email" || editPlatform.toLowerCase() === "discord" ? "text" : "url"}
+                      value={editUrl}
+                      onChange={(e) => setEditUrl(e.target.value)}
+                      placeholder={
+                        editPlatform.toLowerCase() === "email" ? "user@example.com"
+                          : editPlatform.toLowerCase() === "discord" ? "username or discord.gg/invite"
+                          : "https://..."
+                      }
+                      className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          saveEditLink();
+                        }
+                      }}
+                      placeholder="Label (optional)"
+                      className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                    <Button onClick={saveEditLink} size="icon">
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button onClick={cancelEditLink} size="icon" variant="ghost">
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <button
-                  onClick={() => removeLink(i)}
-                  className="text-zinc-500 hover:text-red-400 transition-colors"
+              ) : (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-3">
+                    <PlatformIcon platform={link.platform} className="h-4 w-4 text-violet-400" />
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        {link.label || (platformDisplayNames[link.platform.toLowerCase()] ?? link.platform)}
+                      </p>
+                      <p className="text-xs text-zinc-400 truncate max-w-xs">
+                        {platformDisplayNames[link.platform.toLowerCase()] ?? link.platform}
+                        {link.label ? " · " : ""}
+                        {link.url.startsWith("mailto:") ? link.url.slice(7) : link.url}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => startEditLink(i)}
+                      className="text-zinc-500 hover:text-violet-400 transition-colors"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => removeLink(i)}
+                      className="text-zinc-500 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         )}
 

@@ -1259,6 +1259,7 @@ export const openapi = {
         properties: {
           platform: { type: "string", description: "Must be a platform from the allowlist" },
           url: { type: "string", description: "Valid http(s)/mailto URL" },
+          label: { type: "string", description: "Optional user-defined label shown to visitors" },
         },
       },
       ProfileDomain: {
