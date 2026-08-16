@@ -4,10 +4,12 @@ import { startRegistration } from "@simplewebauthn/browser";
 import { api, type Passkey } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info, Lock, Eye, EyeOff } from "lucide-react";
+import { useUpdateLockdown } from "@/lib/useVersionCheck";
+import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
 
 export function SecurityTab() {
   const { user, refreshUser } = useAuth();
+  const { locked, data } = useUpdateLockdown();
   const [passkeys, setPasskeys] = useState<Passkey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -190,6 +192,21 @@ export function SecurityTab() {
         </div>
       )}
 
+      {locked && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+          <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-red-300">
+            <p className="font-semibold">
+              A critical or security update is required (v{data?.latest ?? "…"} available).
+            </p>
+            <p className="mt-0.5 text-red-300/80">
+              Changing your password, passkeys and two-factor authentication is locked until the app is
+              updated to protect your account.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -202,7 +219,7 @@ export function SecurityTab() {
             </div>
           </div>
           {!addingPasskey && (
-            <Button size="sm" onClick={() => setAddingPasskey(true)}>
+            <Button size="sm" onClick={() => setAddingPasskey(true)} disabled={locked}>
               <Plus className="h-4 w-4" />
               Add passkey
             </Button>
@@ -256,7 +273,7 @@ export function SecurityTab() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={handleAddPasskey} disabled={passkeyBusy}>
+              <Button size="sm" onClick={handleAddPasskey} disabled={passkeyBusy || locked}>
                 {passkeyBusy ? "Registering..." : "Register passkey"}
               </Button>
               <Button size="sm" variant="secondary" onClick={() => setAddingPasskey(false)}>
@@ -299,8 +316,9 @@ export function SecurityTab() {
                 </div>
                 <button
                   onClick={() => handleDeletePasskey(p.id)}
-                  className="text-zinc-500 hover:text-red-400 transition-colors"
-                  title="Remove passkey"
+                  disabled={locked}
+                  className="text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={locked ? "Locked until the app is updated" : "Remove passkey"}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -383,7 +401,7 @@ export function SecurityTab() {
               {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          <Button onClick={handleChangePassword} disabled={passwordBusy}>
+          <Button onClick={handleChangePassword} disabled={passwordBusy || locked}>
             {passwordBusy ? "Updating..." : "Update password"}
           </Button>
         </div>
@@ -413,7 +431,7 @@ export function SecurityTab() {
         </div>
 
         {!totpEnabled && !totpSecret && (
-          <Button variant="secondary" onClick={handleSetupTotp} disabled={totpBusy}>
+          <Button variant="secondary" onClick={handleSetupTotp} disabled={totpBusy || locked}>
             {totpBusy ? "Starting..." : "Set up"}
           </Button>
         )}
@@ -444,7 +462,7 @@ export function SecurityTab() {
                       placeholder="••••••"
                       className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-center text-lg tracking-[0.4em] text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
-                    <Button onClick={handleEnableTotp} disabled={totpBusy || totpCode.length !== 6}>
+                    <Button onClick={handleEnableTotp} disabled={totpBusy || totpCode.length !== 6 || locked}>
                       {totpBusy ? "Enabling..." : "Enable"}
                     </Button>
                   </div>
@@ -467,7 +485,7 @@ export function SecurityTab() {
         {totpEnabled && (
           <div>
             {!showDisable ? (
-              <Button variant="outline" size="sm" onClick={() => setShowDisable(true)}>
+              <Button variant="outline" size="sm" onClick={() => setShowDisable(true)} disabled={locked}>
                 Disable two-factor
               </Button>
             ) : (
@@ -480,7 +498,7 @@ export function SecurityTab() {
                   placeholder="Current code"
                   className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
-                <Button size="sm" variant="outline" onClick={handleDisableTotp} disabled={totpBusy || totpCode.length !== 6}>
+                <Button size="sm" variant="outline" onClick={handleDisableTotp} disabled={totpBusy || totpCode.length !== 6 || locked}>
                   {totpBusy ? "Disabling..." : "Confirm disable"}
                 </Button>
                 <button

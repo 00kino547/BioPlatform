@@ -13,6 +13,7 @@ interface ApiResponse<T = unknown, M = unknown> {
   error?: string;
   fieldErrors?: Record<string, string>;
   unlockRequired?: boolean;
+  updateRequired?: boolean;
 }
 
 let _token: string | null = localStorage.getItem("token");
@@ -420,6 +421,35 @@ export interface ProfileUpdate {
   socialLinks?: SocialLink[] | null;
   theme?: Profile["theme"];
   isPublic?: boolean;
+}
+
+export interface ChangelogSection {
+  heading: string;
+  items: string[];
+}
+
+export interface ChangelogVersion {
+  version: string;
+  date?: string;
+  sections: ChangelogSection[];
+}
+
+export type UpdateSeverity = "none" | "update" | "security" | "critical";
+
+export interface VersionCheckData {
+  enabled: boolean;
+  installed: string;
+  latest: string | null;
+  outdated: boolean;
+  severity: UpdateSeverity;
+  skippedVersions: ChangelogVersion[];
+  skippedCount: number;
+  releaseUrl: string;
+  releasesUrl: string;
+  changelogUrl: string;
+  checkedAt: string;
+  source: string;
+  error?: string;
 }
 
 export const api = {
@@ -843,6 +873,8 @@ export const api = {
 
   getInviteEvents: () =>
     request<InviteGrantEvent[]>("/admin/invite-events"),
+
+  getVersionCheck: (force = false) => request<VersionCheckData>(`/version${force ? "?force=1" : ""}`),
 };
 
 export interface InviteCodeInfo {

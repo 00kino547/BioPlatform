@@ -20,6 +20,7 @@ import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.
 import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
 import { issueCertificateForDomain } from "../lib/acme.js";
+import { requireNoUpdateLockdown } from "../lib/versionCheck.js";
 
 const router = Router();
 
@@ -164,7 +165,7 @@ router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (req, res)
   });
 });
 
-router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -292,7 +293,7 @@ router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (r
   }
 });
 
-router.delete("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.delete("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const { id } = req.params;
 
   if (id === req.userId) {
@@ -353,7 +354,7 @@ router.delete("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), async (
   res.json({ success: true, message: "User deleted" });
 });
 
-router.post("/users/:id/reset-password", requirePermission(PERMISSIONS.USERS_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.post("/users/:id/reset-password", requirePermission(PERMISSIONS.USERS_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -557,7 +558,7 @@ router.get("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (_req, r
   res.json({ success: true, data: roles });
 });
 
-router.post("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: Request, res: Response) => {
+router.post("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), requireNoUpdateLockdown, async (req: Request, res: Response) => {
   const parsed = roleSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -588,7 +589,7 @@ router.post("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: R
   res.status(201).json({ success: true, data: role });
 });
 
-router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const parsed = roleUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -636,7 +637,7 @@ router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (r
   res.json({ success: true, data: updated });
 });
 
-router.delete("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.delete("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const role = await prisma.role.findUnique({ where: { id: req.params.id } });
   if (!role) {
     return res.status(404).json({ success: false, error: "Role not found" });
@@ -767,7 +768,7 @@ router.get("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (_req,
   res.json({ success: true, data: badges });
 });
 
-router.post("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req: Request, res: Response) => {
+router.post("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), requireNoUpdateLockdown, async (req: Request, res: Response) => {
   const parsed = badgeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -785,7 +786,7 @@ router.post("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req:
   res.status(201).json({ success: true, data: badge });
 });
 
-router.patch("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.patch("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const parsed = badgeUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -813,7 +814,7 @@ router.patch("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), async 
   res.json({ success: true, data: updated });
 });
 
-router.delete("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), async (req: Request<{ id: string }>, res) => {
+router.delete("/badges/:id", requirePermission(PERMISSIONS.BADGES_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
   const badge = await prisma.badge.findUnique({ where: { id: req.params.id } });
   if (!badge) {
     return res.status(404).json({ success: false, error: "Badge not found" });

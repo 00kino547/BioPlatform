@@ -28,6 +28,38 @@ Un **admin puede anular el plan por defecto** concediendo el permiso `api.basic`
 
 Público. Devuelve `{ "status": "ok", "timestamp": "..." }`.
 
+## Versión
+
+### `GET /api/version`
+
+Público. Comprobación de la versión del software y de actualizaciones. Devuelve la versión instalada y — cuando la comprobación de actualizaciones está habilitada en el servidor — la última versión publicada y una severidad derivada del CHANGELOG público del repositorio de GitHub (`APP_GITHUB_URL`).
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `enabled` | boolean | Si la comprobación de actualizaciones está habilitada en el servidor |
+| `installed` | string | Versión instalada de la aplicación |
+| `latest` | string \| null | Última versión publicada del CHANGELOG (omite `[Unreleased]`) |
+| `outdated` | boolean | `true` cuando la versión instalada está por detrás de la última |
+| `severity` | `none` \| `update` \| `security` \| `critical` | `security` cuando alguna versión omitida contiene correcciones de seguridad; `critical` cuando la seguridad se combina con una instalación muy antigua o muchas versiones omitidas, cuando la versión instalada es más antigua que todas las versiones documentadas, o cuando el número de versiones omitidas alcanza `UPDATE_CRITICAL_STALE_THRESHOLD` |
+| `skippedVersions` | array | Versiones más nuevas que la instalada con sus secciones de changelog, para renderizar en la interfaz |
+| `skippedCount` | integer | Número de versiones omitidas |
+| `releaseUrl` / `releasesUrl` / `changelogUrl` | string | Enlaces al release/changelog de GitHub |
+| `checkedAt` | string | Marca de tiempo ISO de la comprobación |
+| `source` | `github-raw` \| `github-api` \| `jsdelivr` \| `cache` \| `none` | De dónde se obtuvo el CHANGELOG |
+| `error` | string \| null | Presente cuando la comprobación falló |
+
+Parámetro de consulta `?force=1` omite la caché del servidor (TTL por defecto 12 h) y vuelve a consultar GitHub. Requiere un **administrador** autenticado — los usuarios públicos siempre reciben el resultado en caché/de fondo (esto también evita usar el endpoint para saturar GitHub). Por eso el botón de re-comprobación solo aparece en el panel de administración, no en las páginas públicas.
+
+**Fail-open:** si la comprobación no puede alcanzar GitHub (repositorio privado, error de red, límite de peticiones), el endpoint devuelve igualmente `200` con `outdated: false`, `severity: "none"` y un campo `error`. La aplicación nunca bloquea funciones por una comprobación fallida.
+
+**Bloqueo por actualización:** mientras haya una actualización `security` o `critical` pendiente, los endpoints sensibles de seguridad devuelven `403` con `{ success: false, error, updateRequired: true, severity, latest }`:
+
+- Auth: `POST /auth/passkeys/options`, `POST /auth/passkeys/register`, `DELETE /auth/passkeys/:id`, `POST /auth/totp/setup`, `POST /auth/totp/enable`, `POST /auth/totp/disable`, `POST /auth/change-password`
+- Admin: `PATCH /admin/users/:id`, `DELETE /admin/users/:id`, `POST /admin/users/:id/reset-password`, `POST /admin/roles`, `PATCH /admin/roles/:id`, `DELETE /admin/roles/:id`, `POST /admin/badges`, `PATCH /admin/badges/:id`, `DELETE /admin/badges/:id`
+- Webhooks: `POST /webhooks`, `PATCH /webhooks/:id`, `POST /webhooks/:id/rotate-secret`, `DELETE /webhooks/:id`
+
+Los endpoints de solo lectura y los que no son de seguridad siguen funcionando normalmente durante el bloqueo.
+
 ## Auth
 
 | Método | Endpoint | Descripción |

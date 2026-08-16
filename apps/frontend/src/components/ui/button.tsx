@@ -1,13 +1,20 @@
-import { type ButtonHTMLAttributes, forwardRef } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactElement } from "react";
 import { cn } from "@/lib/utils";
 
 type ButtonVariant = "default" | "secondary" | "ghost" | "outline" | "link";
 type ButtonSize = "default" | "sm" | "lg" | "icon";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface BaseButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  className?: string;
 }
+
+type ButtonAsButton = BaseButtonProps &
+  Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof BaseButtonProps>;
+
+type ButtonAsLink = BaseButtonProps &
+  Omit<AnchorHTMLAttributes<HTMLAnchorElement>, keyof BaseButtonProps> & { href: string };
 
 const variantStyles: Record<ButtonVariant, string> = {
   default:
@@ -27,20 +34,19 @@ const sizeStyles: Record<ButtonSize, string> = {
   icon: "h-10 w-10",
 };
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", ...props }, ref) => (
-    <button
-      ref={ref}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
-        variantStyles[variant],
-        sizeStyles[size],
-        className
-      )}
-      {...props}
-    />
-  )
-);
-Button.displayName = "Button";
+const baseClasses =
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 cursor-pointer";
 
-export { Button, type ButtonProps, type ButtonVariant, type ButtonSize };
+export function Button(props: ButtonAsLink): ReactElement;
+export function Button(props: ButtonAsButton): ReactElement;
+export function Button(props: ButtonAsButton | ButtonAsLink): ReactElement {
+  const { variant = "default", size = "default", className, ...rest } = props;
+  const classes = cn(baseClasses, variantStyles[variant], sizeStyles[size], className);
+
+  if ("href" in props) {
+    return <a className={classes} {...(rest as AnchorHTMLAttributes<HTMLAnchorElement>)} />;
+  }
+  return <button className={classes} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)} />;
+}
+
+export type { ButtonVariant, ButtonSize };
