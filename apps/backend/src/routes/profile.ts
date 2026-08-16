@@ -294,7 +294,7 @@ router.put("/me", requireAuth, async (req, res) => {
   }
 
   const { socialLinks: rawLinks, theme, ...rest } = parsed.data;
-  const socialLinks = rawLinks as { platform: string; url: string }[] | null | undefined;
+  const socialLinks = rawLinks as { platform: string; url: string; label?: string }[] | null | undefined;
 
   const normalizedLinks = socialLinks?.map((l) => {
     if (l.platform.toLowerCase() === "email" && !l.url.startsWith("mailto:")) {

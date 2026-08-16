@@ -325,7 +325,7 @@ export function PublicProfilePage() {
                   />
                   <div className="flex flex-col items-start min-w-0 flex-1">
                     <span className="text-xs font-semibold uppercase tracking-wider opacity-70">
-                      {link.platform}
+                      {link.label || link.platform}
                     </span>
                     <span className="text-xs opacity-60 truncate w-full text-left">
                       {displayText}

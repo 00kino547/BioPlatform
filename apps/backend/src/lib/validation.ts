@@ -131,6 +131,7 @@ export const updateProfileSchema = z.object({
           message: "Unsupported platform",
         }),
         url: z.string().max(256).transform((v) => stripHtml(v)),
+        label: z.string().max(64).transform((v) => stripHtml(v).trim() || undefined).optional(),
       })
     )
     .max(10)
