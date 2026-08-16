@@ -6,9 +6,10 @@ import { getEnv } from "@/config/env";
 
 const API_URL = getEnv("VITE_API_URL") ?? "/api";
 
-interface ApiResponse<T = unknown> {
+interface ApiResponse<T = unknown, M = unknown> {
   success: boolean;
   data?: T;
+  meta?: M;
   error?: string;
   fieldErrors?: Record<string, string>;
   unlockRequired?: boolean;
@@ -29,10 +30,10 @@ export function setToken(token: string | null) {
   }
 }
 
-async function request<T>(
+async function request<T, M = unknown>(
   path: string,
   options: RequestInit = {}
-): Promise<ApiResponse<T>> {
+): Promise<ApiResponse<T, M>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -808,10 +809,10 @@ export const api = {
       body: JSON.stringify(url ? { url } : {}),
     }),
 
-  getInvites: () => request<{ data: InviteCodeInfo[]; meta: InviteMeta }>("/invites"),
+  getInvites: () => request<InviteCodeInfo[], InviteMeta>("/invites"),
 
   generateInvites: (body: { count: number; expiresInDays?: number }) =>
-    request<{ data: InviteCodeInfo[]; meta: InviteMeta }>("/invites", {
+    request<InviteCodeInfo[], InviteMeta>("/invites", {
       method: "POST",
       body: JSON.stringify(body),
     }),
