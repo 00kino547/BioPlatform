@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { api, type LoginMethods, type TwoFactorRequired } from "@/lib/api";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { KeyRound, Fingerprint, Lock } from "lucide-react";
 import { usePageMeta } from "@/lib/seo";
 
@@ -133,7 +134,8 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="text-2xl font-bold text-white tracking-tight">
@@ -325,6 +327,8 @@ export function Login() {
           </Link>
         </p>
       </div>
+      </div>
+      <AppFooter />
     </div>
   );
 }

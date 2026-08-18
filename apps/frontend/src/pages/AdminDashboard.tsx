@@ -5,6 +5,7 @@ import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/updates/UpdateDialog";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { getToken, type Badge, type Role, type InviteGrantEvent } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
@@ -1895,6 +1896,8 @@ export function AdminDashboard() {
           </div>
         )}
       </main>
+
+      <AppFooter />
 
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

@@ -11,6 +11,7 @@ import { DiscordTab } from "@/components/settings/DiscordTab";
 import { DataTab } from "@/components/settings/DataTab";
 import { InvitesTab } from "@/components/settings/InvitesTab";
 import { DomainTab } from "@/components/settings/DomainTab";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge, type SocialLink } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
@@ -2354,6 +2355,8 @@ export function Dashboard() {
           <DomainTab profileId={profile?.id} profiles={profiles} />
         )}
       </main>
+
+      <AppFooter />
 
       {avatarCropFile && (
         <ImageCropper

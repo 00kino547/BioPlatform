@@ -4,6 +4,7 @@ import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { usePageMeta } from "@/lib/seo";
+import { AppFooter } from "@/components/layout/AppFooter";
 
 export function Unlock() {
   const [searchParams] = useSearchParams();
@@ -37,7 +38,8 @@ export function Unlock() {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
         <div className="mb-8">
           <Link to="/" className="text-2xl font-bold text-white tracking-tight">
@@ -79,6 +81,8 @@ export function Unlock() {
           )}
         </div>
       </div>
+      </div>
+      <AppFooter />
     </div>
   );
 }
