@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { usePageMeta } from "@/lib/seo";
+import { AppFooter } from "@/components/layout/AppFooter";
 
 type RegisterField = "username" | "email" | "password" | "inviteCode";
 type RegisterFieldErrors = Partial<Record<RegisterField, string>>;
@@ -73,7 +74,8 @@ export function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="text-2xl font-bold text-white tracking-tight">
@@ -201,6 +203,8 @@ export function Register() {
           </Link>
         </p>
       </div>
+      </div>
+      <AppFooter />
     </div>
   );
 }

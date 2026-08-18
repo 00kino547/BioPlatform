@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
+import { AppFooter } from "@/components/layout/AppFooter";
 
 export function Privacy() {
   usePageMeta({ title: "Privacy Policy", description: `Read how ${branding.name} collects, uses, and protects your data.`, url: "/privacy" });
@@ -19,13 +20,19 @@ export function Privacy() {
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: August 8, 2026</p>
+        <p className="text-sm text-zinc-500 mb-8">Last updated: August 16, 2026</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">1. Information We Collect</h2>
             <p className="text-zinc-400">
-              When you create an account on {branding.name}, we collect your email address, username, and password (stored as a bcrypt hash). We also store any profile information you choose to provide, including display name, bio, avatar, banner, location, website, social links, and theme preferences.
+              When you create an account on {branding.name}, we collect your email address, username, and password (stored as a bcrypt hash). We also store any profile information you choose to provide, including display name, bio, avatar, banner, location, website, social links, theme preferences, and profile badges.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              For security and abuse prevention, we record your IP address at registration and your most recent login IP address. Failed authentication attempts are logged with your IP address, a hash of your browser user-agent string, and an anonymous browser fingerprint cookie. These logs are retained for up to 30 days and then automatically deleted.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              If you enable passkey (WebAuthn) login, we store the public key and credential identifier for each registered passkey. If you enable two-factor authentication using an authenticator app, we store your TOTP secret encrypted at rest. Neither passkey private keys nor TOTP secrets are ever stored.
             </p>
           </section>
 
@@ -34,12 +41,15 @@ export function Privacy() {
             <p className="text-zinc-400">
               We use your information to provide and maintain the {branding.name} service, to personalize your experience, and to communicate with you about your account. We do not sell, trade, or otherwise transfer your personal information to third parties.
             </p>
+            <p className="text-zinc-400 mt-2">
+              IP addresses and authentication logs are used solely for security purposes: to detect and prevent brute-force attacks, to evaluate login trust, and to enforce temporary account lockouts when repeated failures are detected.
+            </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">3. Data Storage and Security</h2>
             <p className="text-zinc-400">
-              Your data is stored on servers operated by us or our hosting providers. We implement industry-standard security measures including bcrypt password hashing, JWT authentication, and HTTPS encryption. However, no method of electronic transmission or storage is 100% secure.
+              Your data is stored on servers operated by us or our hosting providers. We implement industry-standard security measures including bcrypt password hashing, JWT authentication, encrypted storage of sensitive credentials (TOTP secrets, passkey data, webhook URLs, Discord tokens), and HTTPS encryption. However, no method of electronic transmission or storage is 100% secure.
             </p>
           </section>
 
@@ -85,16 +95,37 @@ export function Privacy() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5d. Webhooks and Integrations</h2>
+            <p className="text-zinc-400">
+              You may configure outgoing webhooks to receive notifications about profile events (views, link clicks, etc.) on endpoints you provide. Webhook URLs and secrets are stored encrypted and are used only to deliver the events you request. You are responsible for the privacy practices of the endpoints you configure — we do not control how third-party webhook receivers handle the data they receive.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5e. Custom Domains and TLS</h2>
+            <p className="text-zinc-400">
+              If you configure a custom domain for your profile, the domain name and a verification token are stored to confirm ownership. When automatic TLS (HTTPS) is enabled, {branding.name} obtains and stores Let&rsquo;s Encrypt TLS certificates and the associated account key on the server to enable encrypted connections for your domain. Certificate data is used solely to serve your profile over HTTPS and is renewed automatically before expiry.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5f. Version Checking</h2>
+            <p className="text-zinc-400">
+              {branding.name} periodically checks for available software updates by fetching the project&rsquo;s public CHANGELOG from GitHub (via <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">raw.githubusercontent.com</code>, the GitHub API, and <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">cdn.jsdelivr.net</code>). No personal information is transmitted in these requests — only the public repository URL is used. The check runs in the background on the server at startup and every 12 hours; the result is cached and served to all visitors to display the current version badge. This feature can be disabled by the instance operator.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-white mb-3">6. Data Retention</h2>
             <p className="text-zinc-400">
-              We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period.
+              We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. Authentication failure logs (IP addresses, hashed user-agent strings, browser fingerprints) are retained for up to 30 days and then automatically deleted. Custom domain TLS certificates are retained until renewed or the domain is removed. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">7. Your Rights</h2>
             <p className="text-zinc-400">
-              You have the right to access, update, or delete your personal information at any time through your dashboard. You may also export your data or request complete account deletion by contacting us.
+              You have the right to access, update, or delete your personal information at any time through your dashboard. You may also export your data or request complete account deletion by contacting us. Through your dashboard you can manage your registered passkeys, two-factor authentication settings, linked Discord account, webhook configurations, and custom domains.
             </p>
           </section>
 
@@ -117,18 +148,7 @@ export function Privacy() {
         </div>
       </main>
 
-      <footer className="border-t border-zinc-800/60 bg-zinc-900/20">
-        <div className="mx-auto max-w-4xl px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <p>
-            &copy; {new Date().getFullYear()} {branding.name}. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4">
-            <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
-            <a href={branding.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a>
-            <a href={branding.contactUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Contact</a>
-          </div>
-        </div>
-      </footer>
+      <AppFooter />
     </div>
   );
 }

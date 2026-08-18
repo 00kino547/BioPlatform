@@ -8,6 +8,7 @@ import { bannerSrcSet, avatarSrcSet } from "@/lib/media";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { FloatingMusicPlayer } from "@/components/music/MusicPlayer";
 import { EnterGate } from "@/components/EnterGate";
+import { VersionBadge } from "@/components/updates/VersionBadge";
 import { PresenceWidget } from "@/components/discord/PresenceWidget";
 import { BadgePill } from "@/components/ui/BadgePill";
 import {
@@ -338,12 +339,15 @@ export function PublicProfilePage() {
         )}
       </div>
 
-      <p className="mt-8 text-xs" style={{ color: `${textColor}44` }}>
-        Powered by{" "}
-        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity">
-          {branding.name}
-        </a>
-      </p>
+      <div className="mt-8 flex items-center gap-3">
+        <VersionBadge />
+        <p className="text-xs" style={{ color: `${textColor}44` }}>
+          Powered by{" "}
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity">
+            {branding.name}
+          </a>
+        </p>
+      </div>
 
       {profile.musicTracks && profile.musicTracks.length > 0 && (
         <FloatingMusicPlayer tracks={profile.musicTracks} accent={accent} textColor={textColor} started={entered} />
