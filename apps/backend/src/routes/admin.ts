@@ -554,7 +554,7 @@ function inviteConfigFrom(data: Record<string, unknown>): Record<string, number>
 }
 
 router.get("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), async (_req, res) => {
-  const roles = await prisma.role.findMany({ orderBy: [{ isSystem: "desc" }, { name: "asc" }] });
+  const roles = await prisma.role.findMany({ orderBy: [{ isSystem: "desc" }, { name: "asc" }], take: 200 });
   res.json({ success: true, data: roles });
 });
 
@@ -764,7 +764,7 @@ router.get("/invite-events", requirePermission(PERMISSIONS.INVITES_MANAGE), asyn
 });
 
 router.get("/badges", requirePermission(PERMISSIONS.BADGES_MANAGE), async (_req, res) => {
-  const badges = await prisma.badge.findMany({ orderBy: [{ isSystem: "desc" }, { label: "asc" }] });
+  const badges = await prisma.badge.findMany({ orderBy: [{ isSystem: "desc" }, { label: "asc" }], take: 200 });
   res.json({ success: true, data: badges });
 });
 

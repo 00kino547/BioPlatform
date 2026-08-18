@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 - Registration failures now increment the auth blacklist counters only when the submitted invite code is invalid, used, revoked, or expired; ordinary validation failures and duplicate account details no longer consume auth failure attempts.
+- `GET /api/version` is now rate-limited (6 requests/min/IP) to prevent abuse of the outbound GitHub/jsDelivr fetches.
+- Music upload body fields (`title`, `artist`, `fullUrl`) are now validated with Zod (max 120/120/512 chars) instead of manual type checks.
+- `POST /profiles/click` now uses a Zod schema (`profileId: uuid`, `platform: string`) instead of bare type assertions.
+- Admin list endpoints (`roles`, `badges`, `invites`) are now capped at 200 results to prevent unbounded DB reads.
+- `profileScope` now enforces a max length of 36 on the `profileId` parameter (UUID length).
+- `process.env` references in profile email notifications replaced with validated `getEnv()` calls.
 
 ## [1.3.0-rc.1] - 2026-08-15
 
