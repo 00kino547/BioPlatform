@@ -921,8 +921,8 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
                 to: owner.email,
                 subject: `Someone viewed your profile`,
                 html: buildViewNotification({
-                  appName: process.env.SMTP_FROM_NAME || "BioPlatform",
-                  profileUrl: `${process.env.APP_URL || "http://localhost:80"}/${profile.slug}`,
+                  appName: getEnv().SMTP_FROM_NAME || "BioPlatform",
+                  profileUrl: `${getEnv().APP_URL || "http://localhost:80"}/${profile.slug}`,
                   viewerIp: ip ?? undefined,
                 }),
               }).catch(() => {});
@@ -982,13 +982,18 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
   res.json(body);
 });
 
-router.post("/click", publicRateLimit, async (req, res) => {
-  const { profileId, platform } = req.body as { profileId?: string; platform?: string };
-  if (!profileId || !platform) {
-    return res.status(400).json({ success: false, error: "profileId and platform are required" });
-  }
+const clickSchema = z.object({
+  profileId: z.string().uuid(),
+  platform: z.string(),
+});
 
-  const platformLower = String(platform).toLowerCase();
+router.post("/click", publicRateLimit, async (req, res) => {
+  const parsed = clickSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: "Invalid request" });
+  }
+  const { profileId, platform } = parsed.data;
+  const platformLower = platform.toLowerCase();
   if (!ALLOWED_PLATFORMS.has(platformLower)) {
     return res.status(400).json({ success: false, error: "Unsupported platform" });
   }
@@ -1043,9 +1048,9 @@ router.post("/click", publicRateLimit, async (req, res) => {
                 to: owner.email,
                 subject: `Someone clicked your ${platform} link`,
                 html: buildClickNotification({
-                  appName: process.env.SMTP_FROM_NAME || "BioPlatform",
+                  appName: getEnv().SMTP_FROM_NAME || "BioPlatform",
                   platform,
-                  profileUrl: `${process.env.APP_URL || "http://localhost:80"}/${owner.username}`,
+                  profileUrl: `${getEnv().APP_URL || "http://localhost:80"}/${owner.username}`,
                 }),
               }).catch(() => {});
             }

@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.js";
 
 export function profileScope(userId: string, profileId?: unknown): Prisma.ProfileWhereInput {
-  if (typeof profileId === "string" && profileId.length > 0) {
+  if (typeof profileId === "string" && profileId.length > 0 && profileId.length <= 36) {
     return { id: profileId, userId };
   }
   return { userId, isPrimary: true };

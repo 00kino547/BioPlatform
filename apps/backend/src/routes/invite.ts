@@ -306,6 +306,7 @@ router.get("/", requireAuth, async (req, res) => {
   const codes = await prisma.inviteCode.findMany({
     where: { createdById: req.userId! },
     orderBy: { createdAt: "desc" },
+    take: 200,
     select: {
       id: true,
       code: true,

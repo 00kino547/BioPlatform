@@ -208,12 +208,16 @@ router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
   }
 
   const filePath = `/uploads/${req.file.filename}`;
-  const rawTitle = typeof req.body.title === "string" ? req.body.title : undefined;
-  const rawArtist = typeof req.body.artist === "string" ? req.body.artist : undefined;
-  const rawFullUrl = typeof req.body.fullUrl === "string" ? req.body.fullUrl : undefined;
-  const title = rawTitle ? stripHtml(rawTitle) || null : null;
-  const artist = rawArtist ? stripHtml(rawArtist) || null : null;
+  const uploadBodySchema = z.object({
+    title: z.string().max(120).optional().transform((v) => (v ? stripHtml(v) || null : null)),
+    artist: z.string().max(120).optional().transform((v) => (v ? stripHtml(v) || null : null)),
+    fullUrl: z.string().max(512).optional(),
+  });
+  const bodyParsed = uploadBodySchema.safeParse(req.body);
+  const title = bodyParsed.success ? bodyParsed.data.title : null;
+  const artist = bodyParsed.success ? bodyParsed.data.artist : null;
   let fullUrlValue: string | null = null;
+  const rawFullUrl = bodyParsed.success ? bodyParsed.data.fullUrl : undefined;
   if (rawFullUrl) {
     const parsedFull = parseFullUrl(rawFullUrl.replace(/[<>{}]/g, "").trim());
     if (!parsedFull) {
