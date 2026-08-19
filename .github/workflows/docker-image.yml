@@ -1,0 +1,102 @@
+name: Docker Images
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/bioplatform
+
+jobs:
+  backend:
+    name: Build & Push Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  frontend:
+    name: Build & Push Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+            VITE_APP_NAME=${{ vars.VITE_APP_NAME || 'BioPlatform' }}
+            VITE_APP_TAGLINE=${{ vars.VITE_APP_TAGLINE || 'Your digital identity, beautifully crafted.' }}
+            VITE_APP_DESCRIPTION=${{ vars.VITE_APP_DESCRIPTION || 'Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place.' }}
+            VITE_APP_URL=${{ vars.VITE_APP_URL || 'http://localhost:80' }}
+            VITE_APP_GITHUB_URL=${{ vars.VITE_APP_GITHUB_URL || 'https://github.com/00kino547/BioPlatform' }}
+            VITE_APP_OG_IMAGE=${{ vars.VITE_APP_OG_IMAGE || 'http://localhost:80/og.png' }}
+            VITE_CONTACT_URL=${{ vars.VITE_CONTACT_URL || 'https://github.com/00kino547/BioPlatform/issues' }}
+            VITE_STATUS_URL=${{ vars.VITE_STATUS_URL || '' }}
+            VITE_DOCS_URL=${{ vars.VITE_DOCS_URL || 'https://github.com/00kino547/BioPlatform/tree/main/docs' }}
