@@ -7,15 +7,14 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 ## Features
 
 - Custom profiles with avatars, banners, and bios
-- Social links with platform icons (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email)
+- Social links with platform icons (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email, etc...)
 - Discord username and invite link support
 - Live Discord presence (status, activity, current song) with an opt-in profile widget and rich link previews (OpenGraph meta + server-rendered card)
-- Email `mailto:` links
 - 8 built-in theme presets (Midnight, Ocean, Sunset, Forest, Lavender, Rose, Arctic, Minimal)
 - Theme customization with accent colors
 - Invite-only access
 - Self-hostable with Docker
-- Admin panel (user management, invite codes, profile editing)
+- Admin panel (user management, invite codes, profile editing...)
 - Secure file uploads (local storage, S3-compatible)
 - Input sanitization and platform validation
 - Privacy Policy and Terms of Service pages
@@ -24,13 +23,6 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 ## Screenshots
 
 > Screenshots coming soon.
-
-## Tech Stack
-
-- **Frontend:** React 19, Vite 6, TypeScript 5, TailwindCSS 4
-- **Backend:** Express 5, TypeScript 5, Prisma 6 (PostgreSQL)
-- **Infra:** Docker Compose, Nginx (optional reverse proxy)
-- **Package Manager:** pnpm 11
 
 ## Requirements
 
@@ -106,7 +98,7 @@ The app will be available at http://localhost:80.
 | `STORAGE_PROVIDER` | Storage backend (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Local upload directory | `./uploads` |
 
-See `.env.example` for the full list.
+See `/docs/en/enviroment-variables.md` for the full list.
 
 ## Branding
 
@@ -150,7 +142,7 @@ docker compose --profile nginx up -d --build
 ## Backup Recommendations
 
 - Database: `pg_dump` or volume backup
-- Uploads: regular file backup of `./uploads`
+- Uploads: regular file backup of `./uploads` or S3, etc...
 - Environment: keep `.env` in a secure location (not in version control)
 
 ## Production Recommendations
