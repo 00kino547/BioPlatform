@@ -4,17 +4,18 @@
 
 ## High Priority
 
-- [ ] Affiliate/referral program — referrers earn a discount on their own plan and invited users also get a discount (e.g., % off PRO/ENTERPRISE for both parties)
-- [ ] Affiliate rewards — referrers get a reward for reaching referral milestones (e.g., a discount on upgrading to a paid plan, or premium perks), not new plan tiers
+- [ ] Affiliate/referral program — referrers earn a discount on their own plan and invited users also get a discount (e.g., % off PRO/ENTERPRISE for both parties) — Task Numbered H1
+- [ ] Affiliate rewards — referrers get a reward for reaching referral milestones (e.g., a discount on upgrading to a paid plan, or premium perks), not new plan tiers — Task Numbered M2
 
 ## Medium Priority
-
-- [ ] SSO (Single Sign-On) — let users sign in through a third-party identity provider (Google, GitHub, Discord OAuth, etc.) instead of username + password; link multiple providers to one account and expose a button next to the normal login form
-- [ ] Enterprise team management — the "leader" of an ENTERPRISE workspace can invite team members, assign each a role/permissions, manage seats, and see the whole team from the dashboard
-- [ ] GitHub version checker — on every admin panel entry, show an update warning banner with the CHANGELOG.md loaded and rendered formatted; footer shows the app version (in red when the pending update is critical/security), plus an "Update" state when the installed version is outdated
-- [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment
-- [ ] REST API for third-party integrations
-- [ ] S3/R2/B2 storage providers
+- [ ] Appearance zone — Profiles layouts — Task Numbered M1
+- [ ] Appearance zone — Profiles backgrounds— Task Numbered M2
+- [ ] SSO (Single Sign-On) — let users sign in through a third-party identity provider (Google, GitHub, Discord OAuth, etc.) instead of username + password; link multiple providers to one account and expose a button next to the normal login form — Task Numbered M3
+- [ ] Enterprise team management — the "leader" of an ENTERPRISE workspace can invite team members, assign each a role/permissions, manage seats, and see the whole team from the dashboard — Task Numbered M4
+- [ ] GitHub version checker — on every admin panel entry, show an update warning banner with the CHANGELOG.md loaded and rendered formatted; footer shows the app version (in red when the pending update is critical/security), plus an "Update" state when the installed version is outdated — Task Numbered M5
+- [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment — Task Numbered M6
+- [ ] REST API for third-party integrations — Task Numbered M7
+- [ ] S3/R2/B2 storage providers — Task Numbered M8
 
 ## Low Priority
 
