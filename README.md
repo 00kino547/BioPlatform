@@ -1,5 +1,5 @@
 # BioPlatform
-### Still not ready to production use, expect bugs.
+### Not production-ready yet. Expect bugs.
 
 > Your digital identity, beautifully crafted.
 
@@ -24,6 +24,15 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 ## Screenshots
 
 > Screenshots coming soon.
+
+## 📊 Project Stats
+
+[![Stars](https://img.shields.io/github/stars/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/stargazers)
+[![Forks](https://img.shields.io/github/forks/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/network/members)
+[![Issues](https://img.shields.io/github/issues/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/pulls)
+[![Latest Release](https://img.shields.io/github/v/release/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/releases)
+[![License](https://img.shields.io/github/license/00kino547/BioPlatform?style=flat-square)](LICENSE)
 
 ## Requirements
 
@@ -99,7 +108,7 @@ The app will be available at http://localhost:80.
 | `STORAGE_PROVIDER` | Storage backend (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Local upload directory | `./uploads` |
 
-See `/docs/en/enviroment-variables.md` for the full list.
+See `/docs/en/environment-variables.md` for the full list.
 
 ## Branding
 
@@ -159,7 +168,7 @@ docker compose --profile nginx up -d --build
 - All user input sanitized before storage (HTML-like characters stripped)
 - Platform names validated against an allowlist
 - URLs validated for correct protocol (no `javascript:` etc.)
-- File uploads limited to image extensions only (JPEG, PNG, GIF, WebP)
+- File uploads limited to image files (JPEG, PNG, GIF, WebP)
 - bcrypt password hashing at 12 rounds
 - JWT authentication with configurable expiration
 - No `dangerouslySetInnerHTML` in frontend (React escapes all content by default)
@@ -190,20 +199,11 @@ BioPlatform/
 - [English](docs/en/)
 - [Español](docs/es/)
 
-## Contributing
+## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run TypeScript check: `pnpm --filter frontend exec tsc --noEmit`
-5. Verify Docker build: `docker compose --profile nginx up -d --build`
-6. Submit a pull request
+Contributions are welcome.
 
-See [Contributing Guide](docs/en/contributing.md) for details.
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
+Before opening a pull request, please read [CONTRIBUTING.md](/docs/en/contributing.md).
 
 ## FAQ
 
@@ -221,3 +221,26 @@ A: Yes. Enter your new Discord username (no discriminator) or a discord.gg invit
 
 **Q: How do themes work?**
 A: Choose a preset theme in Dashboard > Appearance. Your public profile will use the selected colors.
+
+## 🧑‍💻 Core Team
+
+- **@00kino547** · Founder & Lead Developer
+- **@gtaqwsgt** · Contributor, Bug Hunter & Beta Tester
+
+## 🧪 Beta Testers & Security Researchers
+
+Special thanks to everyone who helped find bugs, test features and break things before users had the opportunity to do it.
+
+## ❤️ Special Thanks
+
+Special thanks to everyone who contributed ideas, reported bugs, tested experimental features, or helped shape BioPlatform.
+
+This project would be significantly more broken without you.
+
+## 👥 Contributors
+
+Thanks to everyone who contributed code, ideas, testing, documentation, bug reports, or general suffering to BioPlatform.
+
+<a href="https://github.com/00kino547/BioPlatform/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=00kino547/BioPlatform" />
+</a>
