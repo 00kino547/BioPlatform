@@ -1,4 +1,5 @@
 # BioPlatform
+### Still not ready to production use, expect bugs.
 
 > Your digital identity, beautifully crafted.
 
