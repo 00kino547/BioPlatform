@@ -61,6 +61,7 @@ apps/frontend/src/
 ├── App.tsx               # Root component + React Router (/, /login, /register, /unlock, /dashboard, /admin, /privacy, /terms, /:username) — wraps in DomainProvider, CustomDomainRoot resolves the custom-domain root (redirect to root-target profile slug, else Landing)
 ├── index.css             # TailwindCSS + animations + scroll-reveal
 ├── config/branding.ts    # Branding env vars (VITE_*)
+├── config/env.ts           # Env accessor: window.__APP_CONFIG__ (runtime, injected by the container) over import.meta.env (build time)
 ├── contexts/
 │   ├── AuthContext.tsx    # Auth state (login, register, logout)
 │   └── DomainContext.tsx  # Custom-domain info for the current host (active, host, root slug, canonical) via GET /api/domain
@@ -123,6 +124,8 @@ packages/shared/src/
 
 ```
 docker-compose.yml    # Service orchestration (postgres, backend, frontend, nginx profile)
+apps/frontend/Dockerfile.test  # Prebuilt-friendly frontend image: no build args; docker-entrypoint.sh injects VITE_* env vars at container start
+apps/frontend/public/env.js    # Runtime config stub overwritten by the container entrypoint
 pnpm-workspace.yaml   # Workspace + pnpm config (allowBuilds, node-linker)
 .env / .env.example   # Environment variables
 nginx/nginx.conf      # Reverse proxy config (/api, /uploads, ACME challenge, SPA fallback, custom-domains.conf include, app-host map)

@@ -2,8 +2,9 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
+import { getEnv } from "@/config/env";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "/api";
+const API_URL = getEnv("VITE_API_URL") ?? "/api";
 
 interface ApiResponse<T = unknown> {
   success: boolean;

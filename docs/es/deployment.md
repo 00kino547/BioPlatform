@@ -18,6 +18,7 @@ docker compose up -d --build
 
 Frontend en `http://localhost:5173`, backend en `http://localhost:3000`.
 
+
 ### Servicios
 
 | Servicio | Descripción | Puerto |

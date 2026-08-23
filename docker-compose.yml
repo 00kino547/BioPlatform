@@ -75,20 +75,22 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: .
-      dockerfile: apps/frontend/Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-/api}
-        VITE_APP_NAME: ${VITE_APP_NAME:-BioPlatform}
-        VITE_APP_TAGLINE: ${VITE_APP_TAGLINE:-Your digital identity, beautifully crafted.}
-        VITE_APP_DESCRIPTION: ${VITE_APP_DESCRIPTION:-Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place.}
-        VITE_APP_URL: ${VITE_APP_URL:-http://localhost:80}
-        VITE_APP_GITHUB_URL: ${VITE_APP_GITHUB_URL:-https://github.com/00kino547/BioPlatform}
-        VITE_APP_OG_IMAGE: ${VITE_APP_OG_IMAGE:-http://localhost:80/og.png}
-        VITE_CONTACT_URL: ${VITE_CONTACT_URL:-https://github.com/00kino547/BioPlatform/issues}
-        VITE_STATUS_URL: ${VITE_STATUS_URL:-}
-        VITE_DOCS_URL: ${VITE_DOCS_URL:-https://github.com/00kino547/BioPlatform/tree/main/docs}
+    # Option A: build locally (build-time config via args)
+    # Option B: prebuilt image from Docker Hub (no build; runtime config via env).
+    # Comment out the "build" block above and uncomment the lines below.
+    # 
+    image: bioplatform-frontend2
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-/api}
+      VITE_APP_NAME: ${VITE_APP_NAME:-BioPlatform}
+      VITE_APP_TAGLINE: ${VITE_APP_TAGLINE:-Your digital identity, beautifully crafted.}
+      VITE_APP_DESCRIPTION: ${VITE_APP_DESCRIPTION:-Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place.}
+      VITE_APP_URL: ${VITE_APP_URL:-http://localhost:80}
+      VITE_APP_GITHUB_URL: ${VITE_APP_GITHUB_URL:-https://github.com/00kino547/BioPlatform}
+      VITE_APP_OG_IMAGE: ${VITE_APP_OG_IMAGE:-http://localhost:80/og.png}
+      VITE_CONTACT_URL: ${VITE_CONTACT_URL:-https://github.com/00kino547/BioPlatform/issues}
+      VITE_STATUS_URL: ${VITE_STATUS_URL:-}
+      VITE_DOCS_URL: ${VITE_DOCS_URL:-https://github.com/00kino547/BioPlatform/tree/main/docs}
     restart: unless-stopped
     depends_on:
       - backend

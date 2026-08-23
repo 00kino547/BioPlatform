@@ -14,29 +14,6 @@ COPY packages/shared/package.json packages/shared/
 COPY apps/frontend/ apps/frontend/
 COPY packages/shared/ packages/shared/
 
-# Branding build args (used by Vite for index.html + config substitution)
-ARG VITE_API_URL
-ARG VITE_APP_NAME
-ARG VITE_APP_TAGLINE
-ARG VITE_APP_DESCRIPTION
-ARG VITE_APP_URL
-ARG VITE_APP_GITHUB_URL
-ARG VITE_APP_OG_IMAGE
-ARG VITE_CONTACT_URL
-ARG VITE_STATUS_URL
-ARG VITE_DOCS_URL
-
-ENV VITE_API_URL=$VITE_API_URL \
-    VITE_APP_NAME=$VITE_APP_NAME \
-    VITE_APP_TAGLINE=$VITE_APP_TAGLINE \
-    VITE_APP_DESCRIPTION=$VITE_APP_DESCRIPTION \
-    VITE_APP_URL=$VITE_APP_URL \
-    VITE_APP_GITHUB_URL=$VITE_APP_GITHUB_URL \
-    VITE_APP_OG_IMAGE=$VITE_APP_OG_IMAGE \
-    VITE_CONTACT_URL=$VITE_CONTACT_URL \
-    VITE_STATUS_URL=$VITE_STATUS_URL \
-    VITE_DOCS_URL=$VITE_DOCS_URL
-
 # Install dependencies
 RUN pnpm install
 
@@ -49,6 +26,11 @@ FROM nginx:alpine
 
 # Copy built files to Nginx
 COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
+
+# Runtime configuration: regenerates env.js and patches index.html
+# placeholders from VITE_* environment variables on every start
+COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.d/50-runtime-env.sh
+RUN chmod +x /docker-entrypoint.d/50-runtime-env.sh
 
 # Copy Nginx configuration for SPA
 RUN echo 'server { \
