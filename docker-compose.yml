@@ -75,10 +75,6 @@ services:
         condition: service_healthy
 
   frontend:
-    # Option A: build locally (build-time config via args)
-    # Option B: prebuilt image from Docker Hub (no build; runtime config via env).
-    # Comment out the "build" block above and uncomment the lines below.
-    # 
     image: bioplatform-frontend2
     environment:
       VITE_API_URL: ${VITE_API_URL:-/api}
