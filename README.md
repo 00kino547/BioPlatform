@@ -68,7 +68,7 @@ pnpm dev
 
 Open http://localhost:5173 (frontend) and http://localhost:3000/api/health (backend).
 
-## Docker Deployment
+# Docker Deployment (recommended)
 
 ```bash
 # Full stack with Nginx
