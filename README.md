@@ -31,7 +31,8 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 [![Forks](https://img.shields.io/github/forks/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/network/members)
 [![Issues](https://img.shields.io/github/issues/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/pulls)
-[![Latest Release](https://img.shields.io/github/v/release/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/releases)
+[![Latest Release](https://img.shields.io/github/v/release/00kino547/BioPlatform?include_prereleases&style=flat-square
+)](https://github.com/00kino547/BioPlatform/releases)
 [![License](https://img.shields.io/github/license/00kino547/BioPlatform?style=flat-square)](LICENSE)
 
 ## Requirements
