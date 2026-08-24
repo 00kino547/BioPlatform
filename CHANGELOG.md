@@ -4,7 +4,7 @@ All notable changes to BioPlatform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.3.0-rc.2] - 2026-08-24
 
 ### Added
 - **GitHub version checker.** The footer shows the app version to everyone, colored by update status: green when current, amber on an ordinary update, **red on a security/critical update**. Clicking it (or the **Updates** button / auto-popup in the admin panel) opens a dialog that renders the skipped releases' changelog sections from the public GitHub repo and links to the release — anyone can check without an account. The check runs on the backend (`GET /api/version`, public, no auth): it fetches the CHANGELOG from GitHub raw, the GitHub API, then jsDelivr (8 s timeouts each) and derives the installed vs. latest version with a custom semver comparator. Results are TTL-cached (default 12 h) with in-flight dedupe and stale-while-error; a background scheduler runs a fresh check on every container/stack restart and then every `UPDATE_CHECK_INTERVAL_MINUTES` (default 12 h). The check **fails open** — a private repo, network error, or rate limit never locks anything down. Severity is computed from the skipped releases: `security` when any of them contains security fixes, `critical` when security combines with a very old install or with `UPDATE_CRITICAL_STALE_THRESHOLD` (default 3) or more skipped releases, when the installed version is older than every documented release, or when the skip count alone reaches the threshold.
@@ -289,7 +289,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
-[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.1...HEAD
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.2...HEAD
+[1.3.0-rc.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.1...v1.3.0-rc.2
 [1.3.0-rc.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.2...v1.3.0-rc.1
 [1.3.0-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.1...v1.3.0-dev-beta.2
 [1.3.0-dev-beta.1]: https://github.com/00kino547/BioPlatform/compare/v1.2.1-dev-beta.1...v1.3.0-dev-beta.1
