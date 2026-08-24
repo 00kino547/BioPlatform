@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0-rc.3] - 2026-08-24
+
 ### Added
 - **`bioplatform` admin CLI** for self-hosters, shipped inside the backend image (`bioplatform …` on PATH) with host wrappers `scripts/bioplatform.sh` / `scripts/bioplatform.ps1` and a dev shortcut (`pnpm cli -- …`, or `pnpm --filter @bioplatform/backend cli`). It talks directly to the database and can administer **any** account — including your own — where the web admin panel deliberately blocks self-editing (tier, limits, password, deletion). Commands: `users list/show/set-tier/set-limits/set-username/set-email/reset-password/unlock/ban-invites/unban-invites/delete` and `profiles list/show/edit`; identifiers accept `@username`, email, profile slug/alias, or UUID; `--json` for raw output; destructive operations (delete) replicate the API's webhook dispatch + upload cleanup, and password changes require an interactive typed **YES** (bcrypt, 12 rounds). Documented in the Admin Guide (en/es).
 - Version-check unit tests: `compareVersions`, `parseChangelog`, and `getInstalledVersion` covered by 19 assertions.
@@ -321,7 +323,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
-[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.2...HEAD
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3...HEAD
+[1.3.0-rc.3]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.2...v1.3.0-rc.3
 [1.3.0-rc.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.1...v1.3.0-rc.2
 [1.3.0-rc.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.2...v1.3.0-rc.1
 [1.3.0-dev-beta.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.1...v1.3.0-dev-beta.2
