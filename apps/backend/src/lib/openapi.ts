@@ -2,7 +2,7 @@ export const openapi = {
   openapi: "3.0.3",
   info: {
     title: "BioPlatform API",
-    version: "1.3.0-rc.1",
+    version: "1.3.0-rc.2",
     description:
       "REST API for the BioPlatform link-in-bio service. Authenticated endpoints require a Bearer token returned by /api/auth/login or /api/auth/register. Public profile data is available without authentication.",
   },
