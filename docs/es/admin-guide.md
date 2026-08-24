@@ -178,6 +178,50 @@ El comportamiento global de bloqueo se define con `AUTH_LOCK_POLICY` (ver [Confi
 - `trusted_ip` (por defecto) — la IP registrada/último acceso de la cuenta puede iniciar sesión sin desbloquear.
 - `email` — los usuarios bloqueados deben hacer clic en el enlace de desbloqueo enviado por correo (requiere SMTP); los administradores pueden desbloquear manualmente igualmente.
 
+## Administración por Línea de Comandos
+
+La imagen del backend incluye un CLI `bioplatform` que habla directamente con la base de datos. Está pensado para autoalojadores que necesitan administrar **su propia** cuenta: el panel de administración web bloquea deliberadamente la autoedición (plan, límites, contraseña y eliminación de la propia cuenta), y el CLI no tiene esa restricción — se ejecuta como el dueño de la instancia.
+
+Ejecútalo dentro del stack en marcha:
+
+```sh
+./scripts/bioplatform.sh <comando> …        # Linux/macOS
+./scripts/bioplatform.ps1 <comando> …       # Windows
+pnpm cli -- <comando> …                     # atajo equivalente
+```
+
+En desarrollo (sin Docker), `pnpm --filter @bioplatform/backend cli -- <comando> …` funciona contra la base de datos local usando el `.env` del repositorio.
+
+### Comandos
+
+Los identificadores aceptan `@usuario`, `usuario@ejemplo.com`, un slug o alias de perfil, o un UUID — usa el que recuerdes.
+
+| Comando | Qué hace |
+| --- | --- |
+| `users list [--tier T] [--json]` | Lista cuentas con plan, límites, rol y número de insignias. |
+| `users show &lt;id&gt;` | Detalles completos de la cuenta + slugs de perfiles (JSON). |
+| `users set-tier &lt;id&gt; FREE\|PRO\|ENTERPRISE` | Cambia el plan (sin techo — anulación del dueño). |
+| `users set-limits &lt;id&gt; [--tracks N\|none] [--profiles N\|none] [--aliases N\|none]` | Fija límites por cuenta; `none` vuelve al valor por defecto del plan (`null`). |
+| `users set-username &lt;id&gt; &lt;nuevoUsuario&gt;` | Renombra una cuenta; sincroniza el slug del perfil primario en una transacción. |
+| `users set-email &lt;id&gt; &lt;nuevoEmail&gt;` | Cambia el email de inicio de sesión (se valida unicidad). |
+| `users reset-password &lt;id&gt; [--password pw]` | Sobrescribe una contraseña (bcrypt, 12 rondas). Pide escribir **YES**; sin `--password` pregunta dos veces con entrada oculta. |
+| `users unlock &lt;id&gt;` | Limpia baneos ACCOUNT/IP/COOKIE derivados del registro de autenticación de la cuenta y borra los intentos fallidos. |
+| `users ban-invites &lt;id&gt;` / `unban-invites &lt;id&gt;` | Alterna la elegibilidad para invitaciones (banear también revoca códigos sin usar). |
+| `users delete &lt;id&gt; [--yes]` | Elimina cuenta + perfiles + subidas (almacenamiento local) y dispara webhooks `user.deleted`. Requiere escribir **YES** salvo con `--yes`. |
+| `profiles list &lt;id&gt;` | Lista los perfiles de la cuenta. |
+| `profiles show &lt;id&gt; [--profile-id uuid]` | Vuelca un perfil completo incluidos enlaces sociales y alias. |
+| `profiles edit &lt;id&gt; […]` | Edita nombre visible, bio, ubicación, sitio web y visibilidad. Usa `none` como valor para limpiar un campo; misma validación que la API del dashboard. |
+
+Ejemplos:
+
+```sh
+./scripts/bioplatform.sh users set-tier @admin ENTERPRISE
+./scripts/bioplatform.sh users reset-password admin@example.com
+./scripts/bioplatform.sh profiles edit @admin --display-name "Kino" --website https://example.com --bio none
+```
+
+El CLI no hace comprobaciones de permisos a propósito — cualquiera que pueda ejecutarlo tiene control total de la base de datos de la instancia. Restringe el acceso al socket de Docker / host en consecuencia. Los cambios de contraseña siempre se confirman interactivamente antes de escribirse.
+
 ---
 
 ← [Guía de Usuario](./user-guide.md) · [Despliegue](./deployment.md) →

@@ -81,10 +81,10 @@ docker compose up -d --build
 
 The app will be available at http://localhost:80.
 
-On every backend container start, the database schema is applied and the bootstrap roles,
-badges, admin account, and first invite codes are seeded. Set `ADMIN_EMAIL` and a unique
-`ADMIN_PASSWORD` in `.env` before the first launch; later starts do not overwrite an
-existing admin account.
+On first launch, set `SEED_ON_START=true` in `.env` to create the bootstrap admin and
+initial invite codes. The seed is idempotent — it only creates the admin when that email
+does not already exist and never overwrites an existing admin password. Remove
+`SEED_ON_START=true` after the first successful start.
 
 ## Docker Compose Services
 
@@ -153,6 +153,12 @@ git pull
 pnpm install
 pnpm db:generate
 docker compose --profile nginx up -d --build
+```
+
+After updating, apply any new database migrations:
+
+```bash
+docker compose exec backend npx prisma migrate deploy
 ```
 
 ## Backup Recommendations

@@ -36,7 +36,7 @@ const LOCKDOWN_MESSAGE =
   "A critical or security update is required before changing security settings. Update the app to continue.";
 
 const FALLBACK_REPO_URL = "https://github.com/00kino547/BioPlatform";
-const FALLBACK_VERSION = "0.0.0";
+const FALLBACK_VERSION = "unknown";
 
 function installedVersionCandidates(): string[] {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +59,7 @@ export function getInstalledVersion(): string {
       // try next candidate
     }
   }
+  console.error("[version] Could not read installed version from any package.json candidate. Lockdown decisions will be skipped.");
   return FALLBACK_VERSION;
 }
 
@@ -176,12 +177,31 @@ export function compareVersions(a: string, b: string): number {
 }
 
 async function fetchText(url: string, headers: Record<string, string> = {}, timeoutMs = 8000): Promise<string> {
+  const MAX_BODY_BYTES = 2 * 1024 * 1024;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { headers, signal: controller.signal, redirect: "follow" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
+    const contentLength = res.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_BODY_BYTES) {
+      throw new Error("Changelog too large");
+    }
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.length;
+      if (totalBytes > MAX_BODY_BYTES) {
+        reader.cancel();
+        throw new Error("Changelog too large");
+      }
+      chunks.push(value);
+    }
+    const text = new TextDecoder().decode(new Uint8Array(chunks.flatMap((c) => [...c])));
     if (text.trim().length < 50) throw new Error("Empty changelog");
     return text;
   } finally {
@@ -243,6 +263,11 @@ function computeSeverity(
   }
 
   const latest = versions[0].version;
+
+  if (installed === "unknown") {
+    return { outdated: true, latest, skipped: versions, severity: "update" };
+  }
+
   if (compareVersions(installed, latest) >= 0) {
     return { outdated: false, latest, skipped: [], severity: "none" };
   }
@@ -301,6 +326,7 @@ interface CacheEntry {
   data: VersionCheckData;
   fetchedAt: number;
   lastGood: VersionCheckData | null;
+  lastGoodAt: number | null;
 }
 
 let cache: CacheEntry | null = null;
@@ -350,19 +376,19 @@ export async function getVersionCheck(force = false): Promise<VersionCheckData> 
         source,
         checkedAt: new Date().toISOString(),
       });
-      cache = { data, fetchedAt: Date.now(), lastGood: data };
+      cache = { data, fetchedAt: Date.now(), lastGood: data, lastGoodAt: Date.now() };
       return data;
     } catch (err) {
       const error = err instanceof Error ? err.message : "Unknown error";
       const staleMaxMs = env.UPDATE_CHECK_STALE_MAX_MINUTES * 60 * 1000;
-      if (cache?.lastGood && startedAt - cache.fetchedAt < staleMaxMs) {
+      if (cache?.lastGood && cache.lastGoodAt && startedAt - cache.lastGoodAt < staleMaxMs) {
         const data: VersionCheckData = {
           ...cache.lastGood,
           checkedAt: new Date().toISOString(),
           source: "cache",
           error: "cached",
         };
-        cache = { data, fetchedAt: Date.now(), lastGood: cache.lastGood };
+        cache = { data, fetchedAt: Date.now(), lastGood: cache.lastGood, lastGoodAt: cache.lastGoodAt };
         return data;
       }
       const data = buildData({
@@ -376,7 +402,7 @@ export async function getVersionCheck(force = false): Promise<VersionCheckData> 
         checkedAt: new Date().toISOString(),
         error,
       });
-      cache = { data, fetchedAt: Date.now(), lastGood: null };
+      cache = { data, fetchedAt: Date.now(), lastGood: null, lastGoodAt: null };
       return data;
     } finally {
       inflight = null;

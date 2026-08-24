@@ -6,7 +6,7 @@ HTML_DIR="${HTML_DIR:-/usr/share/nginx/html}"
 VITE_VARS="VITE_API_URL VITE_APP_NAME VITE_APP_TAGLINE VITE_APP_DESCRIPTION VITE_APP_URL VITE_APP_GITHUB_URL VITE_APP_OG_IMAGE VITE_CONTACT_URL VITE_STATUS_URL VITE_DOCS_URL"
 
 json_escape() {
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' -e ':a;N;$!ba;s/\n/\\n/g' -e 's/\r/\\r/g'
 }
 
 sed_escape() {

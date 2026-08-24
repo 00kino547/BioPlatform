@@ -325,7 +325,7 @@ export function PublicProfilePage() {
                     color={accent}
                   />
                   <div className="flex flex-col items-start min-w-0 flex-1">
-                    <span className="text-xs font-semibold uppercase tracking-wider opacity-70">
+                    <span className="text-xs font-semibold uppercase tracking-wider opacity-70 truncate w-full text-left">
                       {link.label || link.platform}
                     </span>
                     <span className="text-xs opacity-60 truncate w-full text-left">

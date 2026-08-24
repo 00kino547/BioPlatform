@@ -17,6 +17,7 @@
     "db:migrate": "pnpm --filter @bioplatform/backend db:migrate",
     "db:studio": "pnpm --filter @bioplatform/backend db:studio",
     "docker:build": "sh scripts/build.sh",
+    "cli": "sh scripts/bioplatform.sh",
     "docker:prune": "docker image prune -af && docker builder prune -af"
   },
   "devDependencies": {

@@ -178,6 +178,50 @@ The instance-wide lock behavior is set by `AUTH_LOCK_POLICY` (see [Configuration
 - `trusted_ip` (default) — the account's registered/last-login IP can still sign in without unlocking.
 - `email` — locked users must click the unlock link sent by email (requires SMTP); admins can still unlock manually.
 
+## Command-Line Administration
+
+The backend image ships a `bioplatform` CLI that talks directly to the database. It is meant for self-hosters who need to administer **their own** account: the web admin panel deliberately blocks self-editing (tier, limits, password, deletion of your own account), and the CLI has no such guard — it runs as the instance owner.
+
+Run it inside the running stack:
+
+```sh
+./scripts/bioplatform.sh <command> …        # Linux/macOS
+./scripts/bioplatform.ps1 <command> …       # Windows
+pnpm cli -- <command> …                     # equivalent shortcut
+```
+
+During development (without Docker), `pnpm --filter @bioplatform/backend cli -- <command> …` works against the local database using the repo `.env`.
+
+### Commands
+
+Identifiers accept `@username`, `user@example.com`, a profile slug or alias, or a UUID — pick whichever you remember.
+
+| Command | What it does |
+| --- | --- |
+| `users list [--tier T] [--json]` | List accounts with tier, limits, role, badge count. |
+| `users show &lt;id&gt;` | Full account details + profile slugs (JSON). |
+| `users set-tier &lt;id&gt; FREE\|PRO\|ENTERPRISE` | Change the tier (no ceiling — owner override). |
+| `users set-limits &lt;id&gt; [--tracks N\|none] [--profiles N\|none] [--aliases N\|none]` | Set per-account limits; `none` clears to tier default (`null`). |
+| `users set-username &lt;id&gt; &lt;newUsername&gt;` | Rename an account; syncs the primary profile slug in one transaction. |
+| `users set-email &lt;id&gt; &lt;newEmail&gt;` | Change the sign-in email (uniqueness enforced). |
+| `users reset-password &lt;id&gt; [--password pw]` | Overwrite a password (bcrypt, 12 rounds). Asks to type **YES**; without `--password` it prompts twice with masked input. |
+| `users unlock &lt;id&gt;` | Clear ACCOUNT/IP/COOKIE bans derived from the account's auth log and wipe failed attempts. |
+| `users ban-invites &lt;id&gt;` / `unban-invites &lt;id&gt;` | Toggle invite eligibility (banning also revokes unused codes). |
+| `users delete &lt;id&gt; [--yes]` | Delete account + profiles + uploads (local storage) and fire `user.deleted` webhooks. Requires typing **YES** unless `--yes`. |
+| `profiles list &lt;id&gt;` | List the account's profiles. |
+| `profiles show &lt;id&gt; [--profile-id uuid]` | Dump one profile incl. social links and aliases. |
+| `profiles edit &lt;id&gt; […]` | Edit display name, bio, location, website, visibility. Use `none` as the value to clear a field; same validation as the dashboard API. |
+
+Examples:
+
+```sh
+./scripts/bioplatform.sh users set-tier @admin ENTERPRISE
+./scripts/bioplatform.sh users reset-password admin@example.com
+./scripts/bioplatform.sh profiles edit @admin --display-name "Kino" --website https://example.com --bio none
+```
+
+The CLI performs no permission checks by design — anyone who can run it has full control of the instance's database. Keep the Docker socket / host access restricted accordingly. Password changes are always confirmed interactively before they are written.
+
 ---
 
 ← [User Guide](./user-guide.md) · [Deployment](./deployment.md) →

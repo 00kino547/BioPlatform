@@ -140,10 +140,20 @@ export function UpdateDialog({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button href={data.releaseUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-                View release on GitHub
-              </Button>
+              {data.releaseUrl && (() => {
+                try {
+                  const u = new URL(data.releaseUrl);
+                  if (!["http:", "https:"].includes(u.protocol)) return null;
+                } catch {
+                  return null;
+                }
+                return (
+                  <Button href={data.releaseUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    View release on GitHub
+                  </Button>
+                );
+              })()}
               {recheckable && (
                 <Button variant="secondary" onClick={() => refresh(true)} disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

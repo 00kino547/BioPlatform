@@ -3,7 +3,7 @@ import { api, type UpdateSeverity, type VersionCheckData } from "@/lib/api";
 
 const NEUTRAL: VersionCheckData = {
   enabled: true,
-  installed: "0.0.0",
+  installed: "unknown",
   latest: null,
   outdated: false,
   severity: "none",
@@ -48,6 +48,8 @@ export function useVersionCheck() {
     try {
       const result = await loadVersionCheck(force);
       setData(result);
+    } catch {
+      setData((prev) => prev ?? { ...NEUTRAL, error: "Version check failed" });
     } finally {
       setLoading(false);
     }

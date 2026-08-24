@@ -24,6 +24,10 @@ RUN pnpm --filter @bioplatform/backend db:generate
 RUN pnpm --filter @bioplatform/shared build
 RUN pnpm --filter @bioplatform/backend build
 
+# Expose the administration CLI on PATH
+RUN printf '#!/bin/sh\nexec node /app/apps/backend/dist/cli/index.js "$@"\n' > /usr/local/bin/bioplatform \
+  && chmod +x /usr/local/bin/bioplatform
+
 # Create uploads directory
 RUN mkdir -p /app/uploads /app/certs
 

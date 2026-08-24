@@ -4,6 +4,38 @@ All notable changes to BioPlatform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **`bioplatform` admin CLI** for self-hosters, shipped inside the backend image (`bioplatform …` on PATH) with host wrappers `scripts/bioplatform.sh` / `scripts/bioplatform.ps1` and a dev shortcut (`pnpm cli -- …`, or `pnpm --filter @bioplatform/backend cli`). It talks directly to the database and can administer **any** account — including your own — where the web admin panel deliberately blocks self-editing (tier, limits, password, deletion). Commands: `users list/show/set-tier/set-limits/set-username/set-email/reset-password/unlock/ban-invites/unban-invites/delete` and `profiles list/show/edit`; identifiers accept `@username`, email, profile slug/alias, or UUID; `--json` for raw output; destructive operations (delete) replicate the API's webhook dispatch + upload cleanup, and password changes require an interactive typed **YES** (bcrypt, 12 rounds). Documented in the Admin Guide (en/es).
+- Version-check unit tests: `compareVersions`, `parseChangelog`, and `getInstalledVersion` covered by 19 assertions.
+
+### Fixed
+- `docker-compose.yml` frontend service restored to `build:` from repo root (was referencing a phantom `bioplatform-frontend2` image).
+- `scripts/build-backend.sh` and `scripts/build-frontend.sh` now use repo root as Docker build context (were using app subdirectories, causing COPY failures).
+- Windows PowerShell build scripts (`build.ps1`, `build-backend.ps1`, `build-frontend.ps1`) populated with working implementations.
+- Version checker `FALLBACK_VERSION` changed from `"0.0.0"` to `"unknown"` — a missing `package.json` no longer triggers global security-settings lockdown; the badge shows amber (update available) instead of red (critical).
+- Stale-cache expiry now measured from the last successful fetch (`lastGoodAt`), not from the last failed refresh — lockdown decisions no longer persist indefinitely when upstream is unreachable.
+- Backend entrypoint no longer runs `prisma db push` on every container start (removed destructive auto-schema-sync); database seeding is conditional on `SEED_ON_START=true`.
+- Dashboard social link `removeLink` now cancels any active edit, preventing silent data corruption when deleting a link above the one being edited.
+- Music upload Zod validation failure now returns HTTP 400 and cleans up the uploaded file instead of silently discarding valid fields and returning 201.
+- `.env.example` reverted to localhost/example placeholders (was leaking `preview.dexlunmc.com` URLs).
+- Frontend `useVersionCheck` `refresh()` now catches network errors instead of producing unhandled promise rejections.
+- Frontend version fallback changed from `"0.0.0"` to `"unknown"`.
+- Frontend dialog component now has `role="dialog"`, `aria-modal`, and receives focus on open.
+- UpdateDialog `releaseUrl` is now protocol-checked (`http:`/`https:`) before rendering as an anchor.
+- Version checker upstream fetch now enforces a 2 MB body size limit.
+- Frontend Docker entrypoint JSON escaping now handles tabs, newlines, and carriage returns.
+- CI workflow dead `VITE_*` build arguments removed.
+- Public profile social link labels now truncate consistently with URL text.
+- `pnpm` overrides applied for `nanoid` (→3.3.18) and `deepmerge-ts` (→8.0.0), resolving both Dependabot high-severity advisories.
+
+### Security
+- Registration enumeration throttled: a per-IP probe counter (10 attempts/60 s window) now returns 429 on rapid username/email conflict probing, without risk of permanent account bans.
+- Version checker fetch body capped at 2 MB (streaming read with Content-Length pre-check).
+- `/api/version` responses now include `Cache-Control: no-store` to prevent proxy caching of 429/200 responses.
+- Frontend `useVersionCheck` error fallback uses `"unknown"` instead of a fake `"0.0.0"` version.
+
 ## [1.3.0-rc.2] - 2026-08-24
 
 ### Added

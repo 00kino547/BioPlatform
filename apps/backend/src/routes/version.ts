@@ -40,8 +40,10 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   }
   try {
     const data = await getVersionCheck(false);
+    res.setHeader("Cache-Control", "no-store");
     res.json({ success: true, data });
   } catch {
+    res.setHeader("Cache-Control", "no-store");
     res.status(500).json({ success: false, error: "Version check failed" });
   }
 });

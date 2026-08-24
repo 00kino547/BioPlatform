@@ -79,14 +79,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
-          build-args: |
-            VITE_API_URL=${{ vars.VITE_API_URL }}
-            VITE_APP_NAME=${{ vars.VITE_APP_NAME }}
-            VITE_APP_TAGLINE=${{ vars.VITE_APP_TAGLINE }}
-            VITE_APP_DESCRIPTION=${{ vars.VITE_APP_DESCRIPTION }}
-            VITE_APP_URL=${{ vars.VITE_APP_URL }}
-            VITE_APP_GITHUB_URL=${{ vars.VITE_APP_GITHUB_URL }}
-            VITE_APP_OG_IMAGE=${{ vars.VITE_APP_OG_IMAGE }}
-            VITE_CONTACT_URL=${{ vars.VITE_CONTACT_URL }}
-            VITE_STATUS_URL=${{ vars.VITE_STATUS_URL }}
-            VITE_DOCS_URL=${{ vars.VITE_DOCS_URL }}

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,8 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onClose, title, children, maxWidth = "max-w-lg" }: DialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -18,6 +20,7 @@ export function Dialog({ open, onClose, title, children, maxWidth = "max-w-lg" }
     };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
@@ -32,8 +35,13 @@ export function Dialog({ open, onClose, title, children, maxWidth = "max-w-lg" }
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         className={cn(
-          "w-full rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-black/50",
+          "w-full rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-black/50 outline-none",
           maxWidth
         )}
         onClick={(e) => e.stopPropagation()}

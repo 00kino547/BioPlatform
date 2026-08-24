@@ -38,6 +38,25 @@ const ACCOUNT_PATHS = new Set([
 const BLOCKED_MESSAGE = "Too many failed attempts. Please try again later.";
 const PERMANENT_MESSAGE = "Too many failed attempts. Access has been blocked.";
 const EMAIL_UNLOCK_MESSAGE = "Too many failed attempts. Your account is locked — check your email to unlock it.";
+const REG_PROBE_WINDOW_MS = 60_000;
+const REG_PROBE_MAX = 10;
+const regProbes = new Map<string, number[]>();
+
+function checkRegProbe(ip: string): boolean {
+  const now = Date.now();
+  const timestamps = regProbes.get(ip) ?? [];
+  const recent = timestamps.filter((t) => now - t < REG_PROBE_WINDOW_MS);
+  if (recent.length >= REG_PROBE_MAX) return false;
+  return true;
+}
+
+function recordRegProbe(ip: string): void {
+  const now = Date.now();
+  const timestamps = regProbes.get(ip) ?? [];
+  const recent = timestamps.filter((t) => now - t < REG_PROBE_WINDOW_MS);
+  recent.push(now);
+  regProbes.set(ip, recent);
+}
 
 function sendBlock(res: Response, block: { permanent: boolean; retryAfterSeconds: number | null }) {
   if (block.permanent) {
@@ -83,6 +102,8 @@ async function recordOutcome(req: Request, res: Response, status: number, body: 
       reason: reasonFor(req.path, status, res.locals.authFailureReason),
       penalty: pickWorstPenalty(penalties),
     });
+  } else if (status === 409 && req.path === "/register" && fingerprint) {
+    recordRegProbe(fingerprint.ip);
   }
 }
 
@@ -108,6 +129,13 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
   void (async () => {
     try {
       req.authFingerprint = fingerprintFromRequest(req, res);
+
+      if (req.method === "POST" && req.path === "/register" && req.authFingerprint) {
+        if (!checkRegProbe(req.authFingerprint.ip)) {
+          res.status(429).json({ success: false, error: "Too many registration attempts. Please try again later." });
+          return;
+        }
+      }
 
       if (req.method === "POST" && PROTECTED_PATHS.has(req.path)) {
         const account = await resolveAccount(req);

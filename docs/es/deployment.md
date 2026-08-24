@@ -37,10 +37,10 @@ Frontend en `http://localhost:5173`, backend en `http://localhost:3000`.
 5. Configura `APP_URL`, `APP_URL_HOST`, las URL `VITE_APP_*` y los valores de WebAuthn para tu dominio
 6. Ejecuta con `--profile nginx` para producción
 
-El contenedor backend aplica automáticamente el esquema de Prisma y ejecuta la semilla
-idempotente antes de iniciar la API. La semilla crea el administrador inicial y los primeros
-códigos de invitación solo cuando ese correo de administrador no existe; nunca sobrescribe
-una contraseña de administrador existente.
+En el primer arranque, configura `SEED_ON_START=true` en `.env` para crear el administrador inicial
+y los códigos de invitación. La semilla es idempotente — solo crea el administrador cuando ese
+correo no existe y nunca sobrescribe una contraseña existente. Elimina `SEED_ON_START=true` después
+del primer arranque exitoso.
 
 ## Despliegue Manual
 
@@ -193,6 +193,12 @@ git pull
 pnpm install
 pnpm db:generate
 docker compose --profile nginx up -d --build
+```
+
+Después de actualizar, aplica las nuevas migraciones de base de datos:
+
+```bash
+docker compose exec backend npx prisma migrate deploy
 ```
 
 ## Respaldo

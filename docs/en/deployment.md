@@ -36,9 +36,9 @@ Frontend at `http://localhost:5173`, backend at `http://localhost:3000`.
 5. Configure `APP_URL`, `APP_URL_HOST`, the `VITE_APP_*` URLs, and the WebAuthn values to your domain
 6. Run with `--profile nginx` for production
 
-The backend container applies the Prisma schema and runs the idempotent seed automatically
-before starting the API. The seed creates the bootstrap admin and initial invite codes only
-when that admin email does not already exist; it never overwrites an existing admin password.
+On first run, set `SEED_ON_START=true` in `.env` to create the bootstrap admin and initial invite codes.
+The seed is idempotent — it only creates the admin when that email does not already exist and never
+overwrites an existing admin password. Remove `SEED_ON_START=true` after the first successful start.
 
 ## Manual Deployment
 
@@ -217,6 +217,12 @@ git pull
 pnpm install
 pnpm db:generate
 docker compose --profile nginx up -d --build
+```
+
+After updating, apply any new database migrations:
+
+```bash
+docker compose exec backend npx prisma migrate deploy
 ```
 
 ## Backup

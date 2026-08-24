@@ -8,6 +8,11 @@
 apps/backend/src/
 ├── index.ts              # Entry point
 ├── app.ts                # Express setup, middleware, routes
+├── cli/                  # bioplatform admin CLI (runs in backend container / dev via pnpm cli)
+│   ├── index.ts          # Arg parsing + command dispatch + help (bin: dist/cli/index.js)
+│   ├── shared.ts         # Identifier resolver (@user/email/slug/alias/uuid), flags parser, confirm/prompt helpers
+│   ├── users.ts          # users list/show/set-tier/set-limits/set-username/set-email/reset-password/unlock/(un)ban-invites/delete — no self-edit guard (owner tool)
+│   └── profiles.ts       # profiles list/show/edit (display name, bio, location, website, visibility; none = clear)
 ├── config/env.ts         # Zod-validated env vars
 ├── lib/
 │   ├── prisma.ts         # Prisma client singleton
@@ -134,6 +139,7 @@ packages/shared/src/
 docker-compose.yml    # Service orchestration (postgres, backend, frontend, nginx profile)
 apps/frontend/Dockerfile.test  # Prebuilt-friendly frontend image: no build args; docker-entrypoint.sh injects VITE_* env vars at container start
 apps/frontend/public/env.js    # Runtime config stub overwritten by the container entrypoint
+scripts/bioplatform.sh / .ps1   # Host wrappers: docker compose exec backend bioplatform <args> (Linux/macOS + Windows)
 pnpm-workspace.yaml   # Workspace + pnpm config (allowBuilds, node-linker)
 .env / .env.example   # Environment variables
 nginx/nginx.conf      # Reverse proxy config (/api, /uploads, ACME challenge, SPA fallback, custom-domains.conf include, app-host map)

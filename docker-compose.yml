@@ -75,7 +75,10 @@ services:
         condition: service_healthy
 
   frontend:
-    image: bioplatform-frontend2
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-/api}
       VITE_APP_NAME: ${VITE_APP_NAME:-BioPlatform}
@@ -87,7 +90,6 @@ services:
       VITE_CONTACT_URL: ${VITE_CONTACT_URL:-https://github.com/00kino547/BioPlatform/issues}
       VITE_STATUS_URL: ${VITE_STATUS_URL:-}
       VITE_DOCS_URL: ${VITE_DOCS_URL:-https://github.com/00kino547/BioPlatform/tree/main/docs}
-    restart: unless-stopped
     depends_on:
       - backend
 

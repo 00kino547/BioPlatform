@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-pnpm --filter @bioplatform/backend exec prisma db push --skip-generate
-pnpm --filter @bioplatform/backend db:seed
+if [ "${SEED_ON_START:-false}" = "true" ]; then
+  echo "SEED_ON_START is enabled — running database seed..."
+  pnpm --filter @bioplatform/backend db:seed || echo "Warning: seed failed (database may already be initialized)"
+fi
 
 exec "$@"

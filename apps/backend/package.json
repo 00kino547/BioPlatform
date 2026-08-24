@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "cli": "node --env-file=../../.env --import tsx src/cli/index.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

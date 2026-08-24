@@ -594,6 +594,7 @@ export function Dashboard() {
 
   const removeLink = (index: number) => {
     setSocialLinks(socialLinks.filter((_, i) => i !== index));
+    setEditingIndex(null);
   };
 
   const startEditLink = (index: number) => {

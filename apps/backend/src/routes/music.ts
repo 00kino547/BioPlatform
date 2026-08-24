@@ -214,10 +214,14 @@ router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
     fullUrl: z.string().max(512).optional(),
   });
   const bodyParsed = uploadBodySchema.safeParse(req.body);
-  const title = bodyParsed.success ? bodyParsed.data.title : null;
-  const artist = bodyParsed.success ? bodyParsed.data.artist : null;
+  if (!bodyParsed.success) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ success: false, error: "Invalid track metadata" });
+  }
+  const title = bodyParsed.data.title;
+  const artist = bodyParsed.data.artist;
   let fullUrlValue: string | null = null;
-  const rawFullUrl = bodyParsed.success ? bodyParsed.data.fullUrl : undefined;
+  const rawFullUrl = bodyParsed.data.fullUrl;
   if (rawFullUrl) {
     const parsedFull = parseFullUrl(rawFullUrl.replace(/[<>{}]/g, "").trim());
     if (!parsedFull) {
