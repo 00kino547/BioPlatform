@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0-rc.3.1] - 2026-08-25
+
+### Added
+- `docker-compose.prebuilt.yml` — prebuilt images variant for pulling from Docker Hub or GHCR instead of building from source.
+- `BACKEND_IMAGE` and `FRONTEND_IMAGE` env vars to select registry and tag (default: Docker Hub `dracoservices/*`; override to GHCR `ghcr.io/00kino547/*`).
+- `db:seed` script to root `package.json` (was missing, broke documented `pnpm db:seed` command).
+- `SMTP_*` env vars, `ADMIN_EMAIL`/`ADMIN_USERNAME`/`ADMIN_PASSWORD`, and `SEED_ON_START` documented in environment-variables reference (en/es).
+- `TLS_MODE` and `SEND_HSTS_ON_DEV` added to Spanish environment-variables doc (parity with English).
+- `ENABLE_INTERNAL_NGINX` documented with note that it requires `--profile nginx`.
+- 13 missing files added to `PROJECT_MAP.md` (discordPost, httpCache, inviteService, media, permissions, admin middleware, badges route, version-check tests, BadgePill, ImageCropper, EnterGate, AppFooter, frontend media).
+
+### Fixed
+- `docker-compose.yml` backend environment now passes `SEED_ON_START`, `UPDATE_CHECK_*`, `APP_GITHUB_URL`, and `APP_DESCRIPTION` to the container (were silently ignored before).
+- `.env.example` removed dead `API_PREFIX`; added `CF_TRUSTED_IPS`, `SEND_HSTS_ON_DEV`, `BACKEND_IMAGE`, `FRONTEND_IMAGE`.
+- `environment-variables.md` (en/es) removed dead `API_PREFIX`; added missing SMTP, Admin/Seed sections; fixed frontend runtime injection note.
+- `deployment.md` (en/es) corrected "frontend at 5173" port claim (no exposed port without nginx); added prebuilt image section; fixed `pnpm --filter` names to `@bioplatform/*`; fixed migration path to reference raw SQL in `docs/migrations/` instead of `prisma migrate deploy`.
+- `contributing.md` (en/es) fixed `pnpm --filter` names; replaced inline `tsc --noEmit` with `pnpm typecheck`.
+- `building.md` (en/es) complete rewrite: documents dual registry (Docker Hub + GHCR), manual build scripts, prebuilt images, version pinning, build customization.
+- `README.md` updated platform table from 11 to 24 platforms; added prebuilt image option; fixed migration path.
+- `README.es.md` full rewrite to match current English README (was one release behind with stale auto-seed claim).
+- `PROJECT_MAP.md` fixed stale entries (removed nonexistent `Dockerfile.test`, 11→24 platforms, corrected entrypoint description); added `docker-compose.prebuilt.yml`, `SECURITY.md`, `docs/migrations/`.
+- `TASKS.md` marked M7 (REST API) as completed; fixed duplicate M2 numbering; corrected version-check TTL (30 min → 12 h).
+
 ## [1.3.0-rc.3] - 2026-08-24
 
 ### Added
@@ -323,7 +346,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
-[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3...HEAD
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3.1...HEAD
+[1.3.0-rc.3.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3...v1.3.0-rc.3.1
 [1.3.0-rc.3]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.2...v1.3.0-rc.3
 [1.3.0-rc.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.1...v1.3.0-rc.2
 [1.3.0-rc.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-dev-beta.2...v1.3.0-rc.1
