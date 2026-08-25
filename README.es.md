@@ -1,4 +1,5 @@
 # BioPlatform
+### Aún no listo para producción. Espera errores.
 
 > Tu identidad digital, bellamente diseñada.
 
@@ -7,15 +8,14 @@ Una plataforma moderna de enlaces para creadores, desarrolladores y cualquier pe
 ## Características
 
 - Perfiles personalizados con avatares, banners y biografías
-- Enlaces sociales con iconos de plataforma (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email)
+- Enlaces sociales con iconos de plataforma (Twitter/X, GitHub, YouTube, Twitch, Discord, TikTok, Instagram, Facebook, LinkedIn, Spotify, Email, etc...)
 - Soporte para nombres de usuario de Discord y enlaces de invitación
 - Presencia de Discord en vivo (estado, actividad, canción actual) con un widget de perfil opt-in y previsualizaciones de enlaces enriquecidas (meta OpenGraph + tarjeta renderizada en servidor)
-- Enlaces de correo electrónico `mailto:`
 - 8 temas predefinidos (Midnight, Ocean, Sunset, Forest, Lavender, Rose, Arctic, Minimal)
 - Personalización de temas con colores de acento
 - Acceso exclusivo por invitación
 - Auto-hospedable con Docker
-- Panel de administración (gestión de usuarios, códigos de invitación, edición de perfiles)
+- Panel de administración (gestión de usuarios, códigos de invitación, edición de perfiles...)
 - Subida de archivos segura (almacenamiento local, compatible con S3)
 - Sanitización de entrada y validación de plataformas
 - Páginas de Política de Privacidad y Términos de Servicio
@@ -25,12 +25,15 @@ Una plataforma moderna de enlaces para creadores, desarrolladores y cualquier pe
 
 > Próximamente.
 
-## Stack Tecnológico
+## 📊 Project Stats
 
-- **Frontend:** React 19, Vite 6, TypeScript 5, TailwindCSS 4
-- **Backend:** Express 5, TypeScript 5, Prisma 6 (PostgreSQL)
-- **Infra:** Docker Compose, Nginx (proxy inverso opcional)
-- **Gestor de Paquetes:** pnpm 11
+[![Stars](https://img.shields.io/github/stars/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/stargazers)
+[![Forks](https://img.shields.io/github/forks/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/network/members)
+[![Issues](https://img.shields.io/github/issues/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/00kino547/BioPlatform?style=flat-square)](https://github.com/00kino547/BioPlatform/pulls)
+[![Latest Release](https://img.shields.io/github/v/release/00kino547/BioPlatform?include_prereleases&style=flat-square
+)](https://github.com/00kino547/BioPlatform/releases)
+[![License](https://img.shields.io/github/license/00kino547/BioPlatform?style=flat-square)](LICENSE)
 
 ## Requisitos
 
@@ -50,7 +53,7 @@ cp .env.example .env
 ## Inicio Rápido
 
 ```bash
-# Instalar dependencias
+# Habilitar corepack e instalar dependencias
 corepack enable
 pnpm install
 
@@ -58,7 +61,7 @@ pnpm install
 pnpm db:generate
 
 # Sembrar usuario admin y códigos de invitación
-pnpm db:seed
+pnpm --filter @bioplatform/backend db:seed
 
 # Iniciar servidores de desarrollo
 pnpm dev
@@ -66,26 +69,25 @@ pnpm dev
 
 Abre http://localhost:5173 (frontend) y http://localhost:3000/api/health (backend).
 
-## Despliegue con Docker
+# Despliegue con Docker (recomendado)
 
 ```bash
-# Stack completo con Nginx
+# Stack completo con Nginx (construye desde el código fuente)
 docker compose --profile nginx up -d --build
 
-# Sin Nginx (acceso directo)
+# Sin Nginx (acceso directo a la API backend)
 docker compose up -d --build
+
+# Usando imágenes precompiladas (sin build)
+docker compose -f docker-compose.prebuilt.yml up -d
 ```
 
-La aplicación estará disponible en http://localhost:80.
+Con Nginx, la aplicación está disponible en http://localhost:80 — frontend, API (`/api`) y uploads servidos en un solo puerto a través del proxy inverso Nginx interno.
 
-En cada inicio del contenedor backend se aplica el esquema de la base de datos y se crean
-de forma idempotente los roles, insignias, cuenta de administrador y primeros códigos de
-invitación. Configura `ADMIN_EMAIL` y una `ADMIN_PASSWORD` única en `.env` antes del primer
-inicio; los siguientes inicios no sobrescriben una cuenta de administrador existente.
+En el primer arranque, configura `SEED_ON_START=true` en `.env` para crear el administrador inicial y los códigos de invitación. La semilla es idempotente — solo crea el administrador cuando ese correo no existe y nunca sobrescribe una contraseña existente. Elimina `SEED_ON_START=true` después del primer arranque exitoso.
 
-## Docker Compose
+## Servicios Docker Compose
 
-Servicios:
 - `postgres` — Base de datos PostgreSQL 16
 - `backend` — Servidor API Express (puerto 3000)
 - `frontend` — SPA React servida por Nginx (puerto 80)
@@ -112,7 +114,7 @@ Servicios:
 | `STORAGE_PROVIDER` | Backend de almacenamiento (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Directorio de subidas local | `./uploads` |
 
-Ver `.env.example` para la lista completa.
+Ver `docs/es/environment-variables.md` para la lista completa.
 
 ## Marca
 
@@ -134,6 +136,7 @@ Los enlaces sociales soportan las siguientes plataformas con iconos SVG personal
 |-----------|-------------------|---------------|
 | Twitter / X | URL | Enlace clickeable |
 | GitHub | URL | Enlace clickeable |
+| GitLab | URL | Enlace clickeable |
 | YouTube | URL | Enlace clickeable |
 | Twitch | URL | Enlace clickeable |
 | Discord | Nombre de usuario o enlace de invitación | Usuario: solo visualización. Invitación: clickeable |
@@ -142,6 +145,18 @@ Los enlaces sociales soportan las siguientes plataformas con iconos SVG personal
 | Facebook | URL | Enlace clickeable |
 | LinkedIn | URL | Enlace clickeable |
 | Spotify | URL | Enlace clickeable |
+| Reddit | URL | Enlace clickeable |
+| Pinterest | URL | Enlace clickeable |
+| Snapchat | URL | Enlace clickeable |
+| Threads | URL | Enlace clickeable |
+| Bluesky | URL | Enlace clickeable |
+| Mastodon | URL | Enlace clickeable |
+| WhatsApp | Número de teléfono o URL | Enlace clickeable |
+| Telegram | URL o nombre de usuario | Enlace clickeable |
+| Signal | URL | Enlace clickeable |
+| Kick | URL | Enlace clickeable |
+| Steam | URL | Enlace clickeable |
+| SoundCloud | URL | Enlace clickeable |
 | Email | Dirección de correo | Abre cliente de correo |
 
 ## Actualización
@@ -151,6 +166,12 @@ git pull
 pnpm install
 pnpm db:generate
 docker compose --profile nginx up -d --build
+```
+
+Después de actualizar, aplica las nuevas migraciones de base de datos (archivos SQL en `docs/migrations/`):
+
+```bash
+docker compose exec postgres psql -U postgres -d bioplatform -f /ruta/a/migracion.sql
 ```
 
 ## Recomendaciones de Respaldo
@@ -189,6 +210,7 @@ BioPlatform/
 ├── docs/                  # Documentación (Inglés + Español)
 ├── nginx/                 # Configuración Nginx
 ├── docker-compose.yml
+├── docker-compose.prebuilt.yml
 ├── .env.example
 ├── AGENTS.md              # Instrucciones para agentes AI
 ├── PROJECT_MAP.md         # Ubicación de archivos
@@ -200,27 +222,14 @@ BioPlatform/
 
 ## Documentación
 
-- [English](../en/)
-- [Español](../es/)
+- [English](docs/en/)
+- [Español](docs/es/)
 
-## Contribuir
+## 🤝 Contribuir
 
-1. Haz fork del repositorio
-2. Crea una rama de características
-3. Haz tus cambios
-4. Verifica TypeScript: `pnpm --filter frontend exec tsc --noEmit`
-5. Verifica Docker: `docker compose --profile nginx up -d --build`
-6. Envía un pull request
+Las contribuciones son bienvenidas.
 
-Ver [Guía de Contribución](../es/contributing.md) para detalles.
-
-## Seguridad
-
-Reporta vulnerabilidades de seguridad a los mantenedores. No abras issues públicos para preocupaciones de seguridad.
-
-## Licencia
-
-Licencia MIT. Ver [LICENSE](../LICENSE) para detalles.
+Antes de abrir un pull request, lee [CONTRIBUTING.md](docs/es/contributing.md).
 
 ## Preguntas Frecuentes
 
@@ -232,3 +241,32 @@ La plataforma central es gratuita. Las funciones premium están disponibles por 
 
 **¿Cómo obtengo una invitación?**
 BioPlatform es exclusivo por invitación. Contacta a miembros existentes o comunícate a través de [GitHub Issues](https://github.com/00kino547/BioPlatform/issues).
+
+**¿Puedo usar nombres de usuario de Discord en vez de enlaces?**
+Sí. Ingresa tu nuevo nombre de usuario de Discord (sin discriminador) o un enlace de invitación discord.gg.
+
+**¿Cómo funcionan los temas?**
+Elige un tema predefinido en Dashboard > Appearance. Tu perfil público usará los colores seleccionados.
+
+## 🧑‍💻 Core Team
+
+- **@00kino547** · Fundador y Desarrollador Principal
+- **@gtaqwsgt** · Contribuidor, Cazador de Bugs y Beta Tester
+
+## 🧪 Beta Testers & Security Researchers
+
+Gracias a todos los que ayudaron a encontrar bugs, probar features y romper cosas antes de que los usuarios tuvieran la oportunidad de hacerlo.
+
+## ❤️ Agradecimientos Especiales
+
+Gracias a todos los que contribuyeron ideas, reportaron bugs, probaron features experimentales o ayudaron a dar forma a BioPlatform.
+
+Este proyecto estaría significativamente más roto sin ti.
+
+## 👥 Contribuidores
+
+Gracias a todos los que contribuyeron código, ideas, testing, documentación, reportes de bugs o sufrimiento general a BioPlatform.
+
+<a href="https://github.com/00kino547/BioPlatform/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=00kino547/BioPlatform" />
+</a>

@@ -8,7 +8,7 @@
 docker compose --profile nginx up -d --build
 ```
 
-Aplicación disponible en `http://localhost:80`.
+Aplicación disponible en `http://localhost:80` — frontend, API (`/api`) y uploads servidos en un solo puerto a través del proxy inverso Nginx interno. Esta es la configuración recomendada para producción y despliegues simples.
 
 ### Sin Nginx
 
@@ -16,7 +16,17 @@ Aplicación disponible en `http://localhost:80`.
 docker compose up -d --build
 ```
 
-Frontend en `http://localhost:5173`, backend en `http://localhost:3000`.
+Backend en `http://localhost:3000`. El frontend no tiene puerto expuesto sin Nginx — usa el perfil Nginx para acceso desde el navegador.
+
+### Usar Imágenes Precompiladas
+
+En vez de construir desde el código fuente, descarga imágenes publicadas:
+
+```bash
+docker compose -f docker-compose.prebuilt.yml up -d
+```
+
+Ver [Building](./building.md) para opciones de registro (Docker Hub vs GHCR) y fijación de versiones.
 
 
 ### Servicios
@@ -59,9 +69,9 @@ cp .env.example .env
 corepack enable
 pnpm install
 pnpm db:generate
-pnpm db:seed
-pnpm --filter frontend build
-pnpm --filter backend start
+pnpm --filter @bioplatform/backend db:seed
+pnpm --filter @bioplatform/frontend build
+pnpm --filter @bioplatform/backend start
 ```
 
 ## Proxy Inverso
@@ -195,11 +205,13 @@ pnpm db:generate
 docker compose --profile nginx up -d --build
 ```
 
-Después de actualizar, aplica las nuevas migraciones de base de datos:
+Después de actualizar, aplica las nuevas migraciones de base de datos (archivos SQL en `docs/migrations/`):
 
 ```bash
-docker compose exec backend npx prisma migrate deploy
+docker compose exec postgres psql -U postgres -d bioplatform -f /ruta/a/migracion.sql
 ```
+
+O copia el archivo de migración al contenedor y aplícalo.
 
 ## Respaldo
 

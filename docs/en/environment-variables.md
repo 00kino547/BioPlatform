@@ -26,14 +26,13 @@
 | `VITE_STATUS_URL` | Status page URL | _(empty)_ |
 | `VITE_DOCS_URL` | Documentation URL | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 
-> Frontend variables must be prefixed with `VITE_` to be accessible in React code via `import.meta.env.VITE_*`.
+> Frontend variables are injected at runtime by the container entrypoint from `window.__APP_CONFIG__`. They also work at build time via `import.meta.env.VITE_*`.
 
 ## Backend
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Backend server port | `3000` |
-| `API_PREFIX` | API route prefix | `/api` |
 | `NODE_ENV` | Environment mode | `development` |
 
 ## Database
@@ -58,6 +57,30 @@
 | `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL in minutes for the email unlock link (`email` policy) | `30` |
 | `AUTH_LOG_RETENTION_DAYS` | Auth log retention in days before the cleanup job deletes entries | `30` |
 | `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | How often the auth log cleanup job runs (in minutes) | `60` |
+
+## Admin / Seed
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ADMIN_EMAIL` | Bootstrap admin email (seed creates this account) | `admin@bioplatform.com` |
+| `ADMIN_USERNAME` | Bootstrap admin username | `admin` |
+| `ADMIN_PASSWORD` | Bootstrap admin password (set a strong, unique value) | — (required for first start) |
+| `SEED_ON_START` | When `true`, the entrypoint runs the database seed on startup (creates admin + invite codes if they don't exist). Set to `true` on first run, then remove. | `false` |
+
+## Email (SMTP)
+
+SMTP is used for account unlock links and notifications. Leave `SMTP_ENABLED=false` to disable.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SMTP_ENABLED` | Enable email sending | `false` |
+| `SMTP_PROVIDER` | Email provider preset (`gmail`, `outlook`, `custom`) | `gmail` |
+| `SMTP_HOST` | SMTP server hostname | `smtp.gmail.com` |
+| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_USER` | SMTP username / email | _(empty)_ |
+| `SMTP_PASS` | SMTP password / app password | _(empty)_ |
+| `SMTP_FROM_NAME` | Sender display name | `BioPlatform` |
+| `SMTP_FROM_EMAIL` | Sender email address | _(empty)_ |
 
 ## Update check
 
@@ -90,7 +113,7 @@ The backend periodically fetches the public CHANGELOG from `APP_GITHUB_URL` to d
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ENABLE_INTERNAL_NGINX` | Enable Nginx container | `true` |
+| `ENABLE_INTERNAL_NGINX` | Enable the Nginx reverse proxy container (requires `--profile nginx` in docker compose) | `true` |
 | `NGINX_PORT` | Nginx HTTP port | `80` |
 | `NGINX_HTTPS_PORT` | Nginx HTTPS port | `443` |
 | `TLS_MODE` | TLS certificate mode: `development` auto-generates self-signed certs stored as `self-signed.pem`/`self-signed.key` in `./certs` (symlinked to `cert.pem`/`key.pem`); `production` deletes any self-signed files and requires valid user-provided `cert.pem` + `key.pem` (nginx fails to start otherwise) | `development` |

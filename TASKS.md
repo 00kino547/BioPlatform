@@ -5,23 +5,23 @@
 ## High Priority
 
 - [ ] Affiliate/referral program — referrers earn a discount on their own plan and invited users also get a discount (e.g., % off PRO/ENTERPRISE for both parties) — Task Numbered H1
-- [ ] Affiliate rewards — referrers get a reward for reaching referral milestones (e.g., a discount on upgrading to a paid plan, or premium perks), not new plan tiers — Task Numbered M2
+- [ ] Affiliate rewards — referrers get a reward for reaching referral milestones (e.g., a discount on upgrading to a paid plan, or premium perks), not new plan tiers — Task Numbered H2
 
 ## Medium Priority
 - [ ] Appearance zone — Profiles layouts — Task Numbered M1
-- [ ] Appearance zone — Profiles backgrounds— Task Numbered M2
+- [ ] Appearance zone — Profiles backgrounds — Task Numbered M2
 - [ ] SSO (Single Sign-On) — let users sign in through a third-party identity provider (Google, GitHub, Discord OAuth, etc.) instead of username + password; link multiple providers to one account and expose a button next to the normal login form — Task Numbered M3
 - [ ] Enterprise team management — the "leader" of an ENTERPRISE workspace can invite team members, assign each a role/permissions, manage seats, and see the whole team from the dashboard — Task Numbered M4
 - [x] ~~GitHub version checker~~ — implemented (see Completed) — Task Numbered M5
 - [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment — Task Numbered M6
-- [ ] REST API for third-party integrations — Task Numbered M7
+- [x] ~~REST API for third-party integrations~~ — implemented (OpenAPI 3.0 spec at `/api/openapi.json`) — Task Numbered M7
 - [ ] S3/R2/B2 storage providers — Task Numbered M8
 
 ## Low Priority
 
 ## Completed
 
-- [x] GitHub version checker — backend fetches the public CHANGELOG (GitHub raw → GitHub API → jsDelivr, 8 s timeouts) and returns installed/latest/severity via public `GET /api/version`; TTL cache (30 min) + in-flight dedupe + stale-while-error (24 h), **fails open** (private repo / network / rate limit never locks anything); severity from skipped releases (`security` when any has security fixes, `critical` on security + ancient install or `UPDATE_CRITICAL_STALE_THRESHOLD` (3) skipped, or ancient-only, or skip-count-only); footer **version badge** for everyone (green/amber/red) opening a shared update dialog that renders the skipped releases' changelog sections and links to GitHub, admin panel Updates button + auto-popup on critical/security; **update lockdown** — security/critical blocks server-side (403 `updateRequired:true`) + disables in UI: passkey register/remove, TOTP setup/enable/disable, password change, admin user delete / tier/limits/role/badge / invite-ban / roles / badges mutations, webhook create/edit/pause/rotate/delete (test + deliveries keep working); env `UPDATE_CHECK_*` + `APP_GITHUB_URL`, OpenAPI `/api/version`, en/es docs + CHANGELOG parity
+- [x] GitHub version checker — backend fetches the public CHANGELOG (GitHub raw → GitHub API → jsDelivr, 8 s timeouts) and returns installed/latest/severity via public `GET /api/version`; TTL cache (12 h) + in-flight dedupe + stale-while-error (24 h), **fails open** (private repo / network / rate limit never locks anything); severity from skipped releases (`security` when any has security fixes, `critical` on security + ancient install or `UPDATE_CRITICAL_STALE_THRESHOLD` (3) skipped, or ancient-only, or skip-count-only); footer **version badge** for everyone (green/amber/red) opening a shared update dialog that renders the skipped releases' changelog sections and links to GitHub, admin panel Updates button + auto-popup on critical/security; **update lockdown** — security/critical blocks server-side (403 `updateRequired:true`) + disables in UI: passkey register/remove, TOTP setup/enable/disable, password change, admin user delete / tier/limits/role/badge / invite-ban / roles / badges mutations, webhook create/edit/pause/rotate/delete (test + deliveries keep working); env `UPDATE_CHECK_*` + `APP_GITHUB_URL`, OpenAPI `/api/version`, en/es docs + CHANGELOG parity
 - [x] REST API for third-party integrations — the OpenAPI 3.0 spec at `/api/openapi.json` (+ in-app `/api-docs`) is the machine-readable contract: public profile, badges, music, email, analytics, Discord presence, webhooks, invites & admin endpoints, tier-gated access levels (`basic`/`advanced`/`enterprise`) overridable per role
 - [x] Social link labels + editing — optional per-link `label` shown on the public profile, inline edit form in the Dashboard Links tab (platform/URL/label), zod strip+trim+max-64 validation on the backend, OpenAPI/docs/CHANGELOG parity
 - [x] Invites tab crash fix — the dashboard Invites tab read the wrong API response shape and crashed the whole page; now consumes the real `{ success, data, meta }` shape and tolerates unexpected responses

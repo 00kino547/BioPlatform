@@ -26,14 +26,13 @@
 | `VITE_STATUS_URL` | URL de página de estado | _(vacío)_ |
 | `VITE_DOCS_URL` | URL de documentación | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 
-> Las variables del frontend deben tener el prefijo `VITE_` para ser accesibles en código React vía `import.meta.env.VITE_*`.
+> Las variables del frontend se inyectan en tiempo de ejecución por el entrypoint del contenedor via `window.__APP_CONFIG__`. También funcionan en tiempo de build via `import.meta.env.VITE_*`.
 
 ## Backend
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
 | `PORT` | Puerto del servidor backend | `3000` |
-| `API_PREFIX` | Prefijo de rutas API | `/api` |
 | `NODE_ENV` | Modo de entorno | `development` |
 
 ## Base de Datos
@@ -58,6 +57,30 @@
 | `AUTH_UNLOCK_TOKEN_TTL_MINUTES` | TTL en minutos del enlace de desbloqueo por correo (política `email`) | `30` |
 | `AUTH_LOG_RETENTION_DAYS` | Retención del registro de autenticación en días antes de que la tarea de limpieza lo elimine | `30` |
 | `AUTH_LOG_CLEANUP_INTERVAL_MINUTES` | Cada cuántos minutos se ejecuta la tarea de limpieza del registro de autenticación | `60` |
+
+## Admin / Seed
+
+| Variable | Descripción | Por defecto |
+|----------|-------------|-------------|
+| `ADMIN_EMAIL` | Email del administrador inicial (la semilla crea esta cuenta) | `admin@bioplatform.com` |
+| `ADMIN_USERNAME` | Nombre de usuario del administrador inicial | `admin` |
+| `ADMIN_PASSWORD` | Contraseña del administrador inicial (configura un valor fuerte y único) | — (requerido para el primer inicio) |
+| `SEED_ON_START` | Cuando es `true`, el entrypoint ejecuta la semilla de base de datos al iniciar (crea admin + códigos de invitación si no existen). Configura en `true` en el primer arranque, luego elimina. | `false` |
+
+## Email (SMTP)
+
+SMTP se usa para enlaces de desbloqueo de cuenta y notificaciones. Deja `SMTP_ENABLED=false` para deshabilitar.
+
+| Variable | Descripción | Por defecto |
+|----------|-------------|-------------|
+| `SMTP_ENABLED` | Habilitar envío de correos | `false` |
+| `SMTP_PROVIDER` | Preajuste de proveedor de correo (`gmail`, `outlook`, `custom`) | `gmail` |
+| `SMTP_HOST` | Hostname del servidor SMTP | `smtp.gmail.com` |
+| `SMTP_PORT` | Puerto del servidor SMTP | `587` |
+| `SMTP_USER` | Nombre de usuario / email SMTP | _(vacío)_ |
+| `SMTP_PASS` | Contraseña / contraseña de aplicación SMTP | _(vacío)_ |
+| `SMTP_FROM_NAME` | Nombre remitente | `BioPlatform` |
+| `SMTP_FROM_EMAIL` | Email del remitente | _(vacío)_ |
 
 ## Comprobación de actualizaciones
 
@@ -90,9 +113,11 @@ El backend consulta periódicamente el CHANGELOG público de `APP_GITHUB_URL` pa
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
-| `ENABLE_INTERNAL_NGINX` | Habilitar contenedor Nginx | `true` |
+| `ENABLE_INTERNAL_NGINX` | Habilitar el contenedor de proxy inverso Nginx (requiere `--profile nginx` en docker compose) | `true` |
 | `NGINX_PORT` | Puerto HTTP de Nginx | `80` |
 | `NGINX_HTTPS_PORT` | Puerto HTTPS de Nginx | `443` |
+| `TLS_MODE` | Modo de certificados TLS: `development` genera automáticamente certificados autofirmados (`self-signed.pem`/`self-signed.key` en `./certs`, enlazados como `cert.pem`/`key.pem`); `production` elimina los autofirmados y requiere `cert.pem` + `key.pem` válidos (nginx no arranca sin ellos) | `development` |
+| `SEND_HSTS_ON_DEV` | Enviar la cabecera `Strict-Transport-Security` en modo development también (`true`/`false`). En modo `production` HSTS se envía siempre. | `false` |
 
 ## Almacenamiento
 

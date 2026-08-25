@@ -28,6 +28,11 @@ apps/backend/src/
 │   ├── profileTransfer.ts# Spreadsheet export/import (xlsx/ods/csv via @e965/xlsx, macro reject, formula-injection guard)
 │   ├── discord.ts        # Discord OAuth2: scopes, state create/verify, code exchange + refresh grant, @me fetch, avatar URLs, purpose-scoped secret encryption (token/webhook), webhook URL validation
 │   ├── discordGateway.ts # Shared bot gateway session (GUILDS|GUILD_PRESENCES intents, heartbeat/resume/reconnect, fatal-close handling), in-memory presence cache keyed by user id, describeActivities
+│   ├── discordPost.ts    # Post-to-Discord webhook embed helper
+│   ├── httpCache.ts      # TTL-based HTTP response cache (used by version check, SEO, etc.)
+│   ├── inviteService.ts  # Invite allowance/grant/refund logic (invite_grant_events table)
+│   ├── media.ts          # Media processing helpers (sharp-based image optimization)
+│   ├── permissions.ts    # Permission constants and role helpers (RBAC)
 │   ├── profileOg.ts      # OG data builder for a public profile (presence line + counts) → PNG card + HTML meta page (host-aware: custom-domain canonical/base URLs)
 │   ├── ogCard.ts         # Server-rendered 1200x630 OG card PNG (@napi-rs/canvas)
 │   ├── og.ts             # OpenGraph/Twitter meta HTML (escapeHtml + buildOgPage + buildLandingOgPage)
@@ -38,6 +43,7 @@ apps/backend/src/
 │   ├── versionCheck.ts   # GitHub update check: changelog fetch (raw → API → jsDelivr, fail-open), semver compare, severity (security/critical), TTL cache + stale-while-error, lockdown middleware (requireNoUpdateLockdown)
 │   └── openapi.ts        # OpenAPI 3.0 document served at /api/openapi.json
 ├── middleware/auth.ts     # JWT verification middleware (requireAuth, requireAdmin)
+├── middleware/admin.ts    # Admin permission middleware (requirePermission, requireAdmin gate)
 ├── middleware/rateLimit.ts # Auth anti-brute-force middleware (cookie issuance, 2-of-3 fingerprint block, policy-aware account lock, outcome + log recording)
 ├── middleware/domain.ts   # resolveCustomDomain: maps active ProfileDomain → req.customDomain (skips app host)
 └── routes/
@@ -45,6 +51,7 @@ apps/backend/src/
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Multi-profile CRUD (list/create, get/update/delete per profileId, set-primary), aliases CRUD, badges toggle + order, avatar/banner upload+delete, spreadsheet export/import, public profile by slug/alias (incl. discord presence), click tracking, OG card PNG
     ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert — user/role/badge mutations gated by update lockdown
+    ├── badges.ts         # Badge catalog CRUD (list, create, edit, delete) — system badges undeletable
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown) — ?profileId scoped
     ├── email.ts          # Email notification settings (SMTP config, test endpoint) — ?profileId scoped
     ├── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete) — ?profileId scoped
@@ -55,10 +62,11 @@ apps/backend/src/
 apps/backend/prisma/
 ├── schema.prisma         # User (tier, trackLimit, profileLimit, aliasLimit, badges, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile (slug, isPrimary, badges, customDomain relation, incl. showDiscordPresence/showDiscordActivity/discordWebhookUrlEncrypted), ProfileDomain (custom domains + TLS cert status fields), ProfileAlias (slug per profile), DiscordConnection, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan, AuthLog, Webhook, WebhookDelivery models
 └── seed.ts               # Bootstrap admin + invite codes
-apps/backend/docker-entrypoint.sh # Applies the Prisma schema and idempotently seeds bootstrap data before the API starts
+apps/backend/docker-entrypoint.sh # Seeds bootstrap data when SEED_ON_START=true, then starts the API
 apps/backend/tests/
 ├── setup-env.ts          # Test env bootstrap (loads .env, points DATABASE_URL at bioplatform_test)
-└── badges-order.test.ts  # Unit + integration tests for badge ordering (Node test runner via tsx)
+├── badges-order.test.ts  # Unit + integration tests for badge ordering (Node test runner via tsx)
+└── version-check.test.ts # Unit tests for compareVersions, parseChangelog, getInstalledVersion
 ```
 
 ## Frontend
@@ -76,6 +84,7 @@ apps/frontend/src/
 ├── lib/
 │   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges + badge order, upload, export/import, analytics, email, music, webhooks, discord, custom domains, version check) — profile-scoped calls take profileId
 │   ├── seo.ts            # usePageMeta + JSON-LD (optional baseUrl for custom domains)
+│   ├── media.ts          # Frontend media helpers (image URL construction, CDN utils)
 │   ├── useVersionCheck.ts # Update-check hook: module-level cache + in-flight dedupe, useVersionCheck + useUpdateLockdown (locked = security/critical)
 │   └── utils.ts          # cn() utility
 ├── components/
@@ -83,9 +92,11 @@ apps/frontend/src/
 │   │   ├── button.tsx        # Button (5 variants, href renders an anchor)
 │   │   ├── card.tsx          # Card (6 subcomponents)
 │   │   ├── badge.tsx         # Badge (5 variants)
-│   │   ├── dialog.tsx        # Modal dialog (esc/overlay close)
+│   │   ├── dialog.tsx        # Modal dialog (esc/overlay close, role=dialog, aria-modal)
 │   │   ├── scroll-reveal.tsx # IntersectionObserver wrapper
-│   │   └── PlatformIcon.tsx  # SVG icons for social platforms (11 platforms)
+│   │   ├── BadgePill.tsx     # Colored badge pill for public profiles
+│   │   ├── ImageCropper.tsx  # Image crop/resize component
+│   │   └── PlatformIcon.tsx  # SVG icons for social platforms (24 platforms)
 │   ├── updates/
 │   │   ├── UpdateDialog.tsx  # Shared update dialog: severity chip, skipped-release changelog sections, GitHub release link, re-check (force)
 │   │   └── VersionBadge.tsx  # Public footer version badge (green/amber/red on severity), opens UpdateDialog
@@ -104,7 +115,9 @@ apps/frontend/src/
 │   │   └── PresenceWidget.tsx # Shared Discord presence card (status dot, activity line/icon, custom status, album art)
 │   ├── layout/
 │   │   ├── Container.tsx     # Max-width container (3 sizes)
-│   │   └── Navbar.tsx        # Sticky navbar, scroll-aware glass
+│   │   ├── Navbar.tsx        # Sticky navbar, scroll-aware glass
+│   │   └── AppFooter.tsx     # Footer with version badge, links
+│   ├── EnterGate.tsx         # Invite-only gate (redirects to register if no access)
 │   └── landing/
 │       ├── Hero.tsx          # Hero with animated grid, stats
 │       ├── Features.tsx      # Bento grid (10 cards)
@@ -136,8 +149,8 @@ packages/shared/src/
 ## Configuration
 
 ```
-docker-compose.yml    # Service orchestration (postgres, backend, frontend, nginx profile)
-apps/frontend/Dockerfile.test  # Prebuilt-friendly frontend image: no build args; docker-entrypoint.sh injects VITE_* env vars at container start
+docker-compose.yml    # Service orchestration (postgres, backend, frontend, nginx profile) — builds from source
+docker-compose.prebuilt.yml # Prebuilt images variant — pulls from Docker Hub / GHCR instead of building
 apps/frontend/public/env.js    # Runtime config stub overwritten by the container entrypoint
 scripts/bioplatform.sh / .ps1   # Host wrappers: docker compose exec backend bioplatform <args> (Linux/macOS + Windows)
 pnpm-workspace.yaml   # Workspace + pnpm config (allowBuilds, node-linker)
@@ -156,8 +169,10 @@ DECISIONS.md      # Architecture decisions
 TASKS.md          # Task tracking
 PROMPTS.md        # Reusable AI prompts
 CHANGELOG.md      # Version history (Keep a Changelog format)
+SECURITY.md       # Security policy and reporting guidelines
 README.md         # Human documentation (English)
 README.es.md      # Human documentation (Spanish)
-docs/en/          # English docs (getting-started, environment-variables, configuration, deployment, user-guide, admin-guide, contributing, api)
+docs/en/          # English docs (getting-started, environment-variables, configuration, deployment, building, user-guide, admin-guide, contributing, api)
 docs/es/          # Spanish docs (same files as docs/en)
+docs/migrations/  # Raw SQL migration files (applied manually after updates)
 ```

@@ -14,6 +14,7 @@
     "typecheck": "pnpm --filter @bioplatform/shared build && pnpm --filter @bioplatform/backend typecheck && pnpm --filter @bioplatform/frontend typecheck",
     "db:generate": "pnpm --filter @bioplatform/backend db:generate",
     "db:push": "pnpm --filter @bioplatform/backend db:push",
+    "db:seed": "pnpm --filter @bioplatform/backend db:seed",
     "db:migrate": "pnpm --filter @bioplatform/backend db:migrate",
     "db:studio": "pnpm --filter @bioplatform/backend db:studio",
     "docker:build": "sh scripts/build.sh",

@@ -1,3 +1,17 @@
+# Prebuilt images variant — use instead of docker-compose.yml when you want to pull
+# published images instead of building locally.
+#
+# Usage:
+#   docker compose -f docker-compose.prebuilt.yml up -d
+#
+# Override the registry via environment variables or .env:
+#   BACKEND_IMAGE=ghcr.io/00kino547/bioplatform-backend:latest
+#   FRONTEND_IMAGE=ghcr.io/00kino547/bioplatform-frontend:latest
+#
+# Or use Docker Hub (default):
+#   BACKEND_IMAGE=dracoservices/bioplatform-backend:latest
+#   FRONTEND_IMAGE=dracoservices/bioplatform-frontend:latest
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,9 +31,7 @@ services:
       retries: 5
 
   backend:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
+    image: ${BACKEND_IMAGE:-dracoservices/bioplatform-backend:latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
@@ -82,9 +94,7 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: .
-      dockerfile: apps/frontend/Dockerfile
+    image: ${FRONTEND_IMAGE:-dracoservices/bioplatform-frontend:latest}
     restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-/api}

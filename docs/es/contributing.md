@@ -13,7 +13,7 @@ cp .env.example .env
 corepack enable
 pnpm install
 pnpm db:generate
-pnpm db:seed
+pnpm --filter @bioplatform/backend db:seed
 pnpm dev
 ```
 
@@ -38,7 +38,7 @@ packages/shared/  # Tipos e interfaces de almacenamiento compartidos
 
 ### Antes de Enviar
 
-1. Ejecuta `pnpm --filter frontend exec tsc --noEmit` (verificación TypeScript)
+1. Ejecuta `pnpm typecheck` (verificación TypeScript)
 2. Verifica que Docker funcione: `docker compose --profile nginx up -d --build`
 3. Prueba tus cambios localmente
 

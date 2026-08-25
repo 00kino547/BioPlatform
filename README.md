@@ -72,14 +72,17 @@ Open http://localhost:5173 (frontend) and http://localhost:3000/api/health (back
 # Docker Deployment (recommended)
 
 ```bash
-# Full stack with Nginx
+# Full stack with Nginx (builds from source)
 docker compose --profile nginx up -d --build
 
-# Without Nginx (direct access)
+# Without Nginx (direct access to backend API)
 docker compose up -d --build
+
+# Using prebuilt images (no build required)
+docker compose -f docker-compose.prebuilt.yml up -d
 ```
 
-The app will be available at http://localhost:80.
+With Nginx, the app is available at http://localhost:80.
 
 On first launch, set `SEED_ON_START=true` in `.env` to create the bootstrap admin and
 initial invite codes. The seed is idempotent — it only creates the admin when that email
@@ -136,6 +139,7 @@ Social links support the following platforms with custom SVG icons:
 |----------|-------------|---------|
 | Twitter / X | URL | Clickable link |
 | GitHub | URL | Clickable link |
+| GitLab | URL | Clickable link |
 | YouTube | URL | Clickable link |
 | Twitch | URL | Clickable link |
 | Discord | Username or invite link | Username: display only. Invite: clickable |
@@ -144,6 +148,18 @@ Social links support the following platforms with custom SVG icons:
 | Facebook | URL | Clickable link |
 | LinkedIn | URL | Clickable link |
 | Spotify | URL | Clickable link |
+| Reddit | URL | Clickable link |
+| Pinterest | URL | Clickable link |
+| Snapchat | URL | Clickable link |
+| Threads | URL | Clickable link |
+| Bluesky | URL | Clickable link |
+| Mastodon | URL | Clickable link |
+| WhatsApp | Phone number or URL | Clickable link |
+| Telegram | URL or username | Clickable link |
+| Signal | URL | Clickable link |
+| Kick | URL | Clickable link |
+| Steam | URL | Clickable link |
+| SoundCloud | URL | Clickable link |
 | Email | Email address | Opens mail client |
 
 ## Updating
@@ -155,10 +171,10 @@ pnpm db:generate
 docker compose --profile nginx up -d --build
 ```
 
-After updating, apply any new database migrations:
+After updating, apply any new database migrations (raw SQL files in `docs/migrations/`):
 
 ```bash
-docker compose exec backend npx prisma migrate deploy
+docker compose exec postgres psql -U postgres -d bioplatform -f /path/to/migration.sql
 ```
 
 ## Backup Recommendations
