@@ -865,7 +865,7 @@ router.post("/custom-domains/:id/approve", requirePermission(PERMISSIONS.PROFILE
     return res.status(404).json({ success: false, error: "Custom domain request not found" });
   }
   if (entry.status !== "VERIFIED") {
-    return res.status(400).json({ success: false, error: `Only a VERIFIED domain can be approved (current status: ${entry.status}).` });
+    return res.status(400).json({ success: false, error: "Domain must be verified before it can be approved." });
   }
   const updated = await prisma.profileDomain.update({
     where: { id: entry.id },

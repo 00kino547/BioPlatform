@@ -262,7 +262,7 @@ router.post("/post", requireAuth, requireApiLevel("advanced"), async (req, res) 
   if (!result.ok) {
     return res.status(result.status >= 400 && result.status < 500 ? result.status : 502).json({
       success: false,
-      error: `Discord webhook failed (${result.status}): ${result.error}`,
+      error: "Discord webhook failed",
     });
   }
 

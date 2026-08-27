@@ -240,6 +240,7 @@ model MusicTrack {
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
+  @@unique([profileId, position])
   @@index([profileId])
   @@map("music_tracks")
 }

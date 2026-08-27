@@ -10,6 +10,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+      - "[::1]:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -77,6 +78,7 @@ services:
       - ./certs:/app/certs
     ports:
       - "127.0.0.1:3000:3000"
+      - "[::1]:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,7 +100,8 @@ services:
       VITE_STATUS_URL: ${VITE_STATUS_URL:-}
       VITE_DOCS_URL: ${VITE_DOCS_URL:-https://github.com/00kino547/BioPlatform/tree/main/docs}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -112,7 +115,9 @@ services:
       APP_URL_HOST: ${APP_URL_HOST:-}
     ports:
       - "127.0.0.1:${NGINX_PORT}:80"
+      - "[::1]:${NGINX_PORT}:80"
       - "127.0.0.1:${NGINX_HTTPS_PORT}:443"
+      - "[::1]:${NGINX_HTTPS_PORT}:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/site.conf:/etc/nginx/custom/site.conf:ro

@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [1.3.0-rc.3.1] - 2026-08-25
+## [1.3.0-rc.4] - 2026-08-27
+
+> **Release Candidate** — This is the final release candidate. The next release will be the stable v1.3.0.
+
+### Security
+- **H1 (HIGH):** Fixed JWT purpose bypass — tokens without a `purpose` field now correctly fail authentication instead of being accepted.
+- **H2 (HIGH):** Fixed 2FA/passkey enumeration — `/login/start` now returns identical responses for existing and non-existing users, preventing account enumeration via TOTP/passkey status leakage.
+- **M2:** WebAuthn challenges now enforce TTL at verification time (5 min expiry) and consume challenges atomically via `deleteMany` with TTL filter.
+- **M4:** Discord webhook error responses no longer leak upstream HTTP status codes or error text.
+- **M5:** Invite validation and user existence checks now run inside a single database transaction, eliminating TOCTOU race conditions.
+- **M6:** Auth failure recording uses Prisma atomic `increment` for fail counts, preventing race condition bypasses.
+- **M7:** Added composite unique constraint `(profile_id, position)` on `music_tracks` table to prevent duplicate positions.
+- **M8:** Email notifications (view/click) now have a 5-minute per-profile cooldown to prevent email bombing.
+- **M9:** Added Docker `HEALTHCHECK` to both backend and frontend Dockerfiles.
+- **M10:** Pinned pnpm version to `11.9.0` in Dockerfiles (was `latest`).
+- **M11:** Registration now returns a generic "Username or email is already taken" error instead of revealing which field conflicts.
+- **M12:** Profile creation limit check now runs inside a transaction to prevent race conditions.
+- **L5:** Admin domain approval errors no longer expose internal domain status enum values.
+- **L6:** Analytics GROUP BY queries now have explicit `LIMIT` clauses (31 for daily, 50 for platform).
+- **L8:** Frontend Docker Compose `depends_on` now waits for backend `service_healthy` condition.
+- **L9:** Frontend `sed_escape` now handles newlines in environment variable values.
+- **L12:** Fixed `ADMIN_EMAIL` default mismatch in `.env.example` (was `admin@localhost`, now `admin@bioplatform.com`).
+- **L14:** Avatar and banner uploads now validate magic bytes against expected file types (defense-in-depth beyond extension check).
 
 ### Added
 - `docker-compose.prebuilt.yml` — prebuilt images variant for pulling from Docker Hub or GHCR instead of building from source.

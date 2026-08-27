@@ -10,7 +10,7 @@ json_escape() {
 }
 
 sed_escape() {
-  printf '%s' "$1" | sed -e 's/[|&\\]/\\&/g'
+  printf '%s' "$1" | sed -e 's/[|&\\]/\\&/g' -e ':a;N;$!ba;s/\n/\\n/g'
 }
 
 {

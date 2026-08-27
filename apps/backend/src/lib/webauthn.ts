@@ -93,12 +93,10 @@ async function storeChallenge(userId: string, challenge: string, purpose: Challe
 }
 
 export async function consumeChallenge(userId: string, challenge: string, purpose: ChallengePurpose): Promise<boolean> {
-  const record = await prisma.webAuthnChallenge.findFirst({
-    where: { userId, challenge, purpose },
+  const result = await prisma.webAuthnChallenge.deleteMany({
+    where: { userId, challenge, purpose, createdAt: { gt: new Date(Date.now() - CHALLENGE_TTL_MS) } },
   });
-  if (!record) return false;
-  await prisma.webAuthnChallenge.deleteMany({ where: { id: record.id } });
-  return true;
+  return result.count > 0;
 }
 
 export async function cleanupExpiredChallenges(): Promise<void> {
@@ -140,7 +138,7 @@ export async function verifyRegister(
 ): Promise<{ verified: boolean; credential: { id: string; publicKey: string; counter: number; transports: string[] } }> {
   const { rpID, origin } = getWebauthnEnv(host);
   const challengeRecord = await prisma.webAuthnChallenge.findFirst({
-    where: { userId, purpose: "register" },
+    where: { userId, purpose: "register", createdAt: { gt: new Date(Date.now() - CHALLENGE_TTL_MS) } },
     orderBy: { createdAt: "desc" },
   });
   if (!challengeRecord) {
@@ -210,7 +208,7 @@ export async function verifyLogin(
 ): Promise<{ verified: boolean }> {
   const { rpID, origin } = getWebauthnEnv(host);
   const challengeRecord = await prisma.webAuthnChallenge.findFirst({
-    where: { userId, purpose },
+    where: { userId, purpose, createdAt: { gt: new Date(Date.now() - CHALLENGE_TTL_MS) } },
     orderBy: { createdAt: "desc" },
   });
   if (!challengeRecord) return { verified: false };

@@ -95,3 +95,13 @@ Never create standalone audit/report files (e.g. `docs/en/security-audit.md`). I
 Record every security fix in `CHANGELOG.md` under `[Unreleased] → Security` and mark it done in `TASKS.md` — never in a separate audit document. Accepted/deferred risks go in the same changelog entry as a note.
 
 Docs parity: every file in `docs/en/` must have an exact Spanish twin in `docs/es/` (same set of files, same content translated). When you add, rename, or delete a doc in one language, mirror it in the other in the same change.
+
+## Tooling
+
+- **rtk** — ripgrep wrapper (`rg`) for fast file search and content grep across the repo.
+- **Semgrep** — static analysis for security patterns (`semgrep --config=p/typescript`).
+- **Gitleaks** — secret scanning (`gitleaks detect --source .`).
+- **Trivy** — container image vulnerability scanning (`trivy image bio-backend:latest`).
+- **ast-grep** — AST-based code search and refactoring (`sg scan -p '<pattern>'`).
+- Run `pnpm typecheck` before committing to verify TypeScript correctness.
+- Run `pnpm --filter @bioplatform/backend test` to execute backend tests.

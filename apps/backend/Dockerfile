@@ -1,6 +1,6 @@
 FROM node:22-alpine
 
-RUN corepack enable && corepack prepare pnpm@latest --activate \
+RUN corepack enable && corepack prepare pnpm@11.9.0 --activate \
   && apk add --no-cache font-liberation ttf-dejavu
 
 WORKDIR /app
@@ -35,6 +35,9 @@ COPY apps/backend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "apps/backend/dist/index.js"]

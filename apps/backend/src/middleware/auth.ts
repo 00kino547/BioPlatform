@@ -26,7 +26,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   try {
     const payload = jwt.verify(token, getEnv().JWT_SECRET) as AuthPayload;
-    if (payload.purpose !== undefined && payload.purpose !== "auth") {
+    if (payload.purpose !== "auth") {
       return res.status(401).json({ success: false, error: "Invalid token" });
     }
     req.userId = payload.userId;

@@ -1,7 +1,7 @@
 # Build stage
 FROM node:22-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 
 WORKDIR /app
 
@@ -35,6 +35,7 @@ RUN chmod +x /docker-entrypoint.d/50-runtime-env.sh
 # Copy Nginx configuration for SPA
 RUN echo 'server { \
     listen 80; \
+    listen [::]:80; \
     root /usr/share/nginx/html; \
     index index.html; \
     location /assets/ { \
@@ -50,5 +51,8 @@ RUN echo 'server { \
 }' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:80/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

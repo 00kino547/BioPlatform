@@ -112,6 +112,12 @@ function invalidInvite(res: Response, error: string) {
   });
 }
 
+class InviteError extends Error {
+  constructor(message: string, public status: number = 400) {
+    super(message);
+  }
+}
+
 interface TwoFactorPayload {
   userId: string;
   purpose: "twofactor";
@@ -195,46 +201,6 @@ router.post("/register", async (req, res) => {
   const { username, email, password, inviteCode } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
-  const code = await prisma.inviteCode.findUnique({
-    where: { code: inviteCode },
-  });
-
-  if (!code) {
-    return invalidInvite(res, "Invite code is invalid");
-  }
-
-  if (code.usedById) {
-    return invalidInvite(res, "Invite code has already been used");
-  }
-
-  if (code.revokedAt) {
-    return invalidInvite(res, "Invite code has been revoked");
-  }
-
-  if (code.expiresAt && code.expiresAt < new Date()) {
-    return invalidInvite(res, "Invite code has expired");
-  }
-
-  const existingUsers = await prisma.user.findMany({
-    where: { OR: [{ email: normalizedEmail }, { username }] },
-    select: { email: true, username: true },
-  });
-
-  if (existingUsers.length > 0) {
-    const fieldErrors: Record<string, string> = {};
-    if (existingUsers.some((user) => user.username === username)) {
-      fieldErrors.username = "Username is already taken";
-    }
-    if (existingUsers.some((user) => user.email === normalizedEmail)) {
-      fieldErrors.email = "Email is already registered";
-    }
-    return res.status(409).json({
-      success: false,
-      error: "Please choose a different username or email.",
-      fieldErrors,
-    });
-  }
-
   const passwordHash = await bcrypt.hash(password, 12);
   const userRole = await prisma.role.findUnique({
     where: { slug: "user" },
@@ -246,6 +212,18 @@ router.post("/register", async (req, res) => {
 
   try {
     const user = await prisma.$transaction(async (tx) => {
+      const code = await tx.inviteCode.findUnique({ where: { code: inviteCode } });
+      if (!code) throw new InviteError("Invite code is invalid");
+      if (code.usedById) throw new InviteError("Invite code has already been used");
+      if (code.revokedAt) throw new InviteError("Invite code has been revoked");
+      if (code.expiresAt && code.expiresAt < new Date()) throw new InviteError("Invite code has expired");
+
+      const existing = await tx.user.findFirst({
+        where: { OR: [{ email: normalizedEmail }, { username }] },
+        select: { id: true },
+      });
+      if (existing) throw new InviteError("Username or email is already taken", 409);
+
       const u = await tx.user.create({
         data: {
           username,
@@ -265,7 +243,7 @@ router.post("/register", async (req, res) => {
         data: { usedById: u.id, usedAt: new Date() },
       });
       if (consumed.count !== 1) {
-        throw new Error("INVITE_ALREADY_USED");
+        throw new InviteError("Invite code has already been used");
       }
 
       return u;
@@ -285,15 +263,14 @@ router.post("/register", async (req, res) => {
       data: { token, user: await userPublic(user) },
     });
   } catch (err) {
-    if (err instanceof Error && err.message === "INVITE_ALREADY_USED") {
-      return invalidInvite(res, "Invite code has already been used");
-    }
-    if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return res.status(409).json({
-        success: false,
-        error: "Username or email is already taken.",
-        fieldErrors: { username: "Username or email is already taken", email: "Username or email is already taken" },
-      });
+    if (err instanceof InviteError) {
+      if (err.status === 409) {
+        return res.status(409).json({
+          success: false,
+          error: err.message,
+        });
+      }
+      return invalidInvite(res, err.message);
     }
     throw err;
   }
@@ -313,17 +290,13 @@ router.post("/login/start", async (req, res) => {
     });
   }
 
-  const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
+  const methods = { password: true, passkey: false, totp: false };
 
   res.json({
     success: true,
     data: {
       found: true,
-      methods: {
-        password: true,
-        passkey: passkeyCount > 0,
-        totp: user.totpEnabled,
-      },
+      methods,
     },
   });
 });

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
-import { api, type LoginMethods, type TwoFactorRequired } from "@/lib/api";
+import { api, type TwoFactorRequired } from "@/lib/api";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { KeyRound, Fingerprint, Lock } from "lucide-react";
 import { usePageMeta } from "@/lib/seo";
@@ -16,7 +16,6 @@ export function Login() {
   const [stage, setStage] = useState<Stage>("identifier");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [methods, setMethods] = useState<LoginMethods | null>(null);
   const [twoFactor, setTwoFactor] = useState<TwoFactorRequired | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
@@ -46,7 +45,6 @@ export function Login() {
       return;
     }
 
-    setMethods(res.data.methods ?? { password: true, passkey: false, totp: false });
     setStage("method");
   };
 
@@ -216,9 +214,9 @@ export function Login() {
                 <Button
                   type="button"
                   className="w-full h-12"
-                  variant={methods?.passkey ? "default" : "secondary"}
+                  variant="secondary"
                   onClick={handlePasswordless}
-                  disabled={!methods?.passkey || loading}
+                  disabled={loading}
                 >
                   <Fingerprint className="h-5 w-5" />
                   Passwordless (Passkey)

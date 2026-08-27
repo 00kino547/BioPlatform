@@ -77,6 +77,7 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
         WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
+        LIMIT 31
       `,
       prisma.$queryRaw<{ date: string; count: bigint }[]>`
         SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
@@ -84,6 +85,7 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
         WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
+        LIMIT 31
       `,
       prisma.$queryRaw<{ date: string; count: bigint }[]>`
         SELECT DATE(created_at)::text as date, COUNT(*) as count
@@ -91,6 +93,7 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
         WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
+        LIMIT 31
       `,
       prisma.$queryRaw<{ date: string; count: bigint }[]>`
         SELECT DATE(created_at)::text as date, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
@@ -98,6 +101,7 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
         WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
+        LIMIT 31
       `,
       prisma.$queryRaw<{ platform: string; count: bigint }[]>`
         SELECT platform, COUNT(*) as count
@@ -105,6 +109,7 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
         WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
         GROUP BY platform
         ORDER BY count DESC
+        LIMIT 50
       `,
       prisma.$queryRaw<{ platform: string; count: bigint }[]>`
         SELECT platform, COUNT(DISTINCT CASE WHEN visitor_id IS NOT NULL THEN visitor_id ELSE ip || '|' || COALESCE(user_agent, '') END) as count
@@ -112,6 +117,7 @@ router.get("/me", requireAuth, requireApiLevel("advanced"), async (req, res) => 
         WHERE profile_id = ${profile.id}::uuid AND created_at >= ${thirtyDaysAgo}
         GROUP BY platform
         ORDER BY count DESC
+        LIMIT 50
       `,
       prisma.$queryRaw<{ referer: string; count: bigint }[]>`
         SELECT COALESCE(referer, 'Direct') as referer, COUNT(*) as count

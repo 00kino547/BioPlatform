@@ -89,6 +89,18 @@ const PROFILE_CLICK_LIMIT_MAX = 60;
 const PROFILE_CLICK_WINDOW_MS = 60 * 1000;
 const profileClickHits = new Map<string, number[]>();
 
+const EMAIL_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
+const lastEmailNotify = new Map<string, number>();
+
+function emailNotifyRateLimited(profileId: string, type: string): boolean {
+  const key = `${profileId}:${type}`;
+  const now = Date.now();
+  const last = lastEmailNotify.get(key) ?? 0;
+  if (now - last < EMAIL_NOTIFY_COOLDOWN_MS) return true;
+  lastEmailNotify.set(key, now);
+  return false;
+}
+
 function publicRateLimit(req: Request, res: Response, next: NextFunction) {
   const ip = req.ip ?? "unknown";
   const now = Date.now();
@@ -144,6 +156,28 @@ const uploadsDir = path.resolve(getEnv().LOCAL_STORAGE_PATH);
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const ALLOWED_EXTS = new Set([".jpeg", ".jpg", ".png", ".gif", ".webp"]);
+
+const MAGIC_BYTES: [Buffer, string][] = [
+  [Buffer.from([0xff, 0xd8, 0xff]), "image/jpeg"],
+  [Buffer.from([0x89, 0x50, 0x4e, 0x47]), "image/png"],
+  [Buffer.from([0x47, 0x49, 0x46, 0x38]), "image/gif"],
+  [Buffer.from([0x52, 0x49, 0x46, 0x46]), "image/webp"],
+];
+
+function validateFileMagic(filePath: string, _expectedExt: string): boolean {
+  try {
+    const fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(12);
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    for (const [magic] of MAGIC_BYTES) {
+      if (buf.subarray(0, magic.length).equals(magic)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -245,28 +279,27 @@ router.post("/me", requireAuth, async (req, res) => {
     return res.status(404).json({ success: false, error: "User not found" });
   }
 
-  const count = await prisma.profile.count({ where: { userId: req.userId! } });
-  const limit = getProfileLimit(user);
-  if (count >= limit) {
-    return res.status(400).json({
-      success: false,
-      error: `Profile limit reached (${limit}). Upgrade your plan to create more profiles.`,
-    });
-  }
-
   const { slug, socialLinks, theme, ...rest } = parsed.data;
 
   try {
-    const profile = await prisma.profile.create({
-      data: {
-        userId: req.userId!,
-        slug,
-        isPrimary: count === 0,
-        ...rest,
-        socialLinks: toPrismaJson(socialLinks),
-        theme: toPrismaJson(theme),
-      },
-      include: { aliases: true, badges: { select: { id: true } } },
+    const profile = await prisma.$transaction(async (tx) => {
+      const count = await tx.profile.count({ where: { userId: req.userId! } });
+      const limit = getProfileLimit(user);
+      if (count >= limit) {
+        throw new Error("PROFILE_LIMIT_REACHED");
+      }
+
+      return tx.profile.create({
+        data: {
+          userId: req.userId!,
+          slug,
+          isPrimary: count === 0,
+          ...rest,
+          socialLinks: toPrismaJson(socialLinks),
+          theme: toPrismaJson(theme),
+        },
+        include: { aliases: true, badges: { select: { id: true } } },
+      });
     });
 
     dispatchWebhookEvent(req.userId!, "profile.created", {
@@ -277,6 +310,13 @@ router.post("/me", requireAuth, async (req, res) => {
 
     res.status(201).json({ success: true, data: serializeOwnProfile(profile) });
   } catch (err) {
+    if (err instanceof Error && err.message === "PROFILE_LIMIT_REACHED") {
+      const limit = getProfileLimit(user!);
+      return res.status(400).json({
+        success: false,
+        error: `Profile limit reached (${limit}). Upgrade your plan to create more profiles.`,
+      });
+    }
     if (isUniqueViolation(err)) {
       return res.status(409).json({ success: false, error: "That profile URL is already taken." });
     }
@@ -624,6 +664,12 @@ router.post("/me/avatar", requireAuth, handleUpload("avatar"), async (req, res) 
     return res.status(400).json({ success: false, error: "No file uploaded" });
   }
 
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  if (!validateFileMagic(req.file.path, ext)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ success: false, error: "Invalid file type. Use JPEG, PNG, GIF, or WebP." });
+  }
+
   const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
   if (!profile) {
     fs.unlinkSync(req.file.path);
@@ -640,6 +686,12 @@ router.post("/me/avatar", requireAuth, handleUpload("avatar"), async (req, res) 
 router.post("/me/banner", requireAuth, handleUpload("banner"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: "No file uploaded" });
+  }
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  if (!validateFileMagic(req.file.path, ext)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ success: false, error: "Invalid file type. Use JPEG, PNG, GIF, or WebP." });
   }
 
   const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
@@ -912,7 +964,7 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
       },
     }).catch(() => {});
 
-    if (profile.notifyOnView) {
+    if (profile.notifyOnView && !emailNotifyRateLimited(profile.id, "view")) {
       import("../lib/email.js").then(({ isEmailEnabled, sendEmail, buildViewNotification }) => {
         if (isEmailEnabled()) {
           prisma.user.findUnique({ where: { id: profile.userId }, select: { email: true } }).then((owner) => {
@@ -1039,7 +1091,7 @@ router.post("/click", publicRateLimit, async (req, res) => {
       },
     }).catch(() => {});
 
-    if (profile.notifyOnClick) {
+    if (profile.notifyOnClick && !emailNotifyRateLimited(profileId, "click")) {
       import("../lib/email.js").then(({ isEmailEnabled, sendEmail, buildClickNotification }) => {
         if (isEmailEnabled()) {
           prisma.user.findUnique({ where: { id: profile.userId }, select: { email: true, username: true } }).then((owner) => {

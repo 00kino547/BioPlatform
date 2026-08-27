@@ -133,11 +133,11 @@ async function applyLockout(
 
   await prisma.authBan.upsert({
     where: { kind_value: { kind, value } },
-    update: { failCount, permanent, lockedUntil },
-    create: { kind, value, failCount, permanent, lockedUntil },
+    update: { failCount: { increment: 1 }, permanent, lockedUntil },
+    create: { kind, value, failCount: 1, permanent, lockedUntil },
   });
 
-  const locked = failCount > MAX_FREE_ATTEMPTS;
+  const locked = failCount >= MAX_FREE_ATTEMPTS;
   return {
     permanent,
     penaltyMinutes: locked && !permanent ? getEnv().AUTH_LOCK_DURATION_MINUTES : null,
