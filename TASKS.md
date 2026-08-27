@@ -13,7 +13,7 @@
 - [ ] SSO (Single Sign-On) — let users sign in through a third-party identity provider (Google, GitHub, Discord OAuth, etc.) instead of username + password; link multiple providers to one account and expose a button next to the normal login form — Task Numbered M3
 - [ ] Enterprise team management — the "leader" of an ENTERPRISE workspace can invite team members, assign each a role/permissions, manage seats, and see the whole team from the dashboard — Task Numbered M4
 - [x] ~~GitHub version checker~~ — implemented (see Completed) — Task Numbered M5
-- [ ] Configure SMTP for production (email unlock links, notifications) — SMTP_ENABLED=false until final production deployment — Task Numbered M6
+- [ ] Configure SMTP for preview/dev — enable SMTP on preview.dexlunmc.com (email unlock links, notifications) — Task Numbered M6
 - [x] ~~REST API for third-party integrations~~ — implemented (OpenAPI 3.0 spec at `/api/openapi.json`) — Task Numbered M7
 - [ ] S3/R2/B2 storage providers — Task Numbered M8
 
