@@ -24,6 +24,7 @@ const NGINX_CERTS_ROOT = "/etc/nginx/certs";
 const NGINX_CONF_NAME = "custom-domains.conf";
 
 const ACME_RETRY_BACKOFF_MS = 60 * 60 * 1000;
+const ACME_ISSUE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export function acmeEnabled(): boolean {
   return getEnv().ACME_ENABLED;
@@ -146,6 +147,15 @@ export async function regenerateNginxConf(): Promise<void> {
   await fs.writeFile(nginxConfPath(), content, "utf8");
 }
 
+export async function cleanupDomainFiles(domain: string): Promise<void> {
+  try {
+    await fs.rm(domainDir(domain), { recursive: true, force: true });
+  } catch {
+    // ignore missing/cleanup errors — best effort
+  }
+  await regenerateNginxConf();
+}
+
 export function getChallenge(token: string): string | undefined {
   pruneAcmeChallenges();
   const entry = acmeChallenges.get(token);
@@ -186,18 +196,28 @@ async function issueCertificateForDomain(domain: string): Promise<{ ok: boolean;
       altNames: [domain, `www.${domain}`],
     });
 
-    const cert = await client.auto({
-      csr,
-      email: env.ACME_EMAIL || undefined,
-      termsOfServiceAgreed: true,
-      challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
-        acmeChallenges.set(challenge.token, { keyAuthorization, createdAt: Date.now() });
-        pruneAcmeChallenges();
-      },
-      challengeRemoveFn: async (_authz, challenge) => {
-        acmeChallenges.delete(challenge.token);
-      },
-    });
+    let timer: NodeJS.Timeout | null = null;
+    const cert = await Promise.race([
+      client.auto({
+        csr,
+        email: env.ACME_EMAIL || undefined,
+        termsOfServiceAgreed: true,
+        challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
+          acmeChallenges.set(challenge.token, { keyAuthorization, createdAt: Date.now() });
+          pruneAcmeChallenges();
+        },
+        challengeRemoveFn: async (_authz, challenge) => {
+          acmeChallenges.delete(challenge.token);
+        },
+      }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Timed out — verify the domain's DNS points to this server and port 80 is reachable.")),
+          ACME_ISSUE_TIMEOUT_MS
+        );
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
 
     await writeFilesAtomic(domain, cert, privateKey);
 

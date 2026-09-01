@@ -364,6 +364,24 @@ export function AdminDashboard() {
     }
   };
 
+  const handleRemoveDomain = async (d: AdminDomainEntry) => {
+    if (!window.confirm(
+      `Remove custom domain "${d.domain}"?\n\n` +
+      "This permanently deletes the request, removes any TLS certificates for it from disk, and regenerates the nginx custom-domain configuration. You will also need to delete its DNS records. Continue?"
+    )) return;
+    const token = getToken();
+    const res = await fetch(`/api/admin/custom-domains/${d.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setDomains((prev) => prev.filter((x) => x.id !== d.id));
+    } else {
+      window.alert(data.error ?? "Failed to remove domain");
+    }
+  };
+
   const handleUnban = async (id: string) => {
     const token = getToken();
     const res = await fetch(`/api/admin/auth-bans/${id}`, {
@@ -1847,8 +1865,11 @@ export function AdminDashboard() {
                           ) : d.status === "ACTIVE" && d.tlsStatus === "PENDING" ? (
                             <span className="text-xs text-amber-400">issuing…</span>
                           ) : d.status === "ACTIVE" && d.tlsStatus === "FAILED" ? (
-                            <span className="text-xs text-red-400" title={d.tlsError ?? undefined}>
-                              failed
+                            <span
+                              className="text-xs text-red-400 underline decoration-dotted underline-offset-2 cursor-help"
+                              title={d.tlsError ?? "Certificate issuance failed"}
+                            >
+                              failed — hover for details
                             </span>
                           ) : d.status === "ACTIVE" ? (
                             <span className="text-xs text-zinc-500">none</span>
@@ -1886,6 +1907,14 @@ export function AdminDashboard() {
                               Issue cert
                             </button>
                           )}
+                          <button
+                            onClick={() => handleRemoveDomain(d)}
+                            disabled={locked}
+                            title={locked ? "Locked until the app is updated" : "Remove this custom domain and its TLS certificates"}
+                            className="ml-2 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-red-500/15 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Remove
+                          </button>
                         </td>
                       </tr>
                     ))}

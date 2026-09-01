@@ -19,7 +19,7 @@ import {
 import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.js";
 import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
-import { issueCertificateForDomain } from "../lib/acme.js";
+import { issueCertificateForDomain, cleanupDomainFiles } from "../lib/acme.js";
 import { requireNoUpdateLockdown } from "../lib/versionCheck.js";
 
 const router = Router();
@@ -900,6 +900,16 @@ router.post("/custom-domains/:id/issue-cert", requirePermission(PERMISSIONS.PROF
   }
   const updated = await prisma.profileDomain.findUnique({ where: { id: entry.id } });
   res.json({ success: true, data: updated });
+});
+
+router.delete("/custom-domains/:id", requirePermission(PERMISSIONS.PROFILES_MANAGE), requireNoUpdateLockdown, async (req: Request<{ id: string }>, res) => {
+  const entry = await prisma.profileDomain.findUnique({ where: { id: req.params.id } });
+  if (!entry) {
+    return res.status(404).json({ success: false, error: "Custom domain request not found" });
+  }
+  await prisma.profileDomain.delete({ where: { id: entry.id } });
+  await cleanupDomainFiles(entry.domain);
+  res.json({ success: true, message: "Custom domain removed" });
 });
 
 export default router;
