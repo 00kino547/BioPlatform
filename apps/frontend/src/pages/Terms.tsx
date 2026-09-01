@@ -20,7 +20,7 @@ export function Terms() {
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">Terms of Service</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: August 16, 2026</p>
+        <p className="text-sm text-zinc-500 mb-8">Last updated: September 1, 2026</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           <section>
@@ -84,17 +84,40 @@ export function Terms() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">7. Webhooks and Integrations</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">7. Webhooks, Integrations and Discord</h2>
             <p className="text-zinc-400">
               You may configure outgoing webhooks to receive notifications about activity on your profile (views, link clicks, etc.) on endpoints you control. You are solely responsible for the availability, security, and privacy practices of the webhook endpoints you configure. {branding.name} will send data to the URLs you provide and does not control how that data is handled after delivery.
             </p>
             <p className="text-zinc-400 mt-2">
               You may revoke or rotate webhook secrets at any time through your dashboard. The instance operator may remove webhook configurations that are being abused or that violate these terms.
             </p>
+            <p className="text-zinc-400 mt-2">
+              You may optionally connect a Discord account and share your live presence (online status and activity) on your public profile, and use the &quot;Post to Discord&quot; feature to push a profile embed to a webhook URL you provide. Presence is shared only with your explicit opt-in; you can disconnect your Discord account or disable presence sharing at any time, which stops the display of that data. You are responsible for how you present and share your own presence data.
+            </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">8. Service Availability and Security Updates</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">8. Email Notifications</h2>
+            <p className="text-zinc-400">
+              With your opt-in, {branding.name} may send email notifications to the address on your account when your profile receives views or link clicks. Notifications are sent only if you have enabled them for the relevant profile, and only while they remain enabled. You can disable these notifications at any time from your settings. To reduce noise, notifications are rate-limited so multiple events within a short window trigger a single email.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              We may also email you about important account or security matters, such as account recovery or security incidents; these notices are not optional and are sent regardless of your notification preferences.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Access to the API</h2>
+            <p className="text-zinc-400">
+              {branding.name} exposes a documented HTTP API (see the API documentation and OpenAPI specification) that supports integration with your account and profile. Use of the API is subject to these Terms, including the Acceptable Use provisions. You are responsible for requests you make and for any application or service you build on top of the API.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              We may impose rate limits or restrict access to protect the service from abuse or degradation. Repeatedly exceeding these limits, placing an unreasonable load on the service, or using the API to circumvent any security measure may result in temporary or permanent suspension of API access or your account.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">10. Service Availability and Security Updates</h2>
             <p className="text-zinc-400">
               We strive to keep {branding.name} available at all times, but we do not guarantee uninterrupted access. We may perform maintenance, updates, or experience downtime without prior notice.
             </p>
@@ -104,28 +127,28 @@ export function Terms() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Termination</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">11. Termination</h2>
             <p className="text-zinc-400">
               We reserve the right to suspend or terminate your account at our discretion, with or without cause, including for violations of these Terms. Upon termination, your right to use the service ceases immediately.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">10. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">12. Limitation of Liability</h2>
             <p className="text-zinc-400">
               {branding.name} is provided &quot;as is&quot; without warranties of any kind. We shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">11. Changes to Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">13. Changes to Terms</h2>
             <p className="text-zinc-400">
               We may modify these Terms at any time. Continued use of the service after changes constitutes acceptance of the modified Terms. We will notify you of material changes through the service or by email.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">12. Contact</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">14. Contact</h2>
             <p className="text-zinc-400">
               For questions about these Terms, please{" "}
               <a href={branding.contactUrl} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 transition-colors">

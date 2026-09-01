@@ -20,7 +20,7 @@ export function Privacy() {
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: August 16, 2026</p>
+        <p className="text-sm text-zinc-500 mb-8">Last updated: September 1, 2026</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           <section>
@@ -56,7 +56,7 @@ export function Privacy() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">4. File Uploads</h2>
             <p className="text-zinc-400">
-              Avatar and banner images you upload are stored on our servers. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security.
+              Avatar and banner images you upload are stored on our servers. If you upload audio for music tracks on your profile, those files are also stored on our servers and streamed to visitors when played. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security.
             </p>
           </section>
 
@@ -112,6 +112,13 @@ export function Privacy() {
             <h2 className="text-xl font-semibold text-white mb-3">5f. Version Checking</h2>
             <p className="text-zinc-400">
               {branding.name} periodically checks for available software updates by fetching the project&rsquo;s public CHANGELOG from GitHub (via <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">raw.githubusercontent.com</code>, the GitHub API, and <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">cdn.jsdelivr.net</code>). No personal information is transmitted in these requests — only the public repository URL is used. The check runs in the background on the server at startup and every 12 hours; the result is cached and served to all visitors to display the current version badge. This feature can be disabled by the instance operator.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5g. Email Notifications</h2>
+            <p className="text-zinc-400">
+              If you opt in to email notifications for profile activity, we use the email address on your account to send you a digest when your profile receives views or link clicks. Notifications are only sent while the relevant setting is enabled and are rate-limited to avoid excessive email volume; you can disable them at any time from your settings. We may also send important account or security notices (for example, account recovery) using the email address on your account.
             </p>
           </section>
 
