@@ -1,6 +1,7 @@
 FROM node:22-alpine
 
-RUN corepack enable && corepack prepare pnpm@11.9.0 --activate \
+RUN apk upgrade --no-cache \
+  && corepack enable && corepack prepare pnpm@11.9.0 --activate \
   && apk add --no-cache font-liberation ttf-dejavu
 
 WORKDIR /app

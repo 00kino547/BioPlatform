@@ -24,6 +24,8 @@ RUN pnpm --filter @bioplatform/frontend build
 # Production stage
 FROM nginx:alpine
 
+RUN apk upgrade --no-cache
+
 # Copy built files to Nginx
 COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
 
