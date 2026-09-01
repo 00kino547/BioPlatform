@@ -15,7 +15,7 @@ import badgeRoutes from "./routes/badges.js";
 import versionRoutes from "./routes/version.js";
 import { renderProfileOgPage } from "./lib/profileOg.js";
 import { buildLandingOgPage } from "./lib/og.js";
-import { buildRobotsTxt, buildSitemapXml, buildLlmstxt, buildLlmstxtFull } from "./lib/seo.js";
+import { buildRobotsTxt, buildSitemapXml, buildSubSitemapXml, buildLlmstxt, buildLlmstxtFull } from "./lib/seo.js";
 import { openapi } from "./lib/openapi.js";
 import domainRoutes from "./routes/domain.js";
 import { resolveCustomDomain } from "./middleware/domain.js";
@@ -65,6 +65,24 @@ app.get("/sitemap.xml", async (_req, res) => {
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=600");
   res.send(await buildSitemapXml());
+});
+
+app.get("/sitemap-:index.xml", async (req, res) => {
+  const raw = req.params.index;
+  if (!/^\d+$/.test(raw)) {
+    return res.status(404).end();
+  }
+  const index = Number.parseInt(raw, 10);
+  if (!Number.isSafeInteger(index) || index < 0) {
+    return res.status(404).end();
+  }
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=600");
+  const xml = await buildSubSitemapXml(index);
+  if (xml === null) {
+    return res.status(404).end();
+  }
+  res.send(xml);
 });
 
 app.get("/llms.txt", async (_req, res) => {

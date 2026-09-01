@@ -5,7 +5,7 @@ const SITEMAP_MAX_URLS = 50_000;
 const LLMS_MAX_PROFILES = 500;
 
 interface CacheEntry {
-  value: string;
+  value: string | null;
   createdAt: number;
 }
 
@@ -14,7 +14,7 @@ const cache = new Map<string, CacheEntry>();
 function cached(key: string, ttlMs: number, build: () => Promise<string>): Promise<string> {
   const entry = cache.get(key);
   if (entry && Date.now() - entry.createdAt < ttlMs) {
-    return Promise.resolve(entry.value);
+    return Promise.resolve(entry.value as string);
   }
   return build().then((value) => {
     cache.set(key, { value, createdAt: Date.now() });
@@ -66,26 +66,67 @@ interface SitemapProfile {
   updatedAt: Date;
 }
 
-async function publicProfiles(): Promise<SitemapProfile[]> {
+const STATIC_PAGES = [
+  { path: "/privacy", changefreq: "monthly", priority: "0.5" },
+  { path: "/terms", changefreq: "monthly", priority: "0.5" },
+  { path: "/api-docs", changefreq: "monthly", priority: "0.5" },
+] as const;
+
+async function publicProfiles(opts?: { take?: number; skip?: number }): Promise<SitemapProfile[]> {
   return prisma.profile.findMany({
     where: { isPublic: true },
     select: { slug: true, updatedAt: true },
     orderBy: { updatedAt: "desc" },
-    take: SITEMAP_MAX_URLS,
+    take: opts?.take ?? SITEMAP_MAX_URLS,
+    skip: opts?.skip ?? 0,
   });
+}
+
+function profileUrl(entry: SitemapProfile, base: string): string {
+  const lastmod = entry.updatedAt.toISOString().slice(0, 10);
+  return `<url><loc>${escapeXml(`${base}/${entry.slug}`)}</loc><lastmod>${lastmod}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`;
+}
+
+function urlsetXml(base: string, profiles: SitemapProfile[]): string {
+  const urls = [
+    `<url><loc>${escapeXml(base)}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    ...profiles.map((p) => profileUrl(p, base)),
+    ...STATIC_PAGES.map(
+      (s) =>
+        `<url><loc>${escapeXml(`${base}${s.path}`)}</loc><changefreq>${s.changefreq}</changefreq><priority>${s.priority}</priority></url>`
+    ),
+  ];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
+}
+
+function sitemapIndexXml(base: string, count: number): string {
+  const sitemaps = Array.from({ length: count }, (_, i) => i).map(
+    (i) =>
+      `<sitemap><loc>${escapeXml(`${base}/sitemap-${i}.xml`)}</loc></sitemap>`
+  );
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemaps.join("\n")}\n</sitemapindex>\n`;
 }
 
 async function sitemapXml(): Promise<string> {
   const base = baseUrl();
+  const count = await prisma.profile.count({ where: { isPublic: true } });
+  if (count > SITEMAP_MAX_URLS) {
+    const pages = Math.ceil(count / SITEMAP_MAX_URLS);
+    return sitemapIndexXml(base, pages);
+  }
   const profiles = await publicProfiles();
-  const urls = [
-    `<url><loc>${escapeXml(base)}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
-    ...profiles.map((p) => {
-      const lastmod = p.updatedAt.toISOString().slice(0, 10);
-      return `<url><loc>${escapeXml(`${base}/${p.slug}`)}</loc><lastmod>${lastmod}</lastmod><priority>0.8</priority></url>`;
-    }),
-  ];
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
+  return urlsetXml(base, profiles);
+}
+
+async function subSitemapXml(index: number): Promise<string | null> {
+  const base = baseUrl();
+  const count = await prisma.profile.count({ where: { isPublic: true } });
+  const pages = Math.ceil(count / SITEMAP_MAX_URLS);
+  if (count <= SITEMAP_MAX_URLS || index < 0 || index >= pages) {
+    return null;
+  }
+  const profiles = await publicProfiles({ skip: index * SITEMAP_MAX_URLS, take: SITEMAP_MAX_URLS });
+  return urlsetXml(base, profiles);
 }
 
 interface LlmsProfile {
@@ -165,6 +206,21 @@ export async function buildRobotsTxt(): Promise<string> {
 
 export async function buildSitemapXml(): Promise<string> {
   return cached("sitemap.xml", 10 * 60 * 1000, sitemapXml);
+}
+
+export async function buildSubSitemapXml(index: number): Promise<string | null> {
+  const key = `sitemap-${index}.xml`;
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.createdAt < 10 * 60 * 1000) {
+    return entry.value;
+  }
+  const value = await subSitemapXml(index);
+  cache.set(key, { value, createdAt: Date.now() });
+  if (cache.size > 100) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) cache.delete(oldestKey);
+  }
+  return value;
 }
 
 export async function buildLlmstxt(): Promise<string> {
