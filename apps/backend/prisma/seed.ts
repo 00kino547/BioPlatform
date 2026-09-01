@@ -28,7 +28,7 @@ async function ensureSystemRoles() {
       slug: SYSTEM_ROLE_SLUGS.USER,
       name: "User",
       description: "Standard member",
-      permissions: [],
+      permissions: [PERMISSIONS.PROFILES_CUSTOM_DOMAIN],
     },
   ];
 
