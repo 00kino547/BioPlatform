@@ -294,6 +294,8 @@ model Passkey {
   transports   String[] @default([])
   name         String
   residentKey  Boolean  @default(false) @map("resident_key")
+  authenticatorAttachment String? @map("authenticator_attachment")
+  credentialDeviceType    String? @map("credential_device_type")
   createdAt    DateTime @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
 

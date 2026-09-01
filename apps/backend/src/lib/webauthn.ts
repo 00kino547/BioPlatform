@@ -15,6 +15,13 @@ import { getEnv } from "../config/env.js";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
+// Discoverable (resident) passkey login stores its challenges in memory instead
+// of the web_authn_challenges table because no user is known at challenge time
+// (the table's user_id is a foreign key to users). Matching the assertion is
+// done against these issued challenges, and TTL is enforced on lookup.
+const DISCOVERABLE_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const discoverableChallenges = new Map<string, { createdAt: number }>();
+
 export type ChallengePurpose = "register" | "login" | "twofactor";
 
 export interface WebauthnEnv {
@@ -99,6 +106,89 @@ export async function consumeChallenge(userId: string, challenge: string, purpos
   return result.count > 0;
 }
 
+function pruneDiscoverableChallenges(): void {
+  const cutoff = Date.now() - DISCOVERABLE_CHALLENGE_TTL_MS;
+  for (const [challenge, entry] of discoverableChallenges) {
+    if (entry.createdAt < cutoff) discoverableChallenges.delete(challenge);
+  }
+  if (discoverableChallenges.size > 1000) {
+    const oldest = [...discoverableChallenges.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+    for (let i = 0; i < oldest.length && discoverableChallenges.size > 500; i++) {
+      discoverableChallenges.delete(oldest[i][0]);
+    }
+  }
+}
+
+export async function generateDiscoverableLoginOptions(opts: {
+  userVerification: "preferred" | "discouraged";
+  host?: string;
+}): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  const { rpID } = getWebauthnEnv(opts.host);
+  const options = await generateAuthenticationOptions({
+    rpID,
+    allowCredentials: [],
+    userVerification: opts.userVerification,
+  });
+  discoverableChallenges.set(options.challenge, { createdAt: Date.now() });
+  pruneDiscoverableChallenges();
+  return options;
+}
+
+function extractAssertionChallenge(response: AuthenticationResponseJSON): string | null {
+  try {
+    const json = JSON.parse(Buffer.from(response.response.clientDataJSON, "base64url").toString("utf8")) as { challenge?: string };
+    return typeof json.challenge === "string" ? json.challenge : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyDiscoverableLogin(opts: {
+  response: AuthenticationResponseJSON;
+  getPasskey: (credentialId: string) => Promise<{
+    id: string;
+    userId: string;
+    credentialId: string;
+    publicKey: string;
+    counter: bigint;
+    transports: string[];
+  } | null>;
+  host?: string;
+}): Promise<{ verified: boolean; userId: string | null }> {
+  const { rpID, origin } = getWebauthnEnv(opts.host);
+
+  const challenge = extractAssertionChallenge(opts.response);
+  if (!challenge) return { verified: false, userId: null };
+  const stored = discoverableChallenges.get(challenge);
+  if (!stored || Date.now() - stored.createdAt > DISCOVERABLE_CHALLENGE_TTL_MS) {
+    discoverableChallenges.delete(challenge);
+    return { verified: false, userId: null };
+  }
+
+  const passkey = await opts.getPasskey(opts.response.id);
+  if (!passkey) return { verified: false, userId: null };
+
+  try {
+    const verification = await verifyAuthenticationResponse({
+      response: opts.response,
+      expectedChallenge: challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      credential: toWebAuthnCredential(passkey),
+      requireUserVerification: false,
+    });
+    discoverableChallenges.delete(challenge);
+    if (!verification.verified) return { verified: false, userId: null };
+    await prisma.passkey.update({
+      where: { id: passkey.id },
+      data: { counter: BigInt(verification.authenticationInfo.newCounter), lastUsedAt: new Date() },
+    });
+    return { verified: true, userId: passkey.userId };
+  } catch {
+    return { verified: false, userId: null };
+  }
+}
+
 export async function cleanupExpiredChallenges(): Promise<void> {
   await prisma.webAuthnChallenge.deleteMany({
     where: { createdAt: { lt: new Date(Date.now() - CHALLENGE_TTL_MS) } },
@@ -135,7 +225,11 @@ export async function verifyRegister(
   userId: string,
   response: RegistrationResponseJSON,
   host?: string
-): Promise<{ verified: boolean; credential: { id: string; publicKey: string; counter: number; transports: string[] } }> {
+): Promise<{
+  verified: boolean;
+  credential: { id: string; publicKey: string; counter: number; transports: string[] };
+  credentialDeviceType?: "singleDevice" | "multiDevice";
+}> {
   const { rpID, origin } = getWebauthnEnv(host);
   const challengeRecord = await prisma.webAuthnChallenge.findFirst({
     where: { userId, purpose: "register", createdAt: { gt: new Date(Date.now() - CHALLENGE_TTL_MS) } },
@@ -170,6 +264,7 @@ export async function verifyRegister(
         counter: verification.registrationInfo.credential.counter,
         transports: verification.registrationInfo.credential.transports ?? [],
       },
+      credentialDeviceType: verification.registrationInfo.credentialDeviceType,
     };
   } catch {
     return { verified: false, credential: { id: "", publicKey: "", counter: 0, transports: [] } };

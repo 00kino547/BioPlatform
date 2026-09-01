@@ -10,6 +10,7 @@ interface AuthContextValue {
     unlockRequired?: boolean;
   }>;
   loginWithPasskey: (identifier: string) => Promise<string | null>;
+  loginWithPasskeyDiscoverable: () => Promise<string | null>;
   verifyTotp: (token: string, code: string) => Promise<string | null>;
   verifyTwoFactorPasskey: (token: string) => Promise<string | null>;
   register: (data: {
@@ -86,6 +87,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
+  const loginWithPasskeyDiscoverable = async () => {
+    const optionsRes = await api.loginPasskeyDiscoverableOptions();
+    if (!optionsRes.success || !optionsRes.data) return optionsRes.error ?? "Could not start passkey login";
+
+    const { startAuthentication } = await import("@simplewebauthn/browser");
+    let response;
+    try {
+      response = await startAuthentication({
+        optionsJSON: optionsRes.data.options,
+        useBrowserAutofill: false,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Passkey login cancelled";
+      if (msg.toLowerCase().includes("cancel")) return msg;
+      return "Passkey login failed";
+    }
+
+    const verifyRes = await api.loginPasskeyDiscoverableVerify(response);
+    if (!verifyRes.success || !verifyRes.data) return verifyRes.error ?? "Passkey authentication failed";
+
+    completeAuth(verifyRes.data.token, verifyRes.data.user);
+    return null;
+  };
+
   const verifyTotp = async (token: string, code: string) => {
     const res = await api.verifyTotp(token, code);
     if (!res.success || !res.data) return res.error ?? "Verification failed";
@@ -145,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithPasskey, verifyTotp, verifyTwoFactorPasskey, register, refreshUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithPasskey, loginWithPasskeyDiscoverable, verifyTotp, verifyTwoFactorPasskey, register, refreshUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

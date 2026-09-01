@@ -306,11 +306,26 @@ export function SecurityTab() {
                     >
                       {p.residentKey ? "Resident" : "Non-resident"}
                     </span>
+                    {p.authenticatorAttachment === "platform" ? (
+                      <span className="text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        This device
+                      </span>
+                    ) : p.authenticatorAttachment === "cross-platform" ? (
+                      <span className="text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        Security key
+                      </span>
+                    ) : null}
                   </div>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    {p.credentialId.slice(0, 16)}…
+                    {p.credentialDeviceType === "multiDevice"
+                      ? "Synced across devices"
+                      : p.credentialDeviceType === "singleDevice"
+                        ? "Device-bound"
+                        : null}
                     {p.lastUsedAt ? (
-                      <span className="text-zinc-600"> · last used {new Date(p.lastUsedAt).toLocaleDateString()}</span>
+                      <span className="text-zinc-600">
+                        {p.credentialDeviceType ? " · " : null}last used {new Date(p.lastUsedAt).toLocaleDateString()}
+                      </span>
                     ) : null}
                   </p>
                 </div>

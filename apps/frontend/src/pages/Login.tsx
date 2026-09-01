@@ -11,7 +11,7 @@ import { usePageMeta } from "@/lib/seo";
 type Stage = "identifier" | "method" | "password" | "twofactor";
 
 export function Login() {
-  const { login, loginWithPasskey, verifyTotp, verifyTwoFactorPasskey } = useAuth();
+  const { login, loginWithPasskey, loginWithPasskeyDiscoverable, verifyTotp, verifyTwoFactorPasskey } = useAuth();
   const navigate = useNavigate();
   const [stage, setStage] = useState<Stage>("identifier");
   const [identifier, setIdentifier] = useState("");
@@ -52,6 +52,18 @@ export function Login() {
     setError("");
     setLoading(true);
     const err = await loginWithPasskey(identifier.trim());
+    setLoading(false);
+    if (err) {
+      setError(err);
+    } else {
+      navigate("/dashboard");
+    }
+  };
+
+  const handlePasskeyDiscoverable = async () => {
+    setError("");
+    setLoading(true);
+    const err = await loginWithPasskeyDiscoverable();
     setLoading(false);
     if (err) {
       setError(err);
@@ -193,6 +205,21 @@ export function Login() {
               </div>
               <Button type="button" className="w-full h-11" onClick={handleContinue} disabled={loading}>
                 {loading ? "Checking..." : "Continue"}
+              </Button>
+              <div className="flex items-center gap-3 my-2">
+                <span className="h-px flex-1 bg-zinc-800" />
+                <span className="text-xs text-zinc-500">or</span>
+                <span className="h-px flex-1 bg-zinc-800" />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full h-11"
+                onClick={handlePasskeyDiscoverable}
+                disabled={loading}
+              >
+                <Fingerprint className="h-5 w-5" />
+                Login with passkey
               </Button>
             </>
           )}

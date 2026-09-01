@@ -141,6 +141,8 @@ export interface Passkey {
   name: string;
   credentialId: string;
   residentKey: boolean;
+  authenticatorAttachment: string | null;
+  credentialDeviceType: string | null;
   createdAt: string;
   lastUsedAt: string | null;
 }
@@ -485,6 +487,18 @@ export const api = {
     request<AuthResponse>("/auth/login/passkey/verify", {
       method: "POST",
       body: JSON.stringify({ identifier, response }),
+    }),
+
+  loginPasskeyDiscoverableOptions: () =>
+    request<{ options: PublicKeyCredentialRequestOptionsJSON }>("/auth/login/passkey/discoverable/options", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  loginPasskeyDiscoverableVerify: (response: unknown) =>
+    request<AuthResponse>("/auth/login/passkey/discoverable/verify", {
+      method: "POST",
+      body: JSON.stringify({ response }),
     }),
 
   verifyTotp: (token: string, code: string) =>

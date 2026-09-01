@@ -11,8 +11,10 @@ import {
   cleanupExpiredChallenges,
   generateLoginOptions,
   generateRegisterOptions,
+  generateDiscoverableLoginOptions,
   verifyLogin,
   verifyRegister,
+  verifyDiscoverableLogin,
 } from "../lib/webauthn.js";
 import { authRateLimit } from "../middleware/rateLimit.js";
 import { isEmailEnabled, sendEmail, buildUnlockEmail } from "../lib/email.js";
@@ -412,6 +414,44 @@ router.post("/login/passkey/verify", async (req, res) => {
   });
 });
 
+router.post("/login/passkey/discoverable/options", async (_req, res) => {
+  const options = await generateDiscoverableLoginOptions({
+    userVerification: "preferred",
+    host: requestHost(_req),
+  });
+  res.json({ success: true, data: { options } });
+});
+
+router.post("/login/passkey/discoverable/verify", async (req, res) => {
+  const parsed = z.object({ response: authenticationResponseSchema }).safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const result = await verifyDiscoverableLogin({
+    response: parsed.data.response as never,
+    getPasskey: async (credentialId) =>
+      prisma.passkey.findFirst({
+        where: { credentialId },
+        select: { id: true, userId: true, credentialId: true, publicKey: true, counter: true, transports: true },
+      }),
+    host: requestHost(req),
+  });
+
+  if (!result.verified || !result.userId) {
+    return res.status(401).json({ success: false, error: "Passkey authentication failed" });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: result.userId } });
+  if (!user) {
+    return res.status(401).json({ success: false, error: "Passkey authentication failed" });
+  }
+
+  const env = getEnv();
+  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+  res.json({ success: true, data: { token, user: await userPublic(user) } });
+});
+
 router.post("/2fa/totp", async (req, res) => {
   const parsed = z.object({ token: z.string().min(1), code: z.string().min(6).max(6) }).safeParse(req.body);
   if (!parsed.success) {
@@ -555,6 +595,8 @@ router.post("/passkeys/register", requireAuth, requireNoUpdateLockdown, async (r
       transports: result.credential.transports,
       name: parsed.data.name,
       residentKey: parsed.data.residentKey === "resident",
+      authenticatorAttachment: parsed.data.response.authenticatorAttachment ?? null,
+      credentialDeviceType: result.credentialDeviceType ?? null,
     },
   });
 
@@ -566,6 +608,8 @@ router.post("/passkeys/register", requireAuth, requireNoUpdateLockdown, async (r
         name: passkey.name,
         credentialId: passkey.credentialId,
         residentKey: passkey.residentKey,
+        authenticatorAttachment: passkey.authenticatorAttachment,
+        credentialDeviceType: passkey.credentialDeviceType,
         createdAt: passkey.createdAt,
         lastUsedAt: passkey.lastUsedAt,
       },
@@ -586,6 +630,8 @@ router.get("/passkeys", requireAuth, async (req, res) => {
       name: p.name,
       credentialId: p.credentialId,
       residentKey: p.residentKey,
+      authenticatorAttachment: p.authenticatorAttachment,
+      credentialDeviceType: p.credentialDeviceType,
       createdAt: p.createdAt,
       lastUsedAt: p.lastUsedAt,
     })),
