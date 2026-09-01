@@ -53,6 +53,7 @@ const envSchema = z.object({
   ACME_INTERVAL_MINUTES: z.coerce.number().int().min(5).default(60),
   ACME_MAX_DOMAINS_PER_RUN: z.coerce.number().int().min(1).default(20),
   ACME_CERTS_PATH: z.string().default("certs"),
+  CUSTOM_DOMAINS_ALL_TIERS: z.string().default("false").transform(boolFromEnv),
 });
 
 export type Env = z.infer<typeof envSchema>;

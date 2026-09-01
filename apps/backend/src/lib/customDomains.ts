@@ -13,7 +13,7 @@ export function gateCustomDomain(role: RoleInfo | null | undefined, tier: string
   if (!hasPermission(role, PERMISSIONS.PROFILES_CUSTOM_DOMAIN)) {
     return { allowed: false, reason: "Your role does not have the custom domain permission." };
   }
-  if (tier !== "PRO" && tier !== "ENTERPRISE") {
+  if (!getEnv().CUSTOM_DOMAINS_ALL_TIERS && tier !== "PRO" && tier !== "ENTERPRISE") {
     return { allowed: false, reason: "Custom domains require a PRO or ENTERPRISE tier." };
   }
   return { allowed: true, reason: null };

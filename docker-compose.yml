@@ -73,6 +73,7 @@ services:
       ACME_INTERVAL_MINUTES: ${ACME_INTERVAL_MINUTES:-60}
       ACME_MAX_DOMAINS_PER_RUN: ${ACME_MAX_DOMAINS_PER_RUN:-20}
       ACME_CERTS_PATH: ${ACME_CERTS_PATH:-/app/certs}
+      CUSTOM_DOMAINS_ALL_TIERS: ${CUSTOM_DOMAINS_ALL_TIERS:-false}
     volumes:
       - uploads_data:/app/uploads
       - ./certs:/app/certs
