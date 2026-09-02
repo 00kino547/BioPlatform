@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 const POLL_MS = 30_000;
+const ACTIVITY_END_BUFFER_MS = 2_000;
 
 export function DiscordTab({ profileId }: { profileId?: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,6 +28,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -41,11 +43,24 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
 
   useEffect(() => {
     load();
-    const timer = window.setInterval(() => {
-      load(true);
-    }, POLL_MS);
-    return () => window.clearInterval(timer);
+    const poll = window.setInterval(() => load(true), POLL_MS);
+    return () => window.clearInterval(poll);
   }, [load]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const primary = status?.presence?.activities?.find((a) => a.type !== 4);
+    const endTime = primary?.timestamps?.end;
+    if (typeof endTime !== "number") return;
+    const remaining = endTime - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => load(true), remaining + ACTIVITY_END_BUFFER_MS);
+    return () => window.clearTimeout(timer);
+  }, [status?.presence?.activities, load]);
 
   useEffect(() => {
     const result = searchParams.get("discord");
@@ -252,7 +267,11 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
               <p className="text-xs text-zinc-600 mt-2">
                 {status.settings.showDiscordPresence
                   ? status.presence?.updatedAt
-                    ? `Last updated ${new Date(status.presence.updatedAt).toLocaleTimeString()}`
+                    ? (() => {
+                        const secs = Math.floor((Date.now() - status.presence!.updatedAt!) / 1000);
+                        void tick;
+                        return `Updated ${secs}s ago · refreshes every 30s`;
+                      })()
                     : status.botConfigured
                       ? "Waiting for presence data from Discord… make sure you are in a server with the instance bot."
                       : "Presence requires the instance bot (DISCORD_BOT_TOKEN)."
