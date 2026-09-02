@@ -271,7 +271,15 @@ export interface DiscordActivity {
   applicationId: string | null;
   largeImage: string | null;
   smallImage: string | null;
+  largeUrl: string | null;
+  smallUrl: string | null;
+  largeText: string | null;
+  smallText: string | null;
   buttons: string[] | null;
+  platform: string | null;
+  syncId: string | null;
+  detailsUrl: string | null;
+  stateUrl: string | null;
   timestamps: { start: number | null; end: number | null } | null;
 }
 

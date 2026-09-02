@@ -12,7 +12,15 @@ export interface DiscordActivity {
   applicationId: string | null;
   largeImage: string | null;
   smallImage: string | null;
+  largeUrl: string | null;
+  smallUrl: string | null;
+  largeText: string | null;
+  smallText: string | null;
   buttons: string[] | null;
+  platform: string | null;
+  syncId: string | null;
+  detailsUrl: string | null;
+  stateUrl: string | null;
   timestamps: { start: number | null; end: number | null } | null;
 }
 
@@ -119,8 +127,20 @@ interface RawActivity {
   details?: string | null;
   state?: string | null;
   application_id?: string;
-  assets?: { large_image?: string; small_image?: string };
+  assets?: {
+    large_image?: string;
+    small_image?: string;
+    large_url?: string;
+    small_url?: string;
+    large_text?: string;
+    small_text?: string;
+  };
   buttons?: string[];
+  platform?: string;
+  session_id?: string;
+  sync_id?: string;
+  details_url?: string | null;
+  state_url?: string | null;
   timestamps?: { start?: number; end?: number };
 }
 
@@ -323,7 +343,15 @@ function normalizeActivity(activity: RawActivity): DiscordActivity | null {
     applicationId: activity.application_id ?? null,
     largeImage: activity.assets?.large_image ?? null,
     smallImage: activity.assets?.small_image ?? null,
+    largeUrl: activity.assets?.large_url ?? null,
+    smallUrl: activity.assets?.small_url ?? null,
+    largeText: activity.assets?.large_text ?? null,
+    smallText: activity.assets?.small_text ?? null,
     buttons: Array.isArray(activity.buttons) ? activity.buttons.filter((b) => typeof b === "string").slice(0, 2) : null,
+    platform: activity.platform ?? null,
+    syncId: activity.sync_id ?? activity.session_id ?? null,
+    detailsUrl: activity.details_url ?? null,
+    stateUrl: activity.state_url ?? null,
     timestamps:
       activity.timestamps && (typeof activity.timestamps.start === "number" || typeof activity.timestamps.end === "number")
         ? {

@@ -34,6 +34,74 @@ function activityImage(activity: DiscordActivity): string | null {
   return null;
 }
 
+function activityPlatform(activity: DiscordActivity): string {
+  const name = activity.name?.toLowerCase() ?? "";
+  if (name.includes("spotify")) return "spotify";
+  if (name.includes("youtube")) return "youtube";
+  if (name.includes("twitch")) return "twitch";
+  if (name.includes("soundcloud")) return "soundcloud";
+  if (name.includes("apple music")) return "applemusic";
+  if (name.includes("roblox")) return "roblox";
+  if (name.includes("steam")) return "steam";
+  if (name.includes("netflix")) return "netflix";
+  if (name.includes("crunchyroll")) return "crunchyroll";
+  if (name.includes("discord")) return "discord";
+  return "generic";
+}
+
+const PLATFORM_LABEL: Record<string, string> = {
+  spotify: "Spotify",
+  youtube: "YouTube",
+  twitch: "Twitch",
+  soundcloud: "SoundCloud",
+  applemusic: "Apple Music",
+  roblox: "Roblox",
+  steam: "Steam",
+  netflix: "Netflix",
+  crunchyroll: "Crunchyroll",
+  discord: "Discord",
+  generic: "",
+};
+
+function PlatformMark({ platform }: { platform: string }) {
+  if (platform === "spotify") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#1DB954]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#1DB954]">
+        <SpotifyMark /> Spotify
+      </span>
+    );
+  }
+  if (platform === "youtube") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#FF0000]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FF0000]">
+        <PlayCircle className="h-3 w-3" /> YouTube
+      </span>
+    );
+  }
+  if (platform === "twitch") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#9146FF]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#a970ff]">
+        <Tv className="h-3 w-3" /> Twitch
+      </span>
+    );
+  }
+  const label = PLATFORM_LABEL[platform];
+  if (!label) return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-700/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300">
+      {label}
+    </span>
+  );
+}
+
+function SpotifyMark() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.02.6-1.14 4.26-1.32 9.66-.66 13.32 1.62.42.3.541.96.24 1.26v.18zm.12-3.36C15.24 8.4 8.099 8.16 4.44 9.42c-.54.18-1.14-.12-1.32-.66-.18-.54.12-1.14.66-1.32 4.14-1.44 11.821-1.14 15.9 1.68.479.358.6 1.08.24 1.561-.359.42-1.08.54-1.561.18z"/>
+    </svg>
+  );
+}
+
 function activityIcon(activities: DiscordActivity[]) {
   const primary = activities.find((a) => a.type !== 4);
   if (!primary) return null;
@@ -68,12 +136,26 @@ function activityLabel(activity: DiscordActivity): string {
   }
 }
 
+function activityUrl(activity: DiscordActivity): string | null {
+  const linked = [activity.detailsUrl, activity.stateUrl, activity.largeUrl, activity.smallUrl].find(
+    (u) => typeof u === "string" && u.length > 0 && /^https?:\/\//i.test(u)
+  );
+  return linked ?? null;
+}
+
 function resolveButtonUrl(activity: DiscordActivity, label: string): string {
+  const direct = activityUrl(activity);
+  if (direct) return direct;
+
   const query = [activity.details, activity.state, activity.name].filter(Boolean).join(" ");
   const lower = label.toLowerCase();
   const activityName = activity.name.toLowerCase();
 
   if (activity.type === 2 || activityName.includes("spotify") || lower.includes("spotify")) {
+    if (activity.syncId && activity.syncId.length > 8) {
+      const trackId = encodeURIComponent(activity.syncId);
+      return `https://open.spotify.com/track/${trackId}`;
+    }
     const track = [activity.details, activity.state].filter(Boolean).join(" ");
     return `https://open.spotify.com/search/${encodeURIComponent(track || query)}`;
   }
@@ -92,11 +174,15 @@ function resolveButtonUrl(activity: DiscordActivity, label: string): string {
     return `https://www.twitch.tv/search?term=${encodeURIComponent(query)}`;
   }
 
+  if (activityName.includes("roblox") || lower.includes("roblox")) {
+    return `https://www.roblox.com/search?category=Games&q=${encodeURIComponent(query)}`;
+  }
+
   if (activityName.includes("soundcloud") || lower.includes("soundcloud")) {
     return `https://soundcloud.com/search?q=${encodeURIComponent(query)}`;
   }
 
-  if (activityName.includes("apple music") || lower.includes("apple music")) {
+  if (activityName.includes("apple music") || lower.includes("apple music") || lower.includes("apple")) {
     return `https://music.apple.com/us/search?term=${encodeURIComponent(query)}`;
   }
 
@@ -249,6 +335,7 @@ export function PresenceWidget({ account, presence, accent, textColor }: Presenc
                     )}
                     {activityLabel(primary)} {primary.name}
                   </p>
+                  <PlatformMark platform={activityPlatform(primary)} />
                   <p className={isMusic ? "mt-1 text-sm sm:text-base font-semibold truncate" : "mt-0.5 text-sm font-semibold truncate"} style={{ color: textColor }}>
                     {activityTitle}
                   </p>
