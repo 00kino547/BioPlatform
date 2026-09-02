@@ -8,8 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.3.1] - 2026-09-02
 
+### Added
+- **Discord activity platform logo + smart buttons** — the backend now carries through `platform`, `syncId` (Spotify track id), asset URLs/text and linked detail/state URLs from the raw Discord presence (`normalizeActivity` + OpenAPI `DiscordActivity` updated). The presence widget renders a real platform badge (Spotify/YouTube/Twitch/SoundCloud/Apple Music/Roblox/etc. with branded accents) and opens buttons to the real destination where possible — e.g. a direct `open.spotify.com/track/{syncId}` link instead of a search.
+
 ### Fixed
 - **Discord presence update lag on the Dashboard** — the Dashboard Discord tab now keeps the presence widget in near-real-time. While an activity with a `timestamps.end` is playing it polls every 15 seconds, and it schedules a one-shot re-fetch 2 seconds after the song ends (using `timestamps.end`) so the track transition appears almost instantly instead of waiting for the next poll. When nothing is playing it falls back to the 30-second cadence. The static "Last updated HH:MM:SS" timestamp is replaced with a live counter of how long ago the widget last refreshed, and the label reads "refreshes every 15s" while playing (30s otherwise).
+- **Spotify now always shows a button** — a "Play on Spotify" button is rendered for listening activity even when Discord provides no `buttons` list, linking to the actual track via the captured `syncId`.
+- **Roblox activity button 404** — the fallback for Roblox now points to `roblox.com/discover?Keyword=...` (the old `roblox.com/search?...` URL returned 404).
 
 ## [1.3.0] - 2026-09-02
 
