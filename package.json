@@ -1,7 +1,7 @@
 {
   "name": "bioplatform",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.1",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @bioplatform/backend dev\" \"pnpm --filter @bioplatform/frontend dev\"",
     "dev:backend": "pnpm --filter @bioplatform/backend dev",

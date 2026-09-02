@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 const POLL_MS = 30_000;
+const ACTIVE_POLL_MS = 15_000;
 const ACTIVITY_END_BUFFER_MS = 2_000;
 
 export function DiscordTab({ profileId }: { profileId?: string }) {
@@ -29,12 +30,14 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
   const [saving, setSaving] = useState(false);
   const [posting, setPosting] = useState(false);
   const [tick, setTick] = useState(0);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     const res = await api.getDiscordStatus(profileId);
     if (res.success && res.data) {
       setStatus(res.data);
+      setLastRefreshedAt(Date.now());
     } else {
       setError(res.error ?? "Could not load Discord status");
     }
@@ -55,12 +58,24 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
   useEffect(() => {
     const primary = status?.presence?.activities?.find((a) => a.type !== 4);
     const endTime = primary?.timestamps?.end;
-    if (typeof endTime !== "number") return;
-    const remaining = endTime - Date.now();
-    if (remaining <= 0) return;
-    const timer = window.setTimeout(() => load(true), remaining + ACTIVITY_END_BUFFER_MS);
-    return () => window.clearTimeout(timer);
+    const playing = typeof endTime === "number" && endTime - Date.now() > 0;
+    if (!playing) return;
+    const poll = window.setInterval(() => load(true), ACTIVE_POLL_MS);
+    const endDelay = Math.max(endTime - Date.now(), 0) + ACTIVITY_END_BUFFER_MS;
+    const endTimer = window.setTimeout(() => load(true), endDelay);
+    return () => {
+      window.clearInterval(poll);
+      window.clearTimeout(endTimer);
+    };
   }, [status?.presence?.activities, load]);
+
+  const secsAgo = lastRefreshedAt != null
+    ? Math.floor((Date.now() - lastRefreshedAt) / 1000)
+    : null;
+  const activePrimary = status?.presence?.activities?.find((a) => a.type !== 4);
+  const isPlaying = typeof activePrimary?.timestamps?.end === "number" && (activePrimary!.timestamps!.end! - Date.now()) > 0;
+  void tick;
+  void isPlaying;
 
   useEffect(() => {
     const result = searchParams.get("discord");
@@ -266,12 +281,8 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
               />
               <p className="text-xs text-zinc-600 mt-2">
                 {status.settings.showDiscordPresence
-                  ? status.presence?.updatedAt
-                    ? (() => {
-                        const secs = Math.floor((Date.now() - status.presence!.updatedAt!) / 1000);
-                        void tick;
-                        return `Updated ${secs}s ago · refreshes every 30s`;
-                      })()
+                  ? secsAgo != null
+                    ? `Updated ${secsAgo}s ago · refreshes every ${isPlaying ? Math.round(ACTIVE_POLL_MS / 1000) : Math.round(POLL_MS / 1000)}s`
                     : status.botConfigured
                       ? "Waiting for presence data from Discord… make sure you are in a server with the instance bot."
                       : "Presence requires the instance bot (DISCORD_BOT_TOKEN)."

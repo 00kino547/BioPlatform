@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-02
+
+### Fixed
+- **Discord presence update lag on the Dashboard** — the Dashboard Discord tab now keeps the presence widget in near-real-time. While an activity with a `timestamps.end` is playing it polls every 15 seconds, and it schedules a one-shot re-fetch 2 seconds after the song ends (using `timestamps.end`) so the track transition appears almost instantly instead of waiting for the next poll. When nothing is playing it falls back to the 30-second cadence. The static "Last updated HH:MM:SS" timestamp is replaced with a live counter of how long ago the widget last refreshed, and the label reads "refreshes every 15s" while playing (30s otherwise).
+
 ## [1.3.0] - 2026-09-02
 
 ### Added
@@ -388,7 +393,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
-[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.4...v1.3.0
 [1.3.0-rc.4]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3.1...v1.3.0-rc.4
 [1.3.0-rc.3.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3...v1.3.0-rc.3.1
