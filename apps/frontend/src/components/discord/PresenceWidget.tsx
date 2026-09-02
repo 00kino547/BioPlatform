@@ -175,7 +175,7 @@ function resolveButtonUrl(activity: DiscordActivity, label: string): string {
   }
 
   if (activityName.includes("roblox") || lower.includes("roblox")) {
-    return `https://www.roblox.com/search?category=Games&q=${encodeURIComponent(query)}`;
+    return `https://www.roblox.com/discover?Keyword=${encodeURIComponent(query)}`;
   }
 
   if (activityName.includes("soundcloud") || lower.includes("soundcloud")) {
@@ -245,6 +245,12 @@ export function PresenceWidget({ account, presence, accent, textColor }: Presenc
   const activitySubtitle = isMusic
     ? primary?.state
     : primary?.details ?? primary?.state ?? null;
+
+  const buttonRows: { label: string; url?: string }[] | null = primary?.buttons?.length
+    ? primary.buttons.map((label) => ({ label, url: resolveButtonUrl(primary, label) }))
+    : isMusic && activityPlatform(primary!) === "spotify"
+      ? [{ label: "Play on Spotify", url: resolveButtonUrl(primary!, "Spotify") }]
+      : null;
 
   return (
     <div
@@ -349,19 +355,19 @@ export function PresenceWidget({ account, presence, accent, textColor }: Presenc
 
               {primary.timestamps && <ProgressTimebar activity={primary} accent={accent} textColor={textColor} />}
 
-              {primary.buttons?.length ? (
+              {buttonRows?.length ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {primary.buttons.map((label, i) => (
+                  {buttonRows.map((btn, i) => (
                     <a
                       key={i}
-                      href={resolveButtonUrl(primary, label)}
+                      href={btn.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium select-none transition-all hover:brightness-125"
                       style={{ borderColor: `${accent ?? "#a78bfa"}40`, backgroundColor: `${accent ?? "#a78bfa"}14`, color: accent ?? "#a78bfa" }}
                     >
                       <ExternalLink className="h-3 w-3" />
-                      {label}
+                      {btn.label}
                     </a>
                   ))}
                 </div>
