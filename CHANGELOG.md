@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-02
+
 ### Added
 - **Discoverable (resident) passkey login button** on the login identifier stage — lets users with resident passkeys sign in without entering a username. Uses a new backend flow (`POST /auth/login/passkey/discoverable/options`, `POST /auth/login/passkey/discoverable/verify`) that generates an authentication challenge with no `allowCredentials` list, resolves the account from the credential ID returned in the assertion, and issues the session token. Challenges are stored in memory with a 5-minute TTL (the DB challenge table's `user_id` is a foreign key, so no user can be referenced at challenge time). Backend/frontend types + OpenAPI-compatible responses.
 - **Passkey authenticator info** recorded at registration — the browser-reported `authenticatorAttachment` (`platform`/`cross-platform`) and SimpleWebAuthn's verified `credentialDeviceType` (`singleDevice`/`multiDevice`) are stored per passkey and shown in the Security tab as "This device"/"Security key" and "Device-bound"/"Synced across devices" exactly as reported. These are stored as facts about the credential and are not claimed to prove discoverable (resident) capability; the existing `residentKey` flag continues to represent the user's requested type. Migration `docs/migrations/2026-09-01_passkey-authenticator-info.sql`.
@@ -386,7 +388,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
 
-[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3.1...HEAD
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.4...v1.3.0
+[1.3.0-rc.4]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3.1...v1.3.0-rc.4
 [1.3.0-rc.3.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3...v1.3.0-rc.3.1
 [1.3.0-rc.3]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.2...v1.3.0-rc.3
 [1.3.0-rc.2]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.1...v1.3.0-rc.2
