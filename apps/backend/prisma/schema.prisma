@@ -298,6 +298,7 @@ model Passkey {
   credentialDeviceType    String? @map("credential_device_type")
   createdAt    DateTime @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
+  residentVerifiedAt DateTime? @map("resident_verified_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -22,6 +22,20 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const DISCOVERABLE_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const discoverableChallenges = new Map<string, { createdAt: number }>();
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function passkeyResidencyTtlMs(): number {
+  return getEnv().PASSKEY_RESIDENCY_TTL_DAYS * DAY_MS;
+}
+
+export function passkeyResidencyCutoff(): Date {
+  return new Date(Date.now() - passkeyResidencyTtlMs());
+}
+
+export function isPasskeyResidencyFresh(residentVerifiedAt: Date | null): boolean {
+  return residentVerifiedAt !== null && residentVerifiedAt.getTime() >= passkeyResidencyCutoff().getTime();
+}
+
 export type ChallengePurpose = "register" | "login" | "twofactor";
 
 export interface WebauthnEnv {
@@ -179,9 +193,10 @@ export async function verifyDiscoverableLogin(opts: {
     });
     discoverableChallenges.delete(challenge);
     if (!verification.verified) return { verified: false, userId: null };
+    const now = new Date();
     await prisma.passkey.update({
       where: { id: passkey.id },
-      data: { counter: BigInt(verification.authenticationInfo.newCounter), lastUsedAt: new Date() },
+      data: { counter: BigInt(verification.authenticationInfo.newCounter), lastUsedAt: now, residentVerifiedAt: now },
     });
     return { verified: true, userId: passkey.userId };
   } catch {

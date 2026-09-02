@@ -883,7 +883,8 @@ export const openapi = {
       get: {
         tags: ["Admin"],
         summary: "List users (admin only, paginated)",
-        description: "All users, newest first. Supports `limit` (default 50, max 100) and `offset`. Returns `{ data, pagination: { total, limit, offset } }`.",
+        description:
+          "All users, newest first. Supports `limit` (default 50, max 100) and `offset`. Returns `{ data, pagination: { total, limit, offset } }`. Each user includes passkey security flags: `passkeyCount`, `passkeysFreshCount`, `residentPasskeyCount`, `residentFreshCount`, `hasNoPasskeys`, `passkeysUnverified`, `securityFlag` (`none` | `no-passkeys` | `passkeys-unverified`), derived from passkey residency verification within `PASSKEY_RESIDENCY_TTL_DAYS`.",
         parameters: [
           { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 } },
           { name: "offset", in: "query", required: false, schema: { type: "integer", minimum: 0 } },

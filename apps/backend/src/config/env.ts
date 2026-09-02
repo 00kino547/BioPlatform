@@ -41,6 +41,8 @@ const envSchema = z.object({
   WEBAUTHN_RP_ID: z.string().default("localhost"),
   WEBAUTHN_ORIGIN: z.string().default("https://localhost"),
   WEBAUTHN_RP_NAME: z.string().default("BioPlatform"),
+  PASSKEY_RESIDENCY_TTL_DAYS: z.coerce.number().int().min(1).default(14),
+  ADMIN_FLAG_USERS_WITHOUT_PASSKEYS: z.string().default("true").transform(boolFromEnv),
   DISCORD_CLIENT_ID: z.string().default(""),
   DISCORD_CLIENT_SECRET: z.string().default(""),
   DISCORD_REDIRECT_URI: z.string().default(""),

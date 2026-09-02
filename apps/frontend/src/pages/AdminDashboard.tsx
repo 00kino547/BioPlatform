@@ -41,6 +41,13 @@ interface User {
   inviteAllowance: number;
   createdAt: string;
   updatedAt: string;
+  passkeyCount: number;
+  passkeysFreshCount: number;
+  residentPasskeyCount: number;
+  residentFreshCount: number;
+  hasNoPasskeys: boolean;
+  passkeysUnverified: boolean;
+  securityFlag: "none" | "no-passkeys" | "passkeys-unverified";
 }
 
 interface UserProfile {
@@ -102,6 +109,24 @@ interface AdminDomainEntry {
 }
 
 type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs" | "domains";
+
+function securityFlagLabel(flag: User["securityFlag"]): string {
+  return flag === "no-passkeys" ? "NO PASSKEY" : flag === "passkeys-unverified" ? "PASSKEYS UNVERIFIED" : "";
+}
+
+function securityFlagReason(u: User): string {
+  if (u.securityFlag === "no-passkeys") {
+    return "No passkey registered. This user can only sign in with email + password";
+  }
+  if (u.securityFlag === "passkeys-unverified") {
+    const stale = u.passkeyCount - u.passkeysFreshCount;
+    const staleResident = u.residentPasskeyCount - u.residentFreshCount;
+    let reason = `${stale} of ${u.passkeyCount} passkey${u.passkeyCount === 1 ? "" : "s"} has not proven discoverability recently (no discoverable sign-in).`;
+    if (staleResident > 0) reason += ` ${staleResident} resident passkey${staleResident === 1 ? "" : "s"} flagged as more important.`;
+    return reason;
+  }
+  return "";
+}
 
 const PERMISSION_LABELS: Record<string, string> = {
   "users.view": "View users",
@@ -1130,6 +1155,32 @@ export function AdminDashboard() {
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
             <h2 className="text-lg font-semibold text-white mb-4">All Users</h2>
 
+            {users.some((u) => u.securityFlag !== "none") && (
+              <div className="mb-6 rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-red-400">
+                  <ShieldAlert className="h-4 w-4" />
+                  Passkey security flags
+                </div>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Accounts at risk: no passkey registered, or a passkey that has not proven it is
+                  discoverable (resident) through a recent sign-in.
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {users
+                    .filter((u) => u.securityFlag !== "none")
+                    .map((u) => (
+                      <li key={u.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <span className="font-mono text-red-300">{u.username}</span>
+                        <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20">
+                          {securityFlagLabel(u.securityFlag)}
+                        </span>
+                        <span className="text-zinc-400">{securityFlagReason(u)}</span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
             {users.length === 0 ? (
               <p className="text-sm text-zinc-500">No users.</p>
             ) : (
@@ -1153,6 +1204,14 @@ export function AdminDashboard() {
                           {u.inviteBanned && (
                             <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20">
                               INVITE BANNED
+                            </span>
+                          )}
+                          {u.securityFlag !== "none" && (
+                            <span
+                              title={securityFlagReason(u)}
+                              className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20"
+                            >
+                              {securityFlagLabel(u.securityFlag)}
                             </span>
                           )}
                         </td>

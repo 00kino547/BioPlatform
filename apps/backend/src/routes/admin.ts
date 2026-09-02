@@ -19,6 +19,7 @@ import {
 import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.js";
 import { DAY_MS, getInviteGenerationEnabled, setInviteGenerationEnabled } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
+import { passkeyResidencyCutoff } from "../lib/webauthn.js";
 import { issueCertificateForDomain, cleanupDomainFiles } from "../lib/acme.js";
 import { requireNoUpdateLockdown } from "../lib/versionCheck.js";
 
@@ -108,6 +109,49 @@ const userSelect = {
   badges: { select: { id: true } },
 } as const;
 
+export interface PasskeySecurity {
+  passkeyCount: number;
+  passkeysFreshCount: number;
+  residentPasskeyCount: number;
+  residentFreshCount: number;
+  hasNoPasskeys: boolean;
+  passkeysUnverified: boolean;
+  securityFlag: "none" | "no-passkeys" | "passkeys-unverified";
+}
+
+export function computePasskeySecurity(
+  rows: { residentKey: boolean; residentVerifiedAt: Date | null }[],
+  cutoff: Date,
+  flagNoPasskeys: boolean,
+): PasskeySecurity {
+  let passkeyCount = 0;
+  let passkeysFreshCount = 0;
+  let residentPasskeyCount = 0;
+  let residentFreshCount = 0;
+  for (const row of rows) {
+    passkeyCount++;
+    const fresh = row.residentVerifiedAt !== null && row.residentVerifiedAt.getTime() >= cutoff.getTime();
+    if (fresh) passkeysFreshCount++;
+    if (row.residentKey) {
+      residentPasskeyCount++;
+      if (fresh) residentFreshCount++;
+    }
+  }
+  const hasNoPasskeys = passkeyCount === 0;
+  const passkeysUnverified = passkeyCount > 0 && passkeysFreshCount < passkeyCount;
+  const securityFlag: PasskeySecurity["securityFlag"] =
+    hasNoPasskeys ? (flagNoPasskeys ? "no-passkeys" : "none") : passkeysUnverified ? "passkeys-unverified" : "none";
+  return {
+    passkeyCount,
+    passkeysFreshCount,
+    residentPasskeyCount,
+    residentFreshCount,
+    hasNoPasskeys,
+    passkeysUnverified,
+    securityFlag,
+  };
+}
+
 function serializeUser(u: {
   id: string;
   username: string;
@@ -124,7 +168,7 @@ function serializeUser(u: {
   inviteAllowance: number;
   createdAt: Date;
   updatedAt: Date;
-}) {
+}, security: PasskeySecurity) {
   return {
     id: u.id,
     username: u.username,
@@ -141,6 +185,13 @@ function serializeUser(u: {
     inviteAllowance: u.inviteAllowance,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
+    passkeyCount: security.passkeyCount,
+    passkeysFreshCount: security.passkeysFreshCount,
+    residentPasskeyCount: security.residentPasskeyCount,
+    residentFreshCount: security.residentFreshCount,
+    hasNoPasskeys: security.hasNoPasskeys,
+    passkeysUnverified: security.passkeysUnverified,
+    securityFlag: security.securityFlag,
   };
 }
 
@@ -158,9 +209,25 @@ router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (req, res)
     prisma.user.count(),
   ]);
 
+  const ids = users.map((u) => u.id);
+  const passkeyRows = ids.length > 0
+    ? await prisma.passkey.findMany({
+        where: { userId: { in: ids } },
+        select: { userId: true, residentKey: true, residentVerifiedAt: true },
+      })
+    : [];
+  const groups = new Map<string, { residentKey: boolean; residentVerifiedAt: Date | null }[]>();
+  for (const row of passkeyRows) {
+    const arr = groups.get(row.userId) ?? [];
+    arr.push({ residentKey: row.residentKey, residentVerifiedAt: row.residentVerifiedAt });
+    groups.set(row.userId, arr);
+  }
+  const cutoff = passkeyResidencyCutoff();
+  const flagNoPasskeys = getEnv().ADMIN_FLAG_USERS_WITHOUT_PASSKEYS;
+
   res.json({
     success: true,
-    data: users.map(serializeUser),
+    data: users.map((u) => serializeUser(u, computePasskeySecurity(groups.get(u.id) ?? [], cutoff, flagNoPasskeys))),
     pagination: { total, limit, offset },
   });
 });
@@ -284,7 +351,17 @@ router.patch("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), requireN
       updatedAt: new Date().toISOString(),
     });
 
-    res.json({ success: true, data: serializeUser(user) });
+    const passkeys = await prisma.passkey.findMany({
+      where: { userId: id },
+      select: { residentKey: true, residentVerifiedAt: true },
+    });
+    const security = computePasskeySecurity(
+      passkeys,
+      passkeyResidencyCutoff(),
+      getEnv().ADMIN_FLAG_USERS_WITHOUT_PASSKEYS,
+    );
+
+    res.json({ success: true, data: serializeUser(user, security) });
   } catch (err) {
     if (err instanceof Error && "code" in err && err.code === "P2002") {
       return res.status(409).json({ success: false, error: "Username already used as a profile URL" });
