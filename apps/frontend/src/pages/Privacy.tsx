@@ -34,6 +34,9 @@ export function Privacy() {
             <p className="text-zinc-400 mt-2">
               If you enable passkey (WebAuthn) login, we store the public key and credential identifier for each registered passkey. If you enable two-factor authentication using an authenticator app, we store your TOTP secret encrypted at rest. Neither passkey private keys nor TOTP secrets are ever stored.
             </p>
+            <p className="text-zinc-400 mt-2">
+              To verify that a registered passkey is genuinely discoverable (resident), we store the timestamp of its most recent successful discoverable sign-in. This verification mark is refreshed only by an actual passkey sign-in and expires after a fixed number of days (14 by default) without one; it is used exclusively by account administrators to review account security and is never shown on your public profile.
+            </p>
           </section>
 
           <section>
