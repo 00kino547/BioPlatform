@@ -9,7 +9,7 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { getToken, type Badge, type Role, type InviteGrantEvent } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
-import { X, Edit, Save, Trash2, ShieldAlert } from "lucide-react";
+import { X, Edit, Save, Trash2, ShieldAlert, Sparkles } from "lucide-react";
 
 interface InviteCode {
   id: string;
@@ -249,7 +249,7 @@ export function AdminDashboard() {
   });
   const [badgeMsg, setBadgeMsg] = useState("");
 
-  const { locked } = useUpdateLockdown();
+  const { locked, data: versionData } = useUpdateLockdown();
   const [updateOpen, setUpdateOpen] = useState(false);
   const autoOpenedUpdate = useRef(false);
 
@@ -818,6 +818,15 @@ export function AdminDashboard() {
                 {user?.role?.name ?? "Staff"}
               </span>
             </span>
+            {versionData?.prereleaseAvailable && versionData.prereleaseLatest && (
+              <span
+                title={`Pre-release v${versionData.prereleaseLatest} is available. It is shown here only and does not count as a required update.`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-300 border border-amber-500/20"
+              >
+                <Sparkles className="h-3 w-3" />
+                Pre-release v{versionData.prereleaseLatest} available
+              </span>
+            )}
             <Button
               variant="secondary"
               size="sm"

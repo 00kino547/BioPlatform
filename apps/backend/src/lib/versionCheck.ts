@@ -24,6 +24,9 @@ export interface VersionCheckData {
   severity: UpdateSeverity;
   skippedVersions: ChangelogVersion[];
   skippedCount: number;
+  prereleaseAvailable: boolean;
+  prereleaseCount: number;
+  prereleaseLatest: string | null;
   releaseUrl: string;
   releasesUrl: string;
   changelogUrl: string;
@@ -176,6 +179,10 @@ export function compareVersions(a: string, b: string): number {
   return comparePrerelease(pa.pre, pb.pre);
 }
 
+export function isPrereleaseVersion(v: string): boolean {
+  return splitVersion(v).pre.length > 0;
+}
+
 async function fetchText(url: string, headers: Record<string, string> = {}, timeoutMs = 8000): Promise<string> {
   const MAX_BODY_BYTES = 2 * 1024 * 1024;
   const controller = new AbortController();
@@ -253,10 +260,53 @@ export async function fetchChangelogText(owner: string, repo: string): Promise<{
   throw new Error("Could not fetch the changelog from any source");
 }
 
-function computeSeverity(
+export function computeSeverity(
   installed: string,
   versions: ChangelogVersion[],
-  threshold: number
+  threshold: number,
+  includePrereleases: boolean,
+): {
+  outdated: boolean;
+  latest: string | null;
+  skipped: ChangelogVersion[];
+  severity: UpdateSeverity;
+  prereleaseAvailable: boolean;
+  prereleaseCount: number;
+  prereleaseLatest: string | null;
+} {
+  const newerPrereleases = versions.filter(
+    (v) => isPrereleaseVersion(v.version) && compareVersions(v.version, installed) > 0
+  );
+  const prereleaseCount = newerPrereleases.length;
+  const prereleaseLatest = newerPrereleases[0]?.version ?? null;
+
+  if (includePrereleases) {
+    const base = computeSeverityCore(installed, versions, threshold);
+    let severity = base.severity;
+    const latest = base.latest;
+    if (latest && isPrereleaseVersion(latest) && severity === "critical") {
+      const hasSecurity = base.skipped.some(
+        (v) => v.sections.some((s) => /security|critical/i.test(s.heading) && s.items.length > 0)
+      );
+      severity = hasSecurity ? "security" : "update";
+    }
+    return { ...base, severity, prereleaseAvailable: false, prereleaseCount, prereleaseLatest };
+  }
+
+  const stableVersions = versions.filter((v) => !isPrereleaseVersion(v.version));
+  const base = computeSeverityCore(installed, stableVersions, threshold);
+  return {
+    ...base,
+    prereleaseAvailable: prereleaseCount > 0,
+    prereleaseCount,
+    prereleaseLatest,
+  };
+}
+
+function computeSeverityCore(
+  installed: string,
+  versions: ChangelogVersion[],
+  threshold: number,
 ): { outdated: boolean; latest: string | null; skipped: ChangelogVersion[]; severity: UpdateSeverity } {
   if (versions.length === 0) {
     return { outdated: false, latest: null, skipped: [], severity: "none" };
@@ -313,6 +363,9 @@ function buildData(input: {
     severity: input.severity,
     skippedVersions: input.skipped,
     skippedCount: input.skipped.length,
+    prereleaseAvailable: false,
+    prereleaseCount: 0,
+    prereleaseLatest: null,
     releaseUrl: tag ? `${url}/releases/tag/${tag}` : `${url}/releases`,
     releasesUrl: `${url}/releases`,
     changelogUrl: `${url}/blob/main/CHANGELOG.md`,
@@ -365,17 +418,24 @@ export async function getVersionCheck(force = false): Promise<VersionCheckData> 
       const { owner, repo } = parseRepo(repoUrl());
       const { text, source } = await fetchChangelogText(owner, repo);
       const versions = parseChangelog(text);
-      const computed = computeSeverity(installed, versions, env.UPDATE_CRITICAL_STALE_THRESHOLD);
-      const data = buildData({
-        installed,
-        versions,
-        severity: computed.severity,
-        outdated: computed.outdated,
-        latest: computed.latest,
-        skipped: computed.skipped,
-        source,
-        checkedAt: new Date().toISOString(),
-      });
+      const key = env.UPDATE_CHECK_INCLUDE_PRERELEASES ? "prerelease" : "stable";
+      const computed = computeSeverity(installed, versions, env.UPDATE_CRITICAL_STALE_THRESHOLD, env.UPDATE_CHECK_INCLUDE_PRERELEASES);
+      const data = {
+        ...buildData({
+          installed,
+          versions,
+          severity: computed.severity,
+          outdated: computed.outdated,
+          latest: computed.latest,
+          skipped: computed.skipped,
+          source,
+          checkedAt: new Date().toISOString(),
+        }),
+        prereleaseAvailable: computed.prereleaseAvailable,
+        prereleaseCount: computed.prereleaseCount,
+        prereleaseLatest: key === "prerelease" ? null : computed.prereleaseLatest,
+        source: `${source}-${key}`,
+      };
       cache = { data, fetchedAt: Date.now(), lastGood: data, lastGoodAt: Date.now() };
       return data;
     } catch (err) {

@@ -17,6 +17,7 @@ const envSchema = z.object({
   UPDATE_CHECK_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(720),
   UPDATE_CHECK_STALE_MAX_MINUTES: z.coerce.number().int().min(60).default(1440),
   UPDATE_CRITICAL_STALE_THRESHOLD: z.coerce.number().int().min(2).default(3),
+  UPDATE_CHECK_INCLUDE_PRERELEASES: z.string().default("false").transform(boolFromEnv),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default("7d"),
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),

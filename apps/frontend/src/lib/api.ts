@@ -446,6 +446,9 @@ export interface VersionCheckData {
   severity: UpdateSeverity;
   skippedVersions: ChangelogVersion[];
   skippedCount: number;
+  prereleaseAvailable: boolean;
+  prereleaseCount: number;
+  prereleaseLatest: string | null;
   releaseUrl: string;
   releasesUrl: string;
   changelogUrl: string;

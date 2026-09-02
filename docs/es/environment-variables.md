@@ -92,6 +92,7 @@ El backend consulta periódicamente el CHANGELOG público de `APP_GITHUB_URL` pa
 | `UPDATE_CHECK_INTERVAL_MINUTES` | Cada cuántos minutos se realiza una comprobación nueva (tanto el planificador de fondo como la caché de peticiones). También se ejecuta una comprobación automáticamente en cada reinicio del contenedor/stack. Usa `?force=1` para omitir la caché | `720` |
 | `UPDATE_CHECK_STALE_MAX_MINUTES` | Edad máxima de un resultado en caché que aún se sirve cuando una consulta nueva falla (stale-while-error) | `1440` |
 | `UPDATE_CRITICAL_STALE_THRESHOLD` | Número de versiones omitidas que por sí solo eleva la severidad a `critical` | `3` |
+| `UPDATE_CHECK_INCLUDE_PRERELEASES` | Cuando es `false` (por defecto), las versiones preliminares (`1.3.0-rc.1`, `1.0.0-beta.2`, …) quedan excluidas de la comprobación de actualizaciones: no aparecen como actualizaciones, no cuentan para los umbrales de versiones omitidas/antiguas y nunca elevan la severidad ni bloquean el panel de administración — solo se muestran como una notificación mínima "Pre-release vX.Y.Z available" a los administradores en el panel de administración. Cuando es `true`, las preliminares cuentan como actualizaciones normales y pueden elevar la severidad a `security` (que bloquea los ajustes sensibles), pero nunca a `critical` | `false` |
 
 ## WebAuthn (passkeys)
 

@@ -92,6 +92,7 @@ The backend periodically fetches the public CHANGELOG from `APP_GITHUB_URL` to d
 | `UPDATE_CHECK_INTERVAL_MINUTES` | How often a fresh check is performed (both the background scheduler and the request cache). A check also runs automatically on every container/stack restart. Use `?force=1` to bypass the cache | `720` |
 | `UPDATE_CHECK_STALE_MAX_MINUTES` | Maximum age of a cached result that is still served when a fresh fetch fails (stale-while-error) | `1440` |
 | `UPDATE_CRITICAL_STALE_THRESHOLD` | Number of skipped releases that alone raises the severity to `critical` | `3` |
+| `UPDATE_CHECK_INCLUDE_PRERELEASES` | When `false` (default), pre-release versions (`1.3.0-rc.1`, `1.0.0-beta.2`, …) are excluded from the update check: they don't appear as updates, don't count toward the skipped/stale thresholds, and never raise severity or lock the admin panel — they only surface as a minimal "Pre-release vX.Y.Z available" notification to admins in the admin panel. When `true`, pre-releases are included as normal updates and can raise severity to `security` (which locks security-sensitive settings), but never to `critical` | `false` |
 
 ## WebAuthn (passkeys)
 

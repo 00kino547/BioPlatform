@@ -1,6 +1,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { compareVersions, parseChangelog, getInstalledVersion } from "../src/lib/versionCheck.js";
+import {
+  compareVersions,
+  computeSeverity,
+  isPrereleaseVersion,
+  parseChangelog,
+  getInstalledVersion,
+} from "../src/lib/versionCheck.js";
 
 describe("compareVersions", () => {
   test("equal versions return 0", () => {
@@ -136,5 +142,120 @@ describe("getInstalledVersion", () => {
     const isSemver = /^\d+\.\d+\.\d+/.test(version);
     const isUnknown = version === "unknown";
     assert.ok(isSemver || isUnknown, `Expected semver or 'unknown', got: ${version}`);
+  });
+});
+
+describe("computeSeverity (UPDATE_CHECK_INCLUDE_PRERELEASES)", () => {
+  const v = (version: string, sections: { heading: string; items: string[] }[] = []) => ({
+    version,
+    sections,
+  });
+
+  test("isPrereleaseVersion detects pre-release tags", () => {
+    assert.equal(isPrereleaseVersion("1.0.0"), false);
+    assert.equal(isPrereleaseVersion("1.3.0-rc.4"), true);
+    assert.equal(isPrereleaseVersion("1.0.0-beta.1"), true);
+    assert.equal(isPrereleaseVersion("v1.2.3"), false);
+  });
+
+  test("stable-only mode is blind to pre-releases but reports them", () => {
+    const versions = [
+      v("1.4.0-rc.1", [{ heading: "Security", items: ["Critical fix in prerelease"] }]),
+      v("1.4.0", [{ heading: "Added", items: ["Stable feature"] }]),
+      v("1.3.0", [{ heading: "Security", items: ["Old stable security fix"] }]),
+    ];
+    const r = computeSeverity("1.3.0", versions, 3, false);
+    assert.equal(r.latest, "1.4.0");
+    assert.equal(r.outdated, true);
+    assert.equal(r.severity, "update");
+    assert.equal(r.skipped.length, 1);
+    assert.equal(r.skipped[0].version, "1.4.0");
+    assert.equal(r.prereleaseAvailable, true);
+    assert.equal(r.prereleaseLatest, "1.4.0-rc.1");
+    assert.equal(r.prereleaseCount, 1);
+  });
+
+  test("stable-only mode never escalates from pre-release security", () => {
+    const versions = [
+      v("1.4.0-rc.1", [{ heading: "Security", items: ["Massive prerelease CVE"] }]),
+      v("1.3.0"),
+      v("1.2.0"),
+    ];
+    const r = computeSeverity("1.2.0", versions, 3, false);
+    assert.equal(r.severity, "update");
+    assert.equal(r.outdated, true);
+    assert.equal(r.latest, "1.3.0");
+  });
+
+  test("stable-only mode reports prerelease-only changelogs as no update, but available", () => {
+    const versions = [
+      v("1.5.0-rc.3", [{ heading: "Security", items: ["Prerelease security"] }]),
+      v("1.5.0-rc.2"),
+      v("1.4.0-rc.1"),
+    ];
+    const r = computeSeverity("1.4.0-rc.1", versions, 3, false);
+    assert.equal(r.outdated, false);
+    assert.equal(r.latest, null);
+    assert.equal(r.severity, "none");
+    assert.equal(r.prereleaseAvailable, true);
+    assert.equal(r.prereleaseCount, 2);
+    assert.equal(r.prereleaseLatest, "1.5.0-rc.3");
+  });
+
+  test("included mode counts prereleases and escalates to security", () => {
+    const versions = [
+      v("1.4.0-rc.1", [{ heading: "Security", items: ["Immediate prerelease CVE"] }]),
+      v("1.3.0"),
+    ];
+    const r = computeSeverity("1.2.0", versions, 3, true);
+    assert.equal(r.latest, "1.4.0-rc.1");
+    assert.equal(r.outdated, true);
+    assert.equal(r.severity, "security");
+    assert.equal(r.skipped.length, 2);
+    assert.equal(r.prereleaseAvailable, false);
+  });
+
+  test("included mode caps prerelease-driven severity at security, never critical", () => {
+    const versions = [
+      v("1.4.0-rc.1", [{ heading: "Security", items: ["Prerelease CVE"] }]),
+      v("1.3.0"),
+      v("1.2.0"),
+      v("1.1.0"),
+      v("1.0.0"),
+    ];
+    const r = computeSeverity("1.0.0", versions, 3, true);
+    assert.equal(r.latest, "1.4.0-rc.1");
+    assert.equal(r.skipped.length, 4);
+    assert.equal(r.severity, "security");
+    assert.notEqual(r.severity, "critical");
+  });
+
+  test("included mode without security stays a plain update even when stale", () => {
+    const versions = [
+      v("1.4.0-rc.1", [{ heading: "Added", items: ["New stuff"] }]),
+      v("1.3.0"),
+      v("1.2.0"),
+      v("1.1.0"),
+      v("1.0.0"),
+    ];
+    const r = computeSeverity("1.0.0", versions, 3, true);
+    assert.equal(r.latest, "1.4.0-rc.1");
+    assert.equal(r.skipped.length, 4);
+    assert.equal(r.severity, "update");
+    assert.notEqual(r.severity, "critical");
+  });
+
+  test("stable latest keeps full critical behavior in included mode", () => {
+    const versions = [
+      v("1.4.0", [{ heading: "Security", items: ["Stable security"] }]),
+      v("1.4.0-rc.1", [{ heading: "Security", items: ["Prerelease CVE"] }]),
+      v("1.3.0"),
+      v("1.2.0"),
+      v("1.1.0"),
+      v("1.0.0"),
+    ];
+    const r = computeSeverity("1.0.0", versions, 3, true);
+    assert.equal(r.latest, "1.4.0");
+    assert.equal(r.severity, "critical");
   });
 });
