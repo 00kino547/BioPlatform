@@ -39,6 +39,7 @@ const LOCKDOWN_MESSAGE =
   "A critical or security update is required before changing security settings. Update the app to continue.";
 
 const FALLBACK_REPO_URL = "https://github.com/00kino547/BioPlatform";
+const FALLBACK_REPO_URLS = ["https://github.com/00kino547/BioPlatform"];
 const FALLBACK_VERSION = "unknown";
 
 function installedVersionCandidates(): string[] {
@@ -68,6 +69,16 @@ export function getInstalledVersion(): string {
 
 function repoUrl(): string {
   return getEnv().APP_GITHUB_URL.replace(/\/+$/, "");
+}
+
+function normalizeRepoUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "");
+}
+
+function repoCandidates(): string[] {
+  const primary = normalizeRepoUrl(repoUrl());
+  const candidates = [primary, ...FALLBACK_REPO_URLS.map(normalizeRepoUrl)];
+  return [...new Set(candidates)];
 }
 
 function parseRepo(url: string): { owner: string; repo: string } {
@@ -352,8 +363,8 @@ function buildData(input: {
   source: string;
   checkedAt: string;
   error?: string;
-}): VersionCheckData {
-  const url = repoUrl();
+}, repo: string = repoUrl()): VersionCheckData {
+  const url = normalizeRepoUrl(repo);
   const tag = input.latest ? `v${input.latest.replace(/^v/, "")}` : null;
   return {
     enabled: getEnv().UPDATE_CHECK_ENABLED,
@@ -414,32 +425,39 @@ export async function getVersionCheck(force = false): Promise<VersionCheckData> 
 
   inflight = (async () => {
     const startedAt = Date.now();
+    const candidates = repoCandidates();
+    let lastError: string | undefined;
     try {
-      const { owner, repo } = parseRepo(repoUrl());
-      const { text, source } = await fetchChangelogText(owner, repo);
-      const versions = parseChangelog(text);
-      const key = env.UPDATE_CHECK_INCLUDE_PRERELEASES ? "prerelease" : "stable";
-      const computed = computeSeverity(installed, versions, env.UPDATE_CRITICAL_STALE_THRESHOLD, env.UPDATE_CHECK_INCLUDE_PRERELEASES);
-      const data = {
-        ...buildData({
-          installed,
-          versions,
-          severity: computed.severity,
-          outdated: computed.outdated,
-          latest: computed.latest,
-          skipped: computed.skipped,
-          source,
-          checkedAt: new Date().toISOString(),
-        }),
-        prereleaseAvailable: computed.prereleaseAvailable,
-        prereleaseCount: computed.prereleaseCount,
-        prereleaseLatest: key === "prerelease" ? null : computed.prereleaseLatest,
-        source: `${source}-${key}`,
-      };
-      cache = { data, fetchedAt: Date.now(), lastGood: data, lastGoodAt: Date.now() };
-      return data;
-    } catch (err) {
-      const error = err instanceof Error ? err.message : "Unknown error";
+      for (const candidate of candidates) {
+        try {
+          const { owner, repo } = parseRepo(candidate);
+          const { text, source } = await fetchChangelogText(owner, repo);
+          const versions = parseChangelog(text);
+          const key = env.UPDATE_CHECK_INCLUDE_PRERELEASES ? "prerelease" : "stable";
+          const computed = computeSeverity(installed, versions, env.UPDATE_CRITICAL_STALE_THRESHOLD, env.UPDATE_CHECK_INCLUDE_PRERELEASES);
+          const data = {
+            ...buildData({
+              installed,
+              versions,
+              severity: computed.severity,
+              outdated: computed.outdated,
+              latest: computed.latest,
+              skipped: computed.skipped,
+              source,
+              checkedAt: new Date().toISOString(),
+            }, candidate),
+            prereleaseAvailable: computed.prereleaseAvailable,
+            prereleaseCount: computed.prereleaseCount,
+            prereleaseLatest: key === "prerelease" ? null : computed.prereleaseLatest,
+            source: `${source}-${key}`,
+          };
+          cache = { data, fetchedAt: Date.now(), lastGood: data, lastGoodAt: Date.now() };
+          return data;
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : "Unknown error";
+        }
+      }
+      const error = lastError ?? "Unknown error";
       const staleMaxMs = env.UPDATE_CHECK_STALE_MAX_MINUTES * 60 * 1000;
       if (cache?.lastGood && cache.lastGoodAt && startedAt - cache.lastGoodAt < staleMaxMs) {
         const data: VersionCheckData = {
