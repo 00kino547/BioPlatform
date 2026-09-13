@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getEnv } from "../config/env.js";
 import { requireAuth } from "../middleware/auth.js";
-import { permissionsFor, effectiveApiLevel } from "../lib/permissions.js";
+import { permissionsFor, effectiveApiLevel, isAdminRole } from "../lib/permissions.js";
 import { generateTotpSecret, verifyTotpCode } from "../lib/totp.js";
 import {
   cleanupExpiredChallenges,
@@ -172,7 +172,7 @@ async function userPublic(user: {
     email: user.email,
     role: role ?? null,
     permissions,
-    isAdmin: permissions.length > 0,
+    isAdmin: isAdminRole(role),
     tier: user.tier,
     apiLevel: effectiveApiLevel(role, user.tier),
     trackLimit: user.trackLimit,
@@ -736,7 +736,7 @@ router.get("/me", requireAuth, async (req, res) => {
       email: user.email,
       role: user.role,
       permissions,
-      isAdmin: permissions.length > 0,
+      isAdmin: isAdminRole(user.role),
       tier: user.tier,
       apiLevel: effectiveApiLevel(user.role, user.tier),
       trackLimit: user.trackLimit,

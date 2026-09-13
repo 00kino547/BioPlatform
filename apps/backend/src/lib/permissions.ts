@@ -49,6 +49,10 @@ export function hasPermission(role: RoleInfo | null | undefined, permission: Per
   return permissionsFor(role).includes(permission);
 }
 
+export function isAdminRole(role: RoleInfo | null | undefined): boolean {
+  return permissionsFor(role).some((p) => (ADMIN_GATE_PERMISSIONS as ReadonlySet<Permission>).has(p as Permission));
+}
+
 export type ApiLevel = "basic" | "advanced" | "enterprise";
 
 export const API_LEVEL_INDEX: Record<ApiLevel, number> = { basic: 0, advanced: 1, enterprise: 2 };
