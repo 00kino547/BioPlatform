@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { getEnv } from "../src/config/env.js";
-import { ALL_PERMISSIONS, SYSTEM_ROLE_SLUGS } from "../src/lib/permissions.js";
+import { ALL_PERMISSIONS, SYSTEM_ROLE_SLUGS, PERMISSIONS } from "../src/lib/permissions.js";
 
 const prisma = new PrismaClient();
 
