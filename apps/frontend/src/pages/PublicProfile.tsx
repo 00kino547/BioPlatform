@@ -82,6 +82,7 @@ export function PublicProfilePage() {
   useEffect(() => {
     if (!username) return;
     setLoading(true);
+    setEntered(false);
     api.getPublicProfile(username).then((res) => {
       if (res.success && res.data) {
         setProfile(res.data);

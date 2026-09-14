@@ -30,7 +30,7 @@ let youtubeApiPromise: Promise<void> | null = null;
 function loadYouTubeApi(): Promise<void> {
   if (window.YT?.Player) return Promise.resolve();
   if (!youtubeApiPromise) {
-    youtubeApiPromise = new Promise((resolve) => {
+    youtubeApiPromise = new Promise((resolve, reject) => {
       const previous = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
         previous?.();
@@ -38,6 +38,17 @@ function loadYouTubeApi(): Promise<void> {
       };
       const tag = document.createElement("script");
       tag.src = "https://www.youtube.com/iframe_api";
+      tag.async = true;
+      tag.onerror = () => {
+        youtubeApiPromise = null;
+        reject(new Error("failed to load the YouTube IFrame API"));
+      };
+      window.setTimeout(() => {
+        if (!window.YT?.Player) {
+          youtubeApiPromise = null;
+          reject(new Error("YouTube IFrame API load timed out"));
+        }
+      }, 10_000);
       document.head.appendChild(tag);
     });
   }
@@ -47,6 +58,38 @@ function loadYouTubeApi(): Promise<void> {
 function youtubeVideoId(url: string): string | null {
   const match = url.match(/\/embed\/([a-zA-Z0-9_-]{6,})/);
   return match?.[1] ?? null;
+}
+
+function youtubePlaylistId(url: string): string | null {
+  const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return match?.[1] ?? null;
+}
+
+function createYtPlayer(
+  url: string,
+  container: HTMLDivElement,
+  opts: { onReady: () => void; onError: () => void }
+): YtPlayerInstance {
+  const videoId = youtubeVideoId(url);
+  const playlistId = youtubePlaylistId(url);
+  const playerVars: Record<string, string> = {
+    rel: "0",
+    autoplay: "0",
+    playsinline: "1",
+    origin: window.location.origin,
+  };
+  const options: Record<string, unknown> = {
+    host: "https://www.youtube-nocookie.com",
+    playerVars,
+    events: { onReady: opts.onReady, onError: opts.onError },
+  };
+  if (playlistId) {
+    playerVars.list = playlistId;
+    playerVars.listType = "playlist";
+  } else if (videoId && videoId !== "videoseries") {
+    options.videoId = videoId;
+  }
+  return new window.YT!.Player(container, options);
 }
 
 function startWithSound(
@@ -234,6 +277,7 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   const playerRef = useRef<YtPlayerInstance | null>(null);
   const startedRef = useRef(started);
   const soundTimersRef = useRef<number[]>([]);
+  const retriedRef = useRef(false);
   const [muted, setMuted] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -248,44 +292,60 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
     };
   }, []);
 
+  // Create the player up-front (while the enter gate is still covering the page) so
+  // that by the time the gate's click/keydown triggers `started`, the player exists
+  // and `playVideo()` runs inside the browser's user-activation window — making
+  // unmuted autoplay reliable. autoplay:"0" keeps it silent (and light) until entry.
   useEffect(() => {
     let cancelled = false;
-    const extractedId = youtubeVideoId(url);
-    if (!started || !extractedId || !containerRef.current) return;
-    const videoId: string = extractedId;
+    const container = containerRef.current;
+    const videoId = youtubeVideoId(url);
+    const playlistId = youtubePlaylistId(url);
+    const isPlaylist = playlistId && (videoId === "videoseries" || !videoId);
+    const isVideo = videoId != null && videoId !== "videoseries";
+    if (!container || (!isPlaylist && !isVideo)) return;
 
-    loadYouTubeApi().then(() => {
+    const mount = () => {
       if (cancelled || !containerRef.current || !window.YT) return;
-
-      const player = new window.YT.Player(containerRef.current, {
-        videoId,
-        host: "https://www.youtube-nocookie.com",
-        playerVars: {
-          rel: "0",
-          autoplay: "1",
-          playsinline: "1",
-          origin: window.location.origin,
+      const player = createYtPlayer(url, containerRef.current, {
+        onReady: () => {
+          playerRef.current = player;
+          setReady(true);
+          const frame = player.getIframe();
+          frame.setAttribute(
+            "allow",
+            "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          );
+          frame.style.width = "100%";
+          frame.style.height = "100%";
+          if (startedRef.current) {
+            soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
+          } else {
+            player.pauseVideo();
+          }
         },
-        events: {
-          onReady: () => {
-            playerRef.current = player;
-            setReady(true);
-            const frame = player.getIframe();
-            frame.setAttribute(
-              "allow",
-              "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            );
-            frame.style.width = "100%";
-            frame.style.height = "100%";
-            if (startedRef.current) {
-              soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
-            } else {
-              player.pauseVideo();
-            }
-          },
+        onError: () => {
+          if (cancelled || retriedRef.current) return;
+          retriedRef.current = true;
+          playerRef.current?.destroy();
+          playerRef.current = null;
+          setReady(false);
+          window.setTimeout(() => mount(), 1000);
         },
       });
-    });
+      playerRef.current = player;
+    };
+
+    loadYouTubeApi()
+      .then(() => mount())
+      .catch(() => {
+        if (cancelled) return;
+        window.setTimeout(() => {
+          loadYouTubeApi()
+            .then(() => mount())
+            .catch(() => {});
+        }, 2000);
+      });
 
     return () => {
       cancelled = true;
@@ -293,8 +353,10 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
       playerRef.current = null;
       setReady(false);
     };
-  }, [url, started]);
+  }, [url]);
 
+  // Lockstep with the enter gate: `started` becomes true inside the gate's click/keydown
+  // handler, so this runs within the user-activation window — the player already exists.
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
@@ -306,6 +368,26 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
       player.pauseVideo();
     }
   }, [started]);
+
+  // Self-heal: if autoplay was blocked and fell back to muted, retry unmuted playback
+  // on the next real user gesture (pointer/key) instead of staying silent forever.
+  useEffect(() => {
+    const onGesture = () => {
+      const player = playerRef.current;
+      if (!player || !startedRef.current) return;
+      if (player.isMuted() || player.getPlayerState() !== window.YT?.PlayerState.PLAYING) {
+        soundTimersRef.current.forEach((t) => window.clearTimeout(t));
+        soundTimersRef.current = [];
+        soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
+      }
+    };
+    window.addEventListener("pointerdown", onGesture);
+    window.addEventListener("keydown", onGesture);
+    return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+    };
+  }, []);
 
   const toggleMute = () => {
     const player = playerRef.current;
