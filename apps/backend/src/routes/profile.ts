@@ -364,6 +364,81 @@ router.put("/me", requireAuth, async (req, res) => {
   res.json({ success: true, data: serializeOwnProfile(profile) });
 });
 
+router.get("/me/export", requireAuth, requireApiLevel("advanced"), async (req, res) => {
+  const format: ExportFormat = req.query.format === "ods" ? "ods" : "xlsx";
+  const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
+  if (!profile) {
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
+  const buffer = buildExportBuffer(profileToTransferJson(profile), format);
+  const filename = `profile-export.${format === "ods" ? "ods" : "xlsx"}`;
+  res.setHeader("Content-Type", EXPORT_CONTENT_TYPES[format]);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(buffer);
+});
+
+router.post("/me/import", requireAuth, requireApiLevel("advanced"), (req, res) => {
+  importUpload.single("file")(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ success: false, error: "File too large (max 5MB)" });
+      }
+      if (err.code === "LIMIT_UNEXPECTED_FILE") {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid file type. Use .xlsx, .ods, or .csv (no macros).",
+        });
+      }
+      return res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
+    }
+    if (err) {
+      return res.status(500).json({ success: false, error: "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "No file provided." });
+    }
+
+    try {
+      const { payload, warnings } = parseImportBuffer(req.file.buffer);
+      if (Object.keys(payload).length === 0) {
+        return res.status(400).json({ success: false, error: warnings[0] ?? "No importable fields found.", warnings });
+      }
+
+      const parsed = updateProfileSchema.safeParse(payload);
+      if (!parsed.success) {
+        const message = parsed.error.issues[0]?.message ?? "Invalid profile data.";
+        return res.status(400).json({ success: false, error: message, warnings });
+      }
+
+      const { socialLinks, theme, ...rest } = parsed.data;
+      const scoped = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
+      let updatedId: string;
+      if (scoped) {
+        const updated = await prisma.profile.update({
+          where: { id: scoped.id },
+          data: {
+            ...rest,
+            socialLinks: toPrismaJson(normalizeImportedSocialLinks(socialLinks)),
+            theme: toPrismaJson(theme),
+          },
+        });
+        updatedId = updated.id;
+      } else {
+        const updated = await upsertPrimaryProfile(req.userId!, {
+          ...rest,
+          socialLinks: toPrismaJson(normalizeImportedSocialLinks(socialLinks)),
+          theme: toPrismaJson(theme),
+        });
+        updatedId = updated.id;
+      }
+      void refreshDiscordPostForProfile(updatedId);
+
+      res.json({ success: true, data: { applied: Object.keys(parsed.data), warnings } });
+    } catch {
+      res.status(400).json({ success: false, error: "Could not parse the file. Use a .xlsx, .ods, or .csv profile export." });
+    }
+  });
+});
 router.get("/me/:profileId", requireAuth, async (req: Request<{ profileId: string }>, res) => {
   const profile = await prisma.profile.findFirst({
     where: { id: req.params.profileId, userId: req.userId! },
@@ -762,81 +837,6 @@ const importUpload = multer({
   },
 });
 
-router.get("/me/export", requireAuth, requireApiLevel("advanced"), async (req, res) => {
-  const format: ExportFormat = req.query.format === "ods" ? "ods" : "xlsx";
-  const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
-  if (!profile) {
-    return res.status(404).json({ success: false, error: "Profile not found" });
-  }
-  const buffer = buildExportBuffer(profileToTransferJson(profile), format);
-  const filename = `profile-export.${format === "ods" ? "ods" : "xlsx"}`;
-  res.setHeader("Content-Type", EXPORT_CONTENT_TYPES[format]);
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.send(buffer);
-});
-
-router.post("/me/import", requireAuth, requireApiLevel("advanced"), (req, res) => {
-  importUpload.single("file")(req, res, async (err) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({ success: false, error: "File too large (max 5MB)" });
-      }
-      if (err.code === "LIMIT_UNEXPECTED_FILE") {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid file type. Use .xlsx, .ods, or .csv (no macros).",
-        });
-      }
-      return res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
-    }
-    if (err) {
-      return res.status(500).json({ success: false, error: "Upload failed" });
-    }
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: "No file provided." });
-    }
-
-    try {
-      const { payload, warnings } = parseImportBuffer(req.file.buffer);
-      if (Object.keys(payload).length === 0) {
-        return res.status(400).json({ success: false, error: warnings[0] ?? "No importable fields found.", warnings });
-      }
-
-      const parsed = updateProfileSchema.safeParse(payload);
-      if (!parsed.success) {
-        const message = parsed.error.issues[0]?.message ?? "Invalid profile data.";
-        return res.status(400).json({ success: false, error: message, warnings });
-      }
-
-      const { socialLinks, theme, ...rest } = parsed.data;
-      const scoped = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
-      let updatedId: string;
-      if (scoped) {
-        const updated = await prisma.profile.update({
-          where: { id: scoped.id },
-          data: {
-            ...rest,
-            socialLinks: toPrismaJson(normalizeImportedSocialLinks(socialLinks)),
-            theme: toPrismaJson(theme),
-          },
-        });
-        updatedId = updated.id;
-      } else {
-        const updated = await upsertPrimaryProfile(req.userId!, {
-          ...rest,
-          socialLinks: toPrismaJson(normalizeImportedSocialLinks(socialLinks)),
-          theme: toPrismaJson(theme),
-        });
-        updatedId = updated.id;
-      }
-      void refreshDiscordPostForProfile(updatedId);
-
-      res.json({ success: true, data: { applied: Object.keys(parsed.data), warnings } });
-    } catch {
-      res.status(400).json({ success: false, error: "Could not parse the file. Use a .xlsx, .ods, or .csv profile export." });
-    }
-  });
-});
 
 router.get("/:username/og.png", publicRateLimit, async (req: Request<{ username: string }>, res) => {
   const result = await renderProfileOgCached(req.params.username);

@@ -801,7 +801,7 @@ export function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-zinc-800/80 bg-zinc-900/30">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-auto min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/" className="text-lg font-bold text-white tracking-tight">
             {branding.name}
           </Link>
@@ -860,7 +860,7 @@ export function AdminDashboard() {
           </div>
         )}
 
-        <div className="flex gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1 w-fit overflow-x-auto">
+        <div className="flex flex-wrap gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1">
           {allowedTabs.map((t) => (
             <button
               key={t}
