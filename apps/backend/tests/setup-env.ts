@@ -37,6 +37,24 @@ if (!testDatabaseUrl.includes("bioplatform_test")) {
 process.env.DATABASE_URL = testDatabaseUrl;
 process.env.NODE_ENV = "test";
 
+// `JWT_SECRET` is the one schema field with no default that a test run cannot
+// invent on its own, and it is deliberately defaultless: production must supply
+// a real 32+ char secret and must never silently get a weak one. The previous
+// code relied on the developer's repo `.env` to provide it, so a CI runner (no
+// `.env` at all) hit `Invalid environment variables: { JWT_SECRET: ['Required'] }`
+// and `getEnv()` called `process.exit(1)`. Because that happens at import time,
+// the node:test runner did not report one broken assertion — it reported 30 whole
+// test FILES as `not ok` with a bare `test failed`, hiding one trivial env gap
+// behind what looked like a catastrophic, 30-file breakage. Pin an obviously
+// fake, deterministic, test-only secret here instead: it is only ever used to
+// sign/verify tokens inside the test process, never to authenticate anything
+// real, and CI (which has no `.env`) now boots exactly like a local run.
+// `!(key in process.env)`-style precedence is preserved above, so an explicit
+// JWT_SECRET from the shell or `.env` still wins; this is only the last resort.
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = "test-only-jwt-secret-never-used-in-production-0000";
+}
+
 // Email-send tests are OPT-IN, never opt-out. A developer's repo `.env`
 // legitimately enables SMTP for the dev server — but loading it here must not
 // make a plain `pnpm test` run fire real emails through the live SMTP account
