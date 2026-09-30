@@ -19,7 +19,14 @@ const envSchema = z.object({
   UPDATE_CRITICAL_STALE_THRESHOLD: z.coerce.number().int().min(2).default(3),
   UPDATE_CHECK_INCLUDE_PRERELEASES: z.string().default("false").transform(boolFromEnv),
   JWT_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default("7d"),
+  // `.default("7d")` only covers an *absent* var: an empty value (`JWT_EXPIRES_IN=`)
+  // would otherwise reach jsonwebtoken and throw "invalid expiresIn option" at the
+  // first sign. Coerce a blank/whitespace value back to the 7d default so a
+  // misconfigured .env can never crash token issuance.
+  JWT_EXPIRES_IN: z
+    .string()
+    .default("7d")
+    .transform((value) => value.trim() || "7d"),
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   AUTH_LOCK_POLICY: z.enum(["block", "trusted_ip", "email"]).default("trusted_ip"),
   AUTH_LOCK_DURATION_MINUTES: z.coerce.number().int().default(-1),
