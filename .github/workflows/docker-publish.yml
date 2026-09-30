@@ -5,6 +5,12 @@ on:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Build even if this push changes no image build input"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: docker-${{ github.ref }}
@@ -14,8 +20,78 @@ env:
   DOCKERHUB_NAMESPACE: dracoservices
 
 jobs:
+  # Decide whether this push can possibly change the published images. The two
+  # Dockerfiles COPY exactly the paths listed in IMAGE_INPUTS below (plus the
+  # root manifests they install from), so anything outside that set — a docs
+  # edit, a CI config change, AGENTS.md — yields a byte-identical image and
+  # there is nothing worth building or pushing.
+  changes:
+    name: Detect image-affecting changes
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.filter.outputs.build }}
+    steps:
+      - name: Checkout (full history so the base commit is available)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare the push against its base commit
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+
+          # Keep in sync with the COPY lines in apps/backend/Dockerfile and
+          # apps/frontend/Dockerfile.
+          IMAGE_INPUTS='^(apps/backend/|apps/frontend/|packages/shared/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$)'
+
+          if [ "$FORCE" = "true" ]; then
+            echo "force=true - building and publishing regardless of the diff."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A manual run, the first push of a branch and a tag push all have no
+          # usable "before" commit. Never silently skip those: an explicit
+          # release cut must always build and publish.
+          if [ "$EVENT_NAME" != "push" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No comparable base commit ($EVENT_NAME) - building."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "Base commit ${BEFORE} is not in this checkout - building to be safe."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$BEFORE" "$SHA" || true)"
+          if [ -z "$changed" ]; then
+            echo "This push contains no file changes - skipping build and publish."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s\n' "$changed" | grep -qE "$IMAGE_INPUTS"; then
+            echo "Image build inputs changed - building and publishing:"
+            printf '%s\n' "$changed" | grep -E "$IMAGE_INPUTS" | sed 's/^/    + /'
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No image build input changed - skipping build and publish:"
+            printf '%s\n' "$changed" | sed 's/^/    - /'
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-push:
     name: Build & publish ${{ matrix.image }}
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
