@@ -1,4 +1,9 @@
-import nodemailer from "nodemailer";
+// nodemailer 10 ships its own TypeScript build, so the module is a real ES
+// module with named type exports instead of the `export =` namespace that
+// `@types/nodemailer@8` used for v6-v9. `nodemailer.Transporter` (a type read off
+// the default import) no longer resolves, so the transporter type is imported
+// explicitly as a named type while the default import stays the runtime client.
+import nodemailer, { type Transporter } from "nodemailer";
 import { getEnv } from "../config/env.js";
 
 function escapeHtml(value: string): string {
@@ -10,9 +15,9 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-let _transporter: nodemailer.Transporter | null = null;
+let _transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
   if (_transporter) return _transporter;
 
   const env = getEnv();

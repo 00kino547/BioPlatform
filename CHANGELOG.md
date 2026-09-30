@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Remaining Dependabot advisories cleared (nodemailer 9→10, brace-expansion ReDoS)** — a fresh scan after the multer bump surfaced 11 more open alerts that had never been evaluated against the current lockfile: five **nodemailer** advisories (quadratic backtracking in the addressparser, structured-recipient array depth bypass, a process-global DNS cache reusing a TLS `servername` across recipients, and a quoted local-part producing a malformed envelope recipient) and three **brace-expansion** advisories (uncontrolled recursion on nested brace groups, quadratic-time expansion). `nodemailer` moves `9.1.1 → 10.0.13` (v10's only breaking change is the Node ≥20 floor, which the Node 22 images already satisfy) and the transitive `brace-expansion` moves `5.0.9 → 5.0.12`. Because nodemailer 10 ships its own TypeScript build, the module is now a real ES module with named type exports rather than the `export =` namespace `@types/nodemailer@8` declared for v6-v9, so `lib/email.ts` imports the transporter type explicitly (`import nodemailer, { type Transporter } from "nodemailer"`) instead of reading `nodemailer.Transporter` off the default import. Runtime import shape verified against the ESM build; typecheck 0, lint 0 errors, build clean, backend 452/452.
+
 ## [1.3.1] - 2026-09-02
 
 ### Added

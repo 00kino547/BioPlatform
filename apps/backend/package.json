@@ -29,7 +29,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.3.0",
-    "nodemailer": "^9.1.1",
+    "nodemailer": "^10.0.13",
     "otplib": "^13.4.1",
     "sharp": "^0.35.4",
     "zod": "^3.24.4"
