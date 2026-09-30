@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Container } from "@/components/layout/Container";
 import { branding } from "@/config/branding";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLandingConfig } from "@/lib/useLandingConfig";
 
 const stats = [
   { icon: Users, value: "2,400+", label: "Early Access Users" },
@@ -13,6 +14,7 @@ const stats = [
 
 export function Hero() {
   const { user } = useAuth();
+  const landingConfig = useLandingConfig();
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       <div className="absolute inset-0 bg-grid bg-grid-fade" />
@@ -73,6 +75,15 @@ export function Hero() {
             >
               View Showcase
             </a>
+            {landingConfig?.featuredProfileUsername && (
+              <Link
+                to={`/${landingConfig.featuredProfileUsername}`}
+                className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"
+              >
+                <Eye className="h-4 w-4" />
+                View live profile
+              </Link>
+            )}
           </div>
 
           <div

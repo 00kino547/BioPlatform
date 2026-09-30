@@ -10,6 +10,17 @@ import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { getToken, type Badge, type Role, type InviteGrantEvent } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { X, Edit, Save, Trash2, ShieldAlert, Sparkles } from "lucide-react";
+import {
+  SeasonalThemesTab,
+  type SeasonalThemeAdmin,
+  type SeasonalAdminConfig,
+  type SeasonalThemesData,
+} from "./admin/SeasonalThemesTab";
+import { LandingConfigTab } from "./admin/LandingConfigTab";
+import { AdminAffiliateTab } from "./admin/AdminAffiliateTab";
+import { AdminOrdersTab } from "./admin/AdminOrdersTab";
+import { AdminNewsletterTab } from "./admin/AdminNewsletterTab";
+import { Pagination } from "./admin/Pagination";
 
 interface InviteCode {
   id: string;
@@ -35,6 +46,9 @@ interface User {
   trackLimit: number | null;
   profileLimit: number | null;
   aliasLimit: number | null;
+  seatLimit: number | null;
+  seatsUsed: number;
+  hasPaidOrder: boolean;
   badges: string[];
   inviteBanned: boolean;
   inviteBannedAt: string | null;
@@ -73,6 +87,14 @@ interface AuthBan {
   updatedAt: string;
 }
 
+interface AdminWhitelistEntry {
+  id: string;
+  value: string;
+  note: string;
+  createdAt: string;
+  createdBy: string;
+}
+
 interface AuthLogEntry {
   id: string;
   kind: string;
@@ -108,7 +130,7 @@ interface AdminDomainEntry {
   createdAt: string;
 }
 
-type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs" | "domains";
+type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs" | "domains" | "themes" | "landing" | "affiliates" | "orders" | "newsletter";
 
 function securityFlagLabel(flag: User["securityFlag"]): string {
   return flag === "no-passkeys" ? "NO PASSKEY" : flag === "passkeys-unverified" ? "PASSKEYS UNVERIFIED" : "";
@@ -138,6 +160,11 @@ const PERMISSION_LABELS: Record<string, string> = {
   "bans.manage": "Manage bans & lockouts",
   "roles.manage": "Manage roles",
   "badges.manage": "Manage badges",
+  "themes.manage": "Manage seasonal themes",
+  "affiliates.manage": "Manage the affiliate program",
+  "orders.manage": "Manage orders & billing",
+  "settings.manage": "Manage landing settings",
+  "newsletter.manage": "Manage newsletters & consent",
   "logs.view": "View auth logs",
   "api.basic": "API access — basic endpoints",
   "api.advanced": "API access — advanced (Premium)",
@@ -146,7 +173,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 
 const PERMISSION_ORDER = Object.keys(PERMISSION_LABELS);
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10;
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -161,6 +188,11 @@ export function AdminDashboard() {
   const canBans = perms.has("bans.manage");
   const canLogs = perms.has("logs.view");
   const canDomains = perms.has("profiles.manage");
+  const canThemes = perms.has("themes.manage");
+  const canLanding = perms.has("settings.manage");
+  const canAffiliates = perms.has("affiliates.manage");
+  const canOrders = perms.has("orders.manage");
+  const canNewsletter = perms.has("newsletter.manage");
 
   const allowedTabs: Tab[] = [
     ...(canInvites ? (["codes"] as Tab[]) : []),
@@ -170,18 +202,38 @@ export function AdminDashboard() {
     ...(canBans ? (["bans"] as Tab[]) : []),
     ...(canLogs ? (["logs"] as Tab[]) : []),
     ...(canDomains ? (["domains"] as Tab[]) : []),
+    ...(canThemes ? (["themes"] as Tab[]) : []),
+    ...(canLanding ? (["landing"] as Tab[]) : []),
+    ...(canAffiliates ? (["affiliates"] as Tab[]) : []),
+    ...(canOrders ? (["orders"] as Tab[]) : []),
+    ...(canNewsletter ? (["newsletter"] as Tab[]) : []),
   ];
   const [tab, setTab] = useState<Tab>(allowedTabs[0] ?? "codes");
   const [codes, setCodes] = useState<InviteCode[]>([]);
+  const [codeCounts, setCodeCounts] = useState<{ total: number; used: number; revoked: number; available: number } | null>(null);
   const [inviteFilter, setInviteFilter] = useState<"all" | "available" | "mine">("all");
   const [users, setUsers] = useState<User[]>([]);
   const [invitesPage, setInvitesPage] = useState(0);
   const [invitesTotal, setInvitesTotal] = useState(0);
   const [usersPage, setUsersPage] = useState(0);
   const [usersTotal, setUsersTotal] = useState(0);
+  const [bansPage, setBansPage] = useState(0);
+  const [bansTotal, setBansTotal] = useState(0);
+  const [whitelistPage, setWhitelistPage] = useState(0);
+  const [whitelistTotal, setWhitelistTotal] = useState(0);
+  const [logsPage, setLogsPage] = useState(0);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const [domainsPage, setDomainsPage] = useState(0);
+  const [domainsTotal, setDomainsTotal] = useState(0);
+  const [eventsPage, setEventsPage] = useState(0);
+  const [eventsTotal, setEventsTotal] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
   const [bans, setBans] = useState<AuthBan[]>([]);
+  const [whitelist, setWhitelist] = useState<AdminWhitelistEntry[]>([]);
+  const [wlValue, setWlValue] = useState("");
+  const [wlNote, setWlNote] = useState("");
+  const [wlMsg, setWlMsg] = useState("");
   const [logs, setLogs] = useState<AuthLogEntry[]>([]);
   const [domains, setDomains] = useState<AdminDomainEntry[]>([]);
   const [count, setCount] = useState(1);
@@ -194,6 +246,12 @@ export function AdminDashboard() {
   const [eventMsg, setEventMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [themesData, setThemesData] = useState<SeasonalThemesData | null>(null);
+  const [themesError, setThemesError] = useState("");
+  const [themesSaving, setThemesSaving] = useState(false);
+  const [themeError, setThemeError] = useState("");
+  const [themeSaved, setThemeSaved] = useState(false);
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
@@ -212,6 +270,7 @@ export function AdminDashboard() {
   const [editTrackLimit, setEditTrackLimit] = useState("");
   const [editProfileLimit, setEditProfileLimit] = useState("");
   const [editAliasLimit, setEditAliasLimit] = useState("");
+  const [editSeatLimit, setEditSeatLimit] = useState("");
   const [editRoleId, setEditRoleId] = useState("");
   const [editBadges, setEditBadges] = useState<string[]>([]);
 
@@ -269,6 +328,7 @@ export function AdminDashboard() {
     if (data.success) {
       setCodes(data.data);
       if (data.pagination) setInvitesTotal(data.pagination.total);
+      if (data.counts) setCodeCounts(data.counts);
     }
   };
 
@@ -281,13 +341,16 @@ export function AdminDashboard() {
     if (data.success) setInviteSettings(data.data);
   };
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (page = eventsPage) => {
     const token = getToken();
-    const res = await fetch("/api/admin/invite-events", {
+    const res = await fetch(`/api/admin/invite-events?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.success) setEvents(data.data);
+    if (data.success) {
+      setEvents(data.data);
+      if (data.pagination) setEventsTotal(data.pagination.total);
+    }
   };
 
   const fetchUsers = async (page = usersPage) => {
@@ -302,13 +365,28 @@ export function AdminDashboard() {
     }
   };
 
-  const fetchBans = async () => {
+  const fetchBans = async (page = bansPage) => {
     const token = getToken();
-    const res = await fetch("/api/admin/auth-bans", {
+    const res = await fetch(`/api/admin/auth-bans?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.success) setBans(data.data);
+    if (data.success) {
+      setBans(data.data);
+      if (data.pagination) setBansTotal(data.pagination.total);
+    }
+  };
+
+  const fetchWhitelist = async (page = whitelistPage) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/whitelist?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setWhitelist(data.data);
+      if (data.pagination) setWhitelistTotal(data.pagination.total);
+    }
   };
 
   const fetchRoles = async () => {
@@ -329,22 +407,119 @@ export function AdminDashboard() {
     if (data.success) setBadgeCatalog(data.data);
   };
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (page = logsPage) => {
     const token = getToken();
-    const res = await fetch("/api/admin/auth-logs?limit=100", {
+    const res = await fetch(`/api/admin/auth-logs?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.success) setLogs(data.data);
+    if (data.success) {
+      setLogs(data.data);
+      if (data.pagination) setLogsTotal(data.pagination.total);
+    }
   };
 
-  const fetchDomains = async () => {
+  const fetchDomains = async (page = domainsPage) => {
     const token = getToken();
-    const res = await fetch("/api/admin/custom-domains", {
+    const res = await fetch(`/api/admin/custom-domains?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.success) setDomains(data.data);
+    if (data.success) {
+      setDomains(data.data);
+      if (data.pagination) setDomainsTotal(data.pagination.total);
+    }
+  };
+
+  const fetchThemes = async () => {
+    const token = getToken();
+    const res = await fetch("/api/admin/themes", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setThemesData(data.data);
+      setThemesError("");
+    } else {
+      setThemesError(data.error ?? "Failed to load seasonal themes");
+    }
+  };
+
+  const saveThemeConfig = async (config: SeasonalAdminConfig) => {
+    setThemesSaving(true);
+    setThemeError("");
+    setThemeSaved(false);
+    const token = getToken();
+    const res = await fetch("/api/admin/themes/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(config),
+    });
+    const data = await res.json();
+    setThemesSaving(false);
+    if (data.success) {
+      setThemeSaved(true);
+      setTimeout(() => setThemeSaved(false), 2000);
+      fetchThemes();
+    } else {
+      setThemeError(data.error ?? "Failed to save theme settings");
+    }
+  };
+
+  const updateThemeField = async (
+    id: string,
+    patch: Partial<SeasonalThemeAdmin>
+  ) => {
+    const theme = themesData?.themes.find((t) => t.id === id);
+    if (!theme) return;
+    setThemesSaving(true);
+    setThemeError("");
+    const token = getToken();
+    const res = await fetch(`/api/admin/themes/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...theme, ...patch }),
+    });
+    const data = await res.json();
+    setThemesSaving(false);
+    if (data.success) {
+      fetchThemes();
+    } else {
+      setThemeError(data.error ?? "Failed to update theme");
+    }
+  };
+
+  const uploadThemeBackground = async (id: string, file: File): Promise<boolean> => {
+    const form = new FormData();
+    form.append("background", file);
+    const token = getToken();
+    const res = await fetch(`/api/admin/themes/${id}/background`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchThemes();
+      return true;
+    }
+    setThemeError(data.error ?? "Failed to upload background");
+    return false;
+  };
+
+  const removeThemeBackground = async (id: string): Promise<boolean> => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/themes/${id}/background`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      fetchThemes();
+      return true;
+    }
+    setThemeError(data.error ?? "Failed to remove background");
+    return false;
   };
 
   const handleApproveDomain = async (id: string) => {
@@ -402,6 +577,7 @@ export function AdminDashboard() {
     const data = await res.json();
     if (data.success) {
       setDomains((prev) => prev.filter((x) => x.id !== d.id));
+      setDomainsTotal((t) => Math.max(t - 1, 0));
     } else {
       window.alert(data.error ?? "Failed to remove domain");
     }
@@ -416,6 +592,7 @@ export function AdminDashboard() {
     const data = await res.json();
     if (data.success) {
       setBans((prev) => prev.filter((b) => b.id !== id));
+      setBansTotal((t) => Math.max(t - 1, 0));
     }
   };
 
@@ -436,20 +613,69 @@ export function AdminDashboard() {
     }
   };
 
+  const handleAddWhitelist = async (e: FormEvent) => {
+    e.preventDefault();
+    setWlMsg("");
+    if (!wlValue.trim()) {
+      setWlMsg("Enter an IP address or CIDR network.");
+      return;
+    }
+    const token = getToken();
+    const res = await fetch("/api/admin/whitelist", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ value: wlValue.trim(), note: wlNote.trim() }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setWlValue("");
+      setWlNote("");
+      await fetchWhitelist(0);
+      setWhitelistPage(0);
+    } else {
+      setWlMsg(data.error ?? "Failed to add allowlist entry");
+    }
+  };
+
+  const handleRemoveWhitelist = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`/api/admin/whitelist/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchWhitelist();
+    } else {
+      window.alert(data.error ?? "Failed to remove allowlist entry");
+    }
+  };
+
   useEffect(() => {
-    if (canInvites) {
+    if (tab === "codes" && canInvites) {
       fetchCodes();
       fetchInviteSettings();
       fetchEvents();
     }
-    if (canViewUsers) fetchUsers();
-    if (canRoles) fetchRoles();
-    if (canBadges) fetchBadges();
-    if (canBans) fetchBans();
-    if (canLogs) fetchLogs();
-    if (canDomains) fetchDomains();
+    if (tab === "users" && canViewUsers) {
+      fetchUsers();
+      if (canRoles) fetchRoles();
+      if (canBadges) fetchBadges();
+    }
+    if (tab === "roles" && canRoles) fetchRoles();
+    if (tab === "badges" && canBadges) fetchBadges();
+    if (tab === "bans" && canBans) {
+      fetchBans();
+      fetchWhitelist();
+    }
+    if (tab === "logs" && canLogs) fetchLogs();
+    if (tab === "domains" && canDomains) fetchDomains();
+    if (tab === "themes" && canThemes) fetchThemes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tab]);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -460,7 +686,7 @@ export function AdminDashboard() {
     if (expiresDays) body.expiresInDays = Number(expiresDays);
 
     const token = getToken();
-    const res = await fetch("/api/invites", {
+    const res = await fetch("/api/admin/invites", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -490,9 +716,7 @@ export function AdminDashboard() {
     });
     const data = await res.json();
     if (data.success) {
-      setCodes((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, revokedAt: new Date().toISOString() } : c))
-      );
+      await fetchCodes();
     }
   };
 
@@ -601,6 +825,7 @@ export function AdminDashboard() {
     setEditTrackLimit(u.trackLimit !== null && u.trackLimit !== undefined ? String(u.trackLimit) : "");
     setEditProfileLimit(u.profileLimit !== null && u.profileLimit !== undefined ? String(u.profileLimit) : "");
     setEditAliasLimit(u.aliasLimit !== null && u.aliasLimit !== undefined ? String(u.aliasLimit) : "");
+    setEditSeatLimit(u.seatLimit !== null && u.seatLimit !== undefined ? String(u.seatLimit) : "");
     setEditRoleId(u.roleId ?? "");
     setEditBadges(u.badges ?? []);
     const token = getToken();
@@ -659,6 +884,7 @@ export function AdminDashboard() {
     const trackLimitValue = editTrackLimit === "" ? null : Number(editTrackLimit);
     const profileLimitValue = editProfileLimit === "" ? null : Number(editProfileLimit);
     const aliasLimitValue = editAliasLimit === "" ? null : Number(editAliasLimit);
+    const seatLimitValue = editSeatLimit === "" ? null : Number(editSeatLimit);
     const userRes = await fetch(`/api/admin/users/${editingUser.id}`, {
       method: "PATCH",
       headers: {
@@ -670,6 +896,7 @@ export function AdminDashboard() {
         trackLimit: trackLimitValue,
         profileLimit: profileLimitValue,
         aliasLimit: aliasLimitValue,
+        seatLimit: seatLimitValue,
         ...(editRoleId ? { roleId: editRoleId } : {}),
         badges: editBadges,
       }),
@@ -690,6 +917,9 @@ export function AdminDashboard() {
                 trackLimit: userData.data.trackLimit,
                 profileLimit: userData.data.profileLimit,
                 aliasLimit: userData.data.aliasLimit,
+                seatLimit: userData.data.seatLimit,
+                seatsUsed: userData.data.seatsUsed,
+                hasPaidOrder: userData.data.hasPaidOrder,
                 badges: userData.data.badges,
               }
             : u
@@ -801,7 +1031,7 @@ export function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-zinc-800/80 bg-zinc-900/30">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-auto min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/" className="text-lg font-bold text-white tracking-tight">
             {branding.name}
           </Link>
@@ -860,7 +1090,7 @@ export function AdminDashboard() {
           </div>
         )}
 
-        <div className="flex gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1 w-fit overflow-x-auto">
+        <div className="flex flex-wrap gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1">
           {allowedTabs.map((t) => (
             <button
               key={t}
@@ -871,7 +1101,7 @@ export function AdminDashboard() {
                   : "text-zinc-400 hover:text-zinc-300"
               }`}
             >
-              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : t === "domains" ? "Custom Domains" : "Logs"}
+              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : t === "domains" ? "Custom Domains" : t === "themes" ? "Theming" : t === "landing" ? "Landing" : t === "affiliates" ? "Affiliate" : t === "orders" ? "Orders" : t === "newsletter" ? "Newsletter" : "Logs"}
             </button>
           ))}
         </div>
@@ -879,9 +1109,9 @@ export function AdminDashboard() {
         {tab === "codes" && (
           <>
             <div className="grid gap-6 sm:grid-cols-3 mb-8">
-              <StatCard label="Total" value={codes.length} />
-              <StatCard label="Used" value={codes.filter((c) => c.usedById).length} />
-              <StatCard label="Available" value={codes.filter((c) => !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now())).length} />
+              <StatCard label="Total" value={codeCounts?.total ?? invitesTotal} />
+              <StatCard label="Used" value={codeCounts?.used ?? codes.filter((c) => c.usedById).length} />
+              <StatCard label="Available" value={codeCounts?.available ?? codes.filter((c) => !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now())).length} />
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
@@ -991,6 +1221,15 @@ export function AdminDashboard() {
                       </div>
                     ))}
                   </div>
+                  <Pagination
+                    page={eventsPage}
+                    total={eventsTotal}
+                    pageSize={PAGE_SIZE}
+                    onPage={(p) => {
+                      setEventsPage(p);
+                      void fetchEvents(p);
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -1126,36 +1365,15 @@ export function AdminDashboard() {
                     </table>
                   </div>
               )}
-              {invitesTotal > PAGE_SIZE && (
-                <div className="mt-4 flex items-center justify-between">
-                  <button
-                    onClick={() => {
-                      const page = Math.max(invitesPage - 1, 0);
-                      setInvitesPage(page);
-                      void fetchCodes(page, inviteFilter);
-                    }}
-                    disabled={invitesPage === 0}
-                    className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-xs text-zinc-500">
-                    {invitesTotal === 0 ? 0 : invitesPage * PAGE_SIZE + 1}–
-                    {Math.min((invitesPage + 1) * PAGE_SIZE, invitesTotal)} of {invitesTotal}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const page = invitesPage + 1;
-                      setInvitesPage(page);
-                      void fetchCodes(page, inviteFilter);
-                    }}
-                    disabled={(invitesPage + 1) * PAGE_SIZE >= invitesTotal}
-                    className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
+              <Pagination
+                page={invitesPage}
+                total={invitesTotal}
+                pageSize={PAGE_SIZE}
+                onPage={(p) => {
+                  setInvitesPage(p);
+                  void fetchCodes(p, inviteFilter);
+                }}
+              />
             </div>
           </>
         )}
@@ -1234,7 +1452,11 @@ export function AdminDashboard() {
                             {u.role?.name ?? "—"}
                           </span>
                           <span className="block text-[10px] text-zinc-600 mt-0.5">
-                            (t:{u.trackLimit ?? "–"} p:{u.profileLimit ?? "–"} a:{u.aliasLimit ?? "–"})
+                            (t:{u.trackLimit ?? "–"} p:{u.profileLimit ?? "–"} a:{u.aliasLimit ?? "–"}
+                            {u.seatLimit !== null && u.seatLimit !== undefined
+                              ? ` s:${u.seatsUsed}/${u.seatLimit}${!u.hasPaidOrder && u.tier === "ENTERPRISE" ? " ⚠" : ""}`
+                              : ""}
+                            )
                           </span>
                         </td>
                         <td className="py-3">
@@ -1285,36 +1507,15 @@ export function AdminDashboard() {
                 </table>
               </div>
             )}
-            {usersTotal > PAGE_SIZE && (
-              <div className="mt-4 flex items-center justify-between">
-                <button
-                  onClick={() => {
-                    const page = Math.max(usersPage - 1, 0);
-                    setUsersPage(page);
-                    void fetchUsers(page);
-                  }}
-                  disabled={usersPage === 0}
-                  className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <span className="text-xs text-zinc-500">
-                  {usersTotal === 0 ? 0 : usersPage * PAGE_SIZE + 1}–
-                  {Math.min((usersPage + 1) * PAGE_SIZE, usersTotal)} of {usersTotal}
-                </span>
-                <button
-                  onClick={() => {
-                    const page = usersPage + 1;
-                    setUsersPage(page);
-                    void fetchUsers(page);
-                  }}
-                  disabled={(usersPage + 1) * PAGE_SIZE >= usersTotal}
-                  className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            )}
+            <Pagination
+              page={usersPage}
+              total={usersTotal}
+              pageSize={PAGE_SIZE}
+              onPage={(p) => {
+                setUsersPage(p);
+                void fetchUsers(p);
+              }}
+            />
           </div>
         )}
         {tab === "roles" && (
@@ -1723,6 +1924,84 @@ export function AdminDashboard() {
         )}
 
         {tab === "bans" && (
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-6">
+            <h2 className="text-lg font-semibold text-white mb-1">IP Allowlist</h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              IPs or CIDR networks that bypass the anti-abuse fingerprint guard: users on them can register
+              multiple accounts (e.g. beta testers) and are exempt from login lockouts even if the network was
+              flagged. Stored in the database, so it survives redeploys.
+            </p>
+
+            <form onSubmit={handleAddWhitelist} className="flex flex-col sm:flex-row gap-3 mb-4">
+              <input
+                value={wlValue}
+                onChange={(e) => setWlValue(e.target.value)}
+                placeholder="IP or CIDR (e.g. 203.0.113.0/24)"
+                className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+              />
+              <input
+                value={wlNote}
+                onChange={(e) => setWlNote(e.target.value)}
+                placeholder="Note (optional)"
+                className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+              />
+              <button
+                type="submit"
+                className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-500 transition-colors"
+              >
+                Add
+              </button>
+            </form>
+
+            {wlMsg && <p className="text-sm text-amber-400 mb-3">{wlMsg}</p>}
+
+            {whitelist.length === 0 ? (
+              <p className="text-sm text-zinc-500">No allowlisted IPs.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
+                      <th className="pb-3 font-medium">Value</th>
+                      <th className="pb-3 font-medium">Note</th>
+                      <th className="pb-3 font-medium">Added by</th>
+                      <th className="pb-3 font-medium">Added</th>
+                      <th className="pb-3 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/40">
+                    {whitelist.map((entry) => (
+                      <tr key={entry.id}>
+                        <td className="py-3 font-mono text-zinc-300">{entry.value}</td>
+                        <td className="py-3 text-zinc-400">{entry.note || "—"}</td>
+                        <td className="py-3 text-zinc-400">{entry.createdBy}</td>
+                        <td className="py-3 text-zinc-500">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="py-3">
+                          <button
+                            onClick={() => handleRemoveWhitelist(entry.id)}
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <Pagination
+              page={whitelistPage}
+              total={whitelistTotal}
+              pageSize={PAGE_SIZE}
+              onPage={(p) => {
+                setWhitelistPage(p);
+                void fetchWhitelist(p);
+              }}
+            />
+          </div>
+        )}
+        {tab === "bans" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
             <h2 className="text-lg font-semibold text-white mb-1">Auth Bans &amp; Lockouts</h2>
             <p className="text-sm text-zinc-500 mb-4">
@@ -1797,6 +2076,15 @@ export function AdminDashboard() {
                 </table>
               </div>
             )}
+            <Pagination
+              page={bansPage}
+              total={bansTotal}
+              pageSize={PAGE_SIZE}
+              onPage={(p) => {
+                setBansPage(p);
+                void fetchBans(p);
+              }}
+            />
           </div>
         )}
         {tab === "logs" && (
@@ -1861,6 +2149,15 @@ export function AdminDashboard() {
                 </table>
               </div>
             )}
+            <Pagination
+              page={logsPage}
+              total={logsTotal}
+              pageSize={PAGE_SIZE}
+              onPage={(p) => {
+                setLogsPage(p);
+                void fetchLogs(p);
+              }}
+            />
           </div>
         )}
 
@@ -1990,8 +2287,39 @@ export function AdminDashboard() {
                 </table>
               </div>
             )}
+            <Pagination
+              page={domainsPage}
+              total={domainsTotal}
+              pageSize={PAGE_SIZE}
+              onPage={(p) => {
+                setDomainsPage(p);
+                void fetchDomains(p);
+              }}
+            />
           </div>
         )}
+
+        {tab === "themes" && (
+          <SeasonalThemesTab
+            data={themesData}
+            error={themesError}
+            saving={themesSaving}
+            themeError={themeError}
+            themeSaved={themeSaved}
+            onSaveConfig={saveThemeConfig}
+            onUpdateTheme={updateThemeField}
+            onUploadBackground={uploadThemeBackground}
+            onRemoveBackground={removeThemeBackground}
+          />
+        )}
+
+        {tab === "landing" && <LandingConfigTab />}
+
+        {tab === "affiliates" && <AdminAffiliateTab />}
+
+        {tab === "orders" && <AdminOrdersTab />}
+
+        {tab === "newsletter" && <AdminNewsletterTab />}
       </main>
 
       <AppFooter />
@@ -2099,7 +2427,7 @@ export function AdminDashboard() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+<div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
                       Profile Limit <span className="text-zinc-500">(optional)</span>
@@ -2125,6 +2453,20 @@ export function AdminDashboard() {
                       value={editAliasLimit}
                       onChange={(e) => setEditAliasLimit(e.target.value)}
                       placeholder="Tier default"
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                      Team Seat Limit <span className="text-zinc-500">(enterprise gifted)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100000}
+                      value={editSeatLimit}
+                      onChange={(e) => setEditSeatLimit(e.target.value)}
+                      placeholder="Unlimited"
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>

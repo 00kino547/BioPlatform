@@ -1,9 +1,13 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
+import { SsoProviderButtons, EnterpriseSsoButtons } from "@/components/auth/SsoProviderButtons";
+import { PocketBaseLoginButton } from "@/components/auth/PocketBaseLoginButton";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { api, type TwoFactorRequired } from "@/lib/api";
+import { OAUTH_TF_KEY } from "@/lib/oauthStorage";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { KeyRound, Fingerprint, Lock } from "lucide-react";
 import { usePageMeta } from "@/lib/seo";
@@ -13,6 +17,8 @@ type Stage = "identifier" | "method" | "password" | "twofactor";
 export function Login() {
   const { login, loginWithPasskey, loginWithPasskeyDiscoverable, verifyTotp, verifyTwoFactorPasskey } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromOAuth = searchParams.get("tf") === "1";
   const [stage, setStage] = useState<Stage>("identifier");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -22,8 +28,29 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [unlockRequired, setUnlockRequired] = useState(false);
   const [unlockSent, setUnlockSent] = useState(false);
+  const [verifyEmailRequired, setVerifyEmailRequired] = useState(false);
+  const [verifySent, setVerifySent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaEnabled, setCaptchaEnabled] = useState(false);
+  const [captchaNonce, setCaptchaNonce] = useState(0);
 
   usePageMeta({ title: "Log In", description: `Sign in to ${branding.name} and manage your profile, links, and theme.`, url: "/login" });
+
+  useEffect(() => {
+    if (fromOAuth) {
+      const raw = sessionStorage.getItem(OAUTH_TF_KEY);
+      sessionStorage.removeItem(OAUTH_TF_KEY);
+      if (raw) {
+        try {
+          const stored = JSON.parse(raw) as { methods: { totp: boolean; passkey: boolean }; twoFactorToken: string };
+          setTwoFactor({ requiresTwoFactor: true, ...stored });
+          setStage("twofactor");
+        } catch {
+          setError("Your two-factor session has expired. Sign in again.");
+        }
+      }
+    }
+  }, [fromOAuth]);
 
   const handleContinue = async () => {
     if (!identifier.trim()) return;
@@ -51,25 +78,35 @@ export function Login() {
   const handlePasswordless = async () => {
     setError("");
     setLoading(true);
-    const err = await loginWithPasskey(identifier.trim());
+    const result = await loginWithPasskey(identifier.trim());
     setLoading(false);
-    if (err) {
-      setError(err);
-    } else {
-      navigate("/dashboard");
+    if (result.error) {
+      setError(result.error);
+      return;
     }
+    if (result.twoFactor) {
+      setTwoFactor(result.twoFactor);
+      setStage("twofactor");
+      return;
+    }
+    navigate("/dashboard");
   };
 
   const handlePasskeyDiscoverable = async () => {
     setError("");
     setLoading(true);
-    const err = await loginWithPasskeyDiscoverable();
+    const result = await loginWithPasskeyDiscoverable();
     setLoading(false);
-    if (err) {
-      setError(err);
-    } else {
-      navigate("/dashboard");
+    if (result.error) {
+      setError(result.error);
+      return;
     }
+    if (result.twoFactor) {
+      setTwoFactor(result.twoFactor);
+      setStage("twofactor");
+      return;
+    }
+    navigate("/dashboard");
   };
 
   const handlePassword = async (e: FormEvent) => {
@@ -77,13 +114,20 @@ export function Login() {
     setError("");
     setUnlockRequired(false);
     setUnlockSent(false);
+    setVerifyEmailRequired(false);
+    setVerifySent(false);
     setLoading(true);
-    const result = await login(identifier.trim(), password);
+    const result = await login(identifier.trim(), password, captchaEnabled ? captchaToken : undefined);
     setLoading(false);
 
     if (result.error) {
       setError(result.error);
       setUnlockRequired(Boolean(result.unlockRequired));
+      setVerifyEmailRequired(Boolean(result.verifyEmailRequired));
+      if (captchaEnabled) {
+        setCaptchaToken("");
+        setCaptchaNonce((n) => n + 1);
+      }
       return;
     }
 
@@ -94,6 +138,21 @@ export function Login() {
     }
 
     navigate("/dashboard");
+  };
+
+  const handleResendVerification = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!identifier.trim()) return;
+    setError("");
+    setVerifySent(false);
+    setLoading(true);
+    const res = await api.resendVerificationEmail(identifier.trim());
+    setLoading(false);
+    if (!res.success) {
+      setError(res.error ?? "Failed to send verification email");
+      return;
+    }
+    setVerifySent(true);
   };
 
   const handleSendUnlock = async (e: FormEvent) => {
@@ -186,6 +245,31 @@ export function Login() {
             </div>
           )}
 
+          {verifyEmailRequired && (
+            <div className="rounded-lg bg-violet-500/10 border border-violet-500/25 px-4 py-3">
+              <p className="text-sm text-violet-300 mb-2">
+                Your email is not verified yet, so signing in is blocked until you confirm it. Enter your username or email
+                and we&apos;ll send a fresh verification link.
+              </p>
+              {verifySent ? (
+                <p className="text-sm text-emerald-400">Verification email sent — check your inbox.</p>
+              ) : (
+                <form onSubmit={handleResendVerification} className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="username or you@example.com"
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                  />
+                  <Button type="submit" disabled={loading} className="whitespace-nowrap">
+                    {loading ? "Sending..." : "Send verification email"}
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
+
           {stage === "identifier" && (
             <>
               <div>
@@ -221,6 +305,9 @@ export function Login() {
                 <Fingerprint className="h-5 w-5" />
                 Login with passkey
               </Button>
+              <SsoProviderButtons />
+              <PocketBaseLoginButton />
+              <EnterpriseSsoButtons />
             </>
           )}
 
@@ -277,7 +364,12 @@ export function Login() {
                   placeholder="••••••••"
                 />
               </div>
-              <Button type="submit" className="w-full h-11" disabled={loading}>
+              <CaptchaWidget
+                onToken={setCaptchaToken}
+                onEnabledChange={setCaptchaEnabled}
+                resetKey={captchaNonce}
+              />
+              <Button type="submit" className="w-full h-11" disabled={loading || (captchaEnabled && !captchaToken)}>
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
               <button
@@ -336,7 +428,7 @@ export function Login() {
 
               <button
                 type="button"
-                onClick={() => goBack("method")}
+                onClick={() => (fromOAuth ? goBack("identifier") : goBack("method"))}
                 className="w-full text-center text-xs text-violet-400 hover:text-violet-300 transition-colors"
               >
                 Back

@@ -245,4 +245,28 @@
 - **Admin unlock = full restore:** `POST /api/admin/auth-unlock` deletes the account's `ACCOUNT` ban **and** the `IP`/`COOKIE` bans recorded against that account in `AuthLog`, plus its failed entries. Deleting only the account row is not enough — the same attacker fingerprint (e.g. IP + cookie + UA) is banned under the 2-of-3 rule, so a "full" unlock clears the fingerprint too. `UA` bans are left in place (the log stores only the hashed UA, so they can't be matched reliably) but a single leftover UA ban can never satisfy the 2-of-3 rule alone
 - The rate limiter fails **open** on DB errors so an outage can never lock everyone out
 - Block messages are generic and identical regardless of the reason, avoiding account-enumeration feedback; `/unlock` also returns success for unknown accounts so it can't be used to probe for valid usernames
-- **Version checker (planned):** the admin panel should check GitHub for the latest release on entry, warn when an update exists, and render the CHANGELOG formatted — see TASKS.md
+- **Version checker:** the backend periodically checks GitHub for newer releases (cached, severity-computed, `UPDATE_CHECK_INCLUDE_PRERELEASES` opt-in), and the admin panel surfaces an "update available" notice — see TASKS.md
+
+## Cloudflare & CDN compatibility
+
+- **All static assets served through `/uploads/`** — Cloudflare caches these via the existing upload serving middleware (proper `Cache-Control` and ETag headers). New uploads (favicon images, future product files) reuse this path.
+- **Public API endpoints set `Cache-Control: public, max-age=...`** — same pattern as `/api/landing/config` (60s), `/api/captcha/config`, etc. The new `/api/features` endpoint follows this.
+- **Client-side generation preferred over server rendering** — QR codes, profile decorations, etc. are rendered client-side where possible to avoid server load and CDN invalidation complexity.
+- **Media proxy remains CF-safe** — the existing `/api/media/proxy` (SSRF-safe, nosniff, same-site CORP) is the only way external images are loaded; no CSP relaxation for Cloudflare-proxied URLs.
+- **Redis cache invalidation** — new read-heavy endpoints (feature flags, aggregate link stats) cache via the existing `getCacheDriver()` abstraction; TTLs match the existing pattern (60–300s for volatile config, 24h for immutable assets).
+
+## Feature flags (opt-in by instance owner)
+
+- **Pattern:** boolean env vars (e.g. `LINKS_CUSTOM_ICONS_ENABLED`, `LINKS_QR_ENABLED`) default `false`; the backend validates/stores data regardless (no data loss on toggle), but the public profile and dashboard UI respect the flags.
+- **Public exposure:** `GET /api/features` returns all feature flags as `{ customIconsEnabled, qrEnabled, ... }` — cached 60s.
+- **Dashboard gating:** when a flag is off, the corresponding UI controls are hidden/disabled in the editor; the backend still accepts the data so the owner can enable features without re-entering.
+
+## Seasonal & holiday themes
+
+- **DB-backed `themes.manage`:** themes are stored in a `seasonal_themes` table (not code), authored through the admin panel via a new `themes.manage` permission added to the default admin role — not tier-gated for users, since theming is an operator/platform concern
+- **Recurring windows:** each theme carries an optional year-repeating month/day start/end window (e.g. Christmas Dec 1 – Jan 8), so scheduling needs no per-year maintenance
+- **Resolution order** (`resolveActiveSeasonalTheme` / `resolveProfileSeasonalTheme`): a manual override `on` wins; otherwise holiday > season; otherwise the higher `sortOrder`; the whole feature is gated by a master `enabled` switch plus `autoSchedule`; while a theme is active it **entirely replaces** the user's custom theme
+- **Christmas always-allow:** a user's `alwaysAllowChristmas` opt-in beats even an operator `off` override, but only for that user and only that theme — a deliberate "don't take away users' holidays" carve-out
+- **Locally-editable preview re-use:** the admin preview and the landing Showcase share one reusable `SampleProfilePreview` component whose edits run entirely in the browser (server keeps defaults) so concurrent admins never overlap real data; the admin passes a `theme` overlay (with a badge), the landing passes a preset with no badge
+- **Animated FX overlay:** each theme config carries an editable `effect` (`none, snow, pumpkins, hearts, leaves, stars, confetti, sparkle`) rendered as a lightweight canvas particle overlay (`FxOverlay.tsx`) that is animated most of the time but cheap (DPR-capped, area-scaled counts, respects `prefers-reduced-motion`, pauses on hidden tabs). Each profile also has its own `animatedFx` toggle + `effect` picker in Appearance — the user's per-profile effect wins first, then the active global theme's effect. Applied to **both** public profiles and the landing page (`GET /api/theming/active`).
+- **Global = whole platform:** the active theme recolors public profiles **and** the landing page; it is **not** a separate theme type — the same `seasonal_themes` DB table/model/columns are reused, and only the UI + API are renamed to "Theming" (back-compat `seasonal-themes` API aliases + `seasonal`/`theming` response aliases preserved).

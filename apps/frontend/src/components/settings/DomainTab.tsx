@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, type Profile, type ProfileDomain } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { LockedFeature } from "@/components/ui/LockedFeature";
 import { Button } from "@/components/ui/button";
-import { Globe, ShieldCheck, ShieldAlert, CheckCircle2, RefreshCw, Trash2, Loader2, Lock } from "lucide-react";
+import { Globe, ShieldCheck, ShieldAlert, CheckCircle2, RefreshCw, Trash2, Loader2 } from "lucide-react";
 
 const HOSTNAME_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -118,22 +119,20 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
 
   if (!hasAccess) {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 sm:p-10 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-800/60 mb-4">
-          <Lock className="h-6 w-6 text-violet-400" />
-        </div>
-        <h3 className="text-lg font-semibold text-white">Custom domains require a PRO or Enterprise tier</h3>
-        <p className="mt-2 text-sm text-zinc-400 max-w-md mx-auto">
-          Upgrade your account and have an admin grant your role the <code className="text-zinc-300">profiles.customDomain</code> permission to use your own domain.
-        </p>
-      </div>
+      <LockedFeature
+        feature="Custom domains"
+        required="premium"
+        title="Custom domains are a Premium feature"
+        description="Custom domains require the PRO or Enterprise tier plus the profiles.customDomain permission on your role — ask an admin to grant it."
+        note='Requires Premium · permission "profiles.customDomain"'
+      />
     );
   }
 
   const publicProfiles = profiles.filter((p) => p.isPublic);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
         <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{error}</div>
       )}
@@ -142,7 +141,7 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
       )}
 
       {!domain && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex items-center gap-3 mb-4">
             <Globe className="h-5 w-5 text-violet-400" />
             <div>
@@ -168,7 +167,7 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
       )}
 
       {domain && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <Globe className="h-5 w-5 text-violet-400" />
             <span className="text-sm font-semibold text-white">{domain.domain}</span>

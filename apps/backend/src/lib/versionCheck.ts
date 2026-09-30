@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { getEnv } from "../config/env.js";
+import { cacheKey, getCacheDriver } from "./cache.js";
 
 export interface ChangelogSection {
   heading: string;
@@ -396,6 +397,8 @@ interface CacheEntry {
 let cache: CacheEntry | null = null;
 let inflight: Promise<VersionCheckData> | null = null;
 
+const VERSION_CHECK_CACHE_KEY = cacheKey("version", "check");
+
 export async function getVersionCheck(force = false): Promise<VersionCheckData> {
   const env = getEnv();
   const installed = getInstalledVersion();
@@ -428,6 +431,22 @@ export async function getVersionCheck(force = false): Promise<VersionCheckData> 
     const candidates = repoCandidates();
     let lastError: string | undefined;
     try {
+      if (!force) {
+        try {
+          const hydrated = await getCacheDriver().get(VERSION_CHECK_CACHE_KEY);
+          if (hydrated) {
+            const prev = JSON.parse(hydrated) as VersionCheckData;
+            const checkedAt = new Date(prev.checkedAt).getTime();
+            if (Number.isFinite(checkedAt) && Date.now() - checkedAt < intervalMs) {
+              const data = { ...prev, checkedAt: new Date().toISOString(), source: "cache" };
+              cache = { data, fetchedAt: Date.now(), lastGood: data, lastGoodAt: Date.now() };
+              return data;
+            }
+          }
+        } catch {
+          // ignore corrupt persisted cache
+        }
+      }
       for (const candidate of candidates) {
         try {
           const { owner, repo } = parseRepo(candidate);
@@ -452,6 +471,7 @@ export async function getVersionCheck(force = false): Promise<VersionCheckData> 
             source: `${source}-${key}`,
           };
           cache = { data, fetchedAt: Date.now(), lastGood: data, lastGoodAt: Date.now() };
+          await getCacheDriver().set(VERSION_CHECK_CACHE_KEY, JSON.stringify(data), intervalMs + 60_000);
           return data;
         } catch (err) {
           lastError = err instanceof Error ? err.message : "Unknown error";

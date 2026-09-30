@@ -31,6 +31,38 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:6379:6379"
+      - "[::1]:6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PocketBase — optional companion; same role as in docker-compose.yml, but
+  # pulled as the community image instead of built from source. Configured via
+  # the same .env POCKETBASE_* vars (the image auto-creates the superuser from
+  # PB_ADMIN_EMAIL/_PASSWORD). Override the image with: POCKETBASE_IMAGE=...
+  pocketbase:
+    image: ${POCKETBASE_IMAGE:-ghcr.io/muchobien/pocketbase:latest}
+    restart: unless-stopped
+    environment:
+      PB_ADMIN_EMAIL: ${POCKETBASE_ADMIN_EMAIL:-}
+      PB_ADMIN_PASSWORD: ${POCKETBASE_ADMIN_PASSWORD:-}
+      PB_PORT: 8090
+    volumes:
+      - pb_data:/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     image: ${BACKEND_IMAGE:-dracoservices/bioplatform-backend:latest}
     restart: unless-stopped
@@ -48,6 +80,32 @@ services:
       UPDATE_CHECK_STALE_MAX_MINUTES: ${UPDATE_CHECK_STALE_MAX_MINUTES:-1440}
       UPDATE_CRITICAL_STALE_THRESHOLD: ${UPDATE_CRITICAL_STALE_THRESHOLD:-3}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      CACHE_DRIVER: ${CACHE_DRIVER:-redis}
+      CACHE_REDIS_URL: ${CACHE_REDIS_URL:-redis://redis:6379}
+      CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/app/data/cache}
+      CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-none}
+      CAPTCHA_SITE_KEY: ${CAPTCHA_SITE_KEY:-}
+      CAPTCHA_SECRET_KEY: ${CAPTCHA_SECRET_KEY:-}
+      ANALYTICS_PROVIDER: ${ANALYTICS_PROVIDER:-none}
+      ANALYTICS_MATOMO_URL: ${ANALYTICS_MATOMO_URL:-}
+      ANALYTICS_MATOMO_SITE_ID: ${ANALYTICS_MATOMO_SITE_ID:-0}
+      POCKETBASE_URL: ${POCKETBASE_URL:-}
+      POCKETBASE_CLIENT_URL: ${POCKETBASE_CLIENT_URL:-/api/pb-speed}
+      POCKETBASE_ADMIN_EMAIL: ${POCKETBASE_ADMIN_EMAIL:-}
+      POCKETBASE_ADMIN_PASSWORD: ${POCKETBASE_ADMIN_PASSWORD:-}
+      POCKETBASE_AUTH_COLLECTION: ${POCKETBASE_AUTH_COLLECTION:-users}
+      POCKETBASE_ANALYTICS_ENABLED: ${POCKETBASE_ANALYTICS_ENABLED:-false}
+      POCKETBASE_OAUTH_ENABLED: ${POCKETBASE_OAUTH_ENABLED:-false}
+      POCKETBASE_STORAGE_ENABLED: ${POCKETBASE_STORAGE_ENABLED:-false}
+      POCKETBASE_CONTENT_ENABLED: ${POCKETBASE_CONTENT_ENABLED:-false}
+      POCKETBASE_BOOTSTRAP: ${POCKETBASE_BOOTSTRAP:-true}
+      POCKETBASE_MAX_UPLOAD_MB: ${POCKETBASE_MAX_UPLOAD_MB:-50}
+      MEDIA_CACHE_MAX_AGE_HOURS: ${MEDIA_CACHE_MAX_AGE_HOURS:-168}
+      MEDIA_CACHE_MAX_ENTRIES: ${MEDIA_CACHE_MAX_ENTRIES:-2000}
+      MEDIA_CACHE_MAX_SIZE_MB: ${MEDIA_CACHE_MAX_SIZE_MB:-512}
+      CRYPTO_RATE_CACHE_SECONDS: ${CRYPTO_RATE_CACHE_SECONDS:-300}
+      CRYPTO_RATE_SOURCE: ${CRYPTO_RATE_SOURCE:-coingecko}
+      CRYPTO_RATE_FALLBACK: ${CRYPTO_RATE_FALLBACK:-}
       CORS_ORIGIN: ${CORS_ORIGIN}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
@@ -57,6 +115,7 @@ services:
       AUTH_UNLOCK_TOKEN_TTL_MINUTES: ${AUTH_UNLOCK_TOKEN_TTL_MINUTES:-30}
       AUTH_LOG_RETENTION_DAYS: ${AUTH_LOG_RETENTION_DAYS:-30}
       AUTH_LOG_CLEANUP_INTERVAL_MINUTES: ${AUTH_LOG_CLEANUP_INTERVAL_MINUTES:-60}
+      EMAIL_VERIFY_TOKEN_TTL_HOURS: ${EMAIL_VERIFY_TOKEN_TTL_HOURS:-72}
       SMTP_ENABLED: ${SMTP_ENABLED:-false}
       SMTP_PROVIDER: ${SMTP_PROVIDER:-gmail}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
@@ -65,7 +124,18 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-BioPlatform}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@bioplatform.com}
+      NEWSLETTER_PROVIDER: ${NEWSLETTER_PROVIDER:-smtp}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
+      NEWSLETTER_UNSUBSCRIBE_TTL_DAYS: ${NEWSLETTER_UNSUBSCRIBE_TTL_DAYS:-365}
+      NEWSLETTER_MAILING_ADDRESS: ${NEWSLETTER_MAILING_ADDRESS:-}
+      NEWSLETTER_SELF_RECIPIENT_CAP: ${NEWSLETTER_SELF_RECIPIENT_CAP:-1000}
+      NEWSLETTER_PLATFORM_SMTP_ENABLED: ${NEWSLETTER_PLATFORM_SMTP_ENABLED:-false}
+      NEWSLETTER_PLATFORM_RECIPIENT_CAP: ${NEWSLETTER_PLATFORM_RECIPIENT_CAP:-100}
+      PRODUCT_FILE_MAX_MB: ${PRODUCT_FILE_MAX_MB:-50}
+      PRODUCT_DOWNLOAD_TTL_HOURS: ${PRODUCT_DOWNLOAD_TTL_HOURS:-168}
+      PRODUCT_PURCHASE_TOKEN_TTL_DAYS: ${PRODUCT_PURCHASE_TOKEN_TTL_DAYS:-30}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost.localhost}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER}
@@ -94,6 +164,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      # service_started (not healthy) so a PocketBase image hiccup never blocks
+      # the core stack; backend bootstrap fails soft if PB is unreachable.
+      pocketbase:
+        condition: service_started
 
   frontend:
     image: ${FRONTEND_IMAGE:-dracoservices/bioplatform-frontend:latest}
@@ -142,6 +218,7 @@ services:
 volumes:
   postgres_data:
   uploads_data:
+  pb_data:
 
 networks:
   default:

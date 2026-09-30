@@ -1,26 +1,38 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Mail as MailIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
+import { SsoProviderButtons, EnterpriseSsoButtons } from "@/components/auth/SsoProviderButtons";
+import { PocketBaseLoginButton } from "@/components/auth/PocketBaseLoginButton";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { usePageMeta } from "@/lib/seo";
 import { AppFooter } from "@/components/layout/AppFooter";
 
-type RegisterField = "username" | "email" | "password" | "inviteCode";
+type RegisterField = "username" | "email" | "password" | "inviteCode" | "acceptedPolicies";
 type RegisterFieldErrors = Partial<Record<RegisterField, string>>;
 
 export function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   usePageMeta({ title: "Create Account", description: `Create a free account on ${branding.name} and get your own profile page.`, url: "/register" });
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState(searchParams.get("invite") ?? "");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaEnabled, setCaptchaEnabled] = useState(false);
+  const [captchaNonce, setCaptchaNonce] = useState(0);
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState(false);
 
   const clearFieldError = (field: RegisterField) => {
     setFieldErrors((current) => {
@@ -50,6 +62,8 @@ export function Register() {
 
     if (!inviteCode.trim()) errors.inviteCode = "Invite code is required.";
     else if (inviteCode.length > 128) errors.inviteCode = "Invite code must be 128 characters or fewer.";
+
+    if (!acceptedPolicies) errors.acceptedPolicies = "You must accept the Terms of Service and Privacy Policy.";
     return errors;
   };
 
@@ -62,12 +76,24 @@ export function Register() {
 
     setLoading(true);
 
-    const result = await register({ username, email, password, inviteCode });
+    const result = await register({ username, email, password, inviteCode, captchaToken: captchaEnabled ? captchaToken : undefined, acceptedPolicies: true, newsletterOptIn });
     setLoading(false);
+
+    if (result.needsVerification) {
+      // A3b — account created but the email is unverified: double opt-in. No
+      // session exists yet, the user must click the link in the email.
+      setVerificationPending(true);
+      setVerificationEmailSent(result.emailSent ?? false);
+      return;
+    }
 
     if (result.error || result.fieldErrors) {
       setError(result.error ?? "Please fix the highlighted fields.");
       setFieldErrors(result.fieldErrors ?? {});
+      if (captchaEnabled) {
+        setCaptchaToken("");
+        setCaptchaNonce((n) => n + 1);
+      }
     } else {
       navigate("/dashboard");
     }
@@ -84,16 +110,47 @@ export function Register() {
           <p className="mt-2 text-sm text-zinc-400">Create your account</p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 space-y-5"
-        >
+        {verificationPending ? (
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-violet-500/10 border border-violet-500/30">
+              <MailIcon className="h-6 w-6 text-violet-400" />
+            </div>
+            <h1 className="text-lg font-semibold text-white">Check your email</h1>
+            <p className="mt-2 text-sm text-zinc-400 leading-relaxed">
+              We sent a verification link to{" "}
+              <span className="text-zinc-200 font-medium">{email}</span>. Click it to activate your account, then sign in.
+            </p>
+            {verificationEmailSent === false && (
+              <p className="mt-3 text-xs text-amber-400/90">
+                The email could not be sent right now ({branding.name} email is not configured). Please try resending it from
+                the sign-in page after verifying your address later.
+              </p>
+            )}
+            <Link to="/login" className="mt-6 inline-block w-full">
+              <Button className="w-full h-11">Go to Sign In</Button>
+            </Link>
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 space-y-5"
+          >
           {error && (
             <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
               {error}
             </div>
           )}
+
+          <SsoProviderButtons
+            mode="signup"
+            invite={inviteCode.trim() || undefined}
+            dividerLabel="or register with email"
+          />
+
+          <PocketBaseLoginButton mode="signup" invite={inviteCode.trim() || undefined} />
+
+          <EnterpriseSsoButtons mode="signup" />
 
           <div>
             <label htmlFor="inviteCode" className="block text-sm font-medium text-zinc-300 mb-1.5">
@@ -191,10 +248,77 @@ export function Register() {
             {fieldErrors.password && <p id="password-error" className="mt-1.5 text-xs text-red-400">{fieldErrors.password}</p>}
           </div>
 
-          <Button type="submit" className="w-full h-11" disabled={loading}>
+          <CaptchaWidget
+            onToken={setCaptchaToken}
+            onEnabledChange={setCaptchaEnabled}
+            resetKey={captchaNonce}
+          />
+
+          <div className="space-y-3">
+            <label
+              className={`flex items-start gap-2.5 cursor-pointer rounded-lg border px-3.5 py-3 transition-colors ${
+                fieldErrors.acceptedPolicies
+                  ? "border-red-500/50 bg-red-500/5"
+                  : acceptedPolicies
+                  ? "border-violet-500/40 bg-violet-500/5"
+                  : "border-zinc-800 bg-zinc-900/40"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={acceptedPolicies}
+                onChange={(e) => {
+                  setAcceptedPolicies(e.target.checked);
+                  if (e.target.checked) clearFieldError("acceptedPolicies");
+                }}
+                aria-invalid={Boolean(fieldErrors.acceptedPolicies)}
+                className="mt-0.5 accent-violet-500"
+              />
+              <span className="text-sm text-zinc-300 leading-relaxed">
+                I have read and agree to the{" "}
+                <Link
+                  to="/terms"
+                  target="_blank"
+                  className="text-violet-400 underline underline-offset-2 hover:text-violet-300"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  to="/privacy"
+                  target="_blank"
+                  className="text-violet-400 underline underline-offset-2 hover:text-violet-300"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+            {fieldErrors.acceptedPolicies && (
+              <p id="acceptedPolicies-error" className="text-xs text-red-400">
+                {fieldErrors.acceptedPolicies}
+              </p>
+            )}
+
+            <label className="flex items-start gap-2.5 cursor-pointer rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-3 transition-colors hover:border-zinc-700">
+              <input
+                type="checkbox"
+                checked={newsletterOptIn}
+                onChange={(e) => setNewsletterOptIn(e.target.checked)}
+                className="mt-0.5 accent-violet-500"
+              />
+              <span className="text-sm text-zinc-400 leading-relaxed">
+                Subscribe to occasional news and product announcements from {branding.name}. You can unsubscribe at any time
+                from your account settings.
+              </span>
+            </label>
+          </div>
+
+          <Button type="submit" className="w-full h-11" disabled={loading || (captchaEnabled && !captchaToken)}>
             {loading ? "Creating account..." : "Create account"}
           </Button>
         </form>
+        )}
 
         <p className="mt-6 text-center text-sm text-zinc-500">
           Already have an account?{" "}

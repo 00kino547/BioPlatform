@@ -79,20 +79,34 @@ export async function runInviteRefundSweep(userId: string, db: Db = prisma): Pro
 
   if (refundable.length === 0) return 0;
 
-  const markRefunded = db.inviteCode.updateMany({
-    where: { id: { in: refundable.map((c) => c.id) } },
-    data: { refundedAt: now },
-  });
-  const grantRefund = db.user.update({
-    where: { id: userId },
-    data: { inviteAllowance: { increment: refundable.length } },
-  });
+  const sweep = async (tx: Db): Promise<void> => {
+    // Conditionally mark refunded with the same eligibility predicates re-checked
+    // inside the UPDATE itself, and credit the allowance only for rows actually
+    // transitioned. This closes the TOCTOU where two concurrent sweeps both read
+    // the same expired codes and both increment the allowance: only one sweep
+    // wins the `refundedAt: null` guard, so the grant is sized by the
+    // affected-row count instead of a stale pre-read.
+    const marked = await tx.inviteCode.updateMany({
+      where: {
+        id: { in: refundable.map((c) => c.id) },
+        usedAt: null,
+        revokedAt: null,
+        refundedAt: null,
+        expiresAt: { not: null, lte: now },
+      },
+      data: { refundedAt: now },
+    });
+    if (marked.count <= 0) return;
+    await tx.user.update({
+      where: { id: userId },
+      data: { inviteAllowance: { increment: marked.count } },
+    });
+  };
 
   if ("$transaction" in db) {
-    await (db as PrismaClient).$transaction([markRefunded, grantRefund]);
+    await (db as PrismaClient).$transaction(async (tx) => sweep(tx as unknown as Db));
   } else {
-    await markRefunded;
-    await grantRefund;
+    await sweep(db);
   }
 
   return refundable.length;
@@ -113,6 +127,50 @@ export async function countOutstandingInvites(
       OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     },
   });
+}
+
+export async function countConsumedInvites(userId: string, db: Db = prisma): Promise<number> {
+  return db.inviteCode.count({
+    where: { createdById: userId, usedById: { not: null } },
+  });
+}
+
+export async function hasPaidOrder(userId: string, db: Db = prisma): Promise<boolean> {
+  const order = await db.order.findFirst({
+    where: { userId, plan: "ENTERPRISE", status: "PAID" },
+    select: { id: true },
+  });
+  return order !== null;
+}
+
+export interface SeatInfo {
+  limited: boolean;
+  limit: number;
+  used: number;
+  remaining: number;
+}
+
+/**
+ * Enterprise seat limit for gifted ENTERPRISE accounts.
+ * A limit is enforced only when the user is ENTERPRISE, the admin has set a
+ * positive seatLimit, and the account has never paid for ENTERPRISE (a paid
+ * order means the tier was earned through billing, not gifted).
+ */
+export async function computeSeatInfo(
+  userId: string,
+  user: { tier: string; seatLimit: number | null },
+  db: Db = prisma
+): Promise<SeatInfo> {
+  const limited =
+    user.tier === "ENTERPRISE" && user.seatLimit !== null && user.seatLimit > 0
+      ? !(await hasPaidOrder(userId, db))
+      : false;
+  if (!limited) {
+    return { limited: false, limit: 0, used: 0, remaining: Number.MAX_SAFE_INTEGER };
+  }
+  const used = await countConsumedInvites(userId, db);
+  const limit = user.seatLimit as number;
+  return { limited: true, limit, used, remaining: Math.max(0, limit - used) };
 }
 
 export interface RoleInviteConfig {

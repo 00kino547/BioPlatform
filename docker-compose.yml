@@ -17,6 +17,44 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:6379:6379"
+      - "[::1]:6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PocketBase — optional companion for analytics/OAuth/storage/content. Bundled
+  # so the swap is a pure env change; it runs lean and idle when POCKETBASE_URL
+  # is left empty in the backend (module flags are all OFF by default). No port
+  # is published — the browser reaches PocketBase only through nginx's
+  # /api/pb-speed/ proxy, so there is no public surface and no CORS.
+  pocketbase:
+    build:
+      context: .
+      dockerfile: pocketbase/Dockerfile
+      args:
+        POCKETBASE_VERSION: ${POCKETBASE_VERSION:-v0.40.4}
+    image: bioplatform-pocketbase:local
+    restart: unless-stopped
+    environment:
+      PB_ADMIN_EMAIL: ${POCKETBASE_ADMIN_EMAIL:-}
+      PB_ADMIN_PASSWORD: ${POCKETBASE_ADMIN_PASSWORD:-}
+      PB_PORT: 8090
+    volumes:
+      - pb_data:/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -37,6 +75,9 @@ services:
       UPDATE_CRITICAL_STALE_THRESHOLD: ${UPDATE_CRITICAL_STALE_THRESHOLD:-3}
       UPDATE_CHECK_INCLUDE_PRERELEASES: ${UPDATE_CHECK_INCLUDE_PRERELEASES:-false}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      CACHE_DRIVER: ${CACHE_DRIVER:-redis}
+      CACHE_REDIS_URL: ${CACHE_REDIS_URL:-redis://redis:6379}
+      CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/app/data/cache}
       CORS_ORIGIN: ${CORS_ORIGIN}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
@@ -46,6 +87,7 @@ services:
       AUTH_UNLOCK_TOKEN_TTL_MINUTES: ${AUTH_UNLOCK_TOKEN_TTL_MINUTES:-30}
       AUTH_LOG_RETENTION_DAYS: ${AUTH_LOG_RETENTION_DAYS:-30}
       AUTH_LOG_CLEANUP_INTERVAL_MINUTES: ${AUTH_LOG_CLEANUP_INTERVAL_MINUTES:-60}
+      EMAIL_VERIFY_TOKEN_TTL_HOURS: ${EMAIL_VERIFY_TOKEN_TTL_HOURS:-72}
       SMTP_ENABLED: ${SMTP_ENABLED:-false}
       SMTP_PROVIDER: ${SMTP_PROVIDER:-gmail}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
@@ -54,11 +96,33 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-BioPlatform}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@bioplatform.com}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost.localhost}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      STORAGE_PROVIDER: ${STORAGE_PROVIDER}
-      LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH:-./uploads}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_PREFIX: ${S3_PREFIX:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      B2_APPLICATION_KEY_ID: ${B2_APPLICATION_KEY_ID:-}
+      B2_APPLICATION_KEY: ${B2_APPLICATION_KEY:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      B2_PREFIX: ${B2_PREFIX:-}
+      B2_API_URL: ${B2_API_URL:-https://api.backblazeb2.com}
+      STORAGE_COMPRESS_ENABLED: ${STORAGE_COMPRESS_ENABLED:-true}
+      MEDIA_CACHE_MAX_AGE_HOURS: ${MEDIA_CACHE_MAX_AGE_HOURS:-168}
+      MEDIA_CACHE_MAX_ENTRIES: ${MEDIA_CACHE_MAX_ENTRIES:-2000}
+      MEDIA_CACHE_MAX_SIZE_MB: ${MEDIA_CACHE_MAX_SIZE_MB:-512}
+      ORPHAN_CLEANUP_ENABLED: ${ORPHAN_CLEANUP_ENABLED:-true}
+      ORPHAN_CLEANUP_INTERVAL_MINUTES: ${ORPHAN_CLEANUP_INTERVAL_MINUTES:-360}
+      ORPHAN_CLEANUP_GRACE_HOURS: ${ORPHAN_CLEANUP_GRACE_HOURS:-24}
+      MEDIA_PROXY_ENABLED: ${MEDIA_PROXY_ENABLED:-true}
+      MEDIA_PROXY_MAX_BYTES: ${MEDIA_PROXY_MAX_BYTES:-20971520}
+      MEDIA_PROXY_TTL_HOURS: ${MEDIA_PROXY_TTL_HOURS:-24}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost:80}
       WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-BioPlatform}
@@ -77,6 +141,77 @@ services:
       ACME_MAX_DOMAINS_PER_RUN: ${ACME_MAX_DOMAINS_PER_RUN:-20}
       ACME_CERTS_PATH: ${ACME_CERTS_PATH:-/app/certs}
       CUSTOM_DOMAINS_ALL_TIERS: ${CUSTOM_DOMAINS_ALL_TIERS:-false}
+      AFFILIATE_INVITEE_DISCOUNT_PERCENT: ${AFFILIATE_INVITEE_DISCOUNT_PERCENT:-10}
+      AFFILIATE_DISCOUNT_DURATION_DAYS: ${AFFILIATE_DISCOUNT_DURATION_DAYS:-365}
+      AFFILIATE_DISCOUNT_LEVELS: ${AFFILIATE_DISCOUNT_LEVELS:-}
+      AFFILIATE_ALLOWANCE_LEVELS: ${AFFILIATE_ALLOWANCE_LEVELS:-}
+      AFFILIATE_BADGE_LEVELS: ${AFFILIATE_BADGE_LEVELS:-}
+      AFFILIATE_ABUSE_ACTION: ${AFFILIATE_ABUSE_ACTION:-reject}
+      AFFILIATE_ABUSE_SCOPE: ${AFFILIATE_ABUSE_SCOPE:-both}
+      BILLING_MODE: ${BILLING_MODE:-one-time}
+      BILLING_PRICE_PRO_CENTS: ${BILLING_PRICE_PRO_CENTS:-500}
+      BILLING_PRICE_ENTERPRISE_CENTS: ${BILLING_PRICE_ENTERPRISE_CENTS:-2900}
+      BILLING_CURRENCY: ${BILLING_CURRENCY:-USD}
+      STRIPE_ENABLED: ${STRIPE_ENABLED:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      PAYPAL_ENABLED: ${PAYPAL_ENABLED:-false}
+      PAYPAL_MODE: ${PAYPAL_MODE:-sandbox}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      CRYPTO_ENABLED: ${CRYPTO_ENABLED:-false}
+      CRYPTO_PROVIDERS: ${CRYPTO_PROVIDERS:-btcpayserver}
+      BTCPAY_URL: ${BTCPAY_URL:-}
+      BTCPAY_API_KEY: ${BTCPAY_API_KEY:-}
+      BTCPAY_STORE_ID: ${BTCPAY_STORE_ID:-}
+      BTCPAY_WEBHOOK_SECRET: ${BTCPAY_WEBHOOK_SECRET:-}
+      BITPAY_API_KEY: ${BITPAY_API_KEY:-}
+      BITPAY_WEBHOOK_SECRET: ${BITPAY_WEBHOOK_SECRET:-}
+      CRYPTO_COINS: ${CRYPTO_COINS:-BTC,LTC,XMR}
+      CRYPTO_RATE_SOURCE: ${CRYPTO_RATE_SOURCE:-coingecko}
+      CRYPTO_RATE_FALLBACK: ${CRYPTO_RATE_FALLBACK:-}
+      CRYPTO_RATE_CACHE_SECONDS: ${CRYPTO_RATE_CACHE_SECONDS:-300}
+      SSO_GOOGLE_CLIENT_ID: ${SSO_GOOGLE_CLIENT_ID:-}
+      SSO_GOOGLE_CLIENT_SECRET: ${SSO_GOOGLE_CLIENT_SECRET:-}
+      SSO_GITHUB_CLIENT_ID: ${SSO_GITHUB_CLIENT_ID:-}
+      SSO_GITHUB_CLIENT_SECRET: ${SSO_GITHUB_CLIENT_SECRET:-}
+      SSO_DISCORD_CLIENT_ID: ${SSO_DISCORD_CLIENT_ID:-}
+      SSO_DISCORD_CLIENT_SECRET: ${SSO_DISCORD_CLIENT_SECRET:-}
+      SSO_CALLBACK_URL: ${SSO_CALLBACK_URL:-}
+      SSO_SIGNUP_REQUIRES_INVITE: ${SSO_SIGNUP_REQUIRES_INVITE:-true}
+      SSO_2FA_BYPASS_ALLOWED: ${SSO_2FA_BYPASS_ALLOWED:-false}
+      CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-none}
+      CAPTCHA_SITE_KEY: ${CAPTCHA_SITE_KEY:-}
+      CAPTCHA_SECRET_KEY: ${CAPTCHA_SECRET_KEY:-}
+      ANALYTICS_PROVIDER: ${ANALYTICS_PROVIDER:-none}
+      ANALYTICS_MATOMO_URL: ${ANALYTICS_MATOMO_URL:-}
+      ANALYTICS_MATOMO_SITE_ID: ${ANALYTICS_MATOMO_SITE_ID:-0}
+      POCKETBASE_URL: ${POCKETBASE_URL:-}
+      POCKETBASE_CLIENT_URL: ${POCKETBASE_CLIENT_URL:-/api/pb-speed}
+      POCKETBASE_ADMIN_EMAIL: ${POCKETBASE_ADMIN_EMAIL:-}
+      POCKETBASE_ADMIN_PASSWORD: ${POCKETBASE_ADMIN_PASSWORD:-}
+      POCKETBASE_AUTH_COLLECTION: ${POCKETBASE_AUTH_COLLECTION:-users}
+      POCKETBASE_ANALYTICS_ENABLED: ${POCKETBASE_ANALYTICS_ENABLED:-false}
+      POCKETBASE_OAUTH_ENABLED: ${POCKETBASE_OAUTH_ENABLED:-false}
+      POCKETBASE_STORAGE_ENABLED: ${POCKETBASE_STORAGE_ENABLED:-false}
+      POCKETBASE_CONTENT_ENABLED: ${POCKETBASE_CONTENT_ENABLED:-false}
+      POCKETBASE_BOOTSTRAP: ${POCKETBASE_BOOTSTRAP:-true}
+      POCKETBASE_MAX_UPLOAD_MB: ${POCKETBASE_MAX_UPLOAD_MB:-50}
+      LINKS_SECTIONS_ENABLED: ${LINKS_SECTIONS_ENABLED:-false}
+      LINKS_CUSTOM_ICONS_ENABLED: ${LINKS_CUSTOM_ICONS_ENABLED:-false}
+      LINKS_QR_ENABLED: ${LINKS_QR_ENABLED:-false}
+      NEWSLETTER_PROVIDER: ${NEWSLETTER_PROVIDER:-smtp}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
+      NEWSLETTER_UNSUBSCRIBE_TTL_DAYS: ${NEWSLETTER_UNSUBSCRIBE_TTL_DAYS:-365}
+      NEWSLETTER_MAILING_ADDRESS: ${NEWSLETTER_MAILING_ADDRESS:-}
+      NEWSLETTER_SELF_RECIPIENT_CAP: ${NEWSLETTER_SELF_RECIPIENT_CAP:-1000}
+      NEWSLETTER_PLATFORM_SMTP_ENABLED: ${NEWSLETTER_PLATFORM_SMTP_ENABLED:-false}
+      NEWSLETTER_PLATFORM_RECIPIENT_CAP: ${NEWSLETTER_PLATFORM_RECIPIENT_CAP:-100}
+      PRODUCT_FILE_MAX_MB: ${PRODUCT_FILE_MAX_MB:-50}
+      PRODUCT_DOWNLOAD_TTL_HOURS: ${PRODUCT_DOWNLOAD_TTL_HOURS:-168}
+      PRODUCT_PURCHASE_TOKEN_TTL_DAYS: ${PRODUCT_PURCHASE_TOKEN_TTL_DAYS:-30}
     volumes:
       - uploads_data:/app/uploads
       - ./certs:/app/certs
@@ -86,6 +221,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      # service_started (not healthy) so a PocketBase image hiccup never blocks
+      # the core stack; backend bootstrap fails soft if PB is unreachable.
+      pocketbase:
+        condition: service_started
 
   frontend:
     build:
@@ -118,10 +259,10 @@ services:
       CF_TRUSTED_IPS: ${CF_TRUSTED_IPS:-172.16.0.0/12,127.0.0.1,::1}
       APP_URL_HOST: ${APP_URL_HOST:-}
     ports:
-      - "127.0.0.1:${NGINX_PORT}:80"
-      - "[::1]:${NGINX_PORT}:80"
-      - "127.0.0.1:${NGINX_HTTPS_PORT}:443"
-      - "[::1]:${NGINX_HTTPS_PORT}:443"
+      - "127.0.0.1:${NGINX_PORT:-80}:80"
+      - "[::1]:${NGINX_PORT:-80}:80"
+      - "127.0.0.1:${NGINX_HTTPS_PORT:-443}:443"
+      - "[::1]:${NGINX_HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/site.conf:/etc/nginx/custom/site.conf:ro
@@ -136,6 +277,7 @@ services:
 volumes:
   postgres_data:
   uploads_data:
+  pb_data:
 
 networks:
   default:

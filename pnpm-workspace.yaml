@@ -18,3 +18,4 @@ minimumReleaseAgeExclude:
 overrides:
   nanoid: ^3.3.18
   deepmerge-ts: ^8.0.0
+  qs: 6.16.0

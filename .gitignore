@@ -40,8 +40,8 @@ temp
 certs/*
 !certs/.gitkeep
 
-# Local AI files
-NOTES.md
+# Local verification tooling
+checks/
 
 # Uploads (user-generated files, e.g. avatars/banners; LOCAL_STORAGE_PATH)
 uploads/

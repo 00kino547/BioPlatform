@@ -1,0 +1,80 @@
+name: Tests & Quality Gates
+
+# CI gate: prove the backend test suite, TypeScript typechecks and linting
+# genuinely run on every push/PR — and fail loudly with real exit codes when
+# they do not. There was previously no test job in CI: the only workflow built
+# and published Docker images, so broken tests were never caught until a human
+# ran `pnpm --filter @bioplatform/backend test` locally.
+#
+# Note on the backend job: the test bootstrap (apps/backend/tests/setup-env.ts)
+# tolerates a missing repo `.env` (falls back to process env + deterministic
+# defaults) and connects to the Postgres service on 127.0.0.1:5432 with the
+# default POSTGRES_PASSWORD=postgres. prisma db push creates the schema in the
+# empty CI database (the project applies schema changes with `db push`, not
+# migrations).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-and-quality:
+    name: Backend tests + typecheck + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bioplatform_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bioplatform_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/bioplatform_test?schema=public
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm 11
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @bioplatform/backend db:generate
+
+      - name: Push schema to the test database
+        run: pnpm --filter @bioplatform/backend db:push
+
+      - name: Run backend test suite
+        run: pnpm --filter @bioplatform/backend test
+
+      - name: Typecheck all workspaces
+        run: pnpm typecheck
+
+      - name: Lint all workspaces
+        run: pnpm lint

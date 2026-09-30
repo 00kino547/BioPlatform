@@ -19,6 +19,7 @@
     "db:studio": "pnpm --filter @bioplatform/backend db:studio",
     "docker:build": "node scripts/docker-build.mjs",
     "cli": "node scripts/cli.mjs",
+    "tooling:check": "node scripts/tooling-check.mjs",
     "docker:prune": "docker image prune -af && docker builder prune -af"
   },
   "devDependencies": {

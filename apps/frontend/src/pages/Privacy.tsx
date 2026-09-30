@@ -20,7 +20,7 @@ export function Privacy() {
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: September 1, 2026</p>
+        <p className="text-sm text-zinc-500 mb-8">Last updated: September 30, 2026</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           <section>
@@ -66,14 +66,34 @@ export function Privacy() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">5. Cookies and Tracking</h2>
             <p className="text-zinc-400">
-              {branding.name} uses essential cookies for authentication, session management, and analytics. We set a single analytics cookie (<code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">bp_vid</code>) to distinguish unique visitors. This cookie is anonymous — it contains no personal information and is used solely to count unique profile views and link clicks. We do not use third-party tracking cookies or analytics services that track you across websites.
+              {branding.name} uses two categories of cookies:
+            </p>
+            <ul className="mt-2 list-inside list-disc space-y-1.5 text-zinc-400">
+              <li>
+                <span className="font-medium text-zinc-300">Essential cookies</span> (always active, no consent needed): the authentication session cookie and a browser fingerprint cookie used to protect against brute-force attacks and rate-limit abuse. These are required for the service to function securely and are set automatically.
+              </li>
+              <li>
+                <span className="font-medium text-zinc-300">Non-essential analytics cookie</span> (<code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">bp_vid</code>): a single anonymous cookie used to distinguish unique visitors and count unique profile views and link clicks. It contains no personal information. This cookie is set only after you explicitly accept non-essential cookies via the consent banner.
+              </li>
+            </ul>
+            <p className="text-zinc-400 mt-4">
+              When you first visit, a consent banner lets you choose &quot;Accept all&quot; (enables the analytics cookie) or &quot;Essential only&quot;. When the banner first appears, the &quot;Essential only&quot; option becomes selectable after a short countdown, so accepting non-essential cookies cannot happen accidentally. You can change your choice at any time through the &quot;Cookie settings&quot; link on the site or by clearing cookies.
+            </p>
+            <p className="text-zinc-400 mt-4">
+              We honor browser-level privacy signals: if your browser sends the Do Not Track header (<code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">DNT: 1</code>) or Global Privacy Control (<code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">Sec-GPC: 1</code>), no analytics cookies are set and no non-essential analytics run at all — even if you previously accepted. This preference always takes precedence over any stored choice.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              We do not use third-party advertising cookies or analytics services that track you across websites.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">5a. Analytics Data</h2>
             <p className="text-zinc-400">
-              Profile owners can view aggregated analytics for their public profiles, including total and unique views, link clicks, referrer URLs, and browser types. This data is derived from IP addresses, user-agent strings, and the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">bp_vid</code> cookie. Individual visitor identities are never exposed — analytics are shown only as aggregate counts and trends. All analytics data is retained for 90 days and then automatically deleted.
+              Profile owners can view aggregated analytics for their public profiles, including total and unique views, link clicks, referrer URLs, and browser types. This data is derived from IP addresses, user-agent strings, and the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 text-xs">bp_vid</code> cookie, which is only set for visitors who accepted non-essential cookies. Individual visitor identities are never exposed — analytics are shown only as aggregate counts and trends. All analytics data is retained for 90 days and then automatically deleted.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              The instance operator may optionally enable a self-hosted web analytics service (Matomo) to measure site traffic. If enabled, it is loaded on our own infrastructure — your data is not shared with external analytics providers. Matomo&rsquo;s scripts and cookies are only loaded after you accept non-essential cookies and are never loaded for visitors who use Do Not Track or Global Privacy Control. The same consent choice governs both the aggregate analytics described above and any Matomo measurements.
             </p>
           </section>
 
@@ -126,16 +146,55 @@ export function Privacy() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5h. Newsletter</h2>
+            <p className="text-zinc-400">
+              Public profiles may offer a newsletter. Subscribing is always an explicit, single opt-in: you voluntarily enter your email address and tick a checkbox agreeing to these Terms and the Privacy Policy. Subscribing never happens silently.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              When you subscribe we store your email address, the time you subscribed, the time you agreed, the versions of these Terms and the Privacy Policy you agreed to, and whether you have unsubscribed. The IP address and browser user-agent captured to evidence consent are kept only in memory for 24 hours and are never written to the database. Your email address is used solely for the newsletters of the profile you subscribed to and is never shared with third parties.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Every newsletter we send identifies {branding.name} or the sender, includes a physical postal address (or a link to our website when none is set), and provides a clear, one-click unsubscribe link. Unsubscribe requests are honored immediately and in all cases within 10 business days, as required by the US CAN-SPAM Act and Canada&rsquo;s Anti-Spam Legislation (CASL). After unsubscribing you will receive no further newsletters and can resubscribe at any time.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Newsletter sending is subject to per-profile and per-tier volume limits configured by the instance operator; a paused or disabled newsletter profile never sends mail, even to existing subscribers.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              A profile owner may choose to send through their own SMTP relay instead of {branding.name}&rsquo;s mail stack. In that case the owner provides the relay host and credentials; the SMTP password is encrypted at rest (AES-256-GCM) and used only to deliver that profile&rsquo;s newsletter. It is never returned in API responses and is never shared with third parties. Subscriber email addresses are transmitted to that relay solely to deliver the newsletter the subscriber opted into.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5j. Product Shop</h2>
+            <p className="text-zinc-400">
+              Public profiles may offer digital products for sale. To fulfil a purchase we store the product&rsquo;s title, description and price, the buyer&rsquo;s email address, the purchase status and a payment-gateway transaction reference, and we send the buyer to the configured payment provider (for example Stripe, PayPal, or a cryptocurrency gateway) whose own privacy policy governs the payment. We do not store card or wallet credentials. Download links are signed and time-limited.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              If you buy without signing in, you are identified only by the email address you provide so the download link can be delivered to you; that address is used solely to fulfil and support the purchase.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5i. Tips</h2>
+            <p className="text-zinc-400">
+              Public profiles may offer cryptocurrency tips (Bitcoin or Litecoin). Tipping is always voluntary: you choose the amount and may include an optional name and message that are shown to the profile owner. Wallet addresses are provided by the profile owner and payments are sent directly to their wallet (or through a BTCPay checkout where the instance is configured with BTCPay). We do not process or store the coins themselves; when BTCPay is configured, the payment provider and the profile owner receive applicable payment data and a tip may be marked as confirmed.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              The owner may disable tips at any time (which also hides their wallet addresses), and may delete any tip record from their dashboard.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-white mb-3">6. Data Retention</h2>
             <p className="text-zinc-400">
-              We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. Authentication failure logs (IP addresses, hashed user-agent strings, browser fingerprints) are retained for up to 30 days and then automatically deleted. Custom domain TLS certificates are retained until renewed or the domain is removed. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period.
+              We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. Authentication failure logs (IP addresses, hashed user-agent strings, browser fingerprints) are retained for up to 30 days and then automatically deleted. Newsletter subscription records are retained only while the profile runs a newsletter and you remain subscribed; they are deleted when you unsubscribe, when the profile owner erases them, or when the account is deleted. Product purchase records are retained to honour refunds, download access and accounting obligations. Custom domain TLS certificates are retained until renewed or the domain is removed. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">7. Your Rights</h2>
             <p className="text-zinc-400">
-              You have the right to access, update, or delete your personal information at any time through your dashboard. You may also export your data or request complete account deletion by contacting us. Through your dashboard you can manage your registered passkeys, two-factor authentication settings, linked Discord account, webhook configurations, and custom domains.
+              You have the right to access, update, or delete your personal information at any time through your dashboard. You may also export your data or request complete account deletion by contacting us. Through your dashboard you can manage your registered passkeys, two-factor authentication settings, linked Discord account, webhook configurations, and custom domains. If you subscribed to a newsletter, the profile owner may remove your subscription and you may unsubscribe at any time with one click from any newsletter email; you may also request that your consent records be erased.
             </p>
           </section>
 
@@ -143,6 +202,9 @@ export function Privacy() {
             <h2 className="text-xl font-semibold text-white mb-3">8. Changes to This Policy</h2>
             <p className="text-zinc-400">
               We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the &quot;Last updated&quot; date.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Taking effect on <span className="text-white">September 30, 2026</span>, if we publish a revised version of this Privacy Policy (or the Terms of Service) and you continue to use {branding.name} without checking or reading the updated version for more than thirty (30) days after that version&rsquo;s effective date, you will be deemed to have accepted the updated version. Your original, pinned acceptance remains on record and is never overwritten; continued use for more than 30 days after the new version&rsquo;s effective date is treated as acceptance of the updated policy for consent-status purposes, based on your last login being at least 30 days after that effective date.
             </p>
           </section>
 

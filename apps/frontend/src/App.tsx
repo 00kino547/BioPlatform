@@ -8,17 +8,24 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Navbar } from "@/components/layout/Navbar";
 import { Hero } from "@/components/landing/Hero";
 import { Features } from "@/components/landing/Features";
-import { Showcase } from "@/components/landing/Showcase";
+import { Showcase } from "@/components/landing/Showcase";import { GlobalThemeOverlay } from "@/components/landing/GlobalThemeOverlay";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
+import { AnalyticsLoader } from "@/components/AnalyticsLoader";
 import { Pricing } from "@/components/landing/Pricing";
 import { FAQ } from "@/components/landing/FAQ";
 import { Footer } from "@/components/landing/Footer";
 
 const Login = lazy(() => import("@/pages/Login").then((m) => ({ default: m.Login })));
 const Register = lazy(() => import("@/pages/Register").then((m) => ({ default: m.Register })));
+const OAuthCallback = lazy(() => import("@/pages/OAuthCallback").then((m) => ({ default: m.OAuthCallback })));
+const SsoCallback = lazy(() => import("@/pages/SsoCallback").then((m) => ({ default: m.SsoCallback })));
+const OAuthComplete = lazy(() => import("@/pages/OAuthComplete").then((m) => ({ default: m.OAuthComplete })));
 const Unlock = lazy(() => import("@/pages/Unlock").then((m) => ({ default: m.Unlock })));
+const VerifyEmail = lazy(() => import("@/pages/VerifyEmail").then((m) => ({ default: m.VerifyEmail })));
 const Dashboard = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.Dashboard })));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard").then((m) => ({ default: m.AdminDashboard })));
 const PublicProfilePage = lazy(() => import("@/pages/PublicProfile").then((m) => ({ default: m.PublicProfilePage })));
+const Invite = lazy(() => import("@/pages/Invite").then((m) => ({ default: m.Invite })));
 const Privacy = lazy(() => import("@/pages/Privacy").then((m) => ({ default: m.Privacy })));
 const Terms = lazy(() => import("@/pages/Terms").then((m) => ({ default: m.Terms })));
 const ApiDocs = lazy(() => import("@/pages/ApiDocs").then((m) => ({ default: m.ApiDocs })));
@@ -58,6 +65,7 @@ function Landing() {
     <>
       <Navbar />
       <main>
+        <GlobalThemeOverlay />
         <Hero />
         <Features />
         <Showcase />
@@ -124,7 +132,11 @@ function App() {
                 <Route path="/" element={<CustomDomainRoot />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/oauth/callback" element={<OAuthCallback />} />
+                <Route path="/sso/callback" element={<SsoCallback />} />
+                <Route path="/oauth/complete" element={<OAuthComplete />} />
                 <Route path="/unlock" element={<Unlock />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route
                   path="/dashboard"
                   element={
@@ -146,10 +158,13 @@ function App() {
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/api-docs" element={<ApiDocs />} />
+                <Route path="/invite/:code" element={<Invite />} />
                 <Route path="/:username" element={<PublicProfilePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
+            <CookieConsentBanner />
+            <AnalyticsLoader />
           </div>
         </DomainProvider>
       </AuthProvider>

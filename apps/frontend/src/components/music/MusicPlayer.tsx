@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { MusicTrack } from "@/lib/api";
 import { Play, Music, ExternalLink, Radio, VolumeX, Volume2, ChevronDown } from "lucide-react";
 
@@ -65,6 +65,21 @@ function youtubePlaylistId(url: string): string | null {
   return match?.[1] ?? null;
 }
 
+// The YouTube IFrame API throws synchronously from player methods (playVideo,
+// getPlayerState, isMuted, destroy, ...) whenever the embed is not ready yet,
+// failed to load, or the video is unavailable. Because those calls run inside
+// React effects / event handlers, an uncaught throw used to propagate all the
+// way up to the root ErrorBoundary and blank the entire profile page the moment
+// you pressed a key to enter the gate. Guard every call so a broken embed can
+// only kill its own widget, never the page.
+function safePlayerCall<T>(fn: () => T): T | undefined {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
+}
+
 function createYtPlayer(
   url: string,
   container: HTMLDivElement,
@@ -92,24 +107,23 @@ function createYtPlayer(
   return new window.YT!.Player(container, options);
 }
 
-function startWithSound(
-  player: YtPlayerInstance,
-  onUnmuted: () => void,
-  onMuted: () => void
-): number[] {
+// Tries audible autoplay, then falls back to muted playback if the browser blocks
+// sound. `onSync` is called after either outcome (and after the muted retry timer)
+// so the caller can mirror the player's REAL mute state — never a guessed one.
+function startWithSound(player: YtPlayerInstance, onSync: () => void): number[] {
   const timers: number[] = [];
-  player.playVideo();
+  safePlayerCall(() => player.playVideo());
   timers.push(
     window.setTimeout(() => {
-      if (player.getPlayerState() === window.YT?.PlayerState.PLAYING) {
-        onUnmuted();
+      if (safePlayerCall(() => player.getPlayerState()) === window.YT?.PlayerState.PLAYING) {
+        onSync();
         return;
       }
-      player.mute();
-      player.playVideo();
+      safePlayerCall(() => player.mute());
+      safePlayerCall(() => player.playVideo());
       timers.push(
         window.setTimeout(() => {
-          onMuted();
+          onSync();
         }, 300)
       );
     }, 600)
@@ -280,10 +294,23 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
   const retriedRef = useRef(false);
   const [muted, setMuted] = useState(false);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     startedRef.current = started;
   }, [started]);
+
+  // Single source of truth for the mute indicator: always mirror the player's REAL
+  // mute flag instead of trusting timer-driven state. A late `startWithSound`
+  // fallback timer (or a retry that mounts a fresh, unmuted player) used to leave
+  // `muted` stuck at whatever the last heuristic said — the widget ended up showing
+  // "Tap to unmute" while the audio was already playing aloud. Reading isMuted()
+  // keeps the label honest no matter which async path ran last.
+  const syncMute = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    setMuted(Boolean(safePlayerCall(() => player.isMuted())));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -307,32 +334,65 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
 
     const mount = () => {
       if (cancelled || !containerRef.current || !window.YT) return;
-      const player = createYtPlayer(url, containerRef.current, {
-        onReady: () => {
-          playerRef.current = player;
-          setReady(true);
-          const frame = player.getIframe();
-          frame.setAttribute(
-            "allow",
-            "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          );
-          frame.style.width = "100%";
-          frame.style.height = "100%";
-          if (startedRef.current) {
-            soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
-          } else {
-            player.pauseVideo();
-          }
-        },
-        onError: () => {
-          if (cancelled || retriedRef.current) return;
-          retriedRef.current = true;
-          playerRef.current?.destroy();
-          playerRef.current = null;
-          setReady(false);
-          window.setTimeout(() => mount(), 1000);
-        },
-      });
+      // A fresh successful mount (including after a retry) means the embed came back
+      // alive — clear any previously-set failure state.
+      setFailed(false);
+      // Creating the player can itself throw synchronously for a malformed URL or a
+      // refused embed — route that through the same retry path as the error event so
+      // a dead embed never escapes as an uncaught exception into the page.
+      let player: YtPlayerInstance;
+      try {
+        player = createYtPlayer(url, containerRef.current, {
+          onReady: () => {
+            playerRef.current = player;
+            setReady(true);
+            // Guard getIframe: on a failed embed the iframe may not exist yet, and
+            // calling methods on it throws. Best-effort styling, nothing fatal here.
+            const frame = safePlayerCall(() => player.getIframe());
+            if (frame) {
+              safePlayerCall(() =>
+                frame.setAttribute(
+                  "allow",
+                  "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                )
+              );
+              frame.style.width = "100%";
+              frame.style.height = "100%";
+            }
+            // A freshly-mounted player is unmuted by default — reflect that in the
+            // indicator even if a previous (failed/retried) player left `muted` true.
+            syncMute();
+            if (startedRef.current) {
+              soundTimersRef.current = startWithSound(player, syncMute);
+            } else {
+              safePlayerCall(() => player.pauseVideo());
+            }
+          },
+          onError: () => {
+            if (cancelled) return;
+            safePlayerCall(() => playerRef.current?.destroy());
+            playerRef.current = null;
+            setReady(false);
+            if (!retriedRef.current) {
+              retriedRef.current = true;
+              // Give the embed one quiet retry; if that also fails, give up and
+              // show the fallback instead of leaving a dead player behind.
+              window.setTimeout(() => mount(), 1000);
+            } else {
+              setFailed(true);
+            }
+          },
+        });
+      } catch {
+        if (cancelled) return;
+        if (retriedRef.current) {
+          setFailed(true);
+          return;
+        }
+        retriedRef.current = true;
+        window.setTimeout(() => mount(), 1000);
+        return;
+      }
       playerRef.current = player;
     };
 
@@ -349,61 +409,55 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
 
     return () => {
       cancelled = true;
-      playerRef.current?.destroy();
+      safePlayerCall(() => playerRef.current?.destroy());
       playerRef.current = null;
       setReady(false);
     };
-  }, [url]);
+    // syncMute is a stable useCallback (empty deps); only `url` should re-create the player.
+  }, [url, syncMute]);
 
-  // Lockstep with the enter gate: `started` becomes true inside the gate's click/keydown
-  // handler, so this runs within the user-activation window — the player already exists.
+  // Playback is deliberately tied to the enter-gate activation only: `started`
+  // flips inside the gate's click/keydown handler, and this effect starts the
+  // player within that user-activation window. There is intentionally no global
+  // gesture "self-heal" that retries unmuted playback on arbitrary later
+  // pointer/key events — audio must not start outside the gate gesture. If the
+  // browser blocked sound and the muted fallback engaged, the on-widget
+  // "Tap to unmute" button (which reads the real mute flag via syncMute) lets the
+  // visitor opt in explicitly.
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
     soundTimersRef.current.forEach((t) => window.clearTimeout(t));
     soundTimersRef.current = [];
     if (started) {
-      soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
+      soundTimersRef.current = startWithSound(player, syncMute);
     } else {
-      player.pauseVideo();
+      safePlayerCall(() => player.pauseVideo());
+      syncMute();
     }
-  }, [started]);
-
-  // Self-heal: if autoplay was blocked and fell back to muted, retry unmuted playback
-  // on the next real user gesture (pointer/key) instead of staying silent forever.
-  useEffect(() => {
-    const onGesture = () => {
-      const player = playerRef.current;
-      if (!player || !startedRef.current) return;
-      if (player.isMuted() || player.getPlayerState() !== window.YT?.PlayerState.PLAYING) {
-        soundTimersRef.current.forEach((t) => window.clearTimeout(t));
-        soundTimersRef.current = [];
-        soundTimersRef.current = startWithSound(player, () => setMuted(false), () => setMuted(true));
-      }
-    };
-    window.addEventListener("pointerdown", onGesture);
-    window.addEventListener("keydown", onGesture);
-    return () => {
-      window.removeEventListener("pointerdown", onGesture);
-      window.removeEventListener("keydown", onGesture);
-    };
-  }, []);
+  }, [started, syncMute]);
 
   const toggleMute = () => {
     const player = playerRef.current;
     if (!player) return;
     if (muted) {
-      player.unMute();
-      setMuted(false);
+      safePlayerCall(() => player.unMute());
     } else {
-      player.mute();
-      setMuted(true);
+      safePlayerCall(() => player.mute());
     }
+    // Read back the real flag — unMute/mute are async in the IFrame API.
+    syncMute();
   };
 
   return (
     <div className="relative w-full rounded-lg bg-black/20 overflow-hidden">
       <div className="mx-auto aspect-video w-full max-w-[34rem]" ref={containerRef} />
+      {failed && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-6 text-center">
+          <span className="text-xs font-medium opacity-70">This video couldn&apos;t be loaded.</span>
+          <span className="text-[11px] opacity-50">It may be unavailable or the network blocked it.</span>
+        </div>
+      )}
       {ready && (
         <button
           onClick={toggleMute}
@@ -521,71 +575,73 @@ export function FloatingMusicPlayer({
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {open ? (
-        <div
-          className="w-[min(20rem,calc(100vw-2rem))] rounded-2xl p-3 shadow-2xl"
-          style={{
-            backgroundColor: "rgba(18,18,22,0.96)",
-            border: `1px solid ${accent}30`,
-            color: textColor,
-            backdropFilter: "blur(12px)",
-          }}
-        >
-          <div className="flex items-center justify-between gap-2 mb-2 px-1">
-            <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>
-              <Music className="h-3.5 w-3.5" />
-              Music
+      <div
+        className={`w-[min(20rem,calc(100vw-2rem))] rounded-2xl p-3 shadow-2xl transition-opacity duration-200 ${
+          open ? "opacity-100" : "pointer-events-none invisible opacity-0"
+        }`}
+        style={{
+          backgroundColor: "rgba(18,18,22,0.96)",
+          border: `1px solid ${accent}30`,
+          color: textColor,
+          backdropFilter: "blur(12px)",
+        }}
+        aria-hidden={!open}
+      >
+        <div className="flex items-center justify-between gap-2 mb-2 px-1">
+          <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>
+            <Music className="h-3.5 w-3.5" />
+            Music
+          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] truncate max-w-[9rem]" style={{ color: muted }}>
+              {active.artist ? `${active.title ?? ""}${active.title ? " — " : ""}${active.artist}` : active.title}
             </span>
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[11px] truncate max-w-[9rem]" style={{ color: muted }}>
-                {active.artist ? `${active.title ?? ""}${active.title ? " — " : ""}${active.artist}` : active.title}
-              </span>
-              <button
-                onClick={() => setOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors flex-shrink-0"
-                title="Minimize"
-                aria-label="Minimize music player"
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors flex-shrink-0"
+              title="Minimize"
+              aria-label="Minimize music player"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
           </div>
-
-          {ordered.length > 1 && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              {ordered.map((track, i) => (
-                <button
-                  key={track.id}
-                  onClick={() => setActiveIndex(i)}
-                  className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-left transition-all duration-200"
-                  style={{
-                    backgroundColor: i === activeIndex ? `${accent}18` : `${accent}08`,
-                    color: i === activeIndex ? accent : textColor,
-                    border: `1px solid ${i === activeIndex ? `${accent}40` : `${accent}12`}`,
-                  }}
-                >
-                  <Play className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[11px] font-medium truncate">
-                      {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
-                    </span>
-                    {track.artist && (
-                      <span className="text-[10px] opacity-60 truncate">{track.artist}</span>
-                    )}
-                  </div>
-                  {track.fullUrl && <Radio className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <TrackPlayer key={active.id} track={active} accent={accent} started={started} />
-          <FullVersionPlayer track={active} accent={accent} />
         </div>
-      ) : (
+
+        {ordered.length > 1 && (
+          <div className="flex flex-col gap-1.5 mb-2">
+            {ordered.map((track, i) => (
+              <button
+                key={track.id}
+                onClick={() => setActiveIndex(i)}
+                className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-left transition-all duration-200"
+                style={{
+                  backgroundColor: i === activeIndex ? `${accent}18` : `${accent}08`,
+                  color: i === activeIndex ? accent : textColor,
+                  border: `1px solid ${i === activeIndex ? `${accent}40` : `${accent}12`}`,
+                }}
+              >
+                <Play className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[11px] font-medium truncate">
+                    {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
+                  </span>
+                  {track.artist && (
+                    <span className="text-[10px] opacity-60 truncate">{track.artist}</span>
+                  )}
+                </div>
+                {track.fullUrl && <Radio className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <TrackPlayer key={active.id} track={active} accent={accent} started={started} />
+        <FullVersionPlayer track={active} accent={accent} />
+      </div>
+      {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="relative h-14 w-14 rounded-full flex items-center justify-center shadow-xl transition-transform hover:scale-105 active:scale-95"
+          className="absolute bottom-0 right-0 h-14 w-14 rounded-full flex items-center justify-center shadow-xl transition-transform hover:scale-105 active:scale-95"
           style={{
             backgroundColor: accent,
             color: "#fff",

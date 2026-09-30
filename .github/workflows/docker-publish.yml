@@ -1,14 +1,33 @@
 name: Build & Publish Docker Images
 
+# Publishing policy (see AGENTS.md "GitHub Release Prerelease Policy"):
+#
+#   * A push to `main` is a BUILD ONLY. It verifies the images still assemble but
+#     publishes nothing, so an in-progress / unreleased state can never overwrite
+#     the `latest` image that operators pull.
+#   * Images are published ONLY from a version tag (`v1.3.2`, `v1.3.2-beta.1`,
+#     ...) or from a manual run that supplies an explicit `version`. That keeps
+#     the tag on the image equal to the reason the image was cut — never a
+#     meaningless `latest`-on-every-commit or raw commit-SHA tag.
+#   * `latest` and the rolling `major.minor` channel tag are reserved for STABLE
+#     versions. A prerelease (`1.3.2-beta.1`) is published under its own exact
+#     version tag only, so it can never be mistaken for the current release.
 on:
   push:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 1.3.2 or 1.3.2-beta.1 (empty = build only, publish nothing)"
+        required: false
+        type: string
 
 concurrency:
   group: docker-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a publish half-way: a version tag must always finish tagging
+  # every image. Branch (build-only) runs are safe to supersede.
+  cancel-in-progress: ${{ github.ref_type == 'branch' }}
 
 env:
   DOCKERHUB_NAMESPACE: dracoservices
@@ -36,6 +55,57 @@ jobs:
         id: names
         run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
+      # Decide what (if anything) gets published. The image tag is derived from
+      # the version, so the tag on the image always explains why it exists.
+      - name: Resolve publish target
+        id: target
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version=""
+          if [ "$REF_TYPE" = "tag" ]; then
+            version="${REF_NAME#v}"
+          elif [ -n "${DISPATCH_VERSION:-}" ]; then
+            version="${DISPATCH_VERSION#v}"
+          fi
+
+          if [ -z "$version" ]; then
+            echo "Build-only run (no version supplied) - images are built but NOT pushed."
+            {
+              echo "publish=false"
+              echo "prerelease=false"
+              echo "version="
+              echo "channel="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A version carrying a prerelease identifier (-dev/-alpha/-beta/-rc)
+          # must never receive `latest` or the rolling channel tag.
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          else
+            prerelease=false
+          fi
+          # Rolling channel tag (1.3 for 1.3.2, 1.3.2-beta.1 -> 1.3) — stable only.
+          channel="$(printf '%s' "${version%%-*}" | cut -d. -f1,2)"
+
+          {
+            echo "publish=true"
+            echo "prerelease=$prerelease"
+            echo "version=$version"
+            echo "channel=$channel"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$prerelease" = true ]; then
+            echo "Publishing PRERELEASE $version (no latest / channel tag)."
+          else
+            echo "Publishing STABLE $version (+ $channel, latest)."
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -62,11 +132,13 @@ jobs:
           images: |
             ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}
             ghcr.io/${{ steps.names.outputs.owner_lc }}/${{ matrix.image }}
+          # Every tag is derived from the resolved version — no `latest`-on-every-
+          # commit, no raw commit-SHA tags. `latest` and `major.minor` are gated
+          # on a stable version.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            type=raw,value=${{ steps.target.outputs.version }},enable=${{ steps.target.outputs.publish == 'true' }}
+            type=raw,value=${{ steps.target.outputs.channel }},enable=${{ steps.target.outputs.publish == 'true' && steps.target.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ steps.target.outputs.publish == 'true' && steps.target.outputs.prerelease == 'false' }}
 
       - name: Build & push image
         uses: docker/build-push-action@v6
@@ -74,7 +146,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
+          push: ${{ steps.target.outputs.publish == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}

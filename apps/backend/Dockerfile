@@ -1,13 +1,13 @@
 FROM node:22-alpine
 
 RUN apk upgrade --no-cache \
-  && corepack enable && corepack prepare pnpm@11.9.0 --activate \
+  && corepack enable && corepack prepare pnpm@11.11.0 --activate \
   && apk add --no-cache font-liberation ttf-dejavu
 
 WORKDIR /app
 
 # Copy package files
-COPY .npmrc pnpm-workspace.yaml package.json ./
+COPY .npmrc pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/backend/package.json apps/backend/
 COPY packages/shared/package.json packages/shared/
 
@@ -16,7 +16,7 @@ COPY apps/backend/ apps/backend/
 COPY packages/shared/ packages/shared/
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client
 RUN pnpm --filter @bioplatform/backend db:generate
@@ -28,6 +28,10 @@ RUN pnpm --filter @bioplatform/backend build
 # Expose the administration CLI on PATH
 RUN printf '#!/bin/sh\nexec node /app/apps/backend/dist/cli/index.js "$@"\n' > /usr/local/bin/bioplatform \
   && chmod +x /usr/local/bin/bioplatform
+
+# Remove npm/npx (pnpm/corepack drives everything) — strips node-tar and its
+# CVEs (gzip-bomb DoS, malformed/long-path archive DoS) from the base image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Create uploads directory
 RUN mkdir -p /app/uploads /app/certs

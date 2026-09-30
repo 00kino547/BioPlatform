@@ -20,7 +20,7 @@ export function Terms() {
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">Terms of Service</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: September 1, 2026</p>
+        <p className="text-sm text-zinc-500 mb-8">Last updated: September 30, 2026</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           <section>
@@ -40,6 +40,9 @@ export function Terms() {
             </p>
             <p className="text-zinc-400 mt-2">
               You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. Enabling two-factor authentication and registering passkeys are recommended to protect your account.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              When enabled by the instance operator, registration and login may include a human-verification challenge (captcha) provided by a third party such as Cloudflare Turnstile, Google reCAPTCHA, or hCaptcha. The challenge token is validated by the provider&rsquo;s service; each provider operates under its own privacy policy. By completing a challenge you accept the provider&rsquo;s terms for the verification itself. The instance operator does not receive any personal data from the challenge beyond the verification result.
             </p>
           </section>
 
@@ -107,7 +110,46 @@ export function Terms() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Access to the API</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Newsletter</h2>
+            <p className="text-zinc-400">
+              Public profiles may offer a newsletter to visitors. Subscribing is an explicit, single opt-in: a subscriber enters their email address and checks a box agreeing to these Terms and the Privacy Policy. A subscription is never created without that agreement, and each profile runs its own independent newsletter list.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              If you run a newsletter on your profile, you are a sender and agree to comply with all applicable marketing and anti-spam law, including the US CAN-SPAM Act and Canada&rsquo;s Anti-Spam Legislation (CASL). In particular, you agree to: only send to subscribers who genuinely opted in, keep accurate records of that consent, include identifying sender information and a mailing address (or a link to our website) in every email, and honor unsubscribe requests immediately and in all cases within 10 business days. Every newsletter we deliver on your behalf automatically includes a one-click unsubscribe link; you must not remove it or otherwise prevent subscribers from opting out.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              You must not add email addresses to your list without consent, buy or rent lists, harvest addresses, or misrepresent the identity of a sender. Distributing unsolicited commercial email is a violation of these Terms and may result in suspension or termination of your account. Sending is subject to per-tier volume limits and may be paused or disabled by the instance operator; a disabled or paused profile never sends mail.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Subscriber data belongs to your subscribers. You may use it only to run your newsletter and must honor erasure requests (right to be forgotten) and any applicable data-protection rights. If you erase a subscriber, we remove the subscription so no further mail is sent.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              You may optionally send through your own SMTP relay instead of {branding.name}&rsquo;s mail stack. If you do, you are responsible for the relay and credentials you configure and for all mail sent through it: you must only use a relay you are authorized to use, keep your credentials secure, and comply with that provider&rsquo;s terms. Your SMTP password is encrypted at rest and used solely to deliver your newsletter. The instance operator may require manual approval before your own relay may send.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">9b. Product Shop</h2>
+            <p className="text-zinc-400">
+              Public profiles may offer digital products for sale. If you list products, you are the seller: you are responsible for the product, its description, its price, the rights to distribute any file or preview image you upload, and for complying with all applicable consumer-protection, tax and intellectual-property law. Prices are shown in the configured currency and any profile-wide discount is applied by the platform at checkout.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              Payments are processed by the payment providers the instance operator has enabled (for example Stripe, PayPal, or a cryptocurrency gateway); we do not store card details. Purchases are final except where a refund is granted, in which case the buyer&rsquo;s download access is revoked. You must not use the shop to sell unlawful content or to circumvent the platform&rsquo;s acceptable-use rules.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">9a. Tips</h2>
+            <p className="text-zinc-400">
+              Public profiles may offer the ability for visitors to send cryptocurrency tips (Bitcoin or Litecoin). Tips are voluntary: the visitor chooses the amount and may include an optional name and message, which are shown to the profile owner. Payments are made directly to the profile owner&rsquo;s wallet (or through a BTCPay checkout where the instance operator has configured BTCPay); we do not act as an intermediary or escrow for tips.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              If you enable tips on your profile you are responsible for the wallet addresses you publish and for complying with any applicable tax, financial-services or anti-money-laundering law in your jurisdiction. You agree that disabling tips hides your wallet addresses and that you may delete any tip record at any time.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">10. Access to the API</h2>
             <p className="text-zinc-400">
               {branding.name} exposes a documented HTTP API (see the API documentation and OpenAPI specification) that supports integration with your account and profile. Use of the API is subject to these Terms, including the Acceptable Use provisions. You are responsible for requests you make and for any application or service you build on top of the API.
             </p>
@@ -117,7 +159,7 @@ export function Terms() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">10. Service Availability and Security Updates</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">11. Service Availability and Security Updates</h2>
             <p className="text-zinc-400">
               We strive to keep {branding.name} available at all times, but we do not guarantee uninterrupted access. We may perform maintenance, updates, or experience downtime without prior notice.
             </p>
@@ -127,28 +169,31 @@ export function Terms() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">11. Termination</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">12. Termination</h2>
             <p className="text-zinc-400">
               We reserve the right to suspend or terminate your account at our discretion, with or without cause, including for violations of these Terms. Upon termination, your right to use the service ceases immediately.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">12. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">13. Limitation of Liability</h2>
             <p className="text-zinc-400">
               {branding.name} is provided &quot;as is&quot; without warranties of any kind. We shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">13. Changes to Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">14. Changes to Terms (Deemed Acceptance)</h2>
             <p className="text-zinc-400">
-              We may modify these Terms at any time. Continued use of the service after changes constitutes acceptance of the modified Terms. We will notify you of material changes through the service or by email.
+              We may update these Terms from time to time. Each update is published on this page with a new version number and an effective date, and we will notify you of material changes through the service or by email. The version of these Terms you accepted (including the original version you agreed to when you first used {branding.name}) is retained in your consent history and remains visible to you whenever you review your account&rsquo;s consent records.
+            </p>
+            <p className="text-zinc-400 mt-2">
+              If a new version of these Terms is published and you do not review the update, you will be deemed to have accepted the updated version if you continue to use {branding.name} for more than thirty (30) days after that version&rsquo;s effective date. Continued use of the platform for more than 30 days after an update is published constitutes your acceptance of the updated version, even if you did not open or check the update. If you do not wish to accept an updated version, you must stop using the platform before the end of that 30-day period.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">14. Contact</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">15. Contact</h2>
             <p className="text-zinc-400">
               For questions about these Terms, please{" "}
               <a href={branding.contactUrl} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 transition-colors">

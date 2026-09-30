@@ -4,35 +4,40 @@
 
 ### Full Stack with Nginx
 
+The quickest way to run the stack uses the published prebuilt images — no local build step:
+
 ```bash
-docker compose --profile nginx up -d --build
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
 ```
 
 App available at `http://localhost:80` — frontend, API (`/api`), and uploads all served on a single port through the internal Nginx reverse proxy. This is the recommended setup for production and simple deployments.
 
-### Without Nginx
+### Building from Local Source (Optional)
+
+If you fork the repo or modify the backend/frontend source, build the images from your local checkout instead:
 
 ```bash
-docker compose up -d --build
+docker compose --profile nginx up -d --build
 ```
 
-Backend at `http://localhost:3000`. The frontend has no exposed port without Nginx — use the Nginx profile for browser access.
+The same services and ports are used; only the image source differs. See [Building](./building.md) for registry options and version pinning.
 
-### Using Prebuilt Images
-
-Instead of building from source, pull published images:
+### Without Nginx
 
 ```bash
 docker compose -f docker-compose.prebuilt.yml up -d
 ```
 
-See [Building](./building.md) for registry options (Docker Hub vs GHCR) and version pinning.
+Backend at `http://localhost:3000`. The frontend has no exposed port without Nginx — use the Nginx profile for browser access.
+
+(To use locally-built images without Nginx, run `docker compose up -d --build`.)
 
 ### Services
 
 | Service | Description | Port |
 |---------|-------------|------|
 | `postgres` | PostgreSQL 16 database | 5432 |
+| `redis` | Valkey cache (Redis-compatible, used by `CACHE_DRIVER=redis`) | 6379 |
 | `backend` | Express API server | 3000 |
 | `frontend` | React SPA (Nginx) | 80 |
 | `nginx` | Reverse proxy (optional) | 80 |
@@ -45,6 +50,11 @@ See [Building](./building.md) for registry options (Docker Hub vs GHCR) and vers
 4. Set `ADMIN_EMAIL` and a unique `ADMIN_PASSWORD` for the bootstrap administrator
 5. Configure `APP_URL`, `APP_URL_HOST`, the `VITE_APP_*` URLs, and the WebAuthn values to your domain
 6. Run with `--profile nginx` for production
+
+By default the backend uses `CACHE_DRIVER=redis` against the bundled Valkey service (a Redis-compatible
+cache on port `6379`, bound to localhost). If you run the backend outside Docker Compose, point
+`CACHE_REDIS_URL` at any wire-compatible server (Redis, Valkey, KeyDB, Dragonfly) or switch to the
+`memory`/`file`/`db` drivers — see [Environment Variables](./environment-variables.md#caching).
 
 On first run, set `SEED_ON_START=true` in `.env` to create the bootstrap admin and initial invite codes.
 The seed is idempotent — it only creates the admin when that email does not already exist and never
@@ -145,7 +155,7 @@ limiting see public IPs instead of the tunnel/local address. Nginx overwrites
 chain never reaches the backend.
 
 The nginx published ports (`NGINX_PORT`/`NGINX_HTTPS_PORT`) are bound to loopback
-(`127.0.0.1`) in `docker-compose.yml` (like postgres and the backend), so only
+(`127.0.0.1`) in both compose files (like postgres and the backend), so only
 host-local processes can reach nginx — no remote client can connect directly to forge
 the proxy headers; every request must arrive via the trusted reverse proxy. Local
 traffic that comes through docker-proxy (which masquerades its source as the docker
@@ -222,6 +232,16 @@ on the main domain works there, and one registered on a custom domain works on t
 
 ## Updating
 
+Pull the latest prebuilt images and recreate the stack:
+
+```bash
+git pull
+docker compose -f docker-compose.prebuilt.yml --profile nginx pull
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
+```
+
+Or, when using locally-built images, rebuild instead:
+
 ```bash
 git pull
 pnpm install
@@ -229,13 +249,42 @@ pnpm db:generate
 docker compose --profile nginx up -d --build
 ```
 
-After updating, apply any new database migrations (raw SQL files in `docs/migrations/`):
+### Apply schema migrations first
+
+The backend does **not** migrate the database automatically — a release that changes the schema will crash until the database matches. Schema history is managed with **Prisma Migrate** (baseline migration `prisma/migrations/0_init` represents the full current schema); run `prisma migrate deploy` before starting the new containers:
 
 ```bash
-docker compose exec postgres psql -U postgres -d bioplatform -f /path/to/migration.sql
+pnpm --filter @bioplatform/backend db:generate
+pnpm --filter @bioplatform/backend db:migrate:prod
 ```
 
-Or copy the migration file into the container and apply it.
+#### First-time adoption of Prisma Migrate on an existing database
+
+Databases created before the baseline migration exist (they were provisioned via `prisma db push` / the legacy `docs/migrations/*.sql` files) and have **no `_prisma_migrations` history**. Do not re-run `migrate deploy` blindly on them. The safe adoption sequence:
+
+1. **Detect drift** against the current schema (non-mutating):
+
+   ```bash
+   pnpm --filter @bioplatform/backend exec prisma migrate diff \
+     --from-url "$DATABASE_URL" \
+     --to-schema-datamodel prisma/schema.prisma
+   ```
+
+2. **Converge the schema if the diff is non-empty.** The legacy history lives in `docs/migrations/` (dated, apply in date order) and any remaining drift must be reconciled with an **additive** migration — do not `prisma db push --accept-data-loss` unless you have verified it only adds tables/columns. Confirm the diff is now empty before proceeding.
+
+3. **Record the baseline** (marks the converged database as already at `0_init` without applying it):
+
+   ```bash
+   pnpm --filter @bioplatform/backend db:baseline
+   ```
+
+4. From then on, every release applies through `pnpm --filter @bioplatform/backend db:migrate:prod` (prisma migrations only).
+
+New schema changes are added as normal Prisma migrations (`prisma migrate dev --create-only` then review, or regenerated with `prisma migrate diff --from-migrations --to-schema-datamodel`). The legacy `docs/migrations/*.sql` files remain archived for historical reference.
+
+### Check for new environment variables
+
+New releases may add settings to `.env.example`. Compare your `.env` against it and copy any new variables — and confirm the variable is also forwarded in `docker-compose.yml` before recreating the stack. Example for this release: `NEWSLETTER_SELF_RECIPIENT_CAP` (cap on how many recipients a user's own SMTP deliverer may send to per newsletter).
 
 ## Backup
 

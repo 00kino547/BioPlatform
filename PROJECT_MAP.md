@@ -31,8 +31,14 @@ apps/backend/src/
 │   ├── discordPost.ts    # Post-to-Discord webhook embed helper
 │   ├── httpCache.ts      # TTL-based HTTP response cache (used by version check, SEO, etc.)
 │   ├── inviteService.ts  # Invite allowance/grant/refund logic (invite_grant_events table)
+│   ├── tips.ts           # Tip helpers: TIP_COINS, tipAmountSchema, tipUri (bitcoin:/litecoin: URIs), tipsPaymentMode (btcpay | address)
+│   ├── shop.ts           # Product shop helpers: getProductLimit (FREE=3, PRO/ENTERPRISE=null), discountedCents, productUploadsDir/productFileKey, publishProductUpload/deleteProductUpload, sign/verify download+client tokens, downloadUrl, shopReturnUrl, buildPurchaseEmail, SHOP_PURCHASE_PREFIX
+│   ├── newsletterSender.ts # Own-SMTP deliverer helpers: AES-256-GCM encrypt/decrypt of the SMTP password, public sender shape (hasPassword only), DNS TXT verification token + check, custom-relay send/test
+│   ├── newsletter.ts     # Newsletter helpers: per-tier rolling-window limits (env defaults + DB override), unsubscribe JWT sign/verify, email template with List-Unsubscribe + postal-address fallback, transient in-memory consent evidence (24 h)
+│   ├── payments/handleGatewayEvent.ts # Shared gateway-event dispatch: "tip-<id>" orderId branch → Tip CONFIRMED/CANCELLED, order branch → fulfill/refund
 │   ├── media.ts          # Media processing helpers (sharp-based image optimization)
-│   ├── permissions.ts    # Permission constants and role helpers (RBAC)
+│   ├── permissions.ts    # Permission constants and role helpers (RBAC) — includes themes.manage (Seasonal Themes)
+│   ├── seasonalThemes.ts # Seasonal/holiday theme service: global config (enabled/autoSchedule/respectUserPreferences), resolveActiveSeasonalTheme + resolveProfileSeasonalTheme resolution (override > holiday > season > sortOrder, Christmas always-allow)
 │   ├── profileOg.ts      # OG data builder for a public profile (presence line + counts) → PNG card + HTML meta page (host-aware: custom-domain canonical/base URLs)
 │   ├── ogCard.ts         # Server-rendered 1200x630 OG card PNG (@napi-rs/canvas)
 │   ├── og.ts             # OpenGraph/Twitter meta HTML (escapeHtml + buildOgPage + buildLandingOgPage)
@@ -50,22 +56,28 @@ apps/backend/src/
     ├── auth.ts           # Register, login/start, login (password + 2FA), passkey login/2FA (host-aware rpID/origin for custom domains), passkey CRUD, TOTP setup/enable/disable, me, change-password, unlock, unlock/verify — passkey/TOTP/change-password gated by update lockdown
     ├── invite.ts         # Invite code CRUD (create, list, revoke)
 │   ├── profile.ts        # Multi-profile CRUD (list/create, get/update/delete per profileId, set-primary), aliases CRUD, badges toggle + order, avatar/banner upload+delete, spreadsheet export/import, public profile by slug/alias (incl. discord presence), click tracking, OG card PNG
-    ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert — user/role/badge mutations gated by update lockdown
+    ├── admin.ts          # Admin: list users, update user (tier, track/profile/alias limits, badges), reset password, edit profiles, list/unban auth bans, account unlock, auth log, custom-domain list/approve/reject/issue-cert, seasonal-themes CRUD + config (themes.manage) — user/role/badge mutations gated by update lockdown
     ├── badges.ts         # Badge catalog CRUD (list, create, edit, delete) — system badges undeletable
     ├── analytics.ts      # Analytics stats (views, clicks, referrers, platform breakdown) — ?profileId scoped
     ├── email.ts          # Email notification settings (SMTP config, test endpoint) — ?profileId scoped
+    ├── newsletter.ts     # Newsletter: public subscribe/unsubscribe, send (own SMTP deliverer or platform sender — admins always, non-admins only when NEWSLETTER_PLATFORM_SMTP_ENABLED + allowlisted), owner subscriber list/sends/erasure, own sender CRUD + verify/test, admin tier-config + sender-whitelist + consent-search
     ├── music.ts          # Music tracks CRUD (create, upload, patch, reorder, delete) — ?profileId scoped
+    ├── tips.ts           # Tips: POST /api/tips (public, 30/h per-IP limit), GET /api/tips/overview + DELETE /api/tips/:id (owner) — creates BTCPay invoice or address-mode intent
+    ├── shop.ts           # Product shop: GET /availability, GET /overview (+?profileId), POST /products (file upload) + PATCH/DELETE /:id, POST /:id/preview, GET /sales (+refund), GET /purchases (buyer), POST /buy (public/account/free), GET /status/:id, GET /download/:id (signed token or buyer Bearer; 410 refunded, 402 expired), private products/ storage, rate limits 30/120/60 per IP
+    ├── paymentWebhooks.ts # Public provider webhooks (stripe/paypal/crypto/:provider) — signature-verified, dispatch via lib/payments/handleGatewayEvent
     ├── webhook.ts        # Webhook CRUD (list, create, patch, rotate-secret, test, deliveries, delete) — create/update/rotate/delete gated by update lockdown
     ├── version.ts        # Public GET /api/version (installed/latest/severity, ?force=1 bypasses cache)
     ├── domain.ts         # Custom domains: public GET /api/domain (host/active/root), user self-serve request/verify/root/remove
     └── discord.ts        # Discord: status, OAuth connect/callback, disconnect, settings, post-to-webhook, session restore on boot — ?profileId scoped
 apps/backend/prisma/
-├── schema.prisma         # User (tier, trackLimit, profileLimit, aliasLimit, badges, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile (slug, isPrimary, badges, customDomain relation, incl. showDiscordPresence/showDiscordActivity/discordWebhookUrlEncrypted), ProfileDomain (custom domains + TLS cert status fields), ProfileAlias (slug per profile), DiscordConnection, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan, AuthLog, Webhook, WebhookDelivery models
+├── schema.prisma         # User (tier, trackLimit, profileLimit, aliasLimit, badges, totpSecret, totpEnabled, registeredIp, lastLoginIp), Profile (slug, isPrimary, badges, customDomain relation, incl. showDiscordPresence/showDiscordActivity/discordWebhookUrlEncrypted, tipsEnabled/tipsHeading/tipsBtcAddress/tipsLtcAddress, shopDiscountPercent), Product (profile relation, title, description, priceCents, filePath/fileName/fileSize, previewImage, enabled, purchases), ProductPurchase (buyer/user/Profile, product, PurchaseMethod STRIPE|PAYPAL|CRYPTO|FREE, PurchaseStatus PENDING|PAID|REFUNDED|CANCELLED, currency/basePriceCents/discountPercent/finalPriceCents, cryptoQuote fields, gatewayCheckoutUrl, paidAt/refundedAt), Tip (coin, amount, name/message, status, invoiceId, paidAt), ProfileDomain (custom domains + TLS cert status fields), ProfileAlias (slug per profile), DiscordConnection, InviteCode, PageView, LinkClick, MusicTrack, Passkey, WebAuthnChallenge, AuthBan, AuthLog, Webhook, WebhookDelivery, SeasonalTheme (slug/label/emoji/kind/enabled/config/start-end window/overrideState/allowedByAdmin/sortOrder), NewsletterSubscriber (email, agreedAt, tosVersion/privacyVersion, unsubscribedAt), NewsletterSend (subject/body, counts, sentAt), NewsletterSender (fromName/fromEmail, smtpHost/port/secure/user, encrypted password, verificationToken, verifiedAt/testedAt) models; User carries newsletterSenderWhitelisted
 └── seed.ts               # Bootstrap admin + invite codes
 apps/backend/docker-entrypoint.sh # Seeds bootstrap data when SEED_ON_START=true, then starts the API
 apps/backend/tests/
 ├── setup-env.ts          # Test env bootstrap (loads .env, points DATABASE_URL at bioplatform_test)
 ├── badges-order.test.ts  # Unit + integration tests for badge ordering (Node test runner via tsx)
+├── shop.test.ts          # Product shop tests (schema promo, product limit tiers, discounted price math, file-name helpers, JWT download+client token sign/verify + wrong-purpose rejection, gateway purchase- prefix branch + refund-after-paid, idempotency)
+├── newsletter-sender.test.ts # Own-SMTP deliverer tests (password encryption round-trip/serialization, DNS verify token + mocked resolution, from-domain/host change resets verification, tier/allowlist gating, test-email send, admin whitelist endpoints)
 └── version-check.test.ts # Unit tests for compareVersions, parseChangelog, getInstalledVersion
 ```
 
@@ -82,9 +94,10 @@ apps/frontend/src/
 │   ├── AuthContext.tsx    # Auth state (login, register, logout)
 │   └── DomainContext.tsx  # Custom-domain info for the current host (active, host, root slug, canonical) via GET /api/domain
 ├── lib/
-│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges + badge order, upload, export/import, analytics, email, music, webhooks, discord, custom domains, version check) — profile-scoped calls take profileId
+│   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges + badge order, upload, export/import, analytics, email, music, tips, shop, webhooks, discord, custom domains, version check) — profile-scoped calls take profileId
 │   ├── seo.ts            # usePageMeta + JSON-LD (optional baseUrl for custom domains)
 │   ├── media.ts          # Frontend media helpers (image URL construction, CDN utils)
+│   ├── format.ts         # formatPrice (Intl currency) + fileSize helpers
 │   ├── useVersionCheck.ts # Update-check hook: module-level cache + in-flight dedupe, useVersionCheck + useUpdateLockdown (locked = security/critical)
 │   └── utils.ts          # cn() utility
 ├── components/
@@ -96,7 +109,10 @@ apps/frontend/src/
 │   │   ├── scroll-reveal.tsx # IntersectionObserver wrapper
 │   │   ├── BadgePill.tsx     # Colored badge pill for public profiles
 │   │   ├── ImageCropper.tsx  # Image crop/resize component
-│   │   └── PlatformIcon.tsx  # SVG icons for social platforms (24 platforms)
+│   │   ├── PlatformIcon.tsx  # SVG icons for social platforms (24 platforms)
+│   │   ├── LayoutSelector.tsx # 8-layout preset picker grid (default/grid/compact/wide/glassmorphism/minimal/sidebar/editorial) with icon + description
+│   │   ├── BackgroundSelector.tsx # Background image picker: gradient presets, seasonal presets, custom URL input, file upload, remove button
+│   │   └── FxOverlay.tsx     # Lightweight canvas animated FX overlay (snow/pumpkins/hearts/leaves/stars/confetti/sparkle); DPR-capped, area-scaled particles, respects prefers-reduced-motion
 │   ├── updates/
 │   │   ├── UpdateDialog.tsx  # Shared update dialog: severity chip, skipped-release changelog sections, GitHub release link, re-check (force)
 │   │   └── VersionBadge.tsx  # Public footer version badge (green/amber/red on severity), opens UpdateDialog
@@ -111,6 +127,13 @@ apps/frontend/src/
 │   │   └── DiscordTab.tsx     # Dashboard Discord tab (connect/disconnect, presence toggles, webhook + post, invite bot)
 │   ├── music/
 │   │   └── MusicPlayer.tsx   # Playlist picker + embedded player (local/Spotify/YouTube, full version + Open in Spotify)
+│   ├── tips/
+│   │   ├── TipsTab.tsx       # Dashboard Tips tab (enable toggle, heading, BTC/LTC addresses; Overview: per-coin recorded/confirmed totals, recent 50, row delete)
+│   │   └── TipBlock.tsx      # Public tip block + dialog (coin tabs, amount presets/custom, name/message, QR of bitcoin:/litecoin: URI, copy address, BTCPay checkout link)
+│   ├── shop/
+│   │   ├── ShopTab.tsx       # Dashboard Shop tab (product upload/create, discount %, overview stats, product list w/ toggle/preview/delete, sales table)
+│   │   ├── ShopBlock.tsx     # Public shop block + buy dialog (product grid, method picker Card/PayPal/Crypto, coin picker, guest email, checkout redirect + status polling, download link)
+│   │   └── PurchasesTab.tsx  # Dashboard Purchases tab (buyer's purchases + one-click download)
 │   ├── discord/
 │   │   └── PresenceWidget.tsx # Shared Discord presence card (status dot, activity line/icon, custom status, album art)
 │   ├── layout/
@@ -121,7 +144,9 @@ apps/frontend/src/
 │   └── landing/
 │       ├── Hero.tsx          # Hero with animated grid, stats
 │       ├── Features.tsx      # Bento grid (10 cards)
-│       ├── Showcase.tsx      # Browser + mobile mockups, theme selector
+│       ├── Showcase.tsx      # Single responsive live profile card + theme selector grid, reuses SampleProfilePreview
+│       ├── SampleProfilePreview.tsx # Reusable locally-editable sample profile (name/bio/links/appearance/background/layout) — used by landing Showcase and admin Theming preview; renders FxOverlay for the selected theme effect
+│       ├── GlobalThemeOverlay.tsx # Landing FX + background overlay: fetches /api/theming/active and renders the active theme's animated FX effect and fixed backgroundImage across the landing page
 │       ├── Pricing.tsx       # 3-tier pricing
 │       ├── FAQ.tsx           # Accordion FAQ (6 questions)
 │       └── Footer.tsx        # Footer with links, social, version badge (UpdateDialog)
@@ -129,9 +154,10 @@ apps/frontend/src/
 │   ├── Login.tsx         # Multi-step login (identifier → passwordless/password → 2FA, email unlock)
 │   ├── Register.tsx      # Register form (invite code required)
 │   ├── Unlock.tsx        # Email unlock link handler (/unlock?token=)
-│   ├── Dashboard.tsx     # Profile editor (Profiles, Profile, Links, Appearance, Analytics, Email, Music, Webhooks, Data, Discord, Invites, Domain, Security tabs) with multi-profile switcher
-│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Roles, Badges, Bans, Logs, Custom Domains tabs, profile editing modal, tier control, Unlock account actions) — Updates button + auto-popup dialog, high-security ops disabled during update lockdown
-│   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer + Discord presence widget; custom-domain host-aware canonical/OG via useDomain)
+│   ├── Dashboard.tsx     # Profile editor (Profiles, Profile, Links, Appearance, Analytics, Email, Music, Tips, Shop, Purchases, Webhooks, Data, Discord, Invites, Domain, Security tabs) with multi-profile switcher
+│   ├── AdminDashboard.tsx # Admin panel (Invite Codes, Users, Roles, Badges, Bans, Logs, Custom Domains, Theming tabs, profile editing modal, tier control, Unlock account actions) — Updates button + auto-popup dialog, high-security ops disabled during update lockdown
+│   ├── admin/SeasonalThemesTab.tsx # Admin Theming tab (global toggles, theme CRUD/editing, override, effect + layout + background selectors, background upload, live per-theme preview via SampleProfilePreview)
+│   ├── PublicProfile.tsx # Themed public profile page (/:username, includes MusicPlayer + Discord presence widget + TipBlock when tips enabled + ShopBlock when products exist; seasonal theme overlay applied; custom-domain host-aware canonical/OG via useDomain)
 │   ├── ApiDocs.tsx       # In-app API reference (/api-docs, renders /api/openapi.json)
 │   ├── Privacy.tsx       # Privacy Policy page (/privacy)
 │   └── Terms.tsx         # Terms of Service page (/terms)

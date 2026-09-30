@@ -13,6 +13,7 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/no-namespace": ["error", { allowDeclarations: true }],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   }
 );

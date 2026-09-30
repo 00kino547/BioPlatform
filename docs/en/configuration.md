@@ -115,6 +115,20 @@ Quick tunnels (`cloudflared tunnel --url …`) cannot route arbitrary custom dom
 | `STORAGE_PROVIDER` | Storage backend (`local`, `r2`, `b2`, `s3`) | `local` |
 | `LOCAL_STORAGE_PATH` | Local upload directory | `./uploads` |
 
+Uploads (avatars, banners, profile/seasonal backgrounds, music) are stored under `LOCAL_STORAGE_PATH` (local) or pushed to a cloud bucket (`s3`/`r2`/`b2`) with UUID filenames and recorded in the database. See [Storage providers](storage.md) for the full comparison; [Orphan upload cleanup](#orphan-upload-cleanup) describes how the cleanup job is storage-provider aware.
+
+### Orphan upload cleanup
+
+A scheduled job removes **orphaned uploads** — files no longer referenced by any profile, seasonal theme, or music track. Orphans appear when an avatar/banner is overwritten, a profile, theme or user is deleted, or an upload fails mid-way after the file was written to disk.
+
+How it works:
+
+- On boot and then every `ORPHAN_CLEANUP_INTERVAL_MINUTES` (default 360), the backend builds the set of in-use filenames by querying `Profile.avatar`, `Profile.banner`, `Profile.theme.backgroundImage`, `SeasonalTheme.config.backgroundImage` and `MusicTrack.filePath`, lists the storage provider's objects, and deletes any unreferenced file.
+- Files younger than `ORPHAN_CLEANUP_GRACE_HOURS` (default 24) are **never** touched, so an upload whose database write hasn't committed yet is safe.
+- `.media-cache` thumbnails (derived, regenerable images) are pruned once older than `MEDIA_CACHE_MAX_AGE_HOURS` (default 168 = 7 days).
+- The job takes a PostgreSQL advisory lock, so it is safe across multiple backend replicas; an in-process guard prevents overlapping runs on the same instance.
+- Deletion is strictly confined to the storage root: names are basename-matched and traversal attempts are rejected. Set `ORPHAN_CLEANUP_ENABLED=false` to disable the job.
+
 ## Branding
 
 All branding variables (`APP_NAME`, `APP_TAGLINE`, etc.) propagate to:

@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -6,7 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { getEnv } from "../config/env.js";
 import { requireAuth } from "../middleware/auth.js";
 import { permissionsFor, effectiveApiLevel, isAdminRole } from "../lib/permissions.js";
-import { generateTotpSecret, verifyTotpCode } from "../lib/totp.js";
+import { generateTotpSecret, sealTotpSecret, verifyTotpCode } from "../lib/totp.js";
 import {
   cleanupExpiredChallenges,
   generateLoginOptions,
@@ -17,9 +17,21 @@ import {
   verifyDiscoverableLogin,
 } from "../lib/webauthn.js";
 import { authRateLimit } from "../middleware/rateLimit.js";
-import { isEmailEnabled, sendEmail, buildUnlockEmail } from "../lib/email.js";
+import { isReservedSlug } from "../lib/reservedSlugs.js";
+import { POLICY_VERSIONS } from "../lib/newsletter.js";
+import { isEmailEnabled, sendEmail, buildUnlockEmail, buildVerifyEmail } from "../lib/email.js";
 import { dispatchWebhookEvent } from "../lib/webhook.js";
 import { requireNoUpdateLockdown } from "../lib/versionCheck.js";
+import { isAccountSsoForced, ssoForceBlocksLogin } from "../lib/ssoEnforcement.js";
+import { verifyCaptcha } from "../lib/captcha.js";
+import { bumpAuthVersion } from "../lib/authVersion.js";
+import {
+  applyInviteeDiscount,
+  ensureReferralEdge,
+  detectInviteAbuse,
+  fingerprintHashes,
+  type AbuseAction,
+} from "../lib/affiliateService.js";
 
 const router = Router();
 
@@ -35,7 +47,8 @@ const registerSchema = z.object({
     .string({ required_error: "Username is required", invalid_type_error: "Username must be text" })
     .min(3, "Username must be at least 3 characters")
     .max(32, "Username must be 32 characters or fewer")
-    .regex(/^[a-z0-9_-]+$/, "Username can only contain lowercase letters, numbers, underscores, and hyphens"),
+    .regex(/^[a-z0-9_-]+$/, "Username can only contain lowercase letters, numbers, underscores, and hyphens")
+    .refine((u) => !isReservedSlug(u), "That username is reserved"),
   email: z
     .string({ required_error: "Email is required", invalid_type_error: "Email must be text" })
     .trim()
@@ -51,6 +64,11 @@ const registerSchema = z.object({
     .trim()
     .min(1, "Invite code is required")
     .max(128, "Invite code must be 128 characters or fewer"),
+  captchaToken: z.string().optional(),
+  acceptedPolicies: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the Terms of Service and Privacy Policy" }),
+  }),
+  newsletterOptIn: z.boolean().optional(),
 });
 
 const identifierSchema = z.object({
@@ -60,6 +78,7 @@ const identifierSchema = z.object({
 const loginSchema = z.object({
   identifier: z.string().min(1).max(128),
   password: z.string().min(1),
+  captchaToken: z.string().optional(),
 });
 
 const changePasswordSchema = z.object({
@@ -120,6 +139,16 @@ class InviteError extends Error {
   }
 }
 
+async function enforceCaptcha(req: Request, res: Response, token: unknown): Promise<boolean> {
+  const result = await verifyCaptcha(
+    typeof token === "string" ? token : undefined,
+    req.authFingerprint?.ip ?? (req.ip as string | undefined)
+  );
+  if (result.success) return true;
+  res.status(400).json({ success: false, error: result.error ?? "Captcha verification failed" });
+  return false;
+}
+
 interface TwoFactorPayload {
   userId: string;
   purpose: "twofactor";
@@ -128,15 +157,73 @@ interface TwoFactorPayload {
 interface AuthPayload {
   userId: string;
   purpose: "auth";
+  /** authVersion at issue time — validated against the user's current value by requireAuth (A4). */
+  av?: number;
 }
 
-function signToken(userId: string, expiresIn: string) {
-  const payload: AuthPayload = { userId, purpose: "auth" };
+/**
+ * Signs an authentication JWT. Async because it embeds the user's current
+ * `authVersion`, which is required so that a password change / admin reset
+ * (both of which bump the counter) invalidates every previously issued token.
+ * A missing user row signs without `av`; requireAuth treats an absent claim
+ * as version 0, so those tokens are only ever accepted for users still at 0.
+ */
+export async function signToken(userId: string, expiresIn: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { authVersion: true },
+  });
+  const payload: AuthPayload = {
+    userId,
+    purpose: "auth",
+    ...(user ? { av: user.authVersion } : {}),
+  };
   return jwt.sign(payload, getEnv().JWT_SECRET, { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] });
 }
 
-function signTwoFactorToken(userId: string) {
+export function signTwoFactorToken(userId: string) {
   return jwt.sign({ userId, purpose: "twofactor" }, getEnv().JWT_SECRET, { expiresIn: "5m" });
+}
+
+/**
+ * A5 — completes a PRIMARY passkey login. A passkey proves possession of the
+ * device only, so if the account has TOTP enabled it must satisfy the SECOND
+ * factor as well; issuing a full session token here would silently bypass 2FA.
+ * When the account requires TOTP, `requiresTwoFactor: true` is returned with a
+ * `twoFactorToken` that the client must complete via /2fa/totp (or the
+ * passkey second-factor flow). Passkey-only accounts (no TOTP configured) are
+ * unaffected and go straight to `logged_in`.
+ */
+async function finishPasskeyLogin(
+  res: Response,
+  user: Parameters<typeof userPublic>[0] & { emailVerified: boolean }
+) {
+  // A3b — an unverified account cannot complete a primary login through any
+  // path (passkeys cannot be registered before the first verified sign-in, so
+  // this never triggers for real accounts; it closes the theoretical path).
+  if (user.email && !user.emailVerified) {
+    return res.status(403).json({
+      success: false,
+      error: "Please verify your email before signing in. Check your inbox for the verification link.",
+      verifyEmailRequired: true,
+    });
+  }
+  if (user.totpEnabled) {
+    const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
+    return res.json({
+      success: true,
+      data: {
+        requiresTwoFactor: true,
+        methods: { totp: true, passkey: passkeyCount > 0 },
+        twoFactorToken: signTwoFactorToken(user.id),
+      },
+    });
+  }
+  const token = await signToken(user.id, getEnv().JWT_EXPIRES_IN);
+  return res.json({
+    success: true,
+    data: { token, user: await userPublic(user) },
+  });
 }
 
 function verifyTwoFactorToken(token: string): string | null {
@@ -149,7 +236,7 @@ function verifyTwoFactorToken(token: string): string | null {
   }
 }
 
-async function userPublic(user: {
+export async function userPublic(user: {
   id: string;
   username: string;
   email: string;
@@ -160,6 +247,8 @@ async function userPublic(user: {
   aliasLimit: number | null;
   badges?: { id: string }[];
   totpEnabled: boolean;
+  newsletterSenderWhitelisted?: boolean;
+  newsletterOptIn?: boolean;
 }) {
   const role = await prisma.role.findUnique({
     where: { id: user.roleId },
@@ -180,6 +269,8 @@ async function userPublic(user: {
     aliasLimit: user.aliasLimit,
     badges: (user.badges ?? []).map((b) => b.id),
     totpEnabled: user.totpEnabled,
+    newsletterSenderWhitelisted: user.newsletterSenderWhitelisted ?? false,
+    newsletterOptIn: user.newsletterOptIn ?? false,
   };
 }
 
@@ -200,7 +291,9 @@ router.post("/register", async (req, res) => {
     });
   }
 
-  const { username, email, password, inviteCode } = parsed.data;
+  if (!(await enforceCaptcha(req, res, parsed.data.captchaToken))) return;
+
+  const { username, email, password, inviteCode, newsletterOptIn } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -226,18 +319,55 @@ router.post("/register", async (req, res) => {
       });
       if (existing) throw new InviteError("Username or email is already taken", 409);
 
+      // The slug lives in one flat namespace shared with profile aliases, so a
+      // username that collides with an existing alias must be rejected too.
+      const aliasClash = await tx.profileAlias.findUnique({ where: { slug: username }, select: { id: true } });
+      if (aliasClash) throw new InviteError("Username or email is already taken", 409);
+
+      const fingerprint = req.authFingerprint
+        ? { ip: req.authFingerprint.ip, cookie: req.authFingerprint.cookie, userAgent: req.authFingerprint.userAgent }
+        : null;
+
+      let abused: "referral" | "invite" | null = null;
+      let abuseAction: AbuseAction = "reject";
+      if (fingerprint) {
+        const abuse = await detectInviteAbuse(tx, fingerprint, code.createdById);
+        if (abuse) {
+          abused = abuse.reason;
+          abuseAction = abuse.action;
+          if (abuse.action === "reject") {
+            throw new InviteError("This invite has already been used from this device or network.", 409);
+          }
+        }
+      }
+
+      const fpHashes = fingerprint ? fingerprintHashes(fingerprint) : null;
+
       const u = await tx.user.create({
         data: {
           username,
           email: normalizedEmail,
           passwordHash,
           roleId: userRole.id,
-          registeredIp: req.authFingerprint?.ip ?? null,
+          registeredIp: fpHashes?.ip ?? null,
+          registeredFingerprint: fpHashes?.cookie ?? null,
+          registeredUserAgentHash: fpHashes?.userAgentHash ?? null,
+          acceptedTosVersion: POLICY_VERSIONS.tos,
+          acceptedPrivacyVersion: POLICY_VERSIONS.privacy,
+          acceptedPoliciesAt: new Date(),
+          newsletterOptIn: newsletterOptIn === true,
+          newsletterOptInAt: newsletterOptIn === true ? new Date() : null,
         },
       });
 
-      await tx.profile.create({
+      const primary = await tx.profile.create({
         data: { userId: u.id, slug: username, isPrimary: true },
+      });
+      // Reserve the slug in the shared namespace so it can never collide with a
+      // profile alias or another slug. Rolls back with the whole transaction on
+      // a unique-violation race.
+      await tx.slugNamespace.create({
+        data: { slug: username, kind: "profile", profileId: primary.id },
       });
 
       const consumed = await tx.inviteCode.updateMany({
@@ -248,22 +378,56 @@ router.post("/register", async (req, res) => {
         throw new InviteError("Invite code has already been used");
       }
 
-      return u;
+      if (code.createdById && !abused) {
+        await ensureReferralEdge(u.id, code.createdById, tx);
+        await applyInviteeDiscount(u.id, tx);
+      }
+
+      return { user: u, abused, abuseAction };
     });
 
     const env = getEnv();
-    const token = signToken(user.id, env.JWT_EXPIRES_IN);
+    // A3b — new local accounts start in the unverified state: the invite is
+    // consumed and the profile is created, but the account cannot sign in
+    // until the email is confirmed via a signed link. The email send is
+    // best-effort — if SMTP is off, the sender is re-requested later through
+    // /verify-email/send.
+    const verifyToken = jwt.sign(
+      { userId: user.user.id, email: user.user.email, purpose: "email_verify" },
+      env.JWT_SECRET,
+      { expiresIn: `${env.EMAIL_VERIFY_TOKEN_TTL_HOURS}h` as jwt.SignOptions["expiresIn"] }
+    );
+    const verifyUrl = `${env.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(verifyToken)}`;
 
-    dispatchWebhookEvent(user.id, "user.registered", {
-      userId: user.id,
-      username: user.username,
+    const emailResult = await sendEmail({
+      to: user.user.email,
+      subject: `Confirm your ${env.SMTP_FROM_NAME} account`,
+      html: buildVerifyEmail({
+        appName: env.SMTP_FROM_NAME,
+        username: user.user.username,
+        verifyUrl,
+      }),
+    });
+
+    dispatchWebhookEvent(user.user.id, "user.registered", {
+      userId: user.user.id,
+      username: user.user.username,
       registeredAt: new Date().toISOString(),
     });
 
-    res.status(201).json({
+    const response: {
+      success: true;
+      data: { status: "verification_required"; emailSent: boolean; warning?: string };
+    } = {
       success: true,
-      data: { token, user: await userPublic(user) },
-    });
+      data: { status: "verification_required", emailSent: emailResult.success },
+    };
+    if (user.abused && user.abuseAction === "warn") {
+      response.data.warning = user.abused === "referral"
+        ? "Referral skipped: this device/network has already used an invite from this creator."
+        : "Invite registered without referral: this device/network has already used an invite.";
+    }
+    res.status(201).json(response);
   } catch (err) {
     if (err instanceof InviteError) {
       if (err.status === 409) {
@@ -312,6 +476,8 @@ router.post("/login", async (req, res) => {
     });
   }
 
+  if (!(await enforceCaptcha(req, res, parsed.data.captchaToken))) return;
+
   const { identifier, password } = parsed.data;
 
   const user = await findUserByIdentifier(identifier);
@@ -322,6 +488,22 @@ router.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     return res.status(401).json({ success: false, error: "Invalid credentials" });
+  }
+
+  if (await isAccountSsoForced(user.id)) {
+    return res.status(403).json({ success: false, error: "This account requires sign-in via enterprise SSO" });
+  }
+
+  // A3b — a password is correct but the email was never confirmed; the account
+  // cannot sign in until the email is verified (a verified provider/SSO email
+  // also satisfies this via the OAuth/SSO exchange or the /verify-email link).
+  // Not counted as a failed login.
+  if (user.email && !user.emailVerified) {
+    return res.status(403).json({
+      success: false,
+      error: "Please verify your email before signing in. Check your inbox for the verification link.",
+      verifyEmailRequired: true,
+    });
   }
 
   const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
@@ -342,7 +524,7 @@ router.post("/login", async (req, res) => {
   }
 
   const env = getEnv();
-  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+  const token = await signToken(user.id, env.JWT_EXPIRES_IN);
 
   res.json({
     success: true,
@@ -405,13 +587,9 @@ router.post("/login/passkey/verify", async (req, res) => {
     return res.status(401).json({ success: false, error: "Passkey authentication failed" });
   }
 
-  const env = getEnv();
-  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+  if (!(await ssoForceBlocksLogin(res, user.id))) return;
 
-  res.json({
-    success: true,
-    data: { token, user: await userPublic(user) },
-  });
+  return finishPasskeyLogin(res, user);
 });
 
 router.post("/login/passkey/discoverable/options", async (_req, res) => {
@@ -447,9 +625,9 @@ router.post("/login/passkey/discoverable/verify", async (req, res) => {
     return res.status(401).json({ success: false, error: "Passkey authentication failed" });
   }
 
-  const env = getEnv();
-  const token = signToken(user.id, env.JWT_EXPIRES_IN);
-  res.json({ success: true, data: { token, user: await userPublic(user) } });
+  if (!(await ssoForceBlocksLogin(res, user.id))) return;
+
+  return finishPasskeyLogin(res, user);
 });
 
 router.post("/2fa/totp", async (req, res) => {
@@ -473,7 +651,7 @@ router.post("/2fa/totp", async (req, res) => {
   }
 
   const env = getEnv();
-  const token = signToken(user.id, env.JWT_EXPIRES_IN);
+  const token = await signToken(user.id, env.JWT_EXPIRES_IN);
 
   res.json({ success: true, data: { token, user: await userPublic(user) } });
 });
@@ -497,7 +675,7 @@ router.post("/2fa/passkey/options", async (req, res) => {
   const options = await generateLoginOptions({
     userId,
     allowCredentials: passkeys.map((p) => ({ id: p.credentialId, transports: p.transports })),
-    userVerification: "discouraged",
+    userVerification: "required",
     purpose: "twofactor",
     host: requestHost(req),
   });
@@ -532,7 +710,7 @@ router.post("/2fa/passkey/verify", async (req, res) => {
   }
 
   const env = getEnv();
-  const token = signToken(userId, env.JWT_EXPIRES_IN);
+  const token = await signToken(userId, env.JWT_EXPIRES_IN);
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
@@ -661,7 +839,7 @@ router.post("/totp/setup", requireAuth, requireNoUpdateLockdown, async (req, res
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { totpSecret: secret },
+    data: { totpSecret: sealTotpSecret(secret) },
   });
 
   res.json({ success: true, data: { secret, otpauthUrl } });
@@ -744,6 +922,8 @@ router.get("/me", requireAuth, async (req, res) => {
       aliasLimit: user.aliasLimit,
       badges: user.badges.map((b) => b.id),
       totpEnabled: user.totpEnabled,
+      newsletterSenderWhitelisted: user.newsletterSenderWhitelisted ?? false,
+      newsletterOptIn: user.newsletterOptIn ?? false,
     },
   });
 });
@@ -775,6 +955,9 @@ router.post("/change-password", requireAuth, requireNoUpdateLockdown, async (req
     where: { id: req.userId! },
     data: { passwordHash },
   });
+
+  // A4 — invalidate every previously issued session token for this user.
+  await bumpAuthVersion(req.userId!);
 
   dispatchWebhookEvent(req.userId!, "user.updated", {
     userId: req.userId!,
@@ -912,6 +1095,132 @@ router.post("/unlock/verify", async (req, res) => {
   res.json({ success: true });
 });
 
+const verifyEmailRequestSchema = z.object({
+  identifier: z.string().min(1).max(128),
+  captchaToken: z.string().optional(),
+});
+
+const verifyEmailSchema = z.object({
+  token: z.string().min(1),
+});
+
+// Rate limiting for verification-email (re)sends — IP window + per-account
+// cooldown, mirroring the unlock flow.
+const VERIFY_EMAIL_IP_LIMIT_MAX = 5;
+const VERIFY_EMAIL_IP_WINDOW_MS = 60 * 60 * 1000;
+const verifyEmailIpHits = new Map<string, number[]>();
+
+const VERIFY_EMAIL_COOLDOWN_MS = 2 * 60 * 1000;
+const lastVerifyEmailSentAt = new Map<string, number>();
+
+function verifyEmailIpRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const cutoff = now - VERIFY_EMAIL_IP_WINDOW_MS;
+  const hits = (verifyEmailIpHits.get(ip) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= VERIFY_EMAIL_IP_LIMIT_MAX) {
+    verifyEmailIpHits.set(ip, hits);
+    return true;
+  }
+  hits.push(now);
+  verifyEmailIpHits.set(ip, hits);
+  return false;
+}
+
+// A3b — confirms the account's email from the signed link, unlocking login.
+router.post("/verify-email", async (req, res) => {
+  const parsed = verifyEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  let payload: { userId: string; email?: string; purpose?: string } | null = null;
+  try {
+    payload = jwt.verify(parsed.data.token, getEnv().JWT_SECRET) as {
+      userId: string;
+      email?: string;
+      purpose?: string;
+    };
+  } catch {
+    return res.status(400).json({ success: false, error: "Invalid or expired verification link" });
+  }
+  if (payload.purpose !== "email_verify") {
+    return res.status(400).json({ success: false, error: "Invalid verification link" });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { id: true, emailVerified: true },
+  });
+  if (!user) {
+    return res.status(400).json({ success: false, error: "Invalid verification link" });
+  }
+  if (user.emailVerified) {
+    return res.json({ success: true, data: { status: "verified", alreadyVerified: true } });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailVerified: true, emailVerifiedAt: new Date() },
+  });
+
+  res.json({ success: true, data: { status: "verified" } });
+});
+
+// A3b — (re)sends the verification email to an unverified account. Returns the
+// same success shape for unknown/already-verified identifiers (anti-enumeration).
+router.post("/verify-email/send", async (req, res) => {
+  if (!isEmailEnabled()) {
+    return res.status(503).json({ success: false, error: "Email is not configured" });
+  }
+
+  const parsed = verifyEmailRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const ip = req.ip ?? "unknown";
+  if (verifyEmailIpRateLimited(ip)) {
+    return res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
+  }
+
+  const user = await findUserByIdentifier(parsed.data.identifier);
+  if (!user || !user.email || user.emailVerified) {
+    return res.json({ success: true, data: { sent: true } });
+  }
+
+  const now = Date.now();
+  const lastSent = lastVerifyEmailSentAt.get(user.id) ?? 0;
+  if (now - lastSent < VERIFY_EMAIL_COOLDOWN_MS) {
+    return res.json({ success: true, data: { sent: true } });
+  }
+
+  const env = getEnv();
+  const token = jwt.sign(
+    { userId: user.id, email: user.email, purpose: "email_verify" },
+    env.JWT_SECRET,
+    { expiresIn: `${env.EMAIL_VERIFY_TOKEN_TTL_HOURS}h` as jwt.SignOptions["expiresIn"] }
+  );
+  const verifyUrl = `${env.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(token)}`;
+
+  const result = await sendEmail({
+    to: user.email,
+    subject: `Confirm your ${env.SMTP_FROM_NAME} account`,
+    html: buildVerifyEmail({
+      appName: env.SMTP_FROM_NAME,
+      username: user.username,
+      verifyUrl,
+    }),
+  });
+
+  if (!result.success) {
+    return res.status(500).json({ success: false, error: "Failed to send verification email" });
+  }
+
+  lastVerifyEmailSentAt.set(user.id, now);
+
+  res.json({ success: true, data: { sent: true } });
+});
+
 setInterval(() => {
   void cleanupExpiredChallenges();
 
@@ -929,6 +1238,23 @@ setInterval(() => {
   for (const [accountId, at] of lastUnlockSentAt) {
     if (at < sentCutoff) {
       lastUnlockSentAt.delete(accountId);
+    }
+  }
+
+  const verifyIpCutoff = Date.now() - VERIFY_EMAIL_IP_WINDOW_MS;
+  for (const [ip, hits] of verifyEmailIpHits) {
+    const remaining = hits.filter((t) => t > verifyIpCutoff);
+    if (remaining.length === 0) {
+      verifyEmailIpHits.delete(ip);
+    } else {
+      verifyEmailIpHits.set(ip, remaining);
+    }
+  }
+
+  const verifySentCutoff = Date.now() - VERIFY_EMAIL_COOLDOWN_MS;
+  for (const [accountId, at] of lastVerifyEmailSentAt) {
+    if (at < verifySentCutoff) {
+      lastVerifyEmailSentAt.delete(accountId);
     }
   }
 }, 30 * 60 * 1000);

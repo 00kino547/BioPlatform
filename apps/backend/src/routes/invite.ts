@@ -1,12 +1,15 @@
-import { Router, type Request } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
+import { getEnv } from "../config/env.js";
 import { hasPermission, PERMISSIONS } from "../lib/permissions.js";
+import { stripHtml } from "../lib/validation.js";
 import {
   DAY_MS,
   computeInviteAllowance,
+  computeSeatInfo,
   countOutstandingInvites,
   getInviteGenerationEnabled,
   roleInviteConfig,
@@ -14,6 +17,36 @@ import {
 } from "../lib/inviteService.js";
 
 const router = Router();
+
+const PUBLIC_LIMIT_WINDOW_MS = 60_000;
+const PUBLIC_LIMIT_MAX = 60;
+const publicHits = new Map<string, number[]>();
+
+function publicRateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip ?? "unknown";
+  const now = Date.now();
+  const cutoff = now - PUBLIC_LIMIT_WINDOW_MS;
+  const hits = (publicHits.get(ip) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= PUBLIC_LIMIT_MAX) {
+    publicHits.set(ip, hits);
+    return res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
+  }
+  hits.push(now);
+  publicHits.set(ip, hits);
+  next();
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - PUBLIC_LIMIT_WINDOW_MS;
+  for (const [ip, hits] of publicHits) {
+    const remaining = hits.filter((t) => t > cutoff);
+    if (remaining.length === 0) {
+      publicHits.delete(ip);
+    } else {
+      publicHits.set(ip, remaining);
+    }
+  }
+}, PUBLIC_LIMIT_WINDOW_MS);
 
 const createSchema = z.object({
   count: z.number().int().min(1).max(50).default(1),
@@ -39,6 +72,7 @@ function serializeCode(c: {
   revokedAt: Date | null;
   createdAt: Date;
   fromAllowance: boolean;
+  note: string | null;
 }) {
   return {
     id: c.id,
@@ -49,6 +83,7 @@ function serializeCode(c: {
     revokedAt: c.revokedAt,
     createdAt: c.createdAt,
     fromAllowance: c.fromAllowance,
+    note: c.note,
   };
 }
 
@@ -79,6 +114,7 @@ async function buildInviteMeta(userId: string) {
   }
 
   const enabled = await getInviteGenerationEnabled();
+  const seat = await computeSeatInfo(user.id, user);
 
   return {
     banned: user.inviteBanned,
@@ -93,6 +129,9 @@ async function buildInviteMeta(userId: string) {
     allowanceActive: allowanceInfo.active,
     outstanding: totalOutstanding,
     cooldownRemainingSeconds,
+    seat: seat.limited
+      ? { limited: true, limit: seat.limit, used: seat.used, remaining: seat.remaining }
+      : null,
     role: {
       slug: user.role.slug,
       canGenerate: roleGen,
@@ -125,33 +164,10 @@ router.post("/", requireAuth, async (req, res) => {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
 
-  // Admin path: unconstrained generation, unchanged behavior.
-  if (hasPermission(me.role, PERMISSIONS.INVITES_MANAGE)) {
-    await prisma.inviteCode.createMany({
-      data: Array.from({ length: count }, () => ({
-        code: crypto.randomBytes(8).toString("hex"),
-        createdById: req.userId!,
-        expiresAt: expiresInDays
-          ? new Date(Date.now() + expiresInDays * DAY_MS)
-          : null,
-      })),
-    });
-
-    const created = await prisma.inviteCode.findMany({
-      where: { createdById: req.userId! },
-      orderBy: { createdAt: "desc" },
-      take: count,
-    });
-
-    return res.status(201).json({
-      success: true,
-      data: created.map(serializeCode),
-      meta: await buildInviteMeta(req.userId!),
-    });
-  }
-
   // ------------------------------------------------------------------
-  // User self-service generation (role quota + event allowance)
+  // Self-service generation (role quota + event allowance).
+  // Admins are held to the same allowance/quota here; the unconstrained
+  // operator generator lives at POST /api/admin/invites.
   // ------------------------------------------------------------------
 
   if (me.inviteBanned) {
@@ -198,7 +214,18 @@ router.post("/", requireAuth, async (req, res) => {
         : Number.MAX_SAFE_INTEGER
       : 0;
 
-    const available = allowanceInfo.allowance + roleHeadroom;
+    const seat = await computeSeatInfo(fresh.id, fresh, tx);
+    if (seat.limited && seat.remaining <= 0) {
+      throw new InviteHttpError(
+        403,
+        `You've reached your team seat limit of ${seat.limit} member(s). Please contact an administrator to raise it.`
+      );
+    }
+
+    let available = allowanceInfo.allowance + roleHeadroom;
+    if (seat.limited) {
+      available = Math.min(available, seat.remaining);
+    }
     if (available <= 0) {
       throw new InviteHttpError(403, "You have no invite credits available.");
     }
@@ -316,6 +343,7 @@ router.get("/", requireAuth, async (req, res) => {
       revokedAt: true,
       createdAt: true,
       fromAllowance: true,
+      note: true,
     },
   });
 
@@ -323,6 +351,58 @@ router.get("/", requireAuth, async (req, res) => {
     success: true,
     data: codes,
     meta: await buildInviteMeta(req.userId!),
+  });
+});
+
+router.get("/:code", publicRateLimit, async (req: Request<{ code: string }>, res) => {
+  const invite = await prisma.inviteCode.findUnique({
+    where: { code: req.params.code },
+    include: { createdBy: { select: { id: true, username: true } } },
+  });
+
+  const notFound = () => res.status(404).json({ success: false, error: "Invite code not found" });
+
+  if (!invite || invite.revokedAt) {
+    return notFound();
+  }
+  if (invite.expiresAt && invite.expiresAt < new Date()) {
+    return notFound();
+  }
+  if (invite.usedById) {
+    return notFound();
+  }
+
+  const env = getEnv();
+  const inviteeDiscountPercent = env.AFFILIATE_INVITEE_DISCOUNT_PERCENT;
+
+  let referrer: {
+    username: string;
+    slug: string;
+    avatar: string | null;
+    displayName: string | null;
+  } | null = null;
+  if (invite.createdById) {
+    const profile = await prisma.profile.findFirst({
+      where: { userId: invite.createdById, isPrimary: true, isPublic: true },
+      select: { slug: true, avatar: true, displayName: true },
+    });
+    referrer = {
+      username: invite.createdBy.username,
+      slug: profile?.slug ?? invite.createdBy.username,
+      avatar: profile?.avatar ?? null,
+      displayName: profile?.displayName ?? null,
+    };
+  }
+
+  res.json({
+    success: true,
+    data: {
+      code: invite.code,
+      status: "valid",
+      inviteeDiscountPercent,
+      discountDurationDays: env.AFFILIATE_DISCOUNT_DURATION_DAYS,
+      referrer,
+    },
   });
 });
 
@@ -358,6 +438,49 @@ router.delete("/:id", requireAuth, async (req: Request<{ id: string }>, res) => 
   });
 
   res.json({ success: true, message: "Invite code revoked" });
+});
+
+router.patch("/:id/note", requireAuth, async (req: Request<{ id: string }>, res) => {
+  const parsed = z
+    .object({
+      note: z.string().max(500).nullable(),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: parsed.error.issues[0].message,
+    });
+  }
+
+  const code = await prisma.inviteCode.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!code) {
+    return res.status(404).json({ success: false, error: "Invite code not found" });
+  }
+
+  const requester = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    include: { role: true },
+  });
+  if (!requester) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+  const canManageInvites = hasPermission(requester.role, PERMISSIONS.INVITES_MANAGE);
+  if (code.createdById !== req.userId! && !canManageInvites) {
+    return res.status(403).json({ success: false, error: "Not your invite code" });
+  }
+
+  const raw = parsed.data.note;
+  const note = raw === null ? null : stripHtml(raw).trim() || null;
+
+  const updated = await prisma.inviteCode.update({
+    where: { id: req.params.id },
+    data: { note },
+  });
+
+  res.json({ success: true, data: serializeCode(updated) });
 });
 
 export default router;

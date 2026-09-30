@@ -13,6 +13,7 @@ import {
   pickWorstPenalty,
   type AuthAccount,
 } from "../lib/authGuard.js";
+import { isIpAbuseWhitelisted } from "../lib/antiAbuseWhitelist.js";
 
 const PROTECTED_PATHS = new Set([
   "/login",
@@ -50,12 +51,16 @@ function checkRegProbe(ip: string): boolean {
   return true;
 }
 
-function recordRegProbe(ip: string): void {
+export function recordRegProbe(ip: string): void {
   const now = Date.now();
   const timestamps = regProbes.get(ip) ?? [];
   const recent = timestamps.filter((t) => now - t < REG_PROBE_WINDOW_MS);
   recent.push(now);
   regProbes.set(ip, recent);
+}
+
+export function isRegistrationProbeAllowed(ip: string): boolean {
+  return checkRegProbe(ip);
 }
 
 function sendBlock(res: Response, block: { permanent: boolean; retryAfterSeconds: number | null }) {
@@ -87,24 +92,41 @@ async function recordOutcome(req: Request, res: Response, status: number, body: 
   const fingerprint = req.authFingerprint;
   if (!fingerprint) return;
 
-  const data = body?.data as { token?: string; requiresTwoFactor?: boolean } | undefined;
-  const success = Boolean(data?.token) || data?.requiresTwoFactor === true;
-  const account = res.locals.authAccount as AuthAccount | null | undefined;
+  // A3b: the verify-email gate fires only when the password was CORRECT but the
+  // account is not verified yet — it is not an authentication failure. Penalizing
+  // it would let anyone farm permanent fingerprint/account bans by typing
+  // passwords at unverified accounts, and would punish legitimate users who
+  // simply verify their inbox later.
+  const gateBody = body as { verifyEmailRequired?: boolean } | null | undefined;
+  if (gateBody?.verifyEmailRequired === true) return;
+
+  const success = isFullyAuthenticated(body);
 
   if (success) {
-    await recordSuccess(fingerprint, account?.id ?? null);
+    await recordSuccess(fingerprint, res.locals.authAccount?.id ?? null);
   } else if (status >= 400 && status < 500 && (req.path !== "/register" || res.locals.countAuthFailure === true)) {
-    const penalties = await recordFailure(fingerprint, account ?? null);
+    const penalties = await recordFailure(fingerprint, res.locals.authAccount ?? null);
     await logAuthFailure({
       fingerprint,
-      username: account?.username ?? null,
-      accountId: account?.id ?? null,
+      username: res.locals.authAccount?.username ?? null,
+      accountId: res.locals.authAccount?.id ?? null,
       reason: reasonFor(req.path, status, res.locals.authFailureReason),
       penalty: pickWorstPenalty(penalties),
     });
   } else if (status === 409 && req.path === "/register" && fingerprint) {
     recordRegProbe(fingerprint.ip);
   }
+}
+
+// A2: only a response carrying the FINAL auth token counts as a successful
+// login. `requiresTwoFactor: true` means the password was correct but the
+// session is NOT established yet — it must never clear accumulated lockouts,
+// otherwise a permanent ban is trivially wiped by re-typing the password and
+// 2FA brute-forcing becomes an infinite loop (fail → correct password →
+// bans cleared → fail again).
+export function isFullyAuthenticated(body: { data?: unknown } | null | undefined): boolean {
+  const data = body?.data as { token?: string } | undefined;
+  return typeof data?.token === "string" && data.token.length > 0;
 }
 
 async function logBlocked(
@@ -131,7 +153,10 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
       req.authFingerprint = fingerprintFromRequest(req, res);
 
       if (req.method === "POST" && req.path === "/register" && req.authFingerprint) {
-        if (!checkRegProbe(req.authFingerprint.ip)) {
+        const allowlisted = req.authFingerprint.ip
+          ? await isIpAbuseWhitelisted(req.authFingerprint.ip)
+          : false;
+        if (!allowlisted && !checkRegProbe(req.authFingerprint.ip)) {
           res.status(429).json({ success: false, error: "Too many registration attempts. Please try again later." });
           return;
         }
@@ -165,8 +190,19 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
 
         const originalJson = res.json.bind(res);
         res.json = (body) => {
-          void recordOutcome(req, res, res.statusCode, body as { data?: unknown }).catch(() => {});
-          return originalJson(body);
+          // Await the failure/success bookkeeping BEFORE the response is sent.
+          // recordOutcome persists bans (recordFailure/recordSuccess); returning
+          // the response early meant a client could race the issued-ban DB write
+          // and slip a follow-up attempt past the freshly-created lockout. This
+          // ordering guarantees the accumulated ban is durable before the next
+          // request (2FA brute-force escalation test relies on it) and removes a
+          // theoretical TOCTOU in production.
+          void Promise.resolve(
+            recordOutcome(req, res, res.statusCode, body as { data?: unknown } | null | undefined)
+          )
+            .catch(() => {})
+            .then(() => originalJson(body));
+          return res;
         };
       }
 
