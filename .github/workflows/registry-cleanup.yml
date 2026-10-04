@@ -75,6 +75,10 @@ jobs:
           # Getting this wrong yields 401 on every request, so the exchange and
           # a read-only probe are done up front and a failure aborts before any
           # destructive call is attempted.
+          # Holds the curl arguments for whichever auth strategy preflight
+          # found to work; empty until then, and every call site is downstream
+          # of a successful preflight.
+          AUTH_ARGS=()
           hub_jwt=""
           exchange_jwt() {
             local repo="$1" body
@@ -88,34 +92,69 @@ jobs:
             # $1 = repo, $2 = path. Prints the HTTP status; body goes to stdout
             # separately via the global $BODY.
             local repo="$1" path="$2"
-            BODY="$(curl -sS --max-time 45 -H "Authorization: Bearer ${hub_jwt}" \
+            BODY="$(curl -sS --max-time 45 "${AUTH_ARGS[@]}" \
               "https://hub.docker.com/v2/repositories/dracoservices/${repo}${path}")" || true
           }
 
           preflight() {
             local repo="$1" code
+
+            # Docker Hub's v2 management API is inconsistent about how it wants
+            # to be authenticated, and a correctly-scoped token can still be
+            # rejected depending on which endpoint minted it. Rather than
+            # hard-coding one guess, probe the known strategies read-only and
+            # keep the first that actually authenticates. The probes hit a
+            # read-only endpoint, so trying them is free and safe.
+            local -a labels=()
+            local -a headers=()
+            local probe
+
+            # 1. The PAT used directly as a bearer token.
+            headers+=("-H" "Authorization: Bearer ${DOCKERHUB_TOKEN}")
+            labels+=("pat-as-bearer")
+
+            # 2. HTTP Basic with the PAT.
+            headers+=("--user" "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}")
+            labels+=("basic")
+
+            # 3. A Hub-minted JWT from the v2 login endpoint.
+            local hub_login_token
+            hub_login_token="$(curl -sS --max-time 30 \
+              --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
+              "https://hub.docker.com/v2/users/login/" \
+              | jq -r '.token // empty' 2>/dev/null || true)"
+            if [ -n "$hub_login_token" ]; then
+              headers+=("-H" "Authorization: Bearer ${hub_login_token}")
+              labels+=("hub-login-jwt")
+            fi
+
+            # 4. A registry JWT minted by auth.docker.io for this repository.
             hub_jwt="$(exchange_jwt "$repo")"
-            if [ -z "$hub_jwt" ]; then
-              echo "    preflight: token exchange returned no JWT."
-              hub_jwt=""
+            if [ -n "$hub_jwt" ]; then
+              headers+=("-H" "Authorization: Bearer ${hub_jwt}")
+              labels+=("auth-io-jwt")
+            fi
+
+            AUTH_ARGS=()
+            local winner=""
+            for i in "${!labels[@]}"; do
+              # Each strategy is exactly two arguments, so slice them out.
+              local pair=("${headers[@]:$((i * 2)):2}")
+              code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 45 \
+                "${pair[@]}" \
+                "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags?page_size=1")" || code="000"
+              echo "    preflight: ${labels[$i]} -> HTTP ${code}"
+              if [ "$code" = "200" ] && [ -z "$winner" ]; then
+                AUTH_ARGS=("${pair[@]}")
+                winner="${labels[$i]}"
+              fi
+            done
+
+            if [ "${#AUTH_ARGS[@]}" -eq 0 ]; then
+              echo "    preflight: no strategy authenticated."
               return 1
             fi
-            # Print what the token actually is, without printing the token.
-            # A JWT is base64url segments; the middle one is the claim set and
-            # is what tells us which audience/service the Hub API will accept.
-            local claims
-            claims="$(printf '%s' "$hub_jwt" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null || true)"
-            echo "    preflight: JWT claims -> ${claims:-<undecodable>}"
-
-            local body_file
-            body_file="$(mktemp)"
-            code="$(curl -sS -o "$body_file" -w '%{http_code}' --max-time 45 \
-              -H "Authorization: Bearer ${hub_jwt}" \
-              "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags?page_size=1")" || code="000"
-            echo "    preflight: authenticated read -> HTTP ${code}"
-            echo "    preflight: response body -> $(head -c 400 "$body_file" | tr -d '\n')"
-            rm -f "$body_file"
-            [ "$code" = "200" ] || return 1
+            echo "    preflight: using strategy '${winner}'."
             return 0
           }
 
@@ -172,7 +211,7 @@ jobs:
 
             for tag in "${victims[@]}"; do
               code="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
-                -H "Authorization: Bearer ${hub_jwt}" \
+                "${AUTH_ARGS[@]}" \
                 "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags/${tag}/")" || code="000"
               if [ "$code" = "204" ] || [ "$code" = "200" ] || [ "$code" = "202" ]; then
                 printf '    deleted %s -> HTTP %s\n' "$tag" "$code"
