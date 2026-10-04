@@ -13,7 +13,11 @@ name: Tests & Quality Gates
 # the tests run against.
 on:
   push:
-    branches: [main]
+    # public-canary / public-alpha / dev-* are the moving channels: docker-publish.yml
+    # publishes their `:canary` / `:alpha` / `:dev` tags from a workflow_run of THIS
+    # workflow, gated on `conclusion == success`. So every image tag in the registry
+    # that is not a numbered release has, by construction, passed this gate first.
+    branches: [main, public-canary, public-alpha, "dev-*"]
   pull_request:
 
 # Deny every scope by default, then grant the minimum per job below.

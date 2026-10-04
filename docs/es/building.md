@@ -11,7 +11,20 @@ Las imágenes se publican automáticamente en cada release:
 | **Docker Hub** | `dracoservices/bioplatform-backend` | `dracoservices/bioplatform-frontend` |
 | **GHCR** | `ghcr.io/00kino547/bioplatform-backend` | `ghcr.io/00kino547/bioplatform-frontend` |
 
-Tags: `latest`, semver (`1.3.0`), minor (`1.3`), SHA.
+Tags: `latest` (solo estables), menor (`1.3`), semver (`1.3.0`), prerelease (`1.3.0-rc.1`).
+
+Canales móviles — una etiqueta rodante cada una, publicada **solo** después de que
+`Tests & Quality Gates` pase:
+
+| Rama | Etiqueta | Desplegar con |
+|---|---|---|
+| `public-canary` | `canary` | `BACKEND_IMAGE=dracoservices/bioplatform-backend:canary` |
+| `public-alpha` | `alpha` | `BACKEND_IMAGE=dracoservices/bioplatform-backend:alpha` |
+| `dev-*` | `dev` | `BACKEND_IMAGE=dracoservices/bioplatform-backend:dev` |
+
+No hay deliberadamente ninguna etiqueta SHA por commit: cada canal sobrescribe una sola etiqueta
+en lugar de acumular una por commit, así las etiquetas nunca se acumulan. El commit exacto queda
+registrado en la etiqueta `org.opencontainers.image.revision` de la imagen.
 
 ### Usar imágenes precompiladas
 
