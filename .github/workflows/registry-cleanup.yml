@@ -64,30 +64,74 @@ jobs:
             exit 1
           fi
 
-          # Credentials go over the wire in an HTTP Basic header, never in argv.
-          hub_curl() {
-            curl -sS --max-time 45 \
+          dry="${DRY_RUN:-true}"
+          deleted=0
+          failed=0
+
+          # Docker Hub's v2 management API does not accept HTTP Basic directly.
+          # Basic is only used to exchange the account token at auth.docker.io
+          # for a short-lived Bearer JWT scoped to the repositories we intend to
+          # mutate; every subsequent call carries `Authorization: Bearer $JWT`.
+          # Getting this wrong yields 401 on every request, so the exchange and
+          # a read-only probe are done up front and a failure aborts before any
+          # destructive call is attempted.
+          hub_jwt=""
+          exchange_jwt() {
+            local repo="$1" body
+            body="$(curl -sS --max-time 30 \
               --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
-              "$@"
+              "https://auth.docker.io/token?service=hub.docker.com&scope=repository:dracoservices/${repo}:pull,push,delete")" || true
+            printf '%s' "$body" | jq -r '.token // empty' 2>/dev/null || true
           }
 
-          dry="${DRY_RUN:-true}"
-          total_deleted=0
+          hub_get() {
+            # $1 = repo, $2 = path. Prints the HTTP status; body goes to stdout
+            # separately via the global $BODY.
+            local repo="$1" path="$2"
+            BODY="$(curl -sS --max-time 45 -H "Authorization: Bearer ${hub_jwt}" \
+              "https://hub.docker.com/v2/repositories/dracoservices/${repo}${path}")" || true
+          }
+
+          preflight() {
+            local repo="$1" code
+            hub_jwt="$(exchange_jwt "$repo")"
+            if [ -z "$hub_jwt" ]; then
+              echo "    preflight: token exchange returned no JWT."
+              hub_jwt=""
+              return 1
+            fi
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 45 \
+              -H "Authorization: Bearer ${hub_jwt}" \
+              "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags?page_size=1")" || code="000"
+            echo "    preflight: authenticated read -> HTTP ${code}"
+            [ "$code" = "200" ] || return 1
+            return 0
+          }
+
+          # hub_get's caller inspects $BODY; declared here for clarity.
+          BODY=""
 
           for repo in ${REPOS//,/ }; do
             [ -n "$repo" ] || continue
             echo "=== dracoservices/$repo ==="
 
+            # Authenticate before anything else. A credential problem must stop
+            # the run here, not surface as 39 silent "successes" further down.
+            if ! preflight "$repo"; then
+              echo "::error::preflight failed for ${repo}; refusing to delete."
+              exit 1
+            fi
+
             # Collect every tag name, following Docker Hub's pagination.
             listing="$(mktemp)"
             page=1
             while :; do
-              body="$(hub_curl "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags?page_size=100&page=${page}")"
-              count="$(printf '%s' "$body" | jq -r '(.results // []) | length')"
+              hub_get "$repo" "/tags?page_size=100&page=${page}"
+              count="$(printf '%s' "$BODY" | jq -r '(.results // []) | length')"
               if [ "$count" -eq 0 ]; then
                 break
               fi
-              printf '%s' "$body" | jq -r '.results[].name' >> "$listing"
+              printf '%s' "$BODY" | jq -r '.results[].name' >> "$listing"
               page=$((page + 1))
             done
 
@@ -117,13 +161,30 @@ jobs:
 
             for tag in "${victims[@]}"; do
               code="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
-                --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
-                "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags/${tag}/")"
-              echo "    deleted ${tag} -> HTTP ${code}"
-              total_deleted=$((total_deleted + 1))
+                -H "Authorization: Bearer ${hub_jwt}" \
+                "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags/${tag}/")" || code="000"
+              if [ "$code" = "204" ] || [ "$code" = "200" ] || [ "$code" = "202" ]; then
+                printf '    deleted %s -> HTTP %s\n' "$tag" "$code"
+                deleted=$((deleted + 1))
+              else
+                # Anything else is a real failure. Report it and keep counting it
+                # separately rather than folding it into the success total.
+                printf '    FAILED   %s -> HTTP %s\n' "$tag" "$code"
+                failed=$((failed + 1))
+              fi
               # Docker Hub rate-limits tag mutations; stay well clear of it.
               sleep 1
             done
+
+            # Re-read the tag list so the outcome is verified against the
+            # registry instead of trusted from the DELETE status codes alone.
+            hub_get "$repo" "/tags?page_size=100"
+            remaining="$(printf '%s' "$BODY" | jq -r '[.results[].name] | map(select(. == "latest" or test("^1\\.3(\\.|$)"))) | length')"
+            echo "    remaining keep-list tags present: ${remaining}"
           done
 
-          echo "=== done: ${total_deleted} tag(s) deleted (dry_run=${dry}) ==="
+          echo "=== done: ${deleted} deleted, ${failed} failed (dry_run=${dry}) ==="
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::${failed} deletion(s) failed. The registry is NOT in the requested state."
+            exit 1
+          fi
