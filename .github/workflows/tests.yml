@@ -1,0 +1,95 @@
+name: Tests & Quality Gates
+
+# CI gate: prove the backend test suite, TypeScript typechecks and linting
+# genuinely run on every push/PR — and fail loudly with real exit codes when
+# they do not. Without this the only workflow builds and publishes Docker
+# images, so broken tests are never caught until a human runs
+# `pnpm --filter @bioplatform/backend test` locally.
+#
+# Note on the backend job: the test bootstrap (apps/backend/tests/setup-env.ts)
+# tolerates a missing repo `.env` (it falls back to process env plus
+# deterministic defaults, including a pinned test-only JWT_SECRET) and connects
+# to the Postgres service on 127.0.0.1:5432. `prisma db push` creates the schema
+# the tests run against.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Deny every scope by default, then grant the minimum per job below.
+#
+# Without an explicit `permissions:` block a workflow inherits whatever the
+# repository default is, which for many repositories is read/write on ALL scopes:
+# a compromised or malicious build script (a poisoned dependency is enough) would
+# then be able to push branches, write releases and read every secret. This job
+# only ever needs to read the code it checks out, so it says exactly that.
+permissions: {}
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-and-quality:
+    name: Backend tests + typecheck + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # `contents: read` is the only scope this job needs: it checks the code out
+    # and runs tests. It publishes nothing and writes nothing back.
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bioplatform_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bioplatform_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/bioplatform_test?schema=public
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # This job never pushes with git, so the job token is not persisted
+          # into .git/config where a build script could read and reuse it.
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm 11
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @bioplatform/backend db:generate
+
+      - name: Push schema to the test database
+        run: pnpm --filter @bioplatform/backend db:push
+
+      - name: Run backend test suite
+        run: pnpm --filter @bioplatform/backend test
+
+      - name: Typecheck all workspaces
+        run: pnpm typecheck
+
+      - name: Lint all workspaces
+        run: pnpm lint
