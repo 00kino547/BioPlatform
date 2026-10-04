@@ -5,6 +5,12 @@ name: Registry Cleanup
 # WHY THIS IS A WORKFLOW AND NOT A LOCAL SCRIPT: the Docker Hub token only
 # exists as a repository secret, so the deletion has to happen here.
 #
+# WHY IT USES THE REGISTRY API AND NOT hub.docker.com/v2: Hub's v2 management
+# API rejects tag deletion (it answers 401 even with a correctly-scoped
+# token), so deletion has to go through the OCI distribution API instead. That
+# means deleting by DIGEST, not by name — which is a sharp edge, and the
+# reason for the keep-digest guard below.
+#
 # SAFETY MODEL — deleting a tag from a public registry is effectively
 # irreversible. The manifest stops being referenced and is eventually garbage
 # collected, so "re-push it later" is a rebuild, not an undo:
@@ -15,6 +21,10 @@ name: Registry Cleanup
 #     matches ^1\.3(\.|$). Everything else is only a candidate. Note the
 #     direction of that risk — an unrecognised NEW tag (say `beta`) is treated
 #     as a candidate, so always read the dry-run listing before confirming.
+#   * Deleting by digest removes EVERY tag that points at that digest. Before
+#     deleting, the digest is compared against the digests of all tags being
+#     kept; a candidate sharing a digest with a kept tag is SKIPPED, because
+#     honouring the request would destroy a tag the user asked to preserve.
 #   * Nothing here runs on push or on a schedule. Manual dispatch only.
 on:
   workflow_dispatch:
@@ -47,7 +57,7 @@ jobs:
   cleanup:
     name: Delete stale Docker Hub tags
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Delete stale tags
         env:
@@ -64,143 +74,114 @@ jobs:
             exit 1
           fi
 
-          dry="${DRY_RUN:-true}"
+          NS="dracoservices"
+          REGISTRY="registry-1.docker.io"
           deleted=0
           failed=0
+          skipped=0
 
-          # Docker Hub's v2 management API does not accept HTTP Basic directly.
-          # Basic is only used to exchange the account token at auth.docker.io
-          # for a short-lived Bearer JWT scoped to the repositories we intend to
-          # mutate; every subsequent call carries `Authorization: Bearer $JWT`.
-          # Getting this wrong yields 401 on every request, so the exchange and
-          # a read-only probe are done up front and a failure aborts before any
-          # destructive call is attempted.
-          # Holds the curl arguments for whichever auth strategy preflight
-          # found to work; empty until then, and every call site is downstream
-          # of a successful preflight.
-          AUTH_ARGS=()
-          hub_jwt=""
-          exchange_jwt() {
-            local repo="$1" body
-            body="$(curl -sS --max-time 30 \
-              --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
-              "https://auth.docker.io/token?service=hub.docker.com&scope=repository:dracoservices/${repo}:pull,push,delete")" || true
-            printf '%s' "$body" | jq -r '.token // empty' 2>/dev/null || true
+          # A tag survives if it is `latest` or in the 1.3.x line.
+          keep_tag() {
+            [ "$1" = "latest" ] && return 0
+            printf '%s' "$1" | grep -qE '^1\.3(\.|$)'
           }
 
-          hub_get() {
-            # $1 = repo, $2 = path. Prints the HTTP status; body goes to stdout
-            # separately via the global $BODY.
-            local repo="$1" path="$2"
-            BODY="$(curl -sS --max-time 45 "${AUTH_ARGS[@]}" \
-              "https://hub.docker.com/v2/repositories/dracoservices/${repo}${path}")" || true
-          }
-
-          preflight() {
-            local repo="$1" code
-
-            # Docker Hub's v2 management API is inconsistent about how it wants
-            # to be authenticated, and a correctly-scoped token can still be
-            # rejected depending on which endpoint minted it. Rather than
-            # hard-coding one guess, probe the known strategies read-only and
-            # keep the first that actually authenticates. The probes hit a
-            # read-only endpoint, so trying them is free and safe.
-            local -a labels=()
-            local -a headers=()
-            local probe
-
-            # 1. The PAT used directly as a bearer token.
-            headers+=("-H" "Authorization: Bearer ${DOCKERHUB_TOKEN}")
-            labels+=("pat-as-bearer")
-
-            # 2. HTTP Basic with the PAT.
-            headers+=("--user" "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}")
-            labels+=("basic")
-
-            # 3. A Hub-minted JWT from the v2 login endpoint.
-            local hub_login_token
-            hub_login_token="$(curl -sS --max-time 30 \
-              --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
-              "https://hub.docker.com/v2/users/login/" \
-              | jq -r '.token // empty' 2>/dev/null || true)"
-            if [ -n "$hub_login_token" ]; then
-              headers+=("-H" "Authorization: Bearer ${hub_login_token}")
-              labels+=("hub-login-jwt")
-            fi
-
-            # 4. A registry JWT minted by auth.docker.io for this repository.
-            hub_jwt="$(exchange_jwt "$repo")"
-            if [ -n "$hub_jwt" ]; then
-              headers+=("-H" "Authorization: Bearer ${hub_jwt}")
-              labels+=("auth-io-jwt")
-            fi
-
-            AUTH_ARGS=()
-            local winner=""
-            for i in "${!labels[@]}"; do
-              # Each strategy is exactly two arguments, so slice them out.
-              local pair=("${headers[@]:$((i * 2)):2}")
-              code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 45 \
-                "${pair[@]}" \
-                "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags?page_size=1")" || code="000"
-              echo "    preflight: ${labels[$i]} -> HTTP ${code}"
-              if [ "$code" = "200" ] && [ -z "$winner" ]; then
-                AUTH_ARGS=("${pair[@]}")
-                winner="${labels[$i]}"
-              fi
+          # ------------------------------------------------------------------
+          # Step 1: read every tag and its digest from the Hub API.
+          #
+          # Hub's v2 read endpoints accept HTTP Basic with the PAT directly;
+          # only its DELETE endpoint is broken. Verified by probing.
+          # ------------------------------------------------------------------
+          read_tags() {
+            local repo="$1" out="$2" body page count
+            : > "$out"
+            page=1
+            while :; do
+              body="$(curl -sS --max-time 60 \
+                --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
+                "https://hub.docker.com/v2/repositories/${NS}/${repo}/tags?page_size=100&page=${page}")" || true
+              count="$(printf '%s' "$body" | jq -r '(.results // []) | length')"
+              [ "$count" -gt 0 ] || break
+              # Emit "name<TAB>digest" per tag. A tag can carry several
+              # platform-specific digests; they are all recorded so the
+              # keep-digest guard cannot be fooled by a multi-arch image.
+              printf '%s' "$body" | jq -r '
+                .results[] | .name as $n | (.digest // ( .images[0].digest // "" )) as $d
+                | "\($n)\t\($d)"' >> "$out"
+              page=$((page + 1))
             done
-
-            if [ "${#AUTH_ARGS[@]}" -eq 0 ]; then
-              echo "    preflight: no strategy authenticated."
-              return 1
-            fi
-            echo "    preflight: using strategy '${winner}'."
-            return 0
           }
 
-          # hub_get's caller inspects $BODY; declared here for clarity.
-          BODY=""
+          # ------------------------------------------------------------------
+          # Step 2: get a registry token with delete scope.
+          # ------------------------------------------------------------------
+          registry_jwt() {
+            curl -sS --max-time 30 \
+              --user "${DOCKERHUB_USERNAME}:${DOCKERHUB_TOKEN}" \
+              "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${NS}/$1:pull,push,delete" \
+              | jq -r '.token // empty' 2>/dev/null || true
+          }
+
+          # ------------------------------------------------------------------
+          # Step 3: delete one manifest by digest.
+          # ------------------------------------------------------------------
+          delete_digest() {
+            local repo="$1" jwt="$2" digest="$3"
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 60 -X DELETE \
+              -H "Authorization: Bearer ${jwt}" \
+              "https://${REGISTRY}/v2/${NS}/${repo}/manifests/${digest}"
+          }
 
           for repo in ${REPOS//,/ }; do
             [ -n "$repo" ] || continue
-            echo "=== dracoservices/$repo ==="
+            echo "=== ${NS}/${repo} ==="
 
-            # Authenticate before anything else. A credential problem must stop
-            # the run here, not surface as 39 silent "successes" further down.
-            if ! preflight "$repo"; then
-              echo "::error::preflight failed for ${repo}; refusing to delete."
+            tags="$(mktemp)"
+            read_tags "$repo" "$tags"
+            total="$(wc -l < "$tags" | tr -d ' ')"
+            echo "    read ${total} tag(s)"
+
+            jwt="$(registry_jwt "$repo")"
+            if [ -z "$jwt" ]; then
+              echo "::error::could not obtain a registry token with delete scope for ${repo}."
               exit 1
             fi
 
-            # Collect every tag name, following Docker Hub's pagination.
-            listing="$(mktemp)"
-            page=1
-            while :; do
-              hub_get "$repo" "/tags?page_size=100&page=${page}"
-              count="$(printf '%s' "$BODY" | jq -r '(.results // []) | length')"
-              if [ "$count" -eq 0 ]; then
-                break
-              fi
-              printf '%s' "$BODY" | jq -r '.results[].name' >> "$listing"
-              page=$((page + 1))
-            done
-
-            victims=()
-            while read -r tag; do
+            # Collect every digest reachable from a tag we are KEEPING.
+            keep_digests_file="$(mktemp)"
+            victims_file="$(mktemp)"
+            while IFS=$'\t' read -r tag digest; do
               [ -n "$tag" ] || continue
-              if [ "$tag" = "latest" ] || printf '%s' "$tag" | grep -qE '^1\.3(\.|$)'; then
+              if keep_tag "$tag"; then
                 printf '    keep    %s\n' "$tag"
+                [ -n "$digest" ] && printf '%s\n' "$digest" >> "$keep_digests_file"
               else
                 printf '    DELETE  %s\n' "$tag"
-                victims+=("$tag")
+                printf '%s\t%s\n' "$tag" "$digest" >> "$victims_file"
               fi
-            done < "$listing"
-            rm -f "$listing"
+            done < "$tags"
 
-            echo "    -> ${#victims[@]} candidate(s) for deletion"
+            # The sharp edge of digest-based deletion: one manifest, many tag
+            # names. Never delete a digest that a surviving tag also points at.
+            while IFS=$'\t' read -r tag digest; do
+              [ -n "$tag" ] || continue
+              if [ -z "$digest" ]; then
+                echo "    SKIP    ${tag} (no digest reported; cannot delete safely)"
+                skipped=$((skipped + 1))
+              elif grep -qxF "$digest" "$keep_digests_file"; then
+                echo "    SKIP    ${tag} (digest is shared with a kept tag)"
+                skipped=$((skipped + 1))
+              else
+                printf '%s\n' "$digest"
+              fi
+            done < "$victims_file" | sort -u > "${victims_file}.digests"
 
-            if [ "$dry" = "true" ]; then
+            candidates="$(wc -l < "$victims_file" | tr -d ' ')"
+            echo "    -> ${candidates} candidate(s)"
+
+            if [ "${DRY_RUN:-true}" = "true" ]; then
               echo "    (dry run: nothing deleted)"
+              rm -f "$tags" "$keep_digests_file" "$victims_file" "${victims_file}.digests"
               continue
             fi
 
@@ -209,31 +190,33 @@ jobs:
               exit 1
             fi
 
-            for tag in "${victims[@]}"; do
-              code="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
-                "${AUTH_ARGS[@]}" \
-                "https://hub.docker.com/v2/repositories/dracoservices/${repo}/tags/${tag}/")" || code="000"
-              if [ "$code" = "204" ] || [ "$code" = "200" ] || [ "$code" = "202" ]; then
-                printf '    deleted %s -> HTTP %s\n' "$tag" "$code"
+            while read -r digest; do
+              [ -n "$digest" ] || continue
+              code="$(delete_digest "$repo" "$jwt" "$digest")" || code="000"
+              if [ "$code" = "202" ] || [ "$code" = "204" ] || [ "$code" = "200" ]; then
+                # Map the digest back to the tag name(s) it was going to remove.
+                name="$(awk -F'\t' -v d="$digest" '$2 == d { printf "%s ", $1 }' "$victims_file")"
+                printf '    deleted %s\n' "${name:-<unnamed>} (HTTP ${code})"
                 deleted=$((deleted + 1))
               else
-                # Anything else is a real failure. Report it and keep counting it
-                # separately rather than folding it into the success total.
-                printf '    FAILED   %s -> HTTP %s\n' "$tag" "$code"
+                printf '    FAILED  %s -> HTTP %s\n' "$digest" "$code"
                 failed=$((failed + 1))
               fi
-              # Docker Hub rate-limits tag mutations; stay well clear of it.
+              # The registry rate-limits manifest mutations.
               sleep 1
-            done
+            done < "${victims_file}.digests"
 
-            # Re-read the tag list so the outcome is verified against the
-            # registry instead of trusted from the DELETE status codes alone.
-            hub_get "$repo" "/tags?page_size=100"
-            remaining="$(printf '%s' "$BODY" | jq -r '[.results[].name] | map(select(. == "latest" or test("^1\\.3(\\.|$)"))) | length')"
-            echo "    remaining keep-list tags present: ${remaining}"
+            # Verify the end state against the registry rather than trusting
+            # the DELETE status codes.
+            left="$(curl -sS --max-time 60 -H "Authorization: Bearer ${jwt}" \
+              "https://${REGISTRY}/v2/${NS}/${repo}/tags/list" \
+              | jq -r '[.tags[]?] | map(select(. == "latest" or test("^1\\.3(\\.|$)"))) | length')"
+            echo "    remaining keep-list tags in registry: ${left}"
+
+            rm -f "$tags" "$keep_digests_file" "$victims_file" "${victims_file}.digests"
           done
 
-          echo "=== done: ${deleted} deleted, ${failed} failed (dry_run=${dry}) ==="
+          echo "=== done: ${deleted} deleted, ${skipped} skipped, ${failed} failed (dry_run=${DRY_RUN:-true}) ==="
           if [ "$failed" -gt 0 ]; then
             echo "::error::${failed} deletion(s) failed. The registry is NOT in the requested state."
             exit 1
