@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- **The published backend image no longer carries a vulnerable toolchain (2026-10-04)** — Docker Scout / Trivy reported 1 CRITICAL and 26 HIGH CVEs in `dracoservices/bioplatform-backend`. The single-stage Dockerfile pinned `pnpm@11.9.0` (CVE-2026-82392 arbitrary code execution via path traversal, CVE-2026-82393 arbitrary file write, GHSA-vx52-2968-3vc6 secret exfiltration via env placeholders) and shipped the whole `npm` installation, whose bundled `node-tar` 7.5.16 carried the CRITICAL gzip-bomb DoS CVE-2026-59873. Bumping to `pnpm@11.11.0` and removing `npm`/`npx` takes the image from 27 CRITICAL/HIGH to 3, with no CRITICAL left. The CI pnpm pin is aligned to 11.11.0. `pnpm` cannot simply be dropped from the image — the container entrypoint runs `pnpm --filter @bioplatform/backend db:seed` on startup, so the toolchain has to stay.
+
 ### Added
 - **`public-canary`, `public-alpha` and `dev-*` now publish a rolling `:canary` / `:alpha` / `:dev` Docker tag** — each moving channel contributes exactly ONE tag, and it is published from a `workflow_run` of the `Tests & Quality Gates` workflow rather than from the push itself, so a commit that fails the suite can never produce a pullable image. A push to `main` remains build-only. No per-commit SHA tag is emitted, so the channels overwrite a single tag instead of accumulating one per commit and there is nothing to garbage-collect; the built commit is recorded in the image's `org.opencontainers.image.revision` label instead (the auto-generated source label is overridden, since on a `workflow_run` it would wrongly say `main`).
 
