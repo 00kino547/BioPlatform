@@ -1,7 +1,15 @@
 # Build stage
 FROM node:22-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
+# Keep this pin identical to the backend image and to the CI gate. pnpm 11.9.0 is
+# affected by CVE-2026-82392 (arbitrary code execution via path traversal),
+# CVE-2026-82393 (arbitrary file write and code execution) and
+# GHSA-vx52-2968-3vc6 (environment secrets exfiltrated via env-placeholder
+# expansion). Those are build-time exposures — the runtime stage here is plain
+# nginx and never sees pnpm — but the builder still runs `pnpm install` against
+# the dependency tree, which is exactly where a malicious package would try to
+# exploit them.
+RUN corepack enable && corepack prepare pnpm@11.11.0 --activate
 
 WORKDIR /app
 
@@ -24,6 +32,14 @@ RUN pnpm --filter @bioplatform/frontend build
 # Production stage
 FROM nginx:alpine
 
+# Pick up fixes published to the Alpine repositories after the base image was
+# built. Note that this is a point-in-time snapshot, not a live feed: Docker
+# caches the result of this layer, so locally you need `docker build --pull` to
+# actually see newly published packages — a cached build will happily hand you
+# the same stale CVEs the registry is already reporting. That is exactly how the
+# 12 HIGH nginx:alpine advisories (pcre2, libuuid, libexpat) persisted through a
+# "rebuild". CI is not affected in the same way, because its cache key includes
+# the base image digest, so a new base invalidates this layer.
 RUN apk upgrade --no-cache
 
 # Copy built files to Nginx
