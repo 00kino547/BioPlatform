@@ -320,6 +320,7 @@ jobs:
             type=raw,value=${{ steps.channel.outputs.tag }},enable=${{ steps.channel.outputs.publish_channel == 'true' }}
 
       - name: Build & push image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -350,18 +351,25 @@ jobs:
       # CRITICAL gate is what matters — it means a red build cannot be published
       # silently and then forgotten.
       #
-      # HIGH does not fail the build on purpose: the tree currently carries
-      # three accepted HIGH findings, documented in CHANGELOG.md —
+      # HIGH does not fail the build on purpose: the tree currently carries one
+      # accepted HIGH finding, documented in CHANGELOG.md —
       #   node-forge 1.4.0  CVE-2026-85393  via acme-client, no upstream fix exists
-      #   tar 7.5.19        CVE-2026-73566  inlined in pnpm's build-time bundle
-      #   undici 6.27.0     CVE-2026-19534  inlined in pnpm's build-time bundle
-      # Failing on those would mean failing forever on something unfixable, which
+      # Failing on that would mean failing forever on something unfixable, which
       # trains people to ignore red builds.
+      #
+      # The scan is pinned by DIGEST rather than by `steps.meta.outputs.tags`.
+      # That output is a newline-separated list of one ref per registry (Docker Hub
+      # and GHCR), because build-push-action needs every ref — but Trivy parses its
+      # `image-ref` as a single string and dies with
+      #   failed to parse the image name: could not parse reference: <ref1>\n<ref2>
+      # which took the whole v2.0.0-canary.1 publish down at this step after the
+      # images had already been pushed. One registry's digest identifies the exact
+      # manifest that was published, so a single scan covers both.
       - name: Report CVEs in published image
         if: steps.target.outputs.publish == 'true' || steps.channel.outputs.publish_channel == 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ steps.meta.outputs.tags }}
+          image-ref: ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           severity: CRITICAL,HIGH
           ignore-unfixed: false
           exit-code: '0'
@@ -370,7 +378,7 @@ jobs:
         if: steps.target.outputs.publish == 'true' || steps.channel.outputs.publish_channel == 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ steps.meta.outputs.tags }}
+          image-ref: ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           severity: CRITICAL
           ignore-unfixed: false
           exit-code: '1'
