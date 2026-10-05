@@ -15,6 +15,23 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - nodemailer@10.0.13
 
+# Overrides live here rather than in root package.json's pnpm.overrides, because
+# pnpm-workspace.yaml is the source of truth for a workspace and keeps the
+# resolution policy next to `node-linker` and `allowBuilds`.
 overrides:
   nanoid: ^3.3.18
   deepmerge-ts: ^8.0.0
+  # Dependabot: CVE-2026-XXXXX in axios < 1.20.0. Reached transitively (Prisma
+  # client tooling and friends), never declared directly, so there is no manifest
+  # to bump — the override is the only place this can be corrected.
+  axios: ^1.20.0
+  # Dependabot: CVE in multer < 2.4.0. Same situation — the upload middleware is
+  # pulled in transitively.
+  multer: ^2.4.0
+
+# NOT overridable, recorded so the exception is deliberate rather than an
+# oversight. node-forge <= 1.4.0 carries CVE-2026-85393 (RSA signature forgery).
+# It arrives via acme-client@5.4.0, which apps/backend/src/lib/acme.ts genuinely
+# uses, and 1.4.0 is the newest published release with no patched version. An
+# override can only pin what exists, so there is nothing to write here. ACME is
+# opt-in: it is inert unless ACME_ENABLED is set.
