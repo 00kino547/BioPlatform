@@ -40,7 +40,7 @@ Una plataforma moderna de enlaces para creadores, desarrolladores y cualquier pe
 - Node.js 22+
 - PostgreSQL 16+
 - Docker y Docker Compose (para despliegue en contenedor)
-- pnpm 11 (vía corepack)
+- pnpm 12 (vía corepack, fijado en 12.4.0)
 
 ## Instalación
 

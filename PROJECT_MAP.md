@@ -153,7 +153,7 @@ docker-compose.yml    # Service orchestration (postgres, backend, frontend, ngin
 docker-compose.prebuilt.yml # Prebuilt images variant — pulls from Docker Hub / GHCR instead of building
 apps/frontend/public/env.js    # Runtime config stub overwritten by the container entrypoint
 scripts/bioplatform.sh / .ps1   # Host wrappers: docker compose exec backend bioplatform <args> (Linux/macOS + Windows)
-pnpm-workspace.yaml   # Workspace + pnpm config (allowBuilds, node-linker)
+pnpm-workspace.yaml   # Workspace + pnpm config (allowBuilds, nodeLinker)
 .env / .env.example   # Environment variables
 nginx/nginx.conf      # Reverse proxy config (/api, /uploads, ACME challenge, SPA fallback, custom-domains.conf include, app-host map)
 nginx/site.conf       # Server block (ACME challenge proxy, bot root rule, social-crawler OG proxying, security headers)

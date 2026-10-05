@@ -9,7 +9,7 @@
 
 ## pnpm v11
 
-- `allowBuilds` and `node-linker: hoisted` in `pnpm-workspace.yaml`
+- `allowBuilds` and `nodeLinker: hoisted` in `pnpm-workspace.yaml`
 - `.npmrc` is auth/registry-only
 - Hoisted layout for Docker compatibility
 

@@ -40,7 +40,7 @@ A modern link-in-bio platform for creators, developers, and anyone who wants a p
 - Node.js 22+
 - PostgreSQL 16+
 - Docker & Docker Compose (for containerized deployment)
-- pnpm 11 (via corepack)
+- pnpm 12 (via corepack, pinned to 12.4.0)
 
 ## Installation
 

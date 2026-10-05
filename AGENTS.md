@@ -10,7 +10,7 @@ Monorepo with pnpm workspaces. Full-stack app with auth, profiles, admin panel.
 - **Frontend:** React 19, Vite 6, TypeScript 5, TailwindCSS 4, lucide-react
 - **Backend:** Express 5, TypeScript 5, Prisma 6 (PostgreSQL)
 - **Infra:** Docker Compose, Nginx (optional)
-- **Package Manager:** pnpm 11 (via corepack)
+- **Package Manager:** pnpm 12 (via corepack, pinned to 12.4.0)
 
 ## Architecture
 
@@ -55,7 +55,7 @@ Every public page must include: visual hierarchy, proper spacing, interactive el
 ## Docker Rules
 
 - **Critical:** Copy source code BEFORE `pnpm install` in Dockerfiles. pnpm's hoisted `node_modules` creates symlinks that Docker COPY cannot follow.
-- `allowBuilds` and `node-linker: hoisted` go in `pnpm-workspace.yaml`
+- `allowBuilds` and `nodeLinker: hoisted` go in `pnpm-workspace.yaml`
 - Backend: single-stage Dockerfile
 - Frontend: multi-stage (build → Nginx)
 

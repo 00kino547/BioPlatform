@@ -56,7 +56,7 @@ overwrites an existing admin password. Remove `SEED_ON_START=true` after the fir
 
 - Node.js 22+
 - PostgreSQL 16+
-- pnpm 11 (via corepack)
+- pnpm 12 (via corepack, pinned to 12.4.0)
 
 ### Steps
 

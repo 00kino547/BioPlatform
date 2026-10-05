@@ -58,7 +58,7 @@ del primer arranque exitoso.
 
 - Node.js 22+
 - PostgreSQL 16+
-- pnpm 11 (vía corepack)
+- pnpm 12 (vía corepack, fijado en 12.4.0)
 
 ### Pasos
 

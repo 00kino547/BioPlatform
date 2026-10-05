@@ -34,13 +34,20 @@ accumulating one per commit, so tags never pile up. The exact commit is recorded
 CRITICAL CVE**, so a vulnerable toolchain surfaces in the run that produced it rather than only
 in a registry dashboard. The scan runs after the push, so it detects rather than prevents.
 
-HIGH findings do not fail the build. Three are currently accepted on the backend image:
+HIGH findings do not fail the build. One is currently accepted on the backend image:
 
 | Package | Advisory | Why it is accepted |
 |---|---|---|
 | `node-forge` 1.4.0 | CVE-2026-85393 | No patched release exists. Reached through `acme-client`, and ACME stays disabled unless `ACME_ENABLED` is set |
-| `tar` 7.5.19 | CVE-2026-73566 | Inlined into pnpm's own bundle, build-time only |
-| `undici` 6.27.0 | CVE-2026-19534 | Inlined into pnpm's own bundle, build-time only |
+
+The frontend image scans at 0 CRITICAL and 0 HIGH. The backend pnpm pin (`12.4.0`) is the
+lowest release whose bundled `tar` and `undici` are both past their fixed versions — pnpm
+ships both inside its own distribution, so this is a pin decision rather than something
+`overrides` can reach.
+
+If you upgrade pnpm locally, delete `node_modules` first: pnpm 12 no longer creates
+per-package `node_modules` directories under the hoisted linker, and stale `.bin` shims from
+pnpm 11 point at packages that no longer exist locally.
 ### Using prebuilt images
 
 ```bash

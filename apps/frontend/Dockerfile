@@ -9,7 +9,12 @@ FROM node:22-alpine AS builder
 # nginx and never sees pnpm — but the builder still runs `pnpm install` against
 # the dependency tree, which is exactly where a malicious package would try to
 # exploit them.
-RUN corepack enable && corepack prepare pnpm@11.11.0 --activate
+#
+# 12.4.0 is the lowest release whose bundled toolchain is clean: pnpm ships
+# node-tar and undici inside its own distribution, so 11.18.0 fixes
+# CVE-2026-73566 (tar) but still carries CVE-2026-19534 (undici). 12.4.0 moves
+# both past their fixed versions (tar 7.5.22 / undici 6.28.1).
+RUN corepack enable && corepack prepare pnpm@12.4.0 --activate
 
 WORKDIR /app
 

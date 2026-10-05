@@ -2,7 +2,11 @@ packages:
   - "apps/*"
   - "packages/*"
 
-node-linker: hoisted
+# camelCase, not kebab-case. pnpm >= 12 ignores `node-linker` with
+# `The following settings in pnpm-workspace.yaml were ignored because they are not
+# written in camelCase`, which silently falls back to the isolated linker layout
+# and breaks the Docker COPY steps. `nodeLinker` is understood by pnpm 11 too.
+nodeLinker: hoisted
 
 allowBuilds:
   esbuild: true
@@ -17,7 +21,7 @@ minimumReleaseAgeExclude:
 
 # Overrides live here rather than in root package.json's pnpm.overrides, because
 # pnpm-workspace.yaml is the source of truth for a workspace and keeps the
-# resolution policy next to `node-linker` and `allowBuilds`.
+# resolution policy next to `nodeLinker` and `allowBuilds`.
 overrides:
   nanoid: ^3.3.18
   deepmerge-ts: ^8.0.0

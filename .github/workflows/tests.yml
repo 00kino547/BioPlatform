@@ -74,10 +74,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Set up pnpm 11
+      - name: Set up pnpm 12
         run: |
           corepack enable
-          corepack prepare pnpm@11.11.0 --activate
+          corepack prepare pnpm@12.4.0 --activate
           pnpm --version
 
       - name: Install dependencies

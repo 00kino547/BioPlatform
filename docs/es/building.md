@@ -36,13 +36,20 @@ CVE CRÍTICO**, de modo que un toolchain vulnerable aparece en la ejecución que
 solo en un panel del registro. El escaneo se ejecuta después del push, así que detecta en lugar
 de prevenir.
 
-Los hallazgos HIGH no fallan el build. Actualmente hay tres aceptados en la imagen del backend:
+Los hallazgos HIGH no fallan el build. Actualmente hay uno aceptado en la imagen del backend:
 
 | Paquete | Aviso | Por qué se acepta |
 |---|---|---|
 | `node-forge` 1.4.0 | CVE-2026-85393 | No existe versión parcheada. Llega por `acme-client`, y ACME permanece desactivado salvo que se defina `ACME_ENABLED` |
-| `tar` 7.5.19 | CVE-2026-73566 | Incluido en el propio bundle de pnpm, solo en tiempo de build |
-| `undici` 6.27.0 | CVE-2026-19534 | Incluido en el propio bundle de pnpm, solo en tiempo de build |
+
+La imagen del frontend se escanea en 0 CRITICAL y 0 HIGH. El pin de pnpm del backend
+(`12.4.0`) es la versión más baja cuyo `tar` y `undici` incluidos ya superan sus versiones
+corregidas — pnpm arrastra ambos dentro de su propia distribución, así que esto es una
+decisión de pin y no algo que `overrides` pueda alcanzar.
+
+Si actualizas pnpm en local, borra `node_modules` antes: pnpm 12 ya no crea directorios
+`node_modules` por paquete con el linker hoisted, y los shims `.bin` heredados de pnpm 11
+apuntan a paquetes que ya no existen localmente.
 ### Usar imágenes precompiladas
 
 ```bash
