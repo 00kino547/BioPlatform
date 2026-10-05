@@ -11,7 +11,9 @@ Images are published automatically on every release:
 | **Docker Hub** | `dracoservices/bioplatform-backend` | `dracoservices/bioplatform-frontend` |
 | **GHCR** | `ghcr.io/00kino547/bioplatform-backend` | `ghcr.io/00kino547/bioplatform-frontend` |
 
-Tags: `latest` (stable only), minor (`1.3`), semver (`1.3.0`), prereleases (`1.3.0-rc.1`).
+Tags: `latest` (stable only), minor (`1.3`), semver (`1.3.0`), prereleases (`2.0.0-canary.1`).
+A prerelease **never** updates `latest` or the minor tag, and its GitHub release is
+always marked **Pre-release**.
 
 Moving channels — one rolling tag each, published **only** after `Tests & Quality Gates` passes:
 
@@ -25,6 +27,20 @@ There is deliberately no per-commit SHA tag: each channel overwrites a single ta
 accumulating one per commit, so tags never pile up. The exact commit is recorded in the image's
 `org.opencontainers.image.revision` label.
 
+
+### Image vulnerability gate
+
+`Build & Publish Docker Images` scans every image it publishes and **fails the job on any
+CRITICAL CVE**, so a vulnerable toolchain surfaces in the run that produced it rather than only
+in a registry dashboard. The scan runs after the push, so it detects rather than prevents.
+
+HIGH findings do not fail the build. Three are currently accepted on the backend image:
+
+| Package | Advisory | Why it is accepted |
+|---|---|---|
+| `node-forge` 1.4.0 | CVE-2026-85393 | No patched release exists. Reached through `acme-client`, and ACME stays disabled unless `ACME_ENABLED` is set |
+| `tar` 7.5.19 | CVE-2026-73566 | Inlined into pnpm's own bundle, build-time only |
+| `undici` 6.27.0 | CVE-2026-19534 | Inlined into pnpm's own bundle, build-time only |
 ### Using prebuilt images
 
 ```bash

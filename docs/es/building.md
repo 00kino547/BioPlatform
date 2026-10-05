@@ -11,7 +11,9 @@ Las imágenes se publican automáticamente en cada release:
 | **Docker Hub** | `dracoservices/bioplatform-backend` | `dracoservices/bioplatform-frontend` |
 | **GHCR** | `ghcr.io/00kino547/bioplatform-backend` | `ghcr.io/00kino547/bioplatform-frontend` |
 
-Tags: `latest` (solo estables), menor (`1.3`), semver (`1.3.0`), prerelease (`1.3.0-rc.1`).
+Tags: `latest` (solo estables), menor (`1.3`), semver (`1.3.0`), prerelease (`2.0.0-canary.1`).
+Una prerelease **nunca** actualiza `latest` ni la etiqueta menor, y su release de GitHub
+siempre se marca como **Pre-release**.
 
 Canales móviles — una etiqueta rodante cada una, publicada **solo** después de que
 `Tests & Quality Gates` pase:
@@ -26,6 +28,21 @@ No hay deliberadamente ninguna etiqueta SHA por commit: cada canal sobrescribe u
 en lugar de acumular una por commit, así las etiquetas nunca se acumulan. El commit exacto queda
 registrado en la etiqueta `org.opencontainers.image.revision` de la imagen.
 
+
+### Puerta de vulnerabilidades en las imágenes
+
+`Build & Publish Docker Images` escanea cada imagen que publica y **falla el job ante cualquier
+CVE CRÍTICO**, de modo que un toolchain vulnerable aparece en la ejecución que lo produjo y no
+solo en un panel del registro. El escaneo se ejecuta después del push, así que detecta en lugar
+de prevenir.
+
+Los hallazgos HIGH no fallan el build. Actualmente hay tres aceptados en la imagen del backend:
+
+| Paquete | Aviso | Por qué se acepta |
+|---|---|---|
+| `node-forge` 1.4.0 | CVE-2026-85393 | No existe versión parcheada. Llega por `acme-client`, y ACME permanece desactivado salvo que se defina `ACME_ENABLED` |
+| `tar` 7.5.19 | CVE-2026-73566 | Incluido en el propio bundle de pnpm, solo en tiempo de build |
+| `undici` 6.27.0 | CVE-2026-19534 | Incluido en el propio bundle de pnpm, solo en tiempo de build |
 ### Usar imágenes precompiladas
 
 ```bash
