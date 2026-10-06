@@ -289,15 +289,22 @@ export async function verifyRegister(
 export async function generateLoginOptions(opts: {
   userId: string;
   allowCredentials: { id: string; transports: string[] }[];
-  userVerification: "preferred" | "discouraged";
+  userVerification: "preferred" | "discouraged" | "required";
   purpose?: "login" | "twofactor";
   host?: string;
 }): Promise<PublicKeyCredentialRequestOptionsJSON> {
   const { rpID } = getWebauthnEnv(opts.host);
+  // A passkey acting as a SECOND factor must prove the user is physically
+  // present via biometrics/PIN (user verification = "required"). Presence-only
+  // "discouraged"/"preferred" assertions are for primary login, where the
+  // session already fails closed — here they would downgrade 2FA to a simple
+  // device-press. The route also passes "required"; this forces it regardless.
+  const userVerification =
+    opts.purpose === "twofactor" ? ("required" as const) : opts.userVerification;
   const options = await generateAuthenticationOptions({
     rpID,
     allowCredentials: opts.allowCredentials.map((c) => ({ id: c.id, transports: c.transports as AuthenticatorTransportFuture[] })),
-    userVerification: opts.userVerification,
+    userVerification,
   });
   await storeChallenge(opts.userId, options.challenge, opts.purpose ?? "login");
   return options;
@@ -333,10 +340,18 @@ export async function verifyLogin(
       expectedOrigin: origin,
       expectedRPID: rpID,
       credential: toWebAuthnCredential(passkey),
-      requireUserVerification: false,
+      // Enforce authenticator user verification for the second factor only;
+      // primary-passkey login keeps "preferred" so legacy hardware that
+      // supports UV-false assertions is not locked out of first factor.
+      requireUserVerification: purpose === "twofactor",
     });
     await prisma.webAuthnChallenge.deleteMany({ where: { id: challengeRecord.id } });
     if (!verification.verified) return { verified: false };
+    // Belt-and-braces: even if the library above is ever configured away, a
+    // two-factor assertion must never be accepted without user verification.
+    if (purpose === "twofactor" && verification.authenticationInfo.userVerified !== true) {
+      return { verified: false };
+    }
     await prisma.passkey.update({
       where: { id: passkey.id },
       data: { counter: BigInt(verification.authenticationInfo.newCounter), lastUsedAt: new Date() },

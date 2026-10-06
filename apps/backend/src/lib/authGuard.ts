@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { prisma } from "./prisma.js";
 import { getEnv } from "../config/env.js";
+import { isIpAbuseWhitelisted } from "./antiAbuseWhitelist.js";
 
 export const AUTH_COOKIE = "bio_sid";
 
@@ -114,6 +115,41 @@ function retryAfterSeconds(rows: BlockRow[]): number | null {
   return max > 0 ? max : null;
 }
 
+const SUBTHRESHOLD_TTL_MS = 30 * 60 * 1000;
+const subthresholdCounts = new Map<string, { count: number; seenAt: number }>();
+
+function subthresholdKey(kind: FingerprintKind, value: string): string {
+  return `${kind}\u0000${value}`;
+}
+
+function subthresholdCount(kind: FingerprintKind, value: string): number {
+  const entry = subthresholdCounts.get(subthresholdKey(kind, value));
+  if (!entry) return 0;
+  if (Date.now() - entry.seenAt > SUBTHRESHOLD_TTL_MS) {
+    subthresholdCounts.delete(subthresholdKey(kind, value));
+    return 0;
+  }
+  return entry.count;
+}
+
+function setSubthresholdCount(kind: FingerprintKind, value: string, count: number): void {
+  subthresholdCounts.set(subthresholdKey(kind, value), { count, seenAt: Date.now() });
+}
+
+function clearSubthreshold(kind: FingerprintKind, value: string): void {
+  subthresholdCounts.delete(subthresholdKey(kind, value));
+}
+
+/** Test-support helper: wipe the in-memory sub-threshold failure counter.
+ *  The map is keyed partly by client IP, which all tests share (127.0.0.1), so
+ *  without a reset an earlier file's failures leak into a later file's lockout
+ *  assertions even after `prisma.authBan.deleteMany()`. Production logic is
+ *  unaffected — these are only provisional "below-threshold" tallies that expire
+ *  via SUBTHRESHOLD_TTL_MS anyway. */
+export function resetAuthGuardSubthresholds(): void {
+  subthresholdCounts.clear();
+}
+
 async function applyLockout(
   kind: FingerprintKind,
   value: string,
@@ -131,13 +167,16 @@ async function applyLockout(
     }
   }
 
-  await prisma.authBan.upsert({
-    where: { kind_value: { kind, value } },
-    update: { failCount: { increment: 1 }, permanent, lockedUntil },
-    create: { kind, value, failCount: 1, permanent, lockedUntil },
-  });
+  if (permanent || lockedUntil !== null) {
+    await prisma.authBan.upsert({
+      where: { kind_value: { kind, value } },
+      update: { failCount, permanent, lockedUntil },
+      create: { kind, value, failCount, permanent, lockedUntil },
+    });
+    clearSubthreshold(kind, value);
+  }
 
-  const locked = failCount >= MAX_FREE_ATTEMPTS;
+  const locked = permanent || lockedUntil !== null;
   return {
     permanent,
     penaltyMinutes: locked && !permanent ? getEnv().AUTH_LOCK_DURATION_MINUTES : null,
@@ -150,41 +189,47 @@ export async function recordFailure(
   fingerprint: Fingerprint,
   account?: AuthAccount | null
 ): Promise<PenaltyInfo[]> {
-  const [ipCount, cookieCount, uaCount] = await Promise.all([
-    prisma.authBan.findUnique({ where: { kind_value: { kind: "IP", value: fingerprint.ip } } }),
-    prisma.authBan.findUnique({ where: { kind_value: { kind: "COOKIE", value: fingerprint.cookie } } }),
-    prisma.authBan.findUnique({ where: { kind_value: { kind: "UA", value: fingerprint.userAgent } } }),
-  ]);
+  if (await isIpAbuseWhitelisted(fingerprint.ip)) return [];
 
   const penalties: PenaltyInfo[] = [];
-  penalties.push(await applyLockout("IP", fingerprint.ip, (ipCount?.failCount ?? 0) + 1));
-  penalties.push(await applyLockout("COOKIE", fingerprint.cookie, (cookieCount?.failCount ?? 0) + 1));
-  penalties.push(await applyLockout("UA", fingerprint.userAgent, (uaCount?.failCount ?? 0) + 1));
-
+  const fields: Array<[FingerprintKind, string]> = [
+    ["IP", fingerprint.ip],
+    ["COOKIE", fingerprint.cookie],
+    ["UA", fingerprint.userAgent],
+  ];
   if (account) {
-    const existing = await prisma.authBan.findUnique({
-      where: { kind_value: { kind: "ACCOUNT", value: account.id } },
-    });
-    penalties.push(await applyLockout("ACCOUNT", account.id, (existing?.failCount ?? 0) + 1));
+    fields.push(["ACCOUNT", account.id]);
+  }
+
+  for (const [kind, value] of fields) {
+    const existing = await prisma.authBan.findUnique({ where: { kind_value: { kind, value } } });
+    const prior = Math.max(existing?.failCount ?? 0, subthresholdCount(kind, value));
+    const count = prior + 1;
+    penalties.push(await applyLockout(kind, value, count));
+    if (count <= MAX_FREE_ATTEMPTS) {
+      setSubthresholdCount(kind, value, count);
+    }
   }
 
   return penalties;
 }
 
 export async function recordSuccess(fingerprint: Fingerprint, accountId?: string | null): Promise<void> {
-  await prisma.authBan.updateMany({
+  await prisma.authBan.deleteMany({
     where: { kind: { in: ["IP", "COOKIE", "UA"] }, value: { in: [fingerprint.ip, fingerprint.cookie, fingerprint.userAgent] } },
-    data: { failCount: 0, permanent: false, lockedUntil: null },
   });
+  clearSubthreshold("IP", fingerprint.ip);
+  clearSubthreshold("COOKIE", fingerprint.cookie);
+  clearSubthreshold("UA", fingerprint.userAgent);
 
   if (accountId) {
-    await prisma.authBan.updateMany({
+    await prisma.authBan.deleteMany({
       where: { kind: "ACCOUNT", value: accountId },
-      data: { failCount: 0, permanent: false, lockedUntil: null },
     });
+    clearSubthreshold("ACCOUNT", accountId);
     await prisma.user.update({
       where: { id: accountId },
-      data: { lastLoginIp: fingerprint.ip },
+      data: { lastLoginIp: fingerprint.ip, lastLoginAt: new Date() },
     });
     await prisma.authLog.deleteMany({
       where: { accountId, kind: "login_failed" },
@@ -193,6 +238,8 @@ export async function recordSuccess(fingerprint: Fingerprint, accountId?: string
 }
 
 export async function fingerprintBlock(fingerprint: Fingerprint): Promise<BlockResult | null> {
+  if (await isIpAbuseWhitelisted(fingerprint.ip)) return null;
+
   const rows = await prisma.authBan.findMany({
     where: {
       OR: [
@@ -204,7 +251,12 @@ export async function fingerprintBlock(fingerprint: Fingerprint): Promise<BlockR
   });
 
   const blocked = rows.filter((row) => isBlocked(row));
-  if (blocked.length === 0) return null;
+  if (blocked.length === 0) {
+    await prisma.authBan.deleteMany({
+      where: { id: { in: rows.map((row) => row.id) } },
+    });
+    return null;
+  }
 
   return {
     permanent: blocked.some((row) => row.permanent),
@@ -218,7 +270,12 @@ export async function accountBlock(accountId: string): Promise<BlockResult | nul
     where: { kind_value: { kind: "ACCOUNT", value: accountId } },
   });
 
-  if (!row || !isBlocked(row)) return null;
+  if (!row || !isBlocked(row)) {
+    if (row) {
+      await prisma.authBan.deleteMany({ where: { id: row.id } });
+    }
+    return null;
+  }
 
   return {
     permanent: row.permanent,

@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { startRegistration } from "@simplewebauthn/browser";
-import { api, type Passkey } from "@/lib/api";
+import { api, type Passkey, type OAuthAccountsData, type OAuthConfig, type OAuthProvider } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
-import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info, Lock, Eye, EyeOff, ShieldAlert, Link2 } from "lucide-react";
+import { EnterpriseSsoCard } from "@/components/auth/EnterpriseSsoCard";
+
+const PROVIDER_LABEL: Record<OAuthProvider, string> = {
+  google: "Google",
+  github: "GitHub",
+  discord: "Discord",
+  pocketbase: "PocketBase",
+};
 
 export function SecurityTab() {
   const { user, refreshUser } = useAuth();
@@ -32,6 +40,20 @@ export function SecurityTab() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
+
+  const [oauthData, setOauthData] = useState<OAuthAccountsData | null>(null);
+  const [oauthConfig, setOauthConfig] = useState<OAuthConfig | null>(null);
+  const [oauthLoading, setOauthLoading] = useState(true);
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [confirmingUnlink, setConfirmingUnlink] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([api.oauthAccounts(), api.ssoConfig()]).then(([accountsRes, configRes]) => {
+      if (accountsRes.success && accountsRes.data) setOauthData(accountsRes.data);
+      if (configRes.success && configRes.data) setOauthConfig(configRes.data);
+      setOauthLoading(false);
+    });
+  }, []);
 
   const loadPasskeys = useCallback(async () => {
     const res = await api.getPasskeys();
@@ -167,6 +189,48 @@ export function SecurityTab() {
     }
   };
 
+  const handleLinkProvider = async (provider: OAuthProvider) => {
+    setMsg();
+    setOauthBusy(true);
+    const res = await api.ssoStart(provider, "link");
+    setOauthBusy(false);
+    if (!res.success || !res.data?.redirectUrl) {
+      setMsg(res.error ?? "Could not start linking");
+      return;
+    }
+    window.location.href = res.data.redirectUrl;
+  };
+
+  const handleUnlink = async (provider: OAuthProvider, providerAccountId: string) => {
+    setMsg();
+    setOauthBusy(true);
+    const res = await api.oauthUnlink(provider, providerAccountId);
+    setOauthBusy(false);
+    setConfirmingUnlink(null);
+    if (res.success) {
+      setOauthData((cur) =>
+        cur
+          ? { ...cur, accounts: cur.accounts.filter((a) => a.providerAccountId !== providerAccountId) }
+          : cur
+      );
+      setMsg(undefined, "Provider account removed.");
+    } else {
+      setMsg(res.error ?? "Failed to remove provider account");
+    }
+  };
+
+  const handleBypassToggle = async (value: boolean) => {
+    setMsg();
+    const res = await api.oauthSetSettings(value);
+    if (res.success && res.data) {
+      const oauthBypass2fa = res.data.oauthBypass2fa;
+      setOauthData((cur) => (cur ? { ...cur, oauthBypass2fa } : cur));
+      setMsg(undefined, "Two-factor bypass updated.");
+    } else {
+      setMsg(res.error ?? "Failed to update setting");
+    }
+  };
+
   useEffect(() => {
     setTotpEnabled(Boolean(user?.totpEnabled));
   }, [user?.totpEnabled]);
@@ -179,8 +243,14 @@ export function SecurityTab() {
     );
   }
 
+  const remainingMethods = oauthData
+    ? (oauthData.authMethods.password ? 1 : 0) + oauthData.accounts.length + oauthData.authMethods.passkeys
+    : 0;
+  const linkedProviders = new Set(oauthData?.accounts.map((a) => a.provider) ?? []);
+  const linkProviders = (oauthConfig?.providers ?? []).filter((p) => !linkedProviders.has(p));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
         <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
           {error}
@@ -193,7 +263,7 @@ export function SecurityTab() {
       )}
 
       {locked && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+        <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
           <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-red-300">
             <p className="font-semibold">
@@ -207,7 +277,7 @@ export function SecurityTab() {
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Fingerprint className="h-5 w-5 text-violet-400" />
@@ -227,16 +297,16 @@ export function SecurityTab() {
         </div>
 
         {addingPasskey && (
-          <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-4">
+          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3.5 space-y-3">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name</label>
+              <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Name</label>
               <input
                 type="text"
                 value={passkeyName}
                 onChange={(e) => setPasskeyName(e.target.value)}
                 placeholder="e.g. YubiKey, Phone"
                 maxLength={64}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -245,7 +315,7 @@ export function SecurityTab() {
                 <button
                   type="button"
                   onClick={() => setResidentKey("nonResident")}
-                  className={`w-full text-left rounded-lg border px-3.5 py-2.5 transition-colors ${
+                  className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
                     residentKey === "nonResident" ? "border-violet-500 bg-violet-500/10" : "border-zinc-700 hover:border-zinc-600"
                   }`}
                 >
@@ -257,7 +327,7 @@ export function SecurityTab() {
                 <button
                   type="button"
                   onClick={() => setResidentKey("resident")}
-                  className={`w-full text-left rounded-lg border px-3.5 py-2.5 transition-colors ${
+                  className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
                     residentKey === "resident" ? "border-violet-500 bg-violet-500/10" : "border-zinc-700 hover:border-zinc-600"
                   }`}
                 >
@@ -267,7 +337,7 @@ export function SecurityTab() {
                   </p>
                 </button>
               </div>
-              <p className="flex items-center gap-1.5 text-[11px] text-zinc-500 mt-2">
+              <p className="flex items-center gap-1.5 text-xs text-zinc-500 mt-2">
                 <Info className="h-3 w-3" />
                 Falls back to a standard passkey automatically if your device can&apos;t create the chosen type.
               </p>
@@ -292,7 +362,7 @@ export function SecurityTab() {
             {passkeys.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-2.5"
               >
                 <div>
                   <div className="flex items-center gap-2">
@@ -345,7 +415,122 @@ export function SecurityTab() {
 
       <div id="security-totp-enabled" data-enabled={totpEnabled} className="hidden" />
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+        <div className="flex items-center gap-3 mb-4">
+          <Link2 className="h-5 w-5 text-violet-400" />
+          <div>
+            <h3 className="text-sm font-medium text-white">Sign-in Options</h3>
+            <p className="text-xs text-zinc-500">
+              Link a Google, GitHub, or Discord account to sign in with it.
+            </p>
+          </div>
+        </div>
+
+        {oauthLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
+          </div>
+        ) : oauthData ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              {oauthData.accounts.length === 0 ? (
+                <p className="text-sm text-zinc-500 text-center py-4">
+                  No third-party accounts linked.
+                </p>
+              ) : (
+                oauthData.accounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-2.5"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-white">{PROVIDER_LABEL[account.provider]}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {account.displayName || account.email || account.providerAccountId}
+                      </p>
+                    </div>
+                    {confirmingUnlink === account.id ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUnlink(account.provider, account.providerAccountId)}
+                          disabled={oauthBusy || locked}
+                        >
+                          {oauthBusy ? "Removing..." : "Confirm remove"}
+                        </Button>
+                        <button
+                          onClick={() => setConfirmingUnlink(null)}
+                          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingUnlink(account.id)}
+                        disabled={locked || remainingMethods <= 1}
+                        className="text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={
+                          remainingMethods <= 1
+                            ? "Cannot remove your only sign-in method"
+                            : locked
+                              ? "Locked until the app is updated"
+                              : "Remove"
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {linkProviders.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {linkProviders.map((provider) => (
+                  <Button
+                    key={provider}
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleLinkProvider(provider)}
+                    disabled={oauthBusy || locked}
+                  >
+                    Link {PROVIDER_LABEL[provider]}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {oauthData.twoFactorBypassAllowed && oauthData.accounts.length > 0 && (
+              <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Skip 2FA on social sign-in</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Sign in instantly with a linked account instead of entering a code.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleBypassToggle(!oauthData.oauthBypass2fa)}
+                  className={`inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    oauthData.oauthBypass2fa ? "bg-violet-500" : "bg-zinc-700"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      oauthData.oauthBypass2fa ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Lock className="h-5 w-5 text-violet-400" />
@@ -360,14 +545,14 @@ export function SecurityTab() {
 
         <div className="space-y-4">
           <div className="relative">
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Current password</label>
+            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Current password</label>
             <input
               type={showPasswords ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="••••••••"
               autoComplete="current-password"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
             <button
               type="button"
@@ -379,14 +564,14 @@ export function SecurityTab() {
             </button>
           </div>
           <div className="relative">
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">New password</label>
+            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">New password</label>
             <input
               type={showPasswords ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="At least 8 characters"
               autoComplete="new-password"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
             <button
               type="button"
@@ -398,14 +583,14 @@ export function SecurityTab() {
             </button>
           </div>
           <div className="relative">
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Confirm new password</label>
+            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Confirm new password</label>
             <input
               type={showPasswords ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat the new password"
               autoComplete="new-password"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
             <button
               type="button"
@@ -422,7 +607,7 @@ export function SecurityTab() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <KeyRound className="h-5 w-5 text-violet-400" />
@@ -465,7 +650,7 @@ export function SecurityTab() {
                   {totpSecret}
                 </code>
                 <div className="mt-4">
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                  <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                     Enter the 6-digit code to confirm
                   </label>
                   <div className="flex gap-2">
@@ -475,7 +660,7 @@ export function SecurityTab() {
                       value={totpCode}
                       onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="••••••"
-                      className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-center text-lg tracking-[0.4em] text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-center text-lg tracking-[0.4em] text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                     <Button onClick={handleEnableTotp} disabled={totpBusy || totpCode.length !== 6 || locked}>
                       {totpBusy ? "Enabling..." : "Enable"}
@@ -511,7 +696,7 @@ export function SecurityTab() {
                   value={totpCode}
                   onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   placeholder="Current code"
-                  className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
                 <Button size="sm" variant="outline" onClick={handleDisableTotp} disabled={totpBusy || totpCode.length !== 6 || locked}>
                   {totpBusy ? "Disabling..." : "Confirm disable"}
@@ -530,6 +715,8 @@ export function SecurityTab() {
           </div>
         )}
       </div>
+
+      <EnterpriseSsoCard />
     </div>
   );
 }
