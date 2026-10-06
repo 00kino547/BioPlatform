@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, type InviteCodeInfo, type InviteMeta } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Copy, RefreshCw, Trash2, Ticket, Timer, Ban, Lock } from "lucide-react";
+import { Copy, RefreshCw, Trash2, Ticket, Timer, Ban, Lock, Users, Check } from "lucide-react";
+import { InviteCreditStore } from "./InviteCreditStore";
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "Never";
@@ -18,6 +19,14 @@ export function InvitesTab() {
   const [count, setCount] = useState(1);
   const [expiresDays, setExpiresDays] = useState("");
   const [busy, setBusy] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const drafts: Record<string, string> = {};
+    for (const c of codes) drafts[c.id] = c.note ?? "";
+    setNoteDrafts(drafts);
+  }, [codes]);
 
   const load = useCallback(async () => {
     try {
@@ -51,10 +60,7 @@ export function InvitesTab() {
       setError(res.error ?? "Could not generate invites");
       return;
     }
-    if (Array.isArray(res.data)) {
-      setCodes(res.data);
-      setMeta(res.meta ?? null);
-    }
+    await load();
     setMessage("Invites generated!");
     setCount(1);
     setExpiresDays("");
@@ -69,6 +75,20 @@ export function InvitesTab() {
       );
     } else {
       setError(res.error ?? "Could not revoke invite");
+    }
+  };
+
+  const handleSaveNote = async (id: string) => {
+    const note = (noteDrafts[id] ?? "").trim();
+    setSavingNoteId(id);
+    const res = await api.setInviteNote(id, note.length ? note : null);
+    setSavingNoteId(null);
+    const savedNote = res.success ? res.data?.note : undefined;
+    if (savedNote !== undefined) {
+      setCodes((prev) => prev.map((c) => (c.id === id ? { ...c, note: savedNote } : c)));
+      setError("");
+    } else {
+      setError(res.error ?? "Could not save note");
     }
   };
 
@@ -93,22 +113,64 @@ export function InvitesTab() {
   const minDays = meta?.role.minExpiryDays;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {meta?.banned && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5 flex items-start gap-3">
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 flex items-start gap-3">
           <Ban className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
           <div>
             <h4 className="text-sm font-medium text-white">Invite access suspended</h4>
             <p className="text-xs text-zinc-400 mt-1">
-              You are banned from invite events and from generating invite codes. If you think this is a
-              mistake, contact an administrator.
+              You cannot join invite events, earn invite credits, or buy new ones. Credits you already
+              paid for stay usable for a limited window. If you think this is a mistake, contact an
+              administrator.
             </p>
           </div>
         </div>
       )}
 
+      {/* Hidden while banned: the backend refuses purchases from a banned account,
+          so offering the store here would only produce an error. */}
+      {!meta?.banned && (
+        <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
+          <h2 className="text-lg font-semibold text-white mb-1">Buy invite credits</h2>
+          <p className="text-sm text-zinc-500 mb-5">
+            Credits land on your balance and never expire.
+          </p>
+          <InviteCreditStore />
+        </div>
+      )}
+
+      {meta?.seat?.limited && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3.5">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="h-4 w-4 text-amber-400" />
+            <h4 className="text-sm font-medium text-white">Team seats</h4>
+          </div>
+          <div className="flex items-center gap-4">
+            <div>
+              <p className="text-2xl font-bold text-white">
+                {meta.seat.used}
+                <span className="text-lg text-zinc-400"> / {meta.seat.limit}</span>
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">Members joined via your invites</p>
+            </div>
+            <div className="flex-1 h-2 rounded-full bg-zinc-700 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-400 transition-all"
+                style={{ width: `${Math.min(100, (meta.seat.used / meta.seat.limit) * 100)}%` }}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400 mt-3">
+            {meta.seat.remaining > 0
+              ? `${meta.seat.remaining} seat${meta.seat.remaining === 1 ? "" : "s"} remaining. Invite generation stops once your team reaches the limit.`
+              : "Your team seat limit has been reached. Invite generation is paused; contact an administrator to raise the limit."}
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <Ticket className="h-4 w-4 text-violet-400" />
             <h4 className="text-sm font-medium text-white">Event allowance</h4>
@@ -118,7 +180,7 @@ export function InvitesTab() {
             Expires {formatDate(meta?.allowanceExpiresAt)}
           </p>
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <Lock className="h-4 w-4 text-violet-400" />
             <h4 className="text-sm font-medium text-white">Role quota</h4>
@@ -134,7 +196,7 @@ export function InvitesTab() {
               : "Your role cannot generate invites"}
           </p>
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <Timer className="h-4 w-4 text-violet-400" />
             <h4 className="text-sm font-medium text-white">Outstanding</h4>
@@ -145,7 +207,7 @@ export function InvitesTab() {
       </div>
 
       {!meta?.banned && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <h4 className="text-sm font-medium text-white mb-1">Generate invite codes</h4>
           <p className="text-xs text-zinc-500 mb-4">
             {meta?.role.canGenerate
@@ -180,7 +242,7 @@ export function InvitesTab() {
           ) : meta?.allowanceActive || meta?.role.canGenerate ? (
             <form onSubmit={handleGenerate} className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">Count</label>
+                <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Count</label>
                 <input
                   type="number"
                   min={1}
@@ -191,7 +253,7 @@ export function InvitesTab() {
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   Expires in days{" "}
                   <span className="text-zinc-500">
                     (default {defaultExpiry ?? "—"}, {minDays ?? "—"}–{maxDays ?? "—"}d)
@@ -222,7 +284,7 @@ export function InvitesTab() {
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-sm font-medium text-white">My invite codes</h4>
           <button
@@ -245,6 +307,7 @@ export function InvitesTab() {
                   <th className="pb-3 font-medium">Status</th>
                   <th className="pb-3 font-medium">Expires</th>
                   <th className="pb-3 font-medium">Created</th>
+                  <th className="pb-3 font-medium">Note</th>
                   <th className="pb-3 font-medium"></th>
                 </tr>
               </thead>
@@ -255,11 +318,15 @@ export function InvitesTab() {
                     <tr key={c.id}>
                       <td className="py-3 font-mono text-zinc-300">
                         {c.code}
-                        {c.fromAllowance && (
+                        {c.purchased ? (
+                          <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                            PURCHASED
+                          </span>
+                        ) : c.fromAllowance ? (
                           <span className="ml-2 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-400 border border-violet-500/20">
                             EVENT
                           </span>
-                        )}
+                        ) : null}
                       </td>
                       <td className="py-3">
                         {c.revokedAt ? (
@@ -274,6 +341,31 @@ export function InvitesTab() {
                       </td>
                       <td className="py-3 text-zinc-500">{formatDate(c.expiresAt)}</td>
                       <td className="py-3 text-zinc-500">{formatDate(c.createdAt)}</td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={noteDrafts[c.id] ?? ""}
+                            onChange={(e) =>
+                              setNoteDrafts((d) => ({ ...d, [c.id]: e.target.value }))
+                            }
+                            maxLength={500}
+                            placeholder="Add a note..."
+                            className="w-44 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-xs text-white placeholder-zinc-600 outline-none transition-colors focus:border-violet-500/50"
+                          />
+                          <button
+                            onClick={() => handleSaveNote(c.id)}
+                            disabled={savingNoteId === c.id}
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-50"
+                            title="Save note"
+                          >
+                            {savingNoteId === c.id ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Check className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
                       <td className="py-3">
                         <div className="flex items-center gap-3">
                           <button
