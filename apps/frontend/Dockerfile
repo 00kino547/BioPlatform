@@ -1,12 +1,12 @@
 # Build stage
 FROM node:22-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.11.0 --activate
 
 WORKDIR /app
 
 # Copy package files
-COPY .npmrc pnpm-workspace.yaml package.json ./
+COPY .npmrc pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/frontend/package.json apps/frontend/
 COPY packages/shared/package.json packages/shared/
 
@@ -15,7 +15,7 @@ COPY apps/frontend/ apps/frontend/
 COPY packages/shared/ packages/shared/
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Build shared types first, then frontend
 RUN pnpm --filter @bioplatform/shared build
