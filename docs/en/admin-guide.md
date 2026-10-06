@@ -10,10 +10,12 @@ Sign in as an admin and open **Admin Dashboard**. It has up to six tabs:
 - **Users** — list accounts, edit profiles, assign roles, change tiers and track limits, reset passwords.
 - **Roles** — define roles with per-permission toggles.
 - **Badges** — manage the badge catalog (label, color, icon).
-- **Bans** — every active fingerprint/account ban with its status.
+- **Bans** — every active fingerprint/account ban with its status, and the **IP Allowlist**.
 - **Logs** — the auth log (failed attempts, reasons, penalties).
 
 The tabs you see depend on your own role's permissions: a role with only `invites.manage` sees just **Invite Codes**, while the built-in Admin role sees everything.
+
+Each tab loads its data **lazily** the first time you open it, and the long lists (invite codes, users, invite events, bans, IP allowlist, auth log, custom domains, orders, and the newsletter sender allowlist) are **paginated at 10 rows per page** — use **Previous** / **Next** below the table. The codes' **Total** / **Used** / **Available** counters are global, not just the current page. Reference lists used by pickers (roles, badges) and the bounded theme/affiliate rankings load in full.
 
 ## Invite Codes
 
@@ -22,6 +24,8 @@ Registration is invite-only. In the **Invite Codes** tab:
 1. Set the **Count** (1–50) and an optional **Expires in days**.
 2. Click **Generate** — codes appear in the table.
 3. Share codes with the people you want to invite. A used code shows **Used**; you can **Revoke** an unused one at any time.
+
+The generator on this admin tab is the **operator path** (`POST /api/admin/invites`): it creates codes **without** consuming your event allowance or role quota. The self-service generator users reach from their own dashboard **Invites** tab (`POST /api/invites`) always consumes allowance/quota — admins included — so use this tab when you want unlimited codes.
 
 The table lists **all** invite codes across every admin, with the creator shown in the **Created by** column. Use the filter chips above the table to narrow it down:
 
@@ -33,11 +37,13 @@ Admins with `invites.manage` can revoke any unused code, not just their own. Cod
 
 ### Allowing users to generate invites
 
-Non-admin users can generate their own invite codes if **all** of these are true:
+Users generate their own invite codes from their dashboard **Invites** tab if **all** of these are true:
 
 1. The **User invite generation** switch at the top of the tab is **on** (admin panel only — there is no environment variable; this toggle is the master switch).
 2. The user's role has the **Generate own invite codes** permission (`invites.generate`) **and** a **Max per batch** greater than 0, **or** the user holds an event allowance.
 3. The user is not **invite-banned** (see below).
+
+These rules apply to every account, **including admins** — an admin generating from their own **Invites** tab consumes their allowance/quota just like anyone else. The unconstrained operator generator is the admin **Invite Codes** tab above.
 
 ### Invite events (grant an allowance to everyone)
 
@@ -52,13 +58,97 @@ Recent events are listed below the form so you can audit who granted what and wh
 
 ### Invite bans
 
-Use **Edit Profile → Ban invites** on a user to exclude them from the invite system entirely:
+Use **Edit Profile → Ban invites** on a user to exclude them from the invite system:
 
-- They can no longer generate codes (role quota or allowance).
+- They can no longer earn credits — no role quota, no allowance.
+- They cannot join an invite event (an event code stops working for them).
+- They cannot buy invite credits.
 - They are skipped by future invite events.
-- Their current unused codes are revoked immediately and their remaining allowance is zeroed.
+- Their **earned** codes are revoked immediately and their remaining earned allowance is zeroed.
 
-**Unban invites** (same spot) restores access (their old allowance is not restored). This is the recommended way to deal with invite abuse without deleting the account.
+**Purchased credits survive a ban.** Money the user already paid for is not thrown away: they keep the purchased balance, can still turn it into codes, and can still redeem their own codes. Purchased guest codes become usable for the first 14 days after the ban and stop working after that, so a ban cannot be bypassed by waiting out a code you already own. If you need to act on a paid purchase instead, refund it (see **Selling invite credits**) — that revokes exactly what the order still holds.
+
+**Unban invites** (same spot) restores access (their old earned allowance is not restored). This is the recommended way to deal with invite abuse without deleting the account.
+
+## Selling invite credits
+
+Paid invites are off until you turn them on. Two things must be true for the store to appear publicly: the switch below, **and** priced packs in `INVITE_PRICE_PACKS`.
+
+In the **Invite Codes** tab, the **Paid invite credits** card holds:
+
+- **Sell invite credits** — the master switch. Off means `/api/invite-purchases` refuses to create orders, even if packs are configured.
+- **Resale mode** — what the terms say about a buyer passing a code on. This is separate from the switch above, so you can sell invites on an instance whose terms forbid reselling them. Four values, and the choice is published verbatim in the Terms and Privacy pages:
+
+  | Mode | Selling allowed | Terms say |
+  |---|---|---|
+  | `off` | Yes | nothing at all |
+  | `permitted` | Yes | resale **is permitted**, with the limits spelled out |
+  | `legal` | No | resale is **prohibited** |
+  | `enforced` | No | prohibited, and purchased codes are tracked by origin |
+
+  `off` and `permitted` both let a member sell their codes; they differ only in whether the instance writes that down. Choose `permitted` when you want members to be able to sell and the document to say so — the clause also tells them resale does not transfer membership, and does not remove their refund rights. Changing this rebuilds the cached legal snapshot immediately, so the page never lags behind the switch.
+
+  Invite codes are plain bearer secrets, so nothing here can technically stop a transfer; `enforced` records where purchased codes came from so you can answer the question later, it does not prevent sharing.
+
+### Packs
+
+Packs are set with the `INVITE_PRICE_PACKS` environment variable, as `quantity:priceInCents` pairs separated by commas:
+
+```env
+INVITE_PRICE_PACKS=1:100,3:200,10:600
+INVITE_PURCHASE_CODE_TTL_DAYS=30
+```
+
+- Quantities must be whole numbers from 1 to **50**, and prices whole cents (100 = $1.00).
+- There are **no bonuses**. A pack of 10 gives exactly 10 credits; packs are not a discount ladder, they are bundles.
+- Only the exact quantities you configure can be bought. Asking for 7 is rejected rather than rounded.
+- `INVITE_PURCHASE_CODE_TTL_DAYS` only applies to the expiring codes mailed to a **guest** buyer. Credits credited to an existing account never expire.
+- **Price the bulk pack below the singles.** A buyer can only buy the quantities you list, so a "10" pack at 800 is beaten by a 3-pack plus a 1-pack (700 for the same ten credits). The storefront marks the cheapest per-credit rate as *best value*; anything above it looks like a mistake to the buyer. At `10:600` the bulk pack is 60 minor units a credit against the 3-pack's 67.
+- Changing this variable needs a **container restart**, not just an admin save — unlike the switches below, which live in the database.
+
+The store is open only when the switch is on **and** at least one valid pack parses. An enabled switch with no packs never reads as "you can buy here", and the legal pages stay silent about buying.
+
+### Who can buy
+
+- **Member** — the credits land on the account as a permanent balance immediately after payment.
+- **Guest** — no account needed. The codes are emailed with a private claim link. Redeeming one of those codes during registration automatically transfers the remaining codes from the same purchase to the new account, so nobody has to hand them out one at a time.
+
+### Payments
+
+Card (Stripe), PayPal and the configured cryptocurrency gateway are all supported, plus a **MANUAL** method where you confirm an order by hand. Orders are created as **PENDING** and only become **PAID** when the gateway confirms the payment (or when you click **Confirm** on a manual order). Guest orders mail their codes once payment lands.
+
+### Pay-by-hand instructions
+
+A **MANUAL** order is worthless to a buyer unless they are told where to send the money, so the storefront only offers "pay by hand" when you have published instructions. They are set in the same card, under **Pay-by-hand instructions**: pick a method (email, Telegram, Discord or WhatsApp) and the value to publish. The same editor is on the **Orders** tab, and both write one setting (`orders.contactMethod` / `orders.contactValue`), so plan purchases and invite credits always quote the same instructions.
+
+While no instructions are published the buyer-facing storefront **hides** the "pay by hand" option instead of offering a checkout they cannot pay, and the editor shows an amber warning so a half-finished setting cannot silently remove a payment method. The value is sanitized and capped at 300 characters.
+
+### Managing orders
+
+The table under the card lists recent purchases with the buyer, method and status:
+
+- **Confirm** — marks a **MANUAL** order paid and grants the credits or mails the codes.
+- **Mark refunded** — records the refund and revokes whatever the order still holds: its unused credits are deleted and its unused guest codes are revoked. **It does not return any money** — do that at the payment provider first, then mark it here. Credit already redeemed is never revoked, because revoking it would mean deleting a real account.
+- **Cancel** — voids a pending gateway order that was never paid.
+
+### When mail is not configured
+
+Guest purchases have no account to return to, so the codes *must* reach the buyer. Email is the normal way, but an instance with **SMTP off** would otherwise be holding a paid order it cannot deliver. That exact situation was found while verifying this feature end to end: the store was open, an order was paid, and the codes had nowhere to go.
+
+- While purchases are **open and mail is unavailable**, the dashboard shows a loud warning on the invite card. Treat it as "do not leave this on" rather than a cosmetic notice — it means a paying guest would get nothing.
+- The warning names the fix: configure a real mailbox (for example a Gmail account with an app password, or your SMTP provider) via `SMTP_*`. Do not paper over it with a fake sender; buyers will see the message come from the wrong place or not at all.
+- **Until mail works**, each paid guest order has a **Copy claim link** button. It mints a fresh signed link for that one order and puts it on your clipboard. Send it to the buyer however you like — chat, DM, or a mail sent from a different account. The endpoint (`POST /api/admin/invite-purchases/:id/claim-link`, requires `invites.manage`) returns the link and its lifetime, never the raw codes.
+- Two properties make this safe to use by hand: the order is **not** marked as emailed, so the automatic path still retries once mail is configured; and the codes stay hidden until the order is **PAID**, so you cannot accidentally hand out unpaid codes.
+- Do not read the codes out to a buyer and paste them into chat. The claim link is the only handle that stays scoped to that single order.
+
+Guests are told to check their spam folder after a purchase, since a legit mail from a small instance is exactly what filters like spam.
+
+### Refunding, in order
+
+1. Return the money at the payment provider.
+2. Click **Mark refunded** so our records and the buyer's access agree.
+
+If you skip step 2 the buyer keeps the credits and you have no record that the order was refunded.
 
 ## Managing Users
 
@@ -70,6 +160,7 @@ The **Users** tab lists every account. Click **Edit Profile** to:
 - Set custom **profile limit** and **alias limit** (overrides the tier defaults for multi-profile pages and aliases).
 - Toggle **badges** from the badge catalog — these are the badges the user can show on their profiles.
 - Reset a user's password (backend `POST /api/admin/users/:id/reset-password`).
+- Delete one of a user's passkeys (backend `DELETE /api/admin/users/:id/passkeys/:passkeyId`) — useful when a user lost a device or asks to drop a compromised authenticator. Passkey security flags are recomputed immediately, so the **Users** list reflects the change right away.
 
 ### Deleting a user (GDPR erasure)
 
@@ -92,6 +183,9 @@ The **Roles** tab manages access. Every user has exactly one role; every role ca
 - `bans.manage` — manage bans &amp; lockouts.
 - `roles.manage` — create/edit/delete roles.
 - `badges.manage` — create/edit/delete badges.
+- `themes.manage` — manage the Seasonal Themes / Theming tab.
+- `settings.manage` — manage the Landing settings tab (featured profile link).
+- `newsletter.manage` — manage the Newsletter tab (tier limits + consent search) and lets users send newsletters to their own subscribers.
 - `logs.view` — view the auth log.
 - `invites.generate` — lets the role generate its **own** invite codes (subject to the global switch, the role's invite config below, and invite bans).
 
@@ -144,6 +238,85 @@ Keep in mind:
 - Only the **owner** of the profile can manage its domain. `profiles.manage` permission is required to view/approve/reject/issue here.
 - **DNS + TLS must be installed** before activation is useful; the profile redirects to the custom domain only when the instance serves it. Automatic TLS needs `ACME_ENABLED=true` and the domain reachable on port 80.
 
+## Seasonal Themes
+
+The **Seasonal Themes** tab (requires the `themes.manage` permission) lets you schedule recurring themes that are applied to every user profile while they're live. The system ships with nine seeded themes: Spring, Summer, Autumn, Winter (seasons) and Halloween, Christmas, New Year, Valentine's, St. Patrick's (holidays), each with a default month/day window (e.g. Christmas runs Dec 1 – Jan 8).
+
+### Global settings
+
+Three switches control the whole feature:
+
+- **Seasonal themes** — the master switch. When off, no theme is ever applied (unless a user has "always allow Christmas" enabled).
+- **Automatic scheduling** — when on, themes within their date windows apply automatically. When off, only a manual override applies.
+- **Respect user preference** — when on, users can disable seasonal decorations in their Appearance tab; when off, users cannot opt out.
+
+### Managing themes
+
+Open any theme with **Edit** to change its label, emoji, colors (background, card, text, accent), enable/disable it, mark it **always allow**, or set a manual **override**:
+
+- **Schedule** — apply only within the date window (plus any override).
+- **Forced on** — apply regardless of the window.
+- **Forced off** — never apply it.
+
+Each theme also supports an **animated effect**, a **layout** (from the same thirteen presets users can choose), and a **background image** (pick a gradient or seasonal preset, a custom URL, or **upload** an image/GIF — validity is checked via magic bytes and uploads are capped at 12 MB). Uploaded GIFs animate; JPEG/PNG/WebP are optimized automatically.
+
+Each edit view includes a **Live preview** that reuses the same locally-editable sample profile shown on the landing page — edits to the preview run entirely in the browser and never touch real user data.
+
+### Resolution order
+
+When more than one theme could apply, the effective theme is chosen as: manual override **on** beats everything; otherwise a holiday beats a season; otherwise the theme with the higher `sortOrder` wins. A user's **always allow Christmas** beats even an operator **off** override, but only for that user and only for the Christmas theme. While a theme is active it entirely replaces the user's custom colors, layout and background.
+
+> **Setup**: this feature stores its themes in the database. Before using it, apply the migration `docs/migrations/2026-09-03_seasonal-themes.sql` (see the [Deployment Guide](./deployment.md)).
+
+## Landing settings
+
+The **Landing** tab (requires the `settings.manage` permission) links a real user profile from the marketing landing page. Set a **featured profile username** — when configured, the landing page hero shows a third **View live profile** button and the showcase preview editor shows a **View /username** link, both pointing to `/{username}` on the same host.
+
+- The value is a username only (lowercase letters, numbers, dashes, underscores); a leading `@` is accepted and stripped.
+- Saving an **empty** value clears the setting and hides the buttons everywhere. The buttons only appear when a username is set.
+- The value is served publicly via `GET /api/landing/config` (cached 60 seconds) so the landing page does not require admin credentials to render. It is stored in the database (`SystemSetting`) — there is no environment variable.
+- The built-in **Admin** role already includes `settings.manage`; grant it to custom roles that should configure the landing page.
+
+## Newsletter
+
+The **Newsletter** tab (requires the `newsletter.manage` permission) covers the admin duties around per-profile newsletters: **tier limits**, **consent auditing**, **sender allowlist** and **platform announcements**.
+
+- **Tier limits** — shows the effective per-tier send window: how many sends each plan may make in `windowHours` (defaults FREE 0 / PRO 1 / ENTERPRISE 5 per 24 h). You can override each plan's `sendLimit` / `windowHours` and persist the override in the database (takes effect immediately, applies to future sends only — it never counts retroactively); **Reset to defaults** removes the override. The source marker tells you whether the effective config comes from the environment defaults or from your database override. Behind the scenes this is the `newsletter.tierConfig` system setting (`GET/PUT/DELETE /api/admin/newsletter/config`).
+- **Sender allowlist** — search accounts and toggle **Whitelist**. This is the manual admin approval for newsletter sending: it waives the tier and DNS-verification requirements for a user's **own SMTP deliverer** (useful for Proton Mail / Gmail SMTP accounts) and, when the instance owner has opted in with `NEWSLETTER_PLATFORM_SMTP_ENABLED=true`, it is also the per-user grant required to send through the **platform sender**. Allowlisted users are still limited by the per-tier send window, must pass an SMTP test email, and are capped by `NEWSLETTER_PLATFORM_RECIPIENT_CAP` on the platform sender. Endpoints: `GET /api/admin/newsletter/sender-whitelist`, `PUT /api/admin/newsletter/sender-whitelist/:userId`.
+- **Consent search** — type a subscriber email to audit that person's consent records (GDPR / CASL accountability):
+  - **Permanent rows** — every subscription for that email across profiles, with when they agreed, the policy versions (Terms/Privacy) they agreed to, and their unsubscribe status. These are the durable, database-stored consent proof.
+  - **Transient evidence** — IP address and User-Agent captured at the moment of subscription. These live **only in memory for 24 hours** and are never written to the database; after 24 h they are gone and only the permanent rows remain.
+- **Platform announcements** — compose a one-off **broadcast** email delivered through the instance SMTP/Resend sender to every user who **opted in to platform news** at registration (`newsletterOptIn` on the user record, `acceptedPoliciesAt` / policy versions record their Terms + Privacy consent). The composer shows the current opted-in audience, then sends with a 5000-recipient safety cap and records each broadcast in `admin_newsletter_sends`. Every recipient gets a signed, one-click **account-level** unsubscribe link (`GET /api/newsletter/unsubscribe/broadcast?token=`), which flips their opt-in off and stores `broadcastUnsubscribedAt`; opting back in is managed by the user in **Account settings**. Endpoints: `GET /api/admin/newsletter/broadcast-audience`, `GET /api/admin/newsletter/broadcasts`, `POST /api/admin/newsletter/broadcast`.
+
+The send limits only gate the **creator's** newsletter. The profile still captures subscribers while a limit is hit or the profile is paused; mail just won't be sent. Admins (`newsletter.manage`) always keep the fixed 5000-recipient platform cap and bypass the per-tier window — the platform announcement broadcast is a separate, opt-in–only audience and is not counted against tier windows.
+
+## Tips
+
+Tips are fully **owner-managed** (no admin permission): a profile owner sets wallet addresses (Bitcoin and/or Litecoin) and a heading in their **Tips** dashboard tab, and visitors leave tips from the public profile.
+
+What you configure as the operator is **payment confirmation**:
+
+- **Without BTCPay** — tips are recorded intents: the public dialog shows the wallet QR / address (`GET /api/tips` returns `mode: "address"`), and the owner reconciles the ledger (`GET /api/tips/overview`, `DELETE /api/tips/:id`) against whatever actually arrives in their wallet. Nothing else is needed.
+- **With BTCPay** (`CRYPTO_ENABLED`, `BTCPAY_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID` configured and the store webhook pointing at `POST /api/payments/webhooks/crypto/btcpayserver`) — tip creation opens a BTCPay checkout (`mode: "btcpay"`); `InvoiceSettled` marks the tip `CONFIRMED` via the same webhook that fulfils plan orders, and `InvoiceExpired`/`InvoiceInvalid` mark it `CANCELLED`. If invoice creation fails (BTCPay unreachable/misconfigured) the tip falls back to address mode automatically, so visitors are never blocked by a payment-provider outage.
+
+Tip invoices reuse the existing BTCPay `orderId` metadata channel with the `tip-<id>` prefix, so letting strangers create them is safe — the webhook can only flip a tip record's status, never an order or account.
+
+## Orders &amp; Payments
+
+The **Orders** tab (requires the `orders.manage` permission) is the fulfillment side of billing. Users place orders from their Billing tab — manually (`MANUAL`, payment out-of-band) or through an enabled online gateway (Card/Stripe, PayPal, Crypto). You configure contact details and process orders:
+
+1. **Set your contact method** — at the top of the tab (**Pay-by-hand instructions**), pick a method (email, Telegram, Discord or WhatsApp — or **none** to hide it) and the value to show users on their Billing tab and on the public pricing page. This is the same setting the invite store reads, so it also decides whether "pay by hand" is offered there. The value must have a valid shape for the chosen method (an email address, a Telegram/Discord handle, a phone number) and is stored in the database (`system_setting`).
+2. **Process orders** — the list shows every order (newest first) with the buyer (username, email, tier), the ordered plan, the payment method (Contact owner / Card / PayPal / Crypto), the currency + base price, the buyer's discount percent and the final price asked, gateway details (transaction id, provider status, crypto coin + quoted amount) when applicable, the note the user left, its status, and any admin note. Filter by status and paginate as needed.
+   - **Mark paid** — approve a **Pending** order once you've received payment. The account is upgraded automatically to the ordered plan if it's higher than their current tier (Free → PRO → Enterprise).
+   - **Cancel** — refuse a **Pending** order (user can order again).
+   - **Refund** — reverse a **Paid** order (e.g. a mistake); the account is **not** downgraded.
+   - **Pending again** — reopen a cancelled order.
+   - Every status change can include an **admin note** (max 500 chars) that is shown in the buyer's Billing tab order history.
+
+> **Online payments** are configured via environment: `STRIPE_*`, `PAYPAL_*`, `CRYPTO_*` (see [Environment Variables](./environment-variables.md#billing--orders)). When a gateway is enabled, placing an order creates the payment session automatically and the provider's webhook (`POST /api/payments/webhooks/stripe`, `/paypal`, `/crypto/{provider}`) marks it **paid** and upgrades the buyer on its own — you don't need to do anything for gateway orders unless you're handling a refund. Each provider's dashboard needs the webhook URL configured (`https://<host>/api/payments/webhooks/...`) with the matching webhook secret.
+
+> **Prices** come from the environment (`BILLING_PRICE_PRO_CENTS`, `BILLING_PRICE_ENTERPRISE_CENTS`, `BILLING_CURRENCY`); the frontend never sends its own prices — the discount is recomputed server-side from the buyer's affiliate data.
+
 ## How Bans &amp; Lockouts Work
 
 The auth system locks after repeated failed login attempts. Two kinds of bans exist:
@@ -152,6 +325,19 @@ The auth system locks after repeated failed login attempts. Two kinds of bans ex
 - **Account bans** — applied to the targeted account after repeated failures.
 
 In the **Bans** tab each row shows its type, value, failure count, and status (Permanent / Locked until / Clear). You can delete a single record with **Unban**.
+
+## IP Allowlist
+
+The **IP Allowlist** sits at the top of the **Bans** tab. It is a database-persisted list of IP addresses or CIDR networks that are **exempt from the anti-abuse fingerprint guard**:
+
+- Users registering from an allowlisted network can **create multiple accounts** on the same device/network — they are not refused by the invite/referral anti-abuse check (`AFFILIATE_ABUSE_ACTION`) and are not rate-limited by the registration probe.
+- Login **fingerprint lockouts** (IP/cookie/user-agent bans and the 2-of-3 rule) are ignored for allowlisted IPs, and no new fingerprint penalties are recorded while the allowlist entry exists.
+
+This is intended for trusted networks — for example shared office/development IPs or your own **beta testers**, who legitimately need more than one account from the same machine. Unlike ban records, the allowlist lives in the database, so it **survives redeploys** and restarts.
+
+To add an entry: enter an IP address (e.g. `203.0.113.7`) or a CIDR network (e.g. `203.0.113.0/24`), optionally add a note, and click **Add**. Both IPv4 and IPv6 are supported (including `::ffff:` IPv4-mapped addresses). Remove an entry at any time with **Remove**.
+
+The same allowlist is served by the admin API (`GET /api/admin/whitelist`, `POST /api/admin/whitelist`, `DELETE /api/admin/whitelist/:id`, gated by the `bans.manage` permission) and is applied server-side in the referral anti-abuse check, the registration throttle, and the login fingerprint guard.
 
 ## Unlocking a User Account
 

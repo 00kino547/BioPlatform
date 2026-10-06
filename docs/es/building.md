@@ -1,8 +1,8 @@
 # Imágenes Docker
 
-BioPlatform publica imágenes precompiladas en dos registros. También puedes construir las tuyas desde el código fuente.
+BioPlatform publica imágenes precompiladas en dos registros. También puedes compilar las tuyas propias desde el código fuente.
 
-## Imágenes Precompiladas
+## Imágenes precompiladas
 
 Las imágenes se publican automáticamente en cada release:
 
@@ -19,16 +19,16 @@ Tags: `latest`, semver (`1.3.0`), minor (`1.3`), SHA.
 # Docker Hub (por defecto)
 docker compose -f docker-compose.prebuilt.yml up -d
 
-# GHCR — sobreescribe via .env o entorno
+# GHCR — sobrescribe mediante .env o variable de entorno
 BACKEND_IMAGE=ghcr.io/00kino547/bioplatform-backend:latest \
 FRONTEND_IMAGE=ghcr.io/00kino547/bioplatform-frontend:latest \
 docker compose -f docker-compose.prebuilt.yml up -d
 
-# O configura en .env y ejecuta:
+# O define las variables en .env y ejecuta:
 docker compose -f docker-compose.prebuilt.yml up -d
 ```
 
-El archivo prebuilt es un drop-in independiente para `docker-compose.yml` — mismos servicios, mismos puertos, mismas variables de entorno. Descarga imágenes en vez de construir desde el código fuente.
+El archivo prebuilt es un sustituto directo de `docker-compose.yml`: mismos servicios, mismos puertos, mismas variables de entorno. Descarga las imágenes en lugar de compilarlas desde el código fuente.
 
 ### Descargar una versión específica
 
@@ -38,25 +38,25 @@ FRONTEND_IMAGE=dracoservices/bioplatform-frontend:1.3.0 \
 docker compose -f docker-compose.prebuilt.yml up -d
 ```
 
-## Construir desde el Código Fuente
+## Compilar desde el código fuente
 
-### Usando docker compose (recomendado)
+### Usando docker compose
 
-El `docker-compose.yml` por defecto construye ambas imágenes desde los Dockerfiles:
+Las imágenes precompiladas son la opción recomendada por defecto (ver [Despliegue](./deployment.md)). Para ejecutar código local modificado en su lugar, el archivo `docker-compose.yml` por defecto compila ambas imágenes a partir de los Dockerfiles:
 
 ```bash
-# Stack completo con Nginx
+# Pila completa con Nginx
 docker compose --profile nginx up -d --build
 
 # Sin Nginx
 docker compose up -d --build
 ```
 
-Esto construye el backend (stage único, Node 22 Alpine) y el frontend (multi-stage: build Node 22 → Nginx Alpine) desde el código fuente local.
+Esto compila el backend (etapa única, Node 22 Alpine) y el frontend (varias etapas: compilación con Node 22 → Nginx Alpine) a partir del código fuente local.
 
-### Usando scripts de build
+### Usando scripts de compilación
 
-Scripts auxiliares que construyen y etiquetan imágenes localmente:
+Scripts auxiliares que compilan y etiquetan imágenes localmente:
 
 **Linux / macOS:**
 
@@ -84,64 +84,66 @@ Scripts auxiliares que construyen y etiquetan imágenes localmente:
 ./scripts/build-frontend.ps1
 ```
 
-Vía pnpm:
+Mediante pnpm:
 
 ```bash
 pnpm docker:build
 ```
 
-### Construir para un registro personalizado
+### Compilar para un registro personalizado
 
-Los scripts de build etiquetan imágenes para Docker Hub por defecto (`dracoservices/bioplatform-*`). Para subir a tu propio registro:
+Los scripts de compilación etiquetan las imágenes para Docker Hub de forma predeterminada (`dracoservices/bioplatform-*`). Para subirlas a tu propio registro:
 
 ```bash
-# Construir
+# Compilar
 ./scripts/build-backend.sh
 
 # Reetiquetar
-docker tag dracoservices/bioplatform-backend:latest miregistro.com/miorg/bioplatform-backend:latest
+docker tag dracoservices/bioplatform-backend:latest myregistry.com/myorg/bioplatform-backend:latest
 
 # Subir
-docker push miregistro.com/miorg/bioplatform-backend:latest
+docker push myregistry.com/myorg/bioplatform-backend:latest
 ```
 
-O modifica la variable `IMAGE_NAME` al inicio de los scripts de build.
+También puedes modificar la variable `IMAGE_NAME` al inicio de los scripts de compilación.
 
-### Arquitectura de build
+### Arquitectura de compilación
 
-| Imagen | Base | Build | Notas |
-|--------|------|-------|-------|
-| Backend | `node:22-alpine` | Stage único | Incluye Prisma, CLI (`bioplatform` en PATH), fuentes para OG cards |
-| Frontend | `node:22-alpine` → `nginx:alpine` | Multi-stage | Stage de build compila React, stage de producción sirve archivos estáticos |
+| Imagen | Base | Compilación | Notas |
+|--------|------|-------------|-------|
+| Backend | `node:22-alpine` | Etapa única | Incluye Prisma, CLI (`bioplatform` en PATH), fuentes para OG cards |
+| Frontend | `node:22-alpine` → `nginx:alpine` | Varias etapas | La etapa de compilación genera React; la etapa de producción sirve los archivos estáticos |
 
-### Personalizar el build
+### Personalizar la compilación
 
-**Frontend:** La imagen del frontend es configurable en tiempo de ejecución via variables `VITE_*` (inyectadas por el entrypoint). NO necesitas reconstruir para cambiar branding, URL del API u otros ajustes del frontend — solo configura las variables en `.env`.
+**Frontend:** La imagen del frontend se configura en tiempo de ejecución mediante las variables `VITE_*` (inyectadas por el entrypoint). No es necesario recompilar para cambiar el branding, la URL de la API u otros ajustes del frontend: basta con definir las variables en `.env`.
 
-**Backend:** Si modificas código del backend, reconstruye con `./scripts/build-backend.sh` o `docker compose up -d --build backend`.
+**Backend:** Si modificas el código del backend, recompila con `./scripts/build-backend.sh` o `docker compose up -d --build backend`.
 
 ### Dockerfiles
 
 - `apps/backend/Dockerfile` — imagen del backend
-- `apps/frontend/Dockerfile` — imagen del frontend (multi-stage)
+- `apps/frontend/Dockerfile` — imagen del frontend (varias etapas)
 
 ### CI/CD
 
-El workflow de GitHub Actions (`.github/workflows/docker-publish.yml`) construye y publica en Docker Hub y GHCR en cada push a `main` y cada tag de versión. Usa:
-- Docker Buildx para builds reproducibles
-- Caché de GitHub Actions para rebuilds más rápidos
-- Soporte multi-plataforma (actualmente `linux/amd64`)
+El workflow de GitHub Actions (`.github/workflows/docker-publish.yml`) compila y publica en Docker Hub y GHCR en cada push a `main` y en cada tag de versión. Utiliza:
+- Docker Buildx para compilaciones reproducibles
+- Caché de GitHub Actions para recompilaciones más rápidas
+- Soporte multiplataforma (actualmente `linux/amd64`)
 
 ## ¿Qué opción debo usar?
 
-| Escenario | Usa |
-|-----------|-----|
-| Deploy rápido, sin cambios de código | Imágenes precompiladas (`docker-compose.prebuilt.yml`) |
-| Branding personalizado sin reconstruir | Imágenes precompiladas + variables de entorno |
-| Fork con código modificado | Construir desde fuente (`docker-compose.yml` + `--build`) |
-| Pipeline CI/CD | Scripts de build o docker compose `--build` |
-| Probar un PR | Construir desde fuente |
+| Escenario | Recomendación |
+|-----------|---------------|
+| Despliegue rápido, sin cambios de código | Imágenes precompiladas (`docker-compose.prebuilt.yml`) — la opción recomendada por defecto |
+| Branding personalizado sin recompilar | Imágenes precompiladas + variables de entorno |
+| Fork con código modificado | Compilar desde el código fuente (`docker-compose.yml` + `--build`) |
+| Pipeline CI/CD | Scripts de compilación o docker compose `--build` |
+| Probar un PR | Compilar desde el código fuente |
+
+Las imágenes precompiladas son la opción recomendada por defecto para la mayoría de despliegues (`docker compose -f docker-compose.prebuilt.yml --profile nginx up -d`). Compila desde el código fuente solo cuando necesites ejecutar código modificado.
 
 ---
 
-← [Despliegue](./deployment.md) · [Guía de Administración](./admin-guide.md) →
+← [Despliegue](./deployment.md) · [Guía de administración](./admin-guide.md) →

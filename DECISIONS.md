@@ -245,4 +245,53 @@
 - **Admin unlock = full restore:** `POST /api/admin/auth-unlock` deletes the account's `ACCOUNT` ban **and** the `IP`/`COOKIE` bans recorded against that account in `AuthLog`, plus its failed entries. Deleting only the account row is not enough — the same attacker fingerprint (e.g. IP + cookie + UA) is banned under the 2-of-3 rule, so a "full" unlock clears the fingerprint too. `UA` bans are left in place (the log stores only the hashed UA, so they can't be matched reliably) but a single leftover UA ban can never satisfy the 2-of-3 rule alone
 - The rate limiter fails **open** on DB errors so an outage can never lock everyone out
 - Block messages are generic and identical regardless of the reason, avoiding account-enumeration feedback; `/unlock` also returns success for unknown accounts so it can't be used to probe for valid usernames
-- **Version checker (planned):** the admin panel should check GitHub for the latest release on entry, warn when an update exists, and render the CHANGELOG formatted — see TASKS.md
+- **Version checker:** the backend periodically checks GitHub for newer releases (cached, severity-computed, `UPDATE_CHECK_INCLUDE_PRERELEASES` opt-in), and the admin panel surfaces an "update available" notice — see TASKS.md
+
+## Cloudflare & CDN compatibility
+
+- **All static assets served through `/uploads/`** — Cloudflare caches these via the existing upload serving middleware (proper `Cache-Control` and ETag headers). New uploads (favicon images, future product files) reuse this path.
+- **Public API endpoints set `Cache-Control: public, max-age=...`** — same pattern as `/api/landing/config` (60s), `/api/captcha/config`, etc. The new `/api/features` endpoint follows this.
+- **Client-side generation preferred over server rendering** — QR codes, profile decorations, etc. are rendered client-side where possible to avoid server load and CDN invalidation complexity.
+- **Media proxy remains CF-safe** — the existing `/api/media/proxy` (SSRF-safe, nosniff, same-site CORP) is the only way external images are loaded; no CSP relaxation for Cloudflare-proxied URLs.
+- **Redis cache invalidation** — new read-heavy endpoints (feature flags, aggregate link stats) cache via the existing `getCacheDriver()` abstraction; TTLs match the existing pattern (60–300s for volatile config, 24h for immutable assets).
+
+## Feature flags (opt-in by instance owner)
+
+- **Pattern:** boolean env vars (e.g. `LINKS_CUSTOM_ICONS_ENABLED`, `LINKS_QR_ENABLED`) default `false`; the backend validates/stores data regardless (no data loss on toggle), but the public profile and dashboard UI respect the flags.
+- **Public exposure:** `GET /api/features` returns all feature flags as `{ customIconsEnabled, qrEnabled, ... }` — cached 60s.
+- **Dashboard gating:** when a flag is off, the corresponding UI controls are hidden/disabled in the editor; the backend still accepts the data so the owner can enable features without re-entering.
+
+## Seasonal & holiday themes
+
+- **DB-backed `themes.manage`:** themes are stored in a `seasonal_themes` table (not code), authored through the admin panel via a new `themes.manage` permission added to the default admin role — not tier-gated for users, since theming is an operator/platform concern
+- **Recurring windows:** each theme carries an optional year-repeating month/day start/end window (e.g. Christmas Dec 1 – Jan 8), so scheduling needs no per-year maintenance
+- **Resolution order** (`resolveActiveSeasonalTheme` / `resolveProfileSeasonalTheme`): a manual override `on` wins; otherwise holiday > season; otherwise the higher `sortOrder`; the whole feature is gated by a master `enabled` switch plus `autoSchedule`; while a theme is active it **entirely replaces** the user's custom theme
+- **Christmas always-allow:** a user's `alwaysAllowChristmas` opt-in beats even an operator `off` override, but only for that user and only that theme — a deliberate "don't take away users' holidays" carve-out
+- **Locally-editable preview re-use:** the admin preview and the landing Showcase share one reusable `SampleProfilePreview` component whose edits run entirely in the browser (server keeps defaults) so concurrent admins never overlap real data; the admin passes a `theme` overlay (with a badge), the landing passes a preset with no badge
+- **Animated FX overlay:** each theme config carries an editable `effect` (`none, snow, pumpkins, hearts, leaves, stars, confetti, sparkle`) rendered as a lightweight canvas particle overlay (`FxOverlay.tsx`) that is animated most of the time but cheap (DPR-capped, area-scaled counts, respects `prefers-reduced-motion`, pauses on hidden tabs). Each profile also has its own `animatedFx` toggle + `effect` picker in Appearance — the user's per-profile effect wins first, then the active global theme's effect. Applied to **both** public profiles and the landing page (`GET /api/theming/active`).
+- **Global = whole platform:** the active theme recolors public profiles **and** the landing page; it is **not** a separate theme type — the same `seasonal_themes` DB table/model/columns are reused, and only the UI + API are renamed to "Theming" (back-compat `seasonal-themes` API aliases + `seasonal`/`theming` response aliases preserved).
+
+## Schema migrations run at container start — with a guard, not a hope
+
+- **Decision:** `docker-entrypoint.sh` applies pending Prisma migrations (`db:migrate:prod`) *before* starting the server when `MIGRATE_ON_START=true` (the default), retrying while the database is unreachable (`DB_WAIT_ATTEMPTS` × `DB_WAIT_INTERVAL`, 30 × 2 s) and exiting non-zero if the migration fails.
+- **Why:** a brand-new volume previously connected, logged `Database connected`, then failed every background query with `P2021` while the healthcheck never went green — the documented path required a manual `prisma migrate deploy` that no compose path ran. Making it automatic removes the only manual step a clean-room install has.
+- **The guard that makes it safe:** if `MIGRATE_ON_START=true` and the image ships no (or an empty) `prisma/migrations/`, the container prints an actionable `FATAL` and exits instead of letting `migrate deploy` report success while applying nothing. Silence here would leave an empty database behind a server that looks healthy — exactly the class of bug the `PORT=0` failure taught us.
+- **Escape hatch:** `MIGRATE_ON_START=false` for operators who manage the schema themselves; `update.sh` sets it explicitly for its one-shot migrate container so the migration is a single, visible, ordered step in the script rather than a side effect of a restart.
+- **Idempotence:** `migrate deploy` only applies what is pending, so restarting an up-to-date instance changes nothing (`No pending migrations to apply`) — verified live on both empty and populated volumes.
+- **Seed stays separate:** `SEED_ON_START` runs *after* the schema exists, and `db:seed` loads `../../.env` with `--env-file-if-exists` because `.env` is `.dockerignore`d and never present in the container (older `--env-file=` exited 9 there).
+
+## update.sh: a backup it has verified, or it does not migrate
+
+- **Decision:** before any pull/migrate/recreate, `update.sh` writes a `pg_dump` to `backups/` and validates it (≥128 bytes **and** a parseable `pg_restore --list` table of contents). If validation fails the run aborts; `--no-backup` additionally requires `--force` and prints the risk loudly.
+- **Why:** this is the one script that writes to a live database. "We took a dump" is not evidence — an empty or truncated file passes that claim and fails at restore time, which is the worst possible moment to discover it. `--verify-restore` goes further and restores into a scratch database.
+- **Ordering is code, not convention:** resolve deployment → report schema state → verified dump → pull → one-shot migrate → recreate → health gate → rollback by image digest. Each step prints what it did; on any failure the script prints the dump path and the exact restore command.
+- **Piped installs (`curl | bash`) fetch helpers from the script's own version tag**, never from `main`, and validate each download (non-empty, contains `bp_`) before sourcing — a pinned updater must not execute helper libraries from a different revision. `$0`-based piped detection was dropped (`$0` is `bash` when piped); absence of `scripts/lib/` is the signal instead.
+- **`--dry-run` never waits:** it prints the health wait it *would* do and exits 0, rather than falling into the real 180 s health/rollback loop.
+
+## Two instances on one host: parameterise the compose files, not the code
+
+- **Decision:** `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`, `BACKEND_HOST_PORT`, `NGINX_PORT`, `NGINX_HTTPS_PORT`, `CERTS_DIR`, `NGINX_CONFIG_DIR` and `NETWORK_NAME` are env-parameterised in **both** compose files, with the previous literal values as defaults.
+- **Why:** the hardcoded `networks.default.name: bioplatform_net` meant a second stack silently *joined* the production network, where `postgres`/`redis` are DNS aliases — a throwaway backend's `postgres` resolved against the live database. The parameterisation must live in both files because they are interchangeable deploy paths (`pnpm compose:check` keeps them in lockstep).
+- **Container ports stay 5432/6379/3000:** only host publishes move, so `DATABASE_URL` and `CACHE_REDIS_URL` — the values operators actually configure — never change. That is what keeps the second instance a copy of the same deployment rather than a fork of it.
+- **Rules for operators:** one directory (or `COMPOSE_PROJECT_NAME`) per instance so containers/volumes/state never mix; every published port unique; `NETWORK_NAME` **must** be unique or the stacks resolve each other's databases; separate `JWT_SECRET`/`POSTGRES_PASSWORD`/`ADMIN_PASSWORD` per instance, never shared.
+- **`PORT` is the one variable whose empty value mattered:** `${PORT}` with no fallback supplies `""`, and `z.coerce.number()` made that `0`. Both compose files now use `${PORT:-3000}` and the schema preprocesses `""` → `undefined`, so the default is reachable however the variable arrives (`docker run -e PORT=` included).

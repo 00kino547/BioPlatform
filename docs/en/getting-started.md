@@ -21,10 +21,10 @@ pnpm dev
 ## Docker
 
 ```bash
-docker compose --profile nginx up -d
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
 ```
 
-App available at http://localhost:80.
+App available at http://localhost:80. This uses the published prebuilt images — no build step. To build from your local source instead, run `docker compose --profile nginx up -d --build`.
 
 ## Environment Variables
 
