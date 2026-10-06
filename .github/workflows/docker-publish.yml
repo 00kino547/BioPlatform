@@ -5,6 +5,12 @@ name: Build & Publish Docker Images
 #   * A push to `main` is a BUILD ONLY. It verifies the images still assemble but
 #     publishes nothing, so an in-progress / unreleased state can never overwrite
 #     the `latest` image that operators pull.
+#   * The moving channels (`public-canary`, `public-alpha`, any `dev-*`) publish ONE
+#     rolling tag each — `:canary`, `:alpha`, `:dev` — and they publish only from a
+#     successful run of the `Tests & Quality Gates` workflow. That is the whole point
+#     of routing them through `workflow_run` instead of `push`: an untested commit can
+#     never produce a pullable image. `workflow_run` runs the workflow file from the
+#     DEFAULT branch, so this trigger only exists once this file has landed on `main`.
 #   * Images are published ONLY from a version tag (`v1.3.2`, `v1.3.2-beta.1`,
 #     ...) or from a manual run that supplies an explicit `version`. That keeps
 #     the tag on the image equal to the reason the image was cut — never a
@@ -22,6 +28,14 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  workflow_run:
+    # The moving channels publish from here, NOT from `push`: this fires only when the
+    # quality gate finished, and the publish step refuses anything but `success`.
+    # `branches` filters on the gate run's head branch, so a green run on `main` never
+    # triggers a moving-channel publish.
+    workflows: ["Tests & Quality Gates"]
+    types: [completed]
+    branches: ["public-canary", "public-alpha", "dev-*"]
   workflow_dispatch:
     inputs:
       version:
@@ -41,10 +55,16 @@ on:
 permissions: {}
 
 concurrency:
-  group: docker-${{ github.ref }}
-  # Never cancel a publish half-way: a version tag must always finish tagging
-  # every image. Branch (build-only) runs are safe to supersede.
-  cancel-in-progress: ${{ github.ref_type == 'branch' }}
+  # On a `workflow_run`, `github.ref` is the DEFAULT branch (refs/heads/main). Keying
+  # on it alone would drop every moving channel AND the main build-only run into one
+  # group, where they would cancel each other. Use the gate run's head branch when there
+  # is one and fall back to the pushed ref for push/dispatch runs.
+  group: docker-${{ github.event_name }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  # Never cancel a publish half-way: a version tag must always finish tagging every
+  # image, and a moving-channel publish pushes a real, pullable tag. Only the build-only
+  # `main` push is safe to supersede. `github.ref_type` is `branch` for workflow_run too,
+  # so the event name must be part of the condition or a canary publish would be killed.
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 env:
   DOCKERHUB_NAMESPACE: dracoservices
@@ -73,6 +93,11 @@ jobs:
           # pushes with git, and a persisted token would be readable by any
           # later step (or build script) that touches the working tree.
           persist-credentials: false
+          # On a workflow_run, `github.sha` is the DEFAULT branch tip, so without this
+          # the gate would pass on the canary commit and the image would be built from
+          # main. `github.event.workflow_run.head_sha` is empty for push/dispatch runs,
+          # which then fall back to `github.sha` exactly as before.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Compare the push against its base commit
         id: filter
@@ -149,6 +174,55 @@ jobs:
           # Images are pushed by buildx with the registry logins below, never by
           # git, so the checkout does not need to keep a credential around.
           persist-credentials: false
+          # Same reason as in the `changes` job: build the commit the gate actually
+          # ran against, not the default branch tip.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Resolve which moving channel this workflow_run belongs to and reduce it to the
+      # ONE rolling tag it is allowed to publish. Everything downstream (the metadata
+      # tag list, the push decision, the cache scope) keys off these two outputs, so
+      # there is exactly one place where "may this publish?" is decided.
+      - name: Resolve moving channel
+        id: channel
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+
+          # Push, tag and dispatch runs are the numbered-release path; the `target`
+          # step owns those and they publish no moving tag.
+          if [ "$EVENT_NAME" != "workflow_run" ]; then
+            echo "publish_channel=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A cancelled, skipped, timed-out or failed gate publishes nothing. This is
+          # the single most important line in the file: it is what makes "nothing
+          # reaches the registry untested" true rather than aspirational.
+          if [ "$HEAD_CONCLUSION" != "success" ]; then
+            echo "Quality gate concluded '$HEAD_CONCLUSION' - publishing nothing."
+            echo "publish_channel=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$HEAD_BRANCH" in
+            public-canary) tag="canary" ;;
+            public-alpha)  tag="alpha" ;;
+            dev-*)         tag="dev" ;;
+            *)
+              echo "Branch '$HEAD_BRANCH' is not a moving channel - publishing nothing."
+              echo "publish_channel=false" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          echo "Gate passed on '$HEAD_BRANCH' - publishing the rolling ':$tag' tag."
+          {
+            echo "publish_channel=true"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Compute lowercase owner
         id: names
@@ -238,6 +312,12 @@ jobs:
             type=raw,value=${{ steps.target.outputs.version }},enable=${{ steps.target.outputs.publish == 'true' }}
             type=raw,value=${{ steps.target.outputs.channel }},enable=${{ steps.target.outputs.publish == 'true' && steps.target.outputs.prerelease == 'false' }}
             type=raw,value=latest,enable=${{ steps.target.outputs.publish == 'true' && steps.target.outputs.prerelease == 'false' }}
+            # The moving channels contribute exactly ONE rolling tag, enabled only by
+            # the gate-gated `channel` step. Deliberately no per-commit SHA tag: the
+            # channels overwrite a single tag instead of accumulating one per commit,
+            # so the registry never fills up and there is nothing to garbage-collect.
+            # Traceability comes from the org.opencontainers.image.revision label below.
+            type=raw,value=${{ steps.channel.outputs.tag }},enable=${{ steps.channel.outputs.publish_channel == 'true' }}
 
       - name: Build & push image
         uses: docker/build-push-action@v6
@@ -245,8 +325,15 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: ${{ steps.target.outputs.publish == 'true' }}
+          push: ${{ steps.target.outputs.publish == 'true' || steps.channel.outputs.publish_channel == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # metadata-action derives its source/revision labels from the event context,
+          # which for a workflow_run is the default branch — it would label a canary
+          # image as `main`. Pin the real revision explicitly.
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || github.sha }}
+          # Scope the cache per channel so a burst of canary commits cannot evict and
+          # invalidate the release cache (and vice versa) — they are different trees.
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.channel.outputs.tag || 'release' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ steps.channel.outputs.tag || 'release' }}

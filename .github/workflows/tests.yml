@@ -15,7 +15,11 @@ name: Tests & Quality Gates
 
 on:
   push:
-    branches: [main]
+    # public-canary / public-alpha / dev-* are the moving channels: docker-publish.yml
+    # publishes their `:canary` / `:alpha` / `:dev` tags from a workflow_run of THIS
+    # workflow, gated on `conclusion == success`. So every image tag in the registry
+    # that is not a numbered release has, by construction, passed this gate first.
+    branches: [main, public-canary, public-alpha, "dev-*"]
   pull_request:
 
 # Deny every scope by default, then grant the minimum per job below.
@@ -75,7 +79,7 @@ jobs:
       - name: Set up pnpm 11
         run: |
           corepack enable
-          corepack prepare pnpm@11.9.0 --activate
+          corepack prepare pnpm@11.11.0 --activate
           pnpm --version
 
       - name: Install dependencies
