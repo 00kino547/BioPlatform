@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Invite-store tests stopped depending on the developer's `.env`, which made CI fail on the release commit** — `INVITE_PRICE_PACKS` defaults to `""`, and an empty pack list is the storefront's deliberate hard off switch (`purchaseStore()` reports `open: false` when no packs exist), so the seven invite-purchase assertions that need an open store passed on a machine whose repo `.env` supplied `1:100,3:200,10:600` and failed on the GitHub runner, which has no `.env` at all — `Tests & Quality Gates` went red on `main` for the first time since 2026-10-04 while the same suite passed locally. `tests/setup-env.ts` now pins `INVITE_PRICE_PACKS`, exactly the way it already pins billing, cache, SSO, captcha and gateway values, so the suite is self-contained instead of borrowing configuration from whoever happens to run it. Verified by running the full suite with the repo `.env` physically removed (plus the local `POSTGRES_PASSWORD`, which the runner gets from its service container): **581/581** with the file present and **581/581** with it gone.
+
 ## [2.0.0-canary.1-hotfix] - 2026-10-06
 
 ### Added

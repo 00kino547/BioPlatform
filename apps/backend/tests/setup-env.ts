@@ -123,6 +123,15 @@ process.env.CAPTCHA_PROVIDER = "none";
 process.env.CAPTCHA_SITE_KEY = "";
 process.env.CAPTCHA_SECRET_KEY = "";
 
+// Deterministic paid-invite store env for tests. `INVITE_PRICE_PACKS` defaults
+// to the empty string, which is the storefront's hard off switch
+// (`purchaseStore()` reports `open: false` when the pack list is empty), so a CI
+// runner with no repo `.env` saw a closed store and 7 invite-purchase tests
+// failed there while passing locally — the developer's `.env` was silently
+// supplying the packs. Pin the pack list the assertions are written against
+// instead of inheriting whatever the local `.env` happens to contain.
+process.env.INVITE_PRICE_PACKS = "1:100,3:200,10:600";
+
 // Deterministic gateway env for tests (crypto is the synthetic-tested path).
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 process.env.PAYPAL_MODE = "sandbox";
