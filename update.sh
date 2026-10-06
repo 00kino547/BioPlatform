@@ -34,7 +34,7 @@
 
 set -eu
 
-UPDATE_SH_VERSION="2.0.0-canary.1"
+UPDATE_SH_VERSION="2.0.0-canary.1-hotfix"
 
 # ------------------------------------------------------------------- usage ---
 

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0-canary.1-hotfix] - 2026-10-06
+
 ### Added
 - **Resale mode `permitted` — publish a resale *permission*, not just prohibitions** — the paid-invite store could already publish a resale prohibition (`legal`) or prohibit and track (`enforced`), and `off` meant "the instance states nothing". There was no way to say the opposite of `legal`: an instance that *allows* members to sell their invite codes had to publish silence, because the storefront and the legal pages derived their wording from `mode !== "off"`. A fourth value, **`permitted`**, publishes an explicit clause that members **may** resell, re-list or transfer codes they hold — bought or earned — with the limits spelled out: the buyer of a code becomes responsible for registering with it, the operator may still suspend for abuse (including revoking the codes of the offending purchase), and resale transfers neither membership, subscription nor billing history, nor does it remove the buyer's refund rights. The clause is deliberately written to describe what the platform actually does, so it cannot contradict the implementation: invite codes are plain bearer secrets, so nothing here prevents a transfer, and `enforced` still only records origin rather than blocking sharing. `off` and `permitted` both leave `sellingAllowed: true` and differ solely in publication; `legal`/`enforced` keep `sellingAllowed: false`. The published stance is now derived once in `lib/inviteService.ts` (`InviteResalePolicy.clause` → `none | permitted | prohibited`) and sent on both `/api/policy/context` (`resalePermitted`, `resaleRestricted`) and the public `/api/invite-purchases/config` (`resale.clause`), so the Terms, the Privacy Policy and the storefront cannot disagree — and the storefront can no longer print "this instance does not permit invite codes to be resold" for an instance that permits it. Admin **Invite Codes → Paid invite credits** gained the option with an explanation of each value. Terms §Purchased Invites and Privacy §Purchased Invites gained the matching clauses.
 - **Legal snapshots are invalidated on the writes that change them** — `/api/policy/context` is cached for 60 s, so changing the resale mode, the generation switch or the store switch left the published legal page describing the previous stance for up to a minute after the admin saw "Saved". `lib/policyContextCache.ts` owns the key and `clearPolicyContextCache()` is now called from each of those admin writes; a stale legal page is worse than a marginally slower save.
@@ -596,7 +598,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Multer file filter checks extensions only
 - No `dangerouslySetInnerHTML` in frontend
 - React escapes all JSX content by default
-[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/00kino547/BioPlatform/compare/v2.0.0-canary.1-hotfix...HEAD
+[2.0.0-canary.1-hotfix]: https://github.com/00kino547/BioPlatform/compare/v2.0.0-canary.1...v2.0.0-canary.1-hotfix
 [1.3.1]: https://github.com/00kino547/BioPlatform/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.4...v1.3.0
 [1.3.0-rc.4]: https://github.com/00kino547/BioPlatform/compare/v1.3.0-rc.3.1...v1.3.0-rc.4
