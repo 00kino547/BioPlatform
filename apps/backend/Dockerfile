@@ -34,10 +34,6 @@ RUN printf '#!/bin/sh\nexec node /app/apps/backend/dist/cli/index.js "$@"\n' > /
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Create uploads directory
-# Remove npm/npx (pnpm/corepack drives everything) — strips node-tar and its
-# CVEs (gzip-bomb DoS, malformed/long-path archive DoS) from the base image.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
-
 RUN mkdir -p /app/uploads /app/certs
 
 COPY apps/backend/docker-entrypoint.sh /docker-entrypoint.sh
