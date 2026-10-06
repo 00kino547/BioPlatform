@@ -27,9 +27,11 @@ const footerLinks = {
     { label: "Terms of Service", href: "/terms" },
     { label: "Contact", href: branding.contactUrl },
   ],
+  Preferences: [{ label: "Cookie Preferences", action: "cookies" }],
 };
 
 export function Footer() {
+  const onCookiePrefs = () => window.dispatchEvent(new CustomEvent("bio:open-cookie-settings"));
   return (
     <footer className="relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
@@ -69,18 +71,33 @@ export function Footer() {
                     {category}
                   </h4>
                   <ul className="space-y-3">
-                    {links.map((link) => (
-                      <li key={link.label}>
-                        <a
-                          href={link.href}
-                          target={link.href.startsWith("http") ? "_blank" : undefined}
-                          rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                          className="text-sm text-zinc-500 hover:text-white transition-colors"
-                        >
-                          {link.label}
-                        </a>
-                      </li>
-                    ))}
+                    {links.map((link) => {
+                      if ("action" in link) {
+                        return (
+                          <li key={link.label}>
+                            <button
+                              type="button"
+                              onClick={onCookiePrefs}
+                              className="text-sm text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                            >
+                              {link.label}
+                            </button>
+                          </li>
+                        );
+                      }
+                      return (
+                        <li key={link.label}>
+                          <a
+                            href={link.href}
+                            target={link.href.startsWith("http") ? "_blank" : undefined}
+                            rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                            className="text-sm text-zinc-500 hover:text-white transition-colors"
+                          >
+                            {link.label}
+                          </a>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}

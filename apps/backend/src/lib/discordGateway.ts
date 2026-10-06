@@ -32,7 +32,7 @@ export interface CachedPresence {
 
 const presenceCache = new Map<string, CachedPresence>();
 
-const PRESENCE_TTL_MS = 2 * 60 * 60 * 1000;
+const PRESENCE_TTL_MS = 24 * 60 * 60 * 1000;
 const PRESENCE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 let presenceSweepStarted = false;
@@ -293,7 +293,10 @@ function handleDispatch(session: BotSession, event: string, data: unknown): void
       session.sessionId = d?.session_id ?? null;
       session.resumeGatewayUrl = d?.resume_gateway_url ?? null;
       session.reconnectDelayMs = 1000;
-      presenceCache.clear();
+      // Keep last-known presences across reconnects instead of wiping the
+      // cache (discord asked us to resume an on-disk presence set regardless).
+      // Idle "dnd"/online users stay visible until a fresh event or the
+      // conservative TTL sweep evicts them.
       break;
     }
     case "RESUMED": {
