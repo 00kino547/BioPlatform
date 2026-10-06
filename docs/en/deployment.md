@@ -4,35 +4,40 @@
 
 ### Full Stack with Nginx
 
+The quickest way to run the stack uses the published prebuilt images — no local build step:
+
 ```bash
-docker compose --profile nginx up -d --build
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
 ```
 
 App available at `http://localhost:80` — frontend, API (`/api`), and uploads all served on a single port through the internal Nginx reverse proxy. This is the recommended setup for production and simple deployments.
 
-### Without Nginx
+### Building from Local Source (Optional)
+
+If you fork the repo or modify the backend/frontend source, build the images from your local checkout instead:
 
 ```bash
-docker compose up -d --build
+docker compose --profile nginx up -d --build
 ```
 
-Backend at `http://localhost:3000`. The frontend has no exposed port without Nginx — use the Nginx profile for browser access.
+The same services and ports are used; only the image source differs. See [Building](./building.md) for registry options and version pinning.
 
-### Using Prebuilt Images
-
-Instead of building from source, pull published images:
+### Without Nginx
 
 ```bash
 docker compose -f docker-compose.prebuilt.yml up -d
 ```
 
-See [Building](./building.md) for registry options (Docker Hub vs GHCR) and version pinning.
+Backend at `http://localhost:3000`. The frontend has no exposed port without Nginx — use the Nginx profile for browser access.
+
+(To use locally-built images without Nginx, run `docker compose up -d --build`.)
 
 ### Services
 
 | Service | Description | Port |
 |---------|-------------|------|
 | `postgres` | PostgreSQL 16 database | 5432 |
+| `redis` | Valkey cache (Redis-compatible, used by `CACHE_DRIVER=redis`) | 6379 |
 | `backend` | Express API server | 3000 |
 | `frontend` | React SPA (Nginx) | 80 |
 | `nginx` | Reverse proxy (optional) | 80 |
@@ -46,9 +51,21 @@ See [Building](./building.md) for registry options (Docker Hub vs GHCR) and vers
 5. Configure `APP_URL`, `APP_URL_HOST`, the `VITE_APP_*` URLs, and the WebAuthn values to your domain
 6. Run with `--profile nginx` for production
 
+By default the backend uses `CACHE_DRIVER=redis` against the bundled Valkey service (a Redis-compatible
+cache on port `6379`, bound to localhost). If you run the backend outside Docker Compose, point
+`CACHE_REDIS_URL` at any wire-compatible server (Redis, Valkey, KeyDB, Dragonfly) or switch to the
+`memory`/`file`/`db` drivers — see [Environment Variables](./environment-variables.md#caching).
+
 On first run, set `SEED_ON_START=true` in `.env` to create the bootstrap admin and initial invite codes.
 The seed is idempotent — it only creates the admin when that email does not already exist and never
 overwrites an existing admin password. Remove `SEED_ON_START=true` after the first successful start.
+
+> **Note:** `.env` is excluded from the build context (`.dockerignore`), so it never exists inside the
+> container. `db:seed` therefore loads it with `node --env-file-if-exists=…`, which is a no-op in
+> Docker and a real load in a source checkout — the seed takes its configuration from the container
+> environment that compose sets. Older images used `--env-file=` (without `-if-exists`), which exits
+> non-zero on a missing file and produced `ELIFECYCLE … exit code 9` with a "seed failed" warning;
+> rebuild the image if you see that.
 
 ## Manual Deployment
 
@@ -145,7 +162,7 @@ limiting see public IPs instead of the tunnel/local address. Nginx overwrites
 chain never reaches the backend.
 
 The nginx published ports (`NGINX_PORT`/`NGINX_HTTPS_PORT`) are bound to loopback
-(`127.0.0.1`) in `docker-compose.yml` (like postgres and the backend), so only
+(`127.0.0.1`) in both compose files (like postgres and the backend), so only
 host-local processes can reach nginx — no remote client can connect directly to forge
 the proxy headers; every request must arrive via the trusted reverse proxy. Local
 traffic that comes through docker-proxy (which masquerades its source as the docker
@@ -222,6 +239,62 @@ on the main domain works there, and one registered on a custom domain works on t
 
 ## Updating
 
+### One-command update (recommended)
+
+`update.sh` in the repository root does the whole sequence and enforces the one
+ordering rule that protects your data: **the backup is taken and verified before
+anything is pulled, migrated or recreated.**
+
+```bash
+# from a checkout
+sh update.sh --deployment-dir /srv/bioplatform
+
+# or straight from the network, no checkout needed
+curl -fsSL https://raw.githubusercontent.com/00kino547/BioPlatform/main/update.sh | bash -s -- -y
+```
+
+What it does, in order:
+
+1. Checks Docker/Compose, resolves the deployment directory, `.env`, compose
+   file and project name, and prints the images currently running.
+2. Reports the schema state Prisma has recorded (`_prisma_migrations`), so you
+   see what is pending *before* anything changes.
+3. Takes a custom-format `pg_dump` into `backups/`, checks it is a readable
+   archive (≥ 128 bytes and a parseable `pg_restore --list` table of contents),
+   and prints the path and size. **A failed backup aborts the update** unless you
+   explicitly pass `--no-backup --force`, which prints the risk loudly.
+4. Pulls the new images and applies migrations in a one-shot container with the
+   entrypoint's auto-migrate switched off (`MIGRATE_ON_START=false`), so there is
+   exactly one migrate step and its ordering is visible in the script.
+5. Recreates the stack and waits for `/api/health` (and `/api/version` when
+   `ADMIN_TOKEN` is set), rolling back to the previous image digests if the
+   backend does not come up.
+
+Useful flags: `--dry-run` (prints every command, changes nothing),
+`--verify-restore` (also restores the dump into a scratch database and compares
+table counts), `--skip-pull`, `--skip-migration`, `--no-rollback`,
+`--backup-dir DIR`, `--image-tag TAG`, `-y`.
+
+On any failure the script prints the dump path and the exact restore command, so
+you never have to reconstruct the recovery path from memory.
+
+When the script is piped in (`curl … | bash`) it downloads its two helper
+libraries (`scripts/lib/bioplatform-common.sh`, `scripts/lib/bioplatform-backup.sh`)
+from the same versioned raw URL as the script itself — from a tag, not from a
+branch, so a pinned updater never runs helpers from a different revision.
+
+### Manual update
+
+Pull the latest prebuilt images and recreate the stack:
+
+```bash
+git pull
+docker compose -f docker-compose.prebuilt.yml --profile nginx pull
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
+```
+
+Or, when using locally-built images, rebuild instead:
+
 ```bash
 git pull
 pnpm install
@@ -229,17 +302,131 @@ pnpm db:generate
 docker compose --profile nginx up -d --build
 ```
 
-After updating, apply any new database migrations (raw SQL files in `docs/migrations/`):
+### Schema migrations
+
+The backend **applies pending migrations on start** (`MIGRATE_ON_START`, default
+`true`): the entrypoint runs `prisma migrate deploy` before the server, waits for
+the database to become reachable (`DB_WAIT_ATTEMPTS` × `DB_WAIT_INTERVAL`), and
+refuses to start the server if the migration fails — so a fresh volume reaches a
+healthy state with no manual Prisma command anywhere in the documented flow.
+
+Two guards make that safe:
+
+- **An image that ships no `prisma/migrations/` directory is rejected** with a
+  `FATAL` message instead of letting `migrate deploy` "succeed" while applying
+  nothing (which would leave a fresh database empty and the server pretending to
+  be fine). Set `MIGRATE_ON_START=false` only if you manage the schema yourself.
+- Schema history is managed with **Prisma Migrate** (baseline migration
+  `prisma/migrations/0_init` represents the full current schema). `migrate deploy`
+  applies only *pending* migrations and is a no-op when the database is already
+  current, so restarting an up-to-date instance does nothing.
+
+For an explicit, script-visible step (what `update.sh` uses), run:
 
 ```bash
-docker compose exec postgres psql -U postgres -d bioplatform -f /path/to/migration.sql
+pnpm --filter @bioplatform/backend db:generate
+pnpm --filter @bioplatform/backend db:migrate:prod
 ```
 
-Or copy the migration file into the container and apply it.
+#### First-time adoption of Prisma Migrate on an existing database
+
+Databases created before the baseline migration exist (they were provisioned via `prisma db push` / the legacy `docs/migrations/*.sql` files) and have **no `_prisma_migrations` history**. Do not re-run `migrate deploy` blindly on them. The safe adoption sequence:
+
+1. **Detect drift** against the current schema (non-mutating):
+
+   ```bash
+   pnpm --filter @bioplatform/backend exec prisma migrate diff \
+     --from-url "$DATABASE_URL" \
+     --to-schema-datamodel prisma/schema.prisma
+   ```
+
+2. **Converge the schema if the diff is non-empty.** The legacy history lives in `docs/migrations/` (dated, apply in date order) and any remaining drift must be reconciled with an **additive** migration — do not `prisma db push --accept-data-loss` unless you have verified it only adds tables/columns. Confirm the diff is now empty before proceeding.
+
+3. **Record every migration the database already satisfies** (this marks them as applied without running them — nothing is executed against your data):
+
+   ```bash
+   pnpm --filter @bioplatform/backend db:baseline
+   # then, for each later migration whose objects you applied by hand:
+   pnpm --filter @bioplatform/backend exec prisma migrate resolve \
+     --applied 20261001120000_invite_credit_ledger
+   ```
+
+   Skip this step for any migration whose tables/columns are **not** already present, or `migrate deploy` will try to create them again on the next release.
+
+4. From then on, every release applies through `pnpm --filter @bioplatform/backend db:migrate:prod` (prisma migrations only).
+
+New schema changes are added as normal Prisma migrations (`prisma migrate dev --create-only` then review, or regenerated with `prisma migrate diff --from-migrations --to-schema-datamodel`). The legacy `docs/migrations/*.sql` files remain archived for historical reference.
+
+#### Keep the baseline honest
+
+`prisma/migrations/0_init` is a **squashed baseline**, not a historical record: nothing has ever run it, it just has to make a fresh install complete. Two rules keep it that way:
+
+- Every schema change after it needs its own migration directory in `prisma/migrations/` — including any change you also apply to a live database with hand-written SQL.
+- Before releasing, replay the migrations and prove they equal `schema.prisma`:
+
+  ```bash
+  export SHADOW_DATABASE_URL="postgresql://user:pw@host:5432/some_empty_scratch_db"
+  pnpm --filter @bioplatform/backend db:verify-drift   # exit 0 = migrations match the schema
+  ```
+
+  `SHADOW_DATABASE_URL` must point at an **empty** database: Prisma replays every migration into it to work out the final schema. CI runs this step on every push, so a schema change that never got a migration fails the build instead of silently missing from fresh installs.
+
+### Check for new environment variables
+
+New releases may add settings to `.env.example`. Compare your `.env` against it and copy any new variables — and confirm the variable is also forwarded in `docker-compose.yml` before recreating the stack. Example for this release: `NEWSLETTER_SELF_RECIPIENT_CAP` (cap on how many recipients a user's own SMTP deliverer may send to per newsletter).
+
+## Running two instances on one host
+
+Both compose files are parameterised so a second deployment does not collide
+with the first. Each instance needs its own `.env` (deployment directory) with
+its own ports, project name, network and host paths:
+
+```bash
+# instance A — defaults are unchanged: 5432 / 6379 / 3000 / 80 / 443
+# instance B — a second, fully independent stack
+COMPOSE_PROJECT_NAME=bioplatform-b
+POSTGRES_HOST_PORT=15432
+REDIS_HOST_PORT=16379
+BACKEND_HOST_PORT=13001
+NGINX_PORT=18081
+NGINX_HTTPS_PORT=18444
+NETWORK_NAME=bioplatform_b_net
+CERTS_DIR=./certs-b
+NGINX_CONFIG_DIR=./nginx-b
+SEED_ON_START=false
+```
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `POSTGRES_HOST_PORT` | `5432` | Host port for PostgreSQL |
+| `REDIS_HOST_PORT` | `6379` | Host port for Redis/Valkey |
+| `BACKEND_HOST_PORT` | `3000` | Host port for the backend API |
+| `NGINX_PORT` / `NGINX_HTTPS_PORT` | `80` / `443` | Host ports for nginx |
+| `NETWORK_NAME` | `bioplatform_net` | Docker network — **must differ**, or the two stacks share the `postgres`/`redis` DNS names and resolve to each other |
+| `CERTS_DIR` | `./certs` | TLS material (must differ) |
+| `NGINX_CONFIG_DIR` | `./nginx` | nginx config to mount (must differ) |
+
+Rules that make this actually work:
+
+- **Run each instance from its own directory** (or set `COMPOSE_PROJECT_NAME`),
+  so containers, volumes and compose state never mix. Volumes are already
+  project-scoped (`<project>_postgres_data`, …).
+- **Every published port must differ** — the values above are examples, any free
+  set works. Inside the network the container ports stay `5432`/`6379`/`3000`,
+  so `DATABASE_URL` and `CACHE_REDIS_URL` are untouched.
+- **`NETWORK_NAME` must differ**, otherwise the second stack joins the first
+  network and its `postgres` host resolves to the *other* instance's database.
+- Give each instance its own `.env` with its own `JWT_SECRET`, `POSTGRES_PASSWORD`
+  and `ADMIN_PASSWORD`. Never share them.
+
+Verified: two instances plus an existing stack ran simultaneously, each with its
+own volumes, network and ports, all healthy at the same time.
 
 ## Backup
 
-- **Database:** `pg_dump` or Docker volume backup
+- **Database:** `pg_dump` or Docker volume backup — `update.sh` does this for you
+  before every update and prints the restore command for the dump it wrote
+  (`backups/bioplatform-YYYYMMDD-HHMMSS.dump`)
 - **Uploads:** Regular file backup of `./uploads`
 - **Environment:** Keep `.env` in a secure location
 

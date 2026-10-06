@@ -8,6 +8,7 @@ import { getEnv } from "../src/config/env.js";
 import { prisma } from "../src/lib/prisma.js";
 import { orderBadges } from "../src/lib/badges.js";
 import { loadProfileOgData } from "../src/lib/profileOg.js";
+import { POLICY_VERSIONS } from "../src/lib/newsletter.js";
 
 interface OwnedProfile {
   id: string;
@@ -84,6 +85,9 @@ before(async () => {
 
   const userA = await prisma.user.create({
     data: {
+      acceptedTosVersion: POLICY_VERSIONS.tos,
+      acceptedPrivacyVersion: POLICY_VERSIONS.privacy,
+      acceptedPoliciesAt: new Date(),
       username: "badgeorder_a",
       email: "badgeorder_a@test.local",
       passwordHash: "not-a-real-hash",
@@ -93,6 +97,9 @@ before(async () => {
   });
   const userB = await prisma.user.create({
     data: {
+      acceptedTosVersion: POLICY_VERSIONS.tos,
+      acceptedPrivacyVersion: POLICY_VERSIONS.privacy,
+      acceptedPoliciesAt: new Date(),
       username: "badgeorder_b",
       email: "badgeorder_b@test.local",
       passwordHash: "not-a-real-hash",

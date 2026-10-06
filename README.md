@@ -72,14 +72,14 @@ Open http://localhost:5173 (frontend) and http://localhost:3000/api/health (back
 # Docker Deployment (recommended)
 
 ```bash
-# Full stack with Nginx (builds from source)
-docker compose --profile nginx up -d --build
+# Recommended — prebuilt images (no build required)
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
 
 # Without Nginx (direct access to backend API)
-docker compose up -d --build
-
-# Using prebuilt images (no build required)
 docker compose -f docker-compose.prebuilt.yml up -d
+
+# Alternative — build images from your local source
+docker compose --profile nginx up -d --build
 ```
 
 With Nginx, the app is available at http://localhost:80.
@@ -92,6 +92,7 @@ does not already exist and never overwrites an existing admin password. Remove
 ## Docker Compose Services
 
 - `postgres` — PostgreSQL 16 database
+- `redis` — Valkey cache (Redis-compatible, used by `CACHE_DRIVER=redis`)
 - `backend` — Express API server (port 3000)
 - `frontend` — React SPA served by Nginx (port 80)
 - `nginx` — Reverse proxy (optional, requires `--profile nginx`)
@@ -166,8 +167,11 @@ Social links support the following platforms with custom SVG icons:
 
 ```bash
 git pull
-pnpm install
-pnpm db:generate
+# Pull new prebuilt images and recreate the stack
+docker compose -f docker-compose.prebuilt.yml --profile nginx pull
+docker compose -f docker-compose.prebuilt.yml --profile nginx up -d
+
+# Or rebuild from local source instead
 docker compose --profile nginx up -d --build
 ```
 

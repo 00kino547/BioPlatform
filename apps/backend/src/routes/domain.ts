@@ -8,6 +8,7 @@ import {
   generateVerificationToken,
   validateDomain,
 } from "../lib/customDomains.js";
+import { cleanupDomainFiles, regenerateNginxConf } from "../lib/acme.js";
 
 const router = Router();
 
@@ -176,7 +177,16 @@ router.delete("/profiles/me/:profileId/domain", requireAuth, async (req: Request
   const profile = await prisma.profile.findFirst({ where: { id: req.params.profileId, userId: req.userId! } });
   if (!profile) return res.status(404).json({ success: false, error: "Profile not found" });
   const entry = await prisma.profileDomain.findUnique({ where: { profileId: profile.id } });
-  if (entry) await prisma.profileDomain.delete({ where: { id: entry.id } });
+  if (entry) {
+    await prisma.profileDomain.delete({ where: { id: entry.id } });
+    // A1: keep the on-disk ACME/nginx lifecycle in sync with the DB row. Without
+    // this, deleting a custom domain would leave orphaned challenge/cert files
+    // and a stale nginx conf entry routing an unowned domain (the admin delete
+    // path does the same via cleanupDomainFiles + regenerateNginxConf). Clean the
+    // WILDCARD-canonicalized name so ACME challenge + issued-cert state is freed.
+    await cleanupDomainFiles(entry.domain);
+    await regenerateNginxConf();
+  }
   res.json({ success: true, data: null });
 });
 

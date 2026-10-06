@@ -151,6 +151,45 @@ export function buildViewNotification(opts: {
   `;
 }
 
+export function buildVerifyEmail(opts: {
+  appName: string;
+  username: string;
+  verifyUrl: string;
+}): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="margin:0;padding:0;background-color:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="max-width:480px;margin:40px auto;background:#18181b;border-radius:12px;border:1px solid #27272a;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#22c55e,#0ea5e9);padding:24px;text-align:center;">
+          <h1 style="color:#fff;margin:0;font-size:18px;">${opts.appName}</h1>
+        </div>
+        <div style="padding:24px;">
+          <h2 style="color:#e4e4e7;font-size:16px;margin:0 0 12px;">Confirm Your Email Address</h2>
+          <p style="color:#a1a1aa;font-size:14px;line-height:1.6;margin:0 0 20px;">
+            Hi <strong style="color:#e4e4e7;">${escapeHtml(opts.username)}</strong>. Welcome aboard! Please confirm your email address to activate your account.
+          </p>
+          <p style="color:#a1a1aa;font-size:14px;line-height:1.6;margin:0 0 20px;">
+            You won&apos;t be able to sign in until you confirm it. If you didn&apos;t create an account, you can safely ignore this email.
+          </p>
+          <a href="${opts.verifyUrl}" style="display:inline-block;background:#22c55e;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:500;">Confirm Email Address</a>
+        </div>
+        <div style="padding:16px 24px;border-top:1px solid #27272a;text-align:center;">
+          <p style="color:#52525b;font-size:11px;margin:0;">This link is valid for ${envDerivedVerifyTtlLabel()}.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+function envDerivedVerifyTtlLabel(): string {
+  const hours = getEnv().EMAIL_VERIFY_TOKEN_TTL_HOURS;
+  if (hours % 24 === 0) return `${hours / 24} day${hours / 24 === 1 ? "" : "s"}`;
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
 export function buildUnlockEmail(opts: { appName: string; username: string; unlockUrl: string }): string {
   return `
     <!DOCTYPE html>

@@ -10,6 +10,7 @@ import { getEnv } from "../config/env.js";
 import { ALLOWED_PROVIDERS, getTrackLimit, parseMusicUrl, parseFullUrl } from "../lib/music.js";
 import { stripHtml } from "../lib/validation.js";
 import { profileScope } from "../lib/profile.js";
+import { writeUpload, deleteUpload } from "../lib/mediaStore.js";
 import type { UserTier } from "@prisma/client";
 
 const router = Router();
@@ -190,13 +191,13 @@ router.post("/me", requireAuth, async (req, res) => {
 router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
   const profile = await getProfileWithUser(req.userId!, req.query.profileId);
   if (!profile) {
-    if (req.file) fs.unlinkSync(req.file.path);
+    if (req.file) await fs.promises.unlink(req.file.path).catch(() => undefined);
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 
   const limit = await ensureTrackWithinLimit(req.userId!, profile.user, req.query.profileId);
   if (limit !== null) {
-    if (req.file) fs.unlinkSync(req.file.path);
+    if (req.file) await fs.promises.unlink(req.file.path).catch(() => undefined);
     return res.status(400).json({
       success: false,
       error: `Track limit reached (${limit}). Upgrade your tier to add more tracks.`,
@@ -215,7 +216,7 @@ router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
   });
   const bodyParsed = uploadBodySchema.safeParse(req.body);
   if (!bodyParsed.success) {
-    if (req.file) fs.unlinkSync(req.file.path);
+    if (req.file) await fs.promises.unlink(req.file.path).catch(() => undefined);
     return res.status(400).json({ success: false, error: "Invalid track metadata" });
   }
   const title = bodyParsed.data.title;
@@ -225,11 +226,13 @@ router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
   if (rawFullUrl) {
     const parsedFull = parseFullUrl(rawFullUrl.replace(/[<>{}]/g, "").trim());
     if (!parsedFull) {
-      fs.unlinkSync(req.file.path);
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => undefined);
       return res.status(400).json({ success: false, error: "Invalid full version URL" });
     }
     fullUrlValue = parsedFull.embedUrl;
   }
+
+  await writeUpload(req.file.filename);
 
   const position = await prisma.musicTrack.count({ where: { profileId: profile.id } });
 
@@ -323,8 +326,7 @@ router.delete("/:id", requireAuth, async (req: Request<{ id: string }>, res) => 
   }
 
   if (track.filePath) {
-    const filePath = path.resolve(getEnv().LOCAL_STORAGE_PATH, path.basename(track.filePath));
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    void deleteUpload(path.basename(track.filePath)).catch(() => undefined);
   }
 
   await prisma.musicTrack.delete({ where: { id: track.id } });

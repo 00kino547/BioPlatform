@@ -17,6 +17,13 @@ export function AppFooter() {
           <Link to="/terms" className="text-xs text-zinc-500 hover:text-white transition-colors">
             Terms
           </Link>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("bio:open-cookie-settings"))}
+            className="text-xs text-zinc-500 hover:text-white transition-colors cursor-pointer"
+          >
+            Cookie preferences
+          </button>
           <Link to="/api-docs" className="text-xs text-zinc-500 hover:text-white transition-colors">
             API
           </Link>

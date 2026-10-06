@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Container } from "@/components/layout/Container";
 import { branding } from "@/config/branding";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLandingConfig } from "@/lib/useLandingConfig";
+import { BuyInviteModal } from "@/components/invites/BuyInviteModal";
+import { usePolicyContext } from "@/lib/usePolicyContext";
 
 const stats = [
   { icon: Users, value: "2,400+", label: "Early Access Users" },
@@ -13,6 +16,9 @@ const stats = [
 
 export function Hero() {
   const { user } = useAuth();
+  const landingConfig = useLandingConfig();
+  const ctx = usePolicyContext();
+  const storeOpen = ctx?.invites?.purchaseEnabled === true;
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       <div className="absolute inset-0 bg-grid bg-grid-fade" />
@@ -67,12 +73,32 @@ export function Hero() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             )}
+            {/*
+              Invite-only means the register button dead-ends for anyone without a
+              code, so the store gets a first-class CTA next to it. Only rendered
+              when the instance is actually selling credits.
+            */}
+            {storeOpen ? (
+              <BuyInviteModal
+                className="h-13 px-8 text-base"
+                label="Buy an invite"
+              />
+            ) : null}
             <a
               href="#showcase"
               className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"
             >
               View Showcase
             </a>
+            {landingConfig?.featuredProfileUsername && (
+              <Link
+                to={`/${landingConfig.featuredProfileUsername}`}
+                className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"
+              >
+                <Eye className="h-4 w-4" />
+                View live profile
+              </Link>
+            )}
           </div>
 
           <div

@@ -2,15 +2,17 @@ name: Tests & Quality Gates
 
 # CI gate: prove the backend test suite, TypeScript typechecks and linting
 # genuinely run on every push/PR — and fail loudly with real exit codes when
-# they do not. Without this the only workflow builds and publishes Docker
-# images, so broken tests are never caught until a human runs
-# `pnpm --filter @bioplatform/backend test` locally.
+# they do not. There was previously no test job in CI: the only workflow built
+# and published Docker images, so broken tests were never caught until a human
+# ran `pnpm --filter @bioplatform/backend test` locally.
 #
 # Note on the backend job: the test bootstrap (apps/backend/tests/setup-env.ts)
-# tolerates a missing repo `.env` (it falls back to process env plus
-# deterministic defaults, including a pinned test-only JWT_SECRET) and connects
-# to the Postgres service on 127.0.0.1:5432. `prisma db push` creates the schema
-# the tests run against.
+# tolerates a missing repo `.env` (falls back to process env + deterministic
+# defaults) and connects to the Postgres service on 127.0.0.1:5432 with the
+# default POSTGRES_PASSWORD=postgres. `prisma db push` creates the schema the
+# tests run against; the drift step separately replays `prisma/migrations/` to
+# prove a fresh `migrate deploy` produces the same schema.
+
 on:
   push:
     # public-canary / public-alpha / dev-* are the moving channels: docker-publish.yml
@@ -88,6 +90,33 @@ jobs:
 
       - name: Push schema to the test database
         run: pnpm --filter @bioplatform/backend db:push
+
+      # A fresh production deploy runs `prisma migrate deploy`, not `db push`, so a
+      # stale migrations/ directory would only ever surface on a new install. This
+      # step is the guard for that: it replays every migration into an empty
+      # database and fails if the result disagrees with schema.prisma. It was
+      # silently broken once already -- `db:verify-drift` needed a
+      # --shadow-database-url it never got, so it errored on every run instead of
+      # checking anything, and five shipped columns (auth_version, email_verified,
+      # email_verified_at, last_username_change_at, ProductType) were missing from
+      # every fresh install while the hand-edited databases looked fine.
+      - name: Verify migrations reproduce the schema
+        # A dedicated EMPTY database: Prisma replays every migration into the
+        # shadow database to work out the final schema, and it documents that
+        # database as required to be empty.
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" \
+            -c "CREATE DATABASE bioplatform_shadow"
+          SHADOW_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/bioplatform_shadow?schema=public" \
+            pnpm --filter @bioplatform/backend db:verify-drift
+
+      # The two compose files are supposed to be interchangeable deploy paths
+      # (source build vs published image) and had drifted by 63 backend variables,
+      # so an operator following the documented prebuilt path silently got schema
+      # defaults for billing prices, invite packs and the rest. Nothing failed
+      # loudly, so this compares the resolved backend environments and fails here.
+      - name: Verify compose files forward the same backend variables
+        run: pnpm compose:check
 
       - name: Run backend test suite
         run: pnpm --filter @bioplatform/backend test

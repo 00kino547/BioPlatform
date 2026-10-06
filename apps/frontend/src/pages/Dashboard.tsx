@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { QRCodeCanvas } from "qrcode.react";
 import { useAuth } from "@/contexts/AuthContext";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
@@ -10,11 +11,22 @@ import { WebhooksTab } from "@/components/settings/WebhooksTab";
 import { DiscordTab } from "@/components/settings/DiscordTab";
 import { DataTab } from "@/components/settings/DataTab";
 import { InvitesTab } from "@/components/settings/InvitesTab";
+import { AffiliateTab } from "@/components/settings/AffiliateTab";
+import { BillingTab } from "@/components/settings/BillingTab";
 import { DomainTab } from "@/components/settings/DomainTab";
+import { NewsletterManager } from "@/components/newsletter/NewsletterManager";
+import { TipsTab } from "@/components/tips/TipsTab";
+import { ShopTab } from "@/components/shop/ShopTab";
+import { PurchasesTab } from "@/components/shop/PurchasesTab";
 import { AppFooter } from "@/components/layout/AppFooter";
-import { api, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge, type SocialLink } from "@/lib/api";
+import { api, FX_EFFECTS, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge, type SocialLink, type TerminalCommand, type LayoutName, type FeatureFlags } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
+import { LayoutSelector } from "@/components/ui/LayoutSelector";
+import { BackgroundSelector } from "@/components/ui/BackgroundSelector";
+import { SectionCard, Toggle } from "@/components/ui/dashboard";
+import { LockedFeature } from "@/components/ui/LockedFeature";
+import { tabBtn } from "@/components/ui/dashboard-tokens";
 import {
   Camera,
   Save,
@@ -43,12 +55,23 @@ import {
   Link2,
   Lock,
   Crown,
-  Building2,
   Image,
   GripVertical,
   Medal,
   Loader2,
+  Sparkles,
+  Terminal as TerminalIcon,
+  QrCode,
+  Download,
+  CircleDot,
+  Clock,
+  Timer,
+  Building2,
+  Construction,
+  AtSign,
 } from "lucide-react";
+
+const LINK_ICON_EMOJI = ["🔥", "💫", "⭐", "🎮", "🎵", "📺", "📍", "💬", "🚀", "🎯", "💼", "🎨", "📷", "🌐", "🤝", "💎"];
 
 const platforms = [
   "Twitter",
@@ -206,38 +229,6 @@ const themePresets = [
   },
 ];
 
-function LockedTab({ feature, required }: { feature: string; required: "premium" | "enterprise" }) {
-  const { user } = useAuth();
-  const tier = user?.tier ?? "FREE";
-  const overridden = required === "enterprise"
-    ? user?.permissions?.includes("api.enterprise")
-    : user?.permissions?.includes("api.advanced") || user?.permissions?.includes("api.enterprise");
-
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 sm:p-10 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-800/60 mb-4">
-        {required === "enterprise" ? (
-          <Building2 className="h-6 w-6 text-amber-400" />
-        ) : (
-          <Crown className="h-6 w-6 text-violet-400" />
-        )}
-      </div>
-      <h3 className="text-lg font-semibold text-white">{feature} is a {required === "enterprise" ? "Enterprise" : "Premium"} feature</h3>
-      <p className="mt-2 text-sm text-zinc-400 max-w-md mx-auto">
-        {overridden
-          ? `Your role already unlocks this — ask an admin to grant your role the ${
-              required === "enterprise" ? "api.enterprise" : "api.advanced"
-            } permission.`
-          : `Your account is on the ${tier.toLowerCase()} tier. Upgrade to ${required === "enterprise" ? "Enterprise" : "Premium"} to unlock ${feature.toLowerCase()}.`}
-      </p>
-      <div className="mt-5 flex items-center justify-center gap-2 text-xs text-zinc-500">
-        <Lock className="h-3.5 w-3.5" />
-        Requires {required === "enterprise" ? "Enterprise" : "Premium"} · API level “{required === "enterprise" ? "enterprise" : "advanced"}”
-      </div>
-    </div>
-  );
-}
-
 function buildDayChart(
   series: { date: string; count: number }[],
   uniqueSeries: { date: string; count: number }[]
@@ -259,8 +250,72 @@ function buildDayChart(
   return { max, days };
 }
 
+function buildHourChart(
+  series: { hour: string; count: number }[],
+  uniqueSeries: { hour: string; count: number }[]
+): { max: number; hours: { hour: string; label: string; total: number; unique: number }[] } {
+  const allCounts = [...series.map((d) => d.count), ...uniqueSeries.map((d) => d.count)];
+  const max = Math.max(...allCounts, 1);
+  const hours: { hour: string; label: string; total: number; unique: number }[] = [];
+  const now = new Date();
+  for (let i = 23; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+    const hourStr = d.toISOString().slice(0, 13) + ":00:00";
+    hours.push({
+      hour: hourStr,
+      label: d.toLocaleTimeString("en-US", { hour: "numeric", hour12: false }),
+      total: series.find((v) => v.hour && v.hour.startsWith(hourStr.slice(0, 13)))?.count ?? 0,
+      unique: uniqueSeries.find((v) => v.hour && v.hour.startsWith(hourStr.slice(0, 13)))?.count ?? 0,
+    });
+  }
+  return { max, hours };
+}
+
+type DashboardTab =
+  | "profiles"
+  | "profile"
+  | "links"
+  | "appearance"
+  | "analytics"
+  | "email"
+  | "tips"
+  | "shop"
+  | "purchases"
+  | "music"
+  | "billing"
+  | "security"
+  | "webhooks"
+  | "data"
+  | "discord"
+  | "invites"
+  | "enterprise"
+  | "domain"
+  | "affiliate";
+
+const DASHBOARD_TABS: DashboardTab[] = [
+  "profiles",
+  "profile",
+  "links",
+  "appearance",
+  "analytics",
+  "email",
+  "tips",
+  "shop",
+  "purchases",
+  "music",
+  "billing",
+  "webhooks",
+  "data",
+  "discord",
+  "invites",
+  "enterprise",
+  "domain",
+  "affiliate",
+  "security",
+];
+
 export function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const isAdmin = user?.isAdmin === true;
   const apiLevel = user?.apiLevel ?? "basic";
   const hasAdvanced = apiLevel === "advanced" || apiLevel === "enterprise";
@@ -277,7 +332,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord" | "invites" | "domain">("profile");
+  const [tab, setTab] = useState<DashboardTab>("profile");
   const [uploadError, setUploadError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
@@ -290,15 +345,36 @@ export function Dashboard() {
   const [aliasBusy, setAliasBusy] = useState(false);
   const [aliasMsg, setAliasMsg] = useState("");
 
+  // @username editor (Dashboard → Profile tab): live availability oracle with a
+  // debounce, plus a save that is throttled to one rename per 30 days by the API.
+  const [usernameInput, setUsernameInput] = useState(user?.username ?? "");
+  const [usernameAvailability, setUsernameAvailability] = useState<
+    { available: boolean; reason: "reserved" | "taken" | "current" | "available" } | null
+  >(null);
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameBusy, setUsernameBusy] = useState(false);
+  const [usernameMsg, setUsernameMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const profile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [website, setWebsite] = useState("");
+  const [presenceStatus, setPresenceStatus] = useState<"online" | "idle" | "offline" | null>(null);
+  const [countdownLabel, setCountdownLabel] = useState("");
+  const [countdownDate, setCountdownDate] = useState("");
   const [isPublic, setIsPublic] = useState(true);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
+  const [seasonalDecorations, setSeasonalDecorations] = useState(false);
+  const [alwaysAllowChristmas, setAlwaysAllowChristmas] = useState(false);
+  const [animatedFx, setAnimatedFx] = useState(false);
+  const [fxEffect, setFxEffect] = useState("none");
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [layout, setLayout] = useState<LayoutName>("default");
+  const [terminalCommands, setTerminalCommands] = useState<TerminalCommand[]>([]);
 
   const [newPlatform, setNewPlatform] = useState("Twitter");
   const [newUrl, setNewUrl] = useState("");
@@ -307,6 +383,13 @@ export function Dashboard() {
   const [editPlatform, setEditPlatform] = useState("Twitter");
   const [editUrl, setEditUrl] = useState("");
   const [editLabel, setEditLabel] = useState("");
+  const [editHeading, setEditHeading] = useState("");
+  const [editIcon, setEditIcon] = useState("");
+  const [editImage, setEditImage] = useState("");
+  const [editShowQr, setEditShowQr] = useState(false);
+  const [features, setFeatures] = useState<FeatureFlags | null>(null);
+  const [qrLink, setQrLink] = useState<SocialLink | null>(null);
+  const iconFileInput = useRef<HTMLInputElement>(null);
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -318,6 +401,16 @@ export function Dashboard() {
     () => (analytics ? buildDayChart(analytics.clicksByDay, analytics.uniqueClicksByDay) : null),
     [analytics]
   );
+  const hourlyViewsChart = useMemo(
+    () => (analytics ? buildHourChart(analytics.viewsByHour, analytics.uniqueViewsByHour) : null),
+    [analytics]
+  );
+  const hourlyClicksChart = useMemo(
+    () => (analytics ? buildHourChart(analytics.clicksByHour, analytics.uniqueClicksByHour) : null),
+    [analytics]
+  );
+  const [analyticsResetting, setAnalyticsResetting] = useState<string | null>(null);
+  const [analyticsResetMsg, setAnalyticsResetMsg] = useState("");
 
   const [emailSettings, setEmailSettings] = useState<EmailNotificationSettings>({
     smtpConfigured: false,
@@ -329,6 +422,9 @@ export function Dashboard() {
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailTesting, setEmailTesting] = useState(false);
   const [emailTestResult, setEmailTestResult] = useState<"success" | "error" | null>(null);
+  const [platformAnnouncements, setPlatformAnnouncements] = useState(Boolean(user?.newsletterOptIn));
+  const [optInSaving, setOptInSaving] = useState(false);
+  const [optInMsg, setOptInMsg] = useState<"saved" | "error" | null>(null);
 
   const [music, setMusic] = useState<MusicSettings | null>(null);
   const [musicLoading, setMusicLoading] = useState(false);
@@ -352,13 +448,68 @@ export function Dashboard() {
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["profiles", "profile", "links", "appearance", "analytics", "email", "music", "security", "webhooks", "data", "discord", "invites"].includes(tabParam)) {
-      setTab(tabParam as "profiles" | "profile" | "links" | "appearance" | "analytics" | "email" | "music" | "security" | "webhooks" | "data" | "discord" | "invites");
+    if (tabParam && (DASHBOARD_TABS as string[]).includes(tabParam)) {
+      setTab(tabParam as DashboardTab);
       const next = new URLSearchParams(searchParams);
       next.delete("tab");
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  const navKey = () => `bioplatform:dashboard:nav:${user?.id ?? "anon"}`;
+
+  const saveNavState = (nextTab: DashboardTab, scrollY: number) => {
+    try {
+      sessionStorage.setItem(navKey(), JSON.stringify({ tab: nextTab, scrollY }));
+    } catch {
+      /* storage unavailable: skip */
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(navKey());
+    } catch {
+      /* ignore */
+    }
+    if (raw) {
+      const saved = JSON.parse(raw) as { tab?: string; scrollY?: number };
+      if (saved.tab && (DASHBOARD_TABS as string[]).includes(saved.tab)) setTab(saved.tab as DashboardTab);
+      if (typeof saved.scrollY === "number") {
+        requestAnimationFrame(() => window.scrollTo(0, saved.scrollY ?? 0));
+      }
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = undefined;
+        saveNavState(tab, window.scrollY);
+      }, 150);
+    };
+    const onLeave = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      saveNavState(tab, window.scrollY);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("beforeunload", onLeave);
+    document.addEventListener("visibilitychange", onLeave);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("beforeunload", onLeave);
+      document.removeEventListener("visibilitychange", onLeave);
+      if (timer) clearTimeout(timer);
+    };
+  }, [tab, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshProfiles = async () => {
     const res = await api.getMyProfiles();
@@ -384,6 +535,12 @@ export function Dashboard() {
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    api.getFeatures().then((res) => {
+      if (res.success && res.data) setFeatures(res.data);
+    }).catch(() => {});
+  }, []);
+
   const [formProfileId, setFormProfileId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -393,6 +550,9 @@ export function Dashboard() {
     setBio(profile.bio ?? "");
     setLocation(profile.location ?? "");
     setWebsite(profile.website ?? "");
+    setPresenceStatus(profile.presenceStatus ?? null);
+    setCountdownLabel(profile.countdown?.label ?? "");
+    setCountdownDate(profile.countdown?.targetDate ? new Date(profile.countdown.targetDate).toISOString().slice(0, 16) : "");
     setIsPublic(profile.isPublic);
     setSocialLinks(profile.socialLinks ?? []);
     setSelectedTheme(
@@ -400,6 +560,13 @@ export function Dashboard() {
         ? themePresets.find((t) => t.bg === profile.theme!.bg && t.accent === profile.theme!.accent)?.name ?? null
         : null
     );
+    setSeasonalDecorations(!!profile.theme?.seasonalDecorations);
+    setAlwaysAllowChristmas(!!profile.theme?.alwaysAllowChristmas);
+    setAnimatedFx(!!profile.theme?.animatedFx);
+    setFxEffect(profile.theme?.effect ?? "none");
+    setBackgroundImage(profile.theme?.backgroundImage ?? null);
+    setLayout((profile.theme?.layout as LayoutName) ?? "default");
+    setTerminalCommands(profile.terminalCommands ?? []);
     setAnalytics(null);
     setMusic(null);
     setUploadError("");
@@ -418,11 +585,42 @@ export function Dashboard() {
     }
   }, [tab, analytics, profile]);
 
+  const handleResetAnalytics = async (slug?: string) => {
+    if (!profile) return;
+    if ((slug && !confirm(`Reset all click analytics for "${slug}"? This cannot be undone.`)) ||
+        (!slug && !confirm("Reset ALL click analytics for this profile? This cannot be undone."))) {
+      return;
+    }
+    setAnalyticsResetting(slug ?? "*");
+    setAnalyticsResetMsg("");
+    const res = await api.resetAnalytics(profile.id, slug);
+    setAnalyticsResetting(null);
+    if (res.success && res.data) {
+      setAnalytics(null);
+      setAnalyticsLoading(true);
+      const fresh = await api.getAnalytics(profile.id);
+      if (fresh.success && fresh.data) setAnalytics(fresh.data);
+      setAnalyticsLoading(false);
+      setAnalyticsResetMsg(slug ? `Reset "${slug}"` : "All click analytics reset");
+      setTimeout(() => setAnalyticsResetMsg(""), 2500);
+    } else {
+      setAnalyticsResetMsg(res.error ?? "Reset failed");
+    }
+  };
+
   useEffect(() => {
     if (tab === "email" && profile) {
       api.getEmailSettings(profile.id).then((res) => {
         if (res.success && res.data) {
           setEmailSettings(res.data);
+        }
+      });
+      // Hydrate the opt-in toggle from the fresh /auth/me payload (on a page
+      // refresh AuthContext re-fetches the user, so this keeps the switch in
+      // sync with the real DB value instead of the initial `user` snapshot).
+      api.me().then((res) => {
+        if (res.success && res.data) {
+          setPlatformAnnouncements(Boolean(res.data.newsletterOptIn));
         }
       });
     }
@@ -446,16 +644,51 @@ export function Dashboard() {
     setSaved(false);
     setSaveError("");
 
-    const themeData = selectedTheme
+    const baseTheme = selectedTheme
       ? themePresets.find((t) => t.name === selectedTheme) ?? null
       : null;
+
+    const themeData = baseTheme
+      ? {
+          ...baseTheme,
+          seasonalDecorations,
+          alwaysAllowChristmas,
+          animatedFx,
+          ...(fxEffect !== "none" ? { effect: fxEffect } : {}),
+          layout: layout === "default" ? null : layout,
+          ...(backgroundImage ? { backgroundImage } : {}),
+        }
+      : {
+          seasonalDecorations,
+          alwaysAllowChristmas,
+          animatedFx,
+          ...(fxEffect !== "none" ? { effect: fxEffect } : {}),
+          layout: layout === "default" ? null : layout,
+          ...(backgroundImage ? { backgroundImage } : {}),
+        };
+
+    const normalizedCommands: TerminalCommand[] = terminalCommands
+      .filter((c) => c.command.trim() && c.output.trim())
+      .map((c) => ({
+        command: c.command.trim().toLowerCase(),
+        output: c.output.trim(),
+        description: c.description?.trim() ? c.description.trim() : undefined,
+        url: c.url?.trim() ? c.url.trim() : undefined,
+      }));
 
     const res = await api.updateProfile({
       displayName: displayName || null,
       bio: bio || null,
       location: location || null,
       website: website || null,
+      presenceStatus: presenceStatus ?? null,
+      ...(countdownDate && !isNaN(new Date(countdownDate).getTime())
+        ? { countdown: { label: countdownLabel.trim() || undefined, targetDate: new Date(countdownDate).toISOString() } }
+        : { countdown: null }),
       socialLinks: socialLinks.length > 0 ? socialLinks : null,
+      ...(user?.tier !== "FREE" || normalizedCommands.length > 0
+        ? { terminalCommands: normalizedCommands.length > 0 ? normalizedCommands : null }
+        : {}),
       theme: themeData,
       isPublic,
     }, profile.id);
@@ -470,6 +703,17 @@ export function Dashboard() {
     } else {
       setSaveError(res.error ?? "Failed to save profile");
     }
+  };
+
+  const updateTerminalCommand = (idx: number, field: "command" | "output" | "description" | "url", value: string) => {
+    setTerminalCommands((prev) => prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+  };
+  const removeTerminalCommand = (idx: number) => {
+    setTerminalCommands((prev) => prev.filter((_, i) => i !== idx));
+  };
+  const addTerminalCommand = () => {
+if (terminalCommands.length >= 12) return;
+setTerminalCommands((prev) => [...prev, { command: "", output: "", description: "", url: "" }]);
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -566,10 +810,39 @@ export function Dashboard() {
           return { error: "Invalid Discord username. Use 2-32 characters: letters, numbers, underscores, or periods." };
         }
       }
-    } else if (!/^https?:\/\//i.test(url)) {
+} else if (!/^https?:\/\//i.test(url)) {
       url = `https://${url}`;
     }
+
     return { url };
+  };
+
+  const resolveQrValue = (link: SocialLink): string => {
+    const p = link.platform.toLowerCase();
+    if (p === "email") return link.url.startsWith("mailto:") ? link.url : `mailto:${link.url}`;
+    if (p === "discord" && !/^https?:\/\//i.test(link.url)) return "";
+    return link.url;
+  };
+
+  const handleLinkIconUpload = async (file: File) => {
+    const res = await api.uploadLinkIcon(file);
+    if (res.success && res.data?.image) {
+      setEditImage(res.data.image);
+      setUploadError("");
+    } else {
+      setUploadError(res.error ?? "Upload failed");
+    }
+  };
+
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const handleQrDownload = () => {
+    if (!qrCanvasRef.current || !qrLink) return;
+    const dataUrl = qrCanvasRef.current.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${qrLink.platform.toLowerCase()}-qr.png`;
+    a.click();
   };
 
   const addLink = () => {
@@ -597,10 +870,22 @@ export function Dashboard() {
     setEditingIndex(null);
   };
 
+  const moveLink = (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= socialLinks.length) return;
+    const next = [...socialLinks];
+    [next[index], next[target]] = [next[target], next[index]];
+    setSocialLinks(next);
+  };
+
   const startEditLink = (index: number) => {
     setEditPlatform(socialLinks[index].platform);
     setEditUrl(socialLinks[index].url);
     setEditLabel(socialLinks[index].label ?? "");
+    setEditHeading(socialLinks[index].heading ?? "");
+    setEditIcon(socialLinks[index].icon ?? "");
+    setEditImage(socialLinks[index].image ?? "");
+    setEditShowQr(!!socialLinks[index].showQr);
     setEditingIndex(index);
   };
 
@@ -623,6 +908,10 @@ export function Dashboard() {
               platform: editPlatform,
               url: result.url!,
               ...(editLabel.trim() ? { label: editLabel.trim() } : {}),
+              ...(editHeading.trim() ? { heading: editHeading.trim() } : {}),
+              ...(editIcon.trim() ? { icon: editIcon.trim() } : {}),
+              ...(editImage ? { image: editImage } : {}),
+              showQr: editShowQr,
             }
           : link
       )
@@ -653,6 +942,23 @@ export function Dashboard() {
     setEmailTesting(false);
     setEmailTestResult(res.success ? "success" : "error");
     setTimeout(() => setEmailTestResult(null), 3000);
+  };
+
+  const toggleOptIn = async (enabled: boolean) => {
+    if (optInSaving) return;
+    setOptInSaving(true);
+    setOptInMsg(null);
+    const res = await api.optInNewsletter(enabled);
+    if (res.success && res.data) {
+      setPlatformAnnouncements(res.data.enabled);
+      setOptInMsg("saved");
+      // Keep the AuthContext user in sync so other tabs/routes see the new value.
+      await refreshUser();
+    } else {
+      setOptInMsg("error");
+    }
+    setOptInSaving(false);
+    setTimeout(() => setOptInMsg(null), 2500);
   };
 
   const handleAddMusic = async () => {
@@ -914,6 +1220,48 @@ export function Dashboard() {
     }
   };
 
+  // Live availability oracle for the @username editor. Debounced so the API's
+  // per-IP rate limit (20 checks/min) is never tripped by typing.
+  const checkUsername = (value: string) => {
+    if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
+    const username = value.trim().toLowerCase();
+    const valid = /^[a-z0-9_-]{3,32}$/.test(username);
+    setUsernameChecking(false);
+
+    if (!valid || username === (user?.username ?? "").toLowerCase()) {
+      setUsernameAvailability(null);
+      return;
+    }
+
+    setUsernameChecking(true);
+    usernameDebounceRef.current = setTimeout(async () => {
+      const res = await api.checkUsernameAvailability(username);
+      setUsernameChecking(false);
+      setUsernameAvailability(
+        res.success && res.data ? res.data : { available: false, reason: "available" as const }
+      );
+    }, 350);
+  };
+
+  const handleUsernameChange = async () => {
+    const username = usernameInput.trim().toLowerCase();
+    setUsernameBusy(true);
+    setUsernameMsg(null);
+    const res = await api.changeUsername(username);
+    setUsernameBusy(false);
+
+    if (res.success && res.data) {
+      await refreshUser();
+      setProfiles((prev) =>
+        prev.map((p) => (p.isPrimary ? { ...p, slug: res.data!.slug } : p))
+      );
+      setUsernameAvailability(null);
+      setUsernameMsg({ kind: "success", text: `Your @username is now @${res.data.username}. Your profile moved to /${res.data.slug}.` });
+    } else {
+      setUsernameMsg({ kind: "error", text: res.error ?? "Failed to change username" });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -925,28 +1273,28 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-zinc-800/80 bg-zinc-900/30">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="text-lg font-bold text-white tracking-tight">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link to="/" className="text-base font-bold tracking-tight text-white">
             {branding.name}
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5">
             <a
               href={`/${profile?.slug ?? user?.username}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-zinc-400 hover:text-violet-400 transition-colors"
+              className="text-[13px] text-zinc-400 hover:text-violet-400 transition-colors"
             >
               View Profile
             </a>
             {isAdmin && (
               <Link
                 to="/admin"
-                className="text-sm text-violet-400 hover:text-violet-300 transition-colors font-medium"
+                className="text-[13px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
               >
                 Admin Panel
               </Link>
             )}
-            <span className="text-sm text-zinc-400">{user?.username}</span>
+            <span className="text-[13px] text-zinc-400">{user?.username}</span>
             <Button variant="secondary" size="sm" onClick={logout}>
               Sign out
             </Button>
@@ -954,15 +1302,15 @@ export function Dashboard() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Edit Profile</h1>
-            <p className="text-sm text-zinc-400 mt-1">
+      <main className="mx-auto max-w-3xl px-4 py-8 sm:py-10">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-white">Edit Profile</h1>
+            <p className="mt-1 text-sm text-zinc-400">
               {new URL(branding.url).host}/{profile?.slug ?? user?.username}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             {profiles.length > 1 && (
               <select
                 value={profile?.id ?? ""}
@@ -990,25 +1338,23 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="flex gap-1 mb-6 border-b border-zinc-800/80 overflow-x-auto">
-          {(["profiles", "profile", "links", "appearance", "analytics", "email", "music", "webhooks", "data", "discord", "invites", "domain", "security"] as const).map((t) => {
+        <div className="mb-5 flex gap-1 overflow-x-auto border-b border-zinc-800/80">
+          {DASHBOARD_TABS.map((t) => {
             const locked =
               (t === "analytics" || t === "data" || t === "discord") && !hasAdvanced
                 ? true
                 : t === "webhooks" && !hasEnterprise
                   ? true
-                  : t === "domain" && !hasCustomDomain;
+                  : t === "enterprise" && !hasEnterprise
+                    ? true
+                    : t === "domain" && !hasCustomDomain;
             return (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                tab === t
-                  ? "text-violet-400 border-b-2 border-violet-400"
-                  : "text-zinc-400 hover:text-white"
-              }`}
+              className={tabBtn(tab === t)}
             >
-              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "music" ? "Music" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : t === "invites" ? "Invites" : t === "domain" ? "Domain" : "Security"}
+              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "tips" ? "Tips" : t === "shop" ? "Shop" : t === "purchases" ? "Purchases" : t === "music" ? "Music" : t === "billing" ? "Billing" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : t === "invites" ? "Invites" : t === "enterprise" ? "Enterprise" : t === "domain" ? "Domain" : t === "affiliate" ? "Affiliate" : "Security"}
               {locked && <Lock className="h-3 w-3 opacity-70" />}
             </button>
             );
@@ -1028,9 +1374,9 @@ export function Dashboard() {
         )}
 
         {tab === "profiles" && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-              <div className="flex items-center gap-3 mb-4">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+              <div className="flex items-center gap-2.5 mb-3">
                 <Layers className="h-5 w-5 text-violet-400" />
                 <div>
                   <h3 className="text-sm font-medium text-white">Profiles</h3>
@@ -1047,7 +1393,7 @@ export function Dashboard() {
                     value={profileSlug}
                     onChange={(e) => setProfileSlug(e.target.value)}
                     placeholder="new-profile-slug"
-                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                   <Button onClick={handleCreateProfile} disabled={profileBusy}>
                     <Plus className="h-4 w-4" />
@@ -1070,8 +1416,8 @@ export function Dashboard() {
 
             <div className="space-y-4">
               {profiles.map((p) => (
-                <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-                  <div className="flex items-center justify-between gap-4">
+                <div key={p.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                  <div className="flex items-center justify-between gap-2.5">
                     <div className="flex items-center gap-3 min-w-0">
                       {p.avatar ? (
                         <img src={p.avatar} alt={p.slug} className="h-10 w-10 rounded-full object-cover ring-1 ring-zinc-700" />
@@ -1150,7 +1496,7 @@ export function Dashboard() {
                         );
                       })}
                       {badgeCatalog.length === 0 && (
-                        <span className="text-[11px] text-zinc-600">No badges available</span>
+                        <span className="text-xs text-zinc-500">No badges available</span>
                       )}
                     </div>
                   </div>
@@ -1202,7 +1548,7 @@ export function Dashboard() {
                             </Button>
                           </div>
                         ) : (
-                          <p className="text-[11px] text-zinc-600">Alias limit reached ({limits.aliases}).</p>
+                           <p className="text-xs text-zinc-500">Alias limit reached ({limits.aliases}).</p>
                         )}
                         {aliasMsg && <p className="text-xs text-red-400">{aliasMsg}</p>}
                       </div>
@@ -1215,7 +1561,76 @@ export function Dashboard() {
         )}
 
         {tab === "profile" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+              <div className="flex items-center gap-2.5 mb-3">
+                <AtSign className="h-5 w-5 text-violet-400" />
+                <div>
+                  <h3 className="text-sm font-medium text-white">Your @username</h3>
+                  <p className="text-xs text-zinc-500">
+                    Renames your handle and moves your main profile to /@username — old links redirect to the new one.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={usernameInput}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setUsernameInput(value);
+                    setUsernameMsg(null);
+                    checkUsername(value);
+                  }}
+                  placeholder="username"
+                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                />
+                <Button
+                  onClick={handleUsernameChange}
+                  disabled={
+                    usernameBusy ||
+                    !usernameInput.trim() ||
+                    usernameInput.trim().toLowerCase() === (user?.username ?? "").toLowerCase()
+                  }
+                >
+                  {usernameBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <AtSign className="h-4 w-4" />}
+                  {usernameBusy ? "Saving..." : "Change"}
+                </Button>
+              </div>
+
+              <div className="mt-3 min-h-[18px]">
+                {usernameChecking && <p className="text-xs text-zinc-500">Checking availability…</p>}
+                {!usernameChecking && usernameAvailability && usernameInput && (
+                  usernameAvailability.available ? (
+                    <p className="text-xs text-emerald-400 flex items-center gap-1.5">
+                      <Check className="h-3.5 w-3.5" /> @{usernameInput.trim().toLowerCase()} is available.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                      {usernameAvailability.reason === "reserved" && <>@{usernameInput.trim().toLowerCase()} is reserved and cannot be claimed.</>}
+                      {usernameAvailability.reason === "taken" && <>@{usernameInput.trim().toLowerCase()} is already taken.</>}
+                      {usernameAvailability.reason === "current" && <>That is your current @username.</>}
+                    </p>
+                  )
+                )}
+                {usernameMsg && (
+                  usernameMsg.kind === "success" ? (
+                    <p className="text-xs text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle className="h-3.5 w-3.5" /> {usernameMsg.text}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-400 flex items-center gap-1.5">
+                      <XCircle className="h-3.5 w-3.5" /> {usernameMsg.text}
+                    </p>
+                  )
+                )}
+              </div>
+              <p className="text-xs text-zinc-500 mt-1">
+                Lowercase letters, numbers, underscores and hyphens. One rename every 30 days.
+              </p>
+            </div>
+
             <div className="flex gap-6">
               <div className="flex-shrink-0">
                 <input
@@ -1227,7 +1642,7 @@ export function Dashboard() {
                 />
                 <button
                   onClick={() => avatarInput.current?.click()}
-                  className="relative group h-24 w-24 rounded-full overflow-hidden ring-2 ring-zinc-700 hover:ring-violet-500 transition-all"
+                  className="relative group h-20 w-20 rounded-full overflow-hidden ring-2 ring-zinc-700 hover:ring-violet-500 transition-all"
                 >
                   {profile?.avatar ? (
                     <img
@@ -1256,7 +1671,7 @@ export function Dashboard() {
 
               <div className="flex-1 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                  <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                     Display Name
                   </label>
                   <input
@@ -1264,27 +1679,27 @@ export function Dashboard() {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder={user?.username}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Bio</label>
+                  <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Bio</label>
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     placeholder="Tell the world about yourself..."
                     rows={3}
                     maxLength={500}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                   />
                   <p className="text-xs text-zinc-500 mt-1">{bio.length}/500</p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" />
                     Location
@@ -1295,11 +1710,11 @@ export function Dashboard() {
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Earth"
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5" />
                     Website
@@ -1310,9 +1725,63 @@ export function Dashboard() {
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   placeholder="https://example.com"
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <CircleDot className="h-3.5 w-3.5" />
+                    Presence status
+                  </span>
+                </label>
+                <select
+                  value={presenceStatus ?? ""}
+                  onChange={(e) => setPresenceStatus(e.target.value === "" ? null : (e.target.value as "online" | "idle" | "offline"))}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                >
+                  <option value="">Off (hidden)</option>
+                  <option value="online">Online</option>
+                  <option value="idle">Away</option>
+                  <option value="offline">Offline</option>
+                </select>
+                <p className="text-xs text-zinc-500 mt-1">Shows a static status dot on your public profile.</p>
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
+                    Countdown label
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={countdownLabel}
+                  onChange={(e) => setCountdownLabel(e.target.value)}
+                  placeholder="e.g. Launch in"
+                  maxLength={60}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Timer className="h-3.5 w-3.5" />
+                  Countdown target
+                </span>
+              </label>
+              <input
+                type="datetime-local"
+                value={countdownDate}
+                onChange={(e) => setCountdownDate(e.target.value)}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+              <p className="text-xs text-zinc-500 mt-1">Leave empty to hide the countdown. Shown on your public profile with a live ticking timer.</p>
             </div>
 
             <input
@@ -1358,7 +1827,7 @@ export function Dashboard() {
               <select
                 value={newPlatform}
                 onChange={(e) => setNewPlatform(e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
                 {platforms.map((p) => (
                   <option key={p} value={p}>
@@ -1375,7 +1844,7 @@ export function Dashboard() {
                     : newPlatform.toLowerCase() === "discord" ? "username or discord.gg/invite"
                     : "https://..."
                 }
-                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
               <Button onClick={addLink} size="icon">
                 <Plus className="h-4 w-4" />
@@ -1392,7 +1861,7 @@ export function Dashboard() {
                 }
               }}
               placeholder="Label (optional) — e.g. My Discord Server"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
 
             {socialLinks.length === 0 && (
@@ -1405,7 +1874,7 @@ export function Dashboard() {
               editingIndex === i ? (
                 <div
                   key={i}
-                  className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3"
+                  className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5"
                 >
                   <div className="flex gap-2">
                     <select
@@ -1428,7 +1897,7 @@ export function Dashboard() {
                           : editPlatform.toLowerCase() === "discord" ? "username or discord.gg/invite"
                           : "https://..."
                       }
-                      className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -1443,7 +1912,7 @@ export function Dashboard() {
                         }
                       }}
                       placeholder="Label (optional)"
-                      className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                     <Button onClick={saveEditLink} size="icon">
                       <Check className="h-4 w-4" />
@@ -1452,26 +1921,155 @@ export function Dashboard() {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  {features?.linksSections && (
+                    <input
+                      type="text"
+                      value={editHeading}
+                      onChange={(e) => setEditHeading(e.target.value)}
+                      placeholder="Section heading (optional) — e.g. Socials"
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                  )}
+                  {features?.linksCustomIcons && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {LINK_ICON_EMOJI.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => setEditIcon(editIcon === emoji ? "" : emoji)}
+                            className={`h-7 w-7 rounded-md text-sm transition-colors ${
+                              editIcon === emoji
+                                ? "bg-violet-500/30 ring-1 ring-violet-400"
+                                : "hover:bg-zinc-700/60"
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                        {(editIcon || editImage) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditIcon("");
+                              setEditImage("");
+                            }}
+                            className="ml-auto text-xs text-zinc-500 hover:text-red-400 transition-colors"
+                          >
+                            Clear icon
+                          </button>
+                        )}
+                      </div>
+                      {editImage ? (
+                        <div className="flex items-center gap-2">
+                          <img src={editImage} alt="" className="h-8 w-8 rounded object-contain bg-zinc-800" />
+                          {editIcon ? (
+                            <span className="text-xs text-zinc-500">Custom emoji: {editIcon}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editIcon}
+                          onChange={(e) => setEditIcon(e.target.value.slice(0, 24))}
+                          placeholder="Custom emoji (optional)"
+                          className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        />
+                        <input
+                          ref={iconFileInput}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void handleLinkIconUpload(file);
+                            e.target.value = "";
+                          }}
+                        />
+                        <Button
+                          onClick={() => iconFileInput.current?.click()}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          <span className="ml-1.5">Image</span>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {features?.linksQr && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editShowQr}
+                        onChange={(e) => setEditShowQr(e.target.checked)}
+                        className="accent-violet-500"
+                      />
+                      <span className="text-xs text-zinc-400">
+                        Show a QR code on my profile for this link
+                      </span>
+                    </label>
+                  )}
                 </div>
               ) : (
                 <div
                   key={i}
-                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3"
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5"
                 >
                   <div className="flex items-center gap-3">
-                    <PlatformIcon platform={link.platform} className="h-4 w-4 text-violet-400" />
-                    <div>
-                      <p className="text-sm font-medium text-white">
-                        {link.label || (platformDisplayNames[link.platform.toLowerCase()] ?? link.platform)}
-                      </p>
-                      <p className="text-xs text-zinc-400 truncate max-w-xs">
-                        {platformDisplayNames[link.platform.toLowerCase()] ?? link.platform}
-                        {link.label ? " · " : ""}
-                        {link.url.startsWith("mailto:") ? link.url.slice(7) : link.url}
-                      </p>
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => moveLink(i, -1)}
+                        disabled={editingIndex !== null || i === 0}
+                        title="Move link up"
+                        className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveLink(i, 1)}
+                        disabled={editingIndex !== null || i === socialLinks.length - 1}
+                        title="Move link down"
+                        className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      {link.image ? (
+                        <img src={link.image} alt="" className="h-5 w-5 flex-shrink-0 rounded object-contain bg-zinc-800" />
+                      ) : link.icon ? (
+                        <span className="h-5 w-5 flex-shrink-0 text-center leading-5 text-base" aria-hidden>
+                          {link.icon}
+                        </span>
+                      ) : (
+                        <PlatformIcon platform={link.platform} className="h-4 w-4 flex-shrink-0 text-violet-400" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {link.label || (platformDisplayNames[link.platform.toLowerCase()] ?? link.platform)}
+                        </p>
+                        <p className="text-xs text-zinc-400 truncate max-w-xs">
+                          {link.heading ? <span className="text-violet-400">{link.heading} · </span> : null}
+                          {platformDisplayNames[link.platform.toLowerCase()] ?? link.platform}
+                          {" · "}
+                          {link.url.startsWith("mailto:") ? link.url.slice(7) : link.url}
+                        </p>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {features?.linksQr && (
+                      <button
+                        onClick={() => setQrLink(link)}
+                        disabled={!resolveQrValue(link)}
+                        title={resolveQrValue(link) ? "Generate QR code" : "This link has no scannable URL"}
+                        className={resolveQrValue(link) ? "text-zinc-500 hover:text-violet-400 transition-colors" : "text-zinc-700 cursor-not-allowed"}
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => startEditLink(i)}
                       className="text-zinc-500 hover:text-violet-400 transition-colors"
@@ -1492,16 +2090,16 @@ export function Dashboard() {
         )}
 
         {tab === "appearance" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Themes</h3>
-                <p className="text-sm text-zinc-400 mt-1">
+                <h4 className="text-sm font-semibold text-white">Themes</h4>
+                <p className="text-xs text-zinc-500 mt-0.5">
                   Choose a theme for your public profile page.
                 </p>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {themePresets.map((preset) => (
                   <button
                     key={preset.name}
@@ -1528,7 +2126,7 @@ export function Dashboard() {
                         {preset.tier === "enterprise" ? "Enterprise" : "Premium"}
                       </span>
                     )}
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-2.5 mb-3">
                       <div
                         className="h-6 w-6 rounded-full ring-2 ring-white/20"
                         style={{ backgroundColor: preset.accent }}
@@ -1581,50 +2179,180 @@ export function Dashboard() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-              <div className="flex items-center gap-3">
-                <Layers className="h-5 w-5 text-zinc-500" />
-                <div>
-                  <h3 className="text-base font-semibold text-white">Layout</h3>
-                  <p className="text-sm text-zinc-400 mt-0.5">
-                    Choose how your profile is arranged.
-                  </p>
+            <SectionCard
+              icon={<Sparkles className="h-4 w-4 text-violet-400" />}
+              title="Seasonal Decorations"
+              desc="Decorate your profile with the platform's active seasonal theme."
+            >
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">Enable seasonal decorations</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      When on, your profile follows the currently active seasonal theme.
+                    </p>
+                  </div>
+                  <Toggle on={seasonalDecorations} onChange={() => setSeasonalDecorations((v) => !v)} />
                 </div>
-                <span className="ml-auto inline-flex items-center rounded-full bg-zinc-800 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Coming Soon
-                </span>
-              </div>
-              <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-16 text-center">
-                <Layers className="h-8 w-8 text-zinc-600" />
-                <p className="mt-4 text-sm font-medium text-zinc-400">
-                  Layout customization is on the way
-                </p>
-                <p className="mt-1.5 text-xs text-zinc-600">
-                  This space is reserved for card styles, spacing, and layout options.
-                </p>
-              </div>
-            </div>
 
-                <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-                  <div className="flex items-center gap-3">
-                    <Medal className="h-5 w-5 text-zinc-500" />
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">Always allow Christmas</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Keeps the Christmas theme on your profile year-round, even if the platform disables seasonal themes.
+                    </p>
+                  </div>
+                  <Toggle
+                    on={alwaysAllowChristmas}
+                    onChange={() => setAlwaysAllowChristmas((v) => !v)}
+                    onColorClass="bg-red-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">Animated background effects</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Add a lightweight animated effect (snow, hearts, leaves, confetti, …) behind your profile.
+                    </p>
+                  </div>
+                  <Toggle on={animatedFx} onChange={() => setAnimatedFx((v) => !v)} onColorClass="bg-cyan-500" />
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
+                  <p className="text-sm font-medium text-white">Effect</p>
+                  <p className="text-xs text-zinc-500 mt-0.5 mb-3">
+                    Choose which animated effect to show. When the platform has an active theme, its effect takes over.
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {FX_EFFECTS.filter((e) => e !== "none").map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => setFxEffect(e)}
+                        disabled={!animatedFx}
+                        className={`rounded-lg px-3 py-2 text-xs font-medium capitalize transition-colors disabled:opacity-40 ${
+                          fxEffect === e
+                            ? "bg-cyan-500 text-white"
+                            : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                        }`}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              icon={<Layers className="h-4 w-4 text-violet-400" />}
+              title="Layout"
+              desc="Choose how your profile is arranged."
+            >
+              <LayoutSelector value={layout} onChange={(l) => setLayout(l ?? "default")} />
+            </SectionCard>
+
+            {layout === "terminal" && (
+              <SectionCard
+                dataTestId="terminal-commands-editor"
+                icon={<TerminalIcon className="h-4 w-4 text-violet-400" />}
+                title="Terminal commands"
+                desc="Custom commands visitors can run on your profile terminal."
+              >
+                {user?.tier !== "FREE" ? (
+                  <>
+                    <div className="space-y-2.5">
+                      {terminalCommands.map((cmd, idx) => (
+                        <div
+                          key={idx}
+                          className="grid gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                        >
+                          <input
+                            value={cmd.command}
+                            onChange={(e) => updateTerminalCommand(idx, "command", e.target.value)}
+                            placeholder="command"
+                            aria-label={`Command name ${idx + 1}`}
+                            className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
+                          />
+                          <input
+                            value={cmd.output}
+                            onChange={(e) => updateTerminalCommand(idx, "output", e.target.value)}
+                            placeholder="Output text"
+                            aria-label={`Command output ${idx + 1}`}
+                            className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
+                          />
+                          <input
+                            value={cmd.description ?? ""}
+                            onChange={(e) => updateTerminalCommand(idx, "description", e.target.value)}
+                            placeholder="Description (shown in help)"
+                            aria-label={`Command description ${idx + 1}`}
+                            className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
+                          />
+                          <input
+                            value={cmd.url ?? ""}
+                            onChange={(e) => updateTerminalCommand(idx, "url", e.target.value)}
+                            placeholder="Optional link"
+                            aria-label={`Command link ${idx + 1}`}
+                            className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeTerminalCommand(idx)}
+                            aria-label={`Remove command ${idx + 1}`}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition-colors hover:border-red-500/50 hover:text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={addTerminalCommand}
+                      disabled={terminalCommands.length >= 12}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-violet-500 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add command
+                    </button>
+
+                    <p className="mt-4 text-xs text-zinc-500">
+                      Up to 12 commands. The description is shown in the terminal's help listing; the output is
+                      printed when the command is run. Built-in commands (help, ls, open, cmatrix…) always take
+                      priority. A link opens like the open command; non-URL values (e.g. @freecodecamp) are copied
+                      to the visitor's clipboard.
+                    </p>
+                  </>
+                ) : (
+                  <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 px-4 py-3">
+                    <Crown className="h-5 w-5 shrink-0 text-violet-400" />
                     <div>
-                      <h3 className="text-base font-semibold text-white">Badge Order</h3>
-                      <p className="text-sm text-zinc-400 mt-0.5">
-                        Drag badges to set the order they appear on your public profile.
+                      <p className="text-sm font-medium text-white">Custom commands are a Premium feature</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Upgrade to PRO or Enterprise to add your own terminal commands.
                       </p>
                     </div>
                   </div>
+                )}
+                </SectionCard>
+            )}
 
-                  {profileBadgeIds && profileBadgeIds.length > 0 ? (
-                    <>
-                      {badgeCatalog.length === 0 ? (
-                        <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-10 text-center">
-                          <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
-                          <p className="text-sm text-zinc-500">Loading badges…</p>
-                        </div>
-                      ) : (
-                        <div className="mt-6 space-y-2">
+                <SectionCard
+                icon={<Medal className="h-4 w-4 text-zinc-500" />}
+                title="Badge Order"
+                desc="Drag badges to set the order they appear on your public profile."
+              >
+                {profileBadgeIds && profileBadgeIds.length > 0 ? (
+                  <>
+                    {badgeCatalog.length === 0 ? (
+                      <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-6 text-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+                        <p className="text-sm text-zinc-500">Loading badges…</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
                           {orderedActiveBadges.map((badge, index) => (
                             <div
                               key={badge.id}
@@ -1649,7 +2377,7 @@ export function Dashboard() {
                         </div>
                       )}
 
-                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
                         <Button onClick={saveBadgeOrder} disabled={badgeOrderBusy}>
                           {badgeOrderBusy ? (
                             <>
@@ -1680,12 +2408,12 @@ export function Dashboard() {
                           </p>
                         )}
                       </div>
-                      <p className="mt-3 text-xs text-zinc-500">
+                      <p className="mt-2 text-xs text-zinc-500">
                         Badges earned later automatically appear after the ones you ordered.
                       </p>
                     </>
                   ) : (
-                    <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-8 text-center">
                       <Medal className="h-8 w-8 text-zinc-600" />
                       <p className="mt-4 text-sm font-medium text-zinc-400">
                         No active badges on this profile yet
@@ -1695,71 +2423,91 @@ export function Dashboard() {
                       </p>
                     </div>
                   )}
-                </div>
+                </SectionCard>
 
-            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-              <div className="flex items-center gap-3">
-                <Image className="h-5 w-5 text-zinc-500" />
-                <div>
-                  <h3 className="text-base font-semibold text-white">Background</h3>
-                  <p className="text-sm text-zinc-400 mt-0.5">
-                    Customize the background of your public profile.
-                  </p>
-                </div>
-                <span className="ml-auto inline-flex items-center rounded-full bg-zinc-800 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Coming Soon
-                </span>
-              </div>
-              <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-16 text-center">
-                <Image className="h-8 w-8 text-zinc-600" />
-                <p className="mt-4 text-sm font-medium text-zinc-400">
-                  Background customization is on the way
-                </p>
-                <p className="mt-1.5 text-xs text-zinc-600">
-                  This space is reserved for background images and effects.
-                </p>
-              </div>
-            </div>
+                <SectionCard
+                  icon={<Image className="h-4 w-4 text-violet-400" />}
+                  title="Background"
+                  desc="Customize the background of your public profile."
+                >
+                  <BackgroundSelector
+                  value={backgroundImage}
+                  onChange={(v) => setBackgroundImage(v)}
+                  seasonal
+                  onUpload={async (file) => {
+                    if (!profile) return;
+                    const res = await api.uploadProfileBackground(file, profile.id);
+                    if (res.success && res.data?.backgroundImage) {
+                      setBackgroundImage(res.data.backgroundImage);
+                    }
+                  }}
+                  onRemoveUpload={async () => {
+                    if (!profile) return;
+                    await api.removeProfileBackground(profile.id);
+                    setBackgroundImage(null);
+                  }}
+                />
+            </SectionCard>
           </div>
         )}
 
         {tab === "analytics" && (
           hasAdvanced ? (
-            <div className="space-y-6">
+            <div className="space-y-4">
             {analyticsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
               </div>
             ) : analytics ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-zinc-500">Per-link click analytics powered by visitor dedupe hashes — no personal data stored.</p>
+                  <div className="flex items-center gap-2">
+                    {analyticsResetMsg && <span className="text-xs text-zinc-400">{analyticsResetMsg}</span>}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleResetAnalytics()}
+                      disabled={analyticsResetting !== null}
+                    >
+                      {analyticsResetting === "*" ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      Reset all clicks
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     { label: "Total Views", sub: `${analytics.total.uniqueViews} unique`, value: analytics.total.views, icon: EyeIcon },
                     { label: "Total Clicks", sub: `${analytics.total.uniqueClicks} unique`, value: analytics.total.clicks, icon: MousePointerClick },
                     { label: "Views (7d)", sub: `${analytics.last7d.uniqueViews} unique`, value: analytics.last7d.views, icon: BarChart3 },
                     { label: "Clicks (7d)", sub: `${analytics.last7d.uniqueClicks} unique`, value: analytics.last7d.clicks, icon: BarChart3 },
                   ].map((stat) => (
-                    <div key={stat.label} className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 group hover:border-zinc-700 transition-colors">
+                    <div key={stat.label} className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 group hover:border-zinc-700 transition-colors">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{stat.label}</span>
-                        <stat.icon className="h-5 w-5 text-violet-400/80 group-hover:text-violet-400 transition-colors" />
+                        <stat.icon className="h-4 w-4 text-violet-400/80 group-hover:text-violet-400 transition-colors" />
                       </div>
-                      <p className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{stat.value.toLocaleString()}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{stat.value.toLocaleString()}</p>
                       <p className="text-xs text-zinc-500 mt-1.5">{stat.sub}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-5">
                     <h3 className="text-sm font-medium text-white">Views — Last 30 Days</h3>
-                    <div className="flex items-center gap-4 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-violet-500" />Total</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-400" />Unique</span>
+                    <div className="flex items-center gap-3 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />Total</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-sky-400" />Unique</span>
                     </div>
                   </div>
                   {analytics.viewsByDay.length > 0 || analytics.uniqueViewsByDay.length > 0 ? (
-                    <div className="relative flex items-end gap-1 h-72 sm:h-80">
+                    <div className="relative flex items-end gap-1 h-56 sm:h-64">
                       <div className="absolute left-0 right-0 top-0 bottom-6 flex flex-col justify-between pointer-events-none">
                         {[25, 50, 75].map((p) => (
                           <div key={p} className="border-t border-dashed border-zinc-800/80" />
@@ -1772,7 +2520,7 @@ export function Dashboard() {
                           >
                             <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
-                                <p className="text-[11px] font-semibold text-white">{day.label}</p>
+                                <p className="text-xs font-semibold text-white">{day.label}</p>
                                 <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
                                 <p className="text-xs"><span className="text-sky-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
                               </div>
@@ -1813,11 +2561,11 @@ export function Dashboard() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
-                    <h3 className="text-sm font-medium text-white mb-5">Clicks by Platform</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                    <h3 className="text-sm font-medium text-white mb-3">Clicks by Platform</h3>
                     {analytics.clicksByPlatform.length > 0 ? (
-                      <div className="space-y-5">
+                      <div className="space-y-3">
                         {analytics.clicksByPlatform.map((item, idx) => {
                           const max = analytics.clicksByPlatform[0]?.count ?? 1;
                           const unique = analytics.uniqueClicksByPlatform.find((u) => u.platform === item.platform)?.count ?? 0;
@@ -1847,8 +2595,8 @@ export function Dashboard() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
-                    <h3 className="text-sm font-medium text-white mb-4">Top Referrers</h3>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                    <h3 className="text-sm font-medium text-white mb-3">Top Referrers</h3>
                     {analytics.topReferrers.length > 0 ? (
                       <div className="space-y-2.5">
                         {analytics.topReferrers.map((item) => (
@@ -1864,16 +2612,16 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 sm:p-6">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-5">
                     <h3 className="text-sm font-medium text-white">Clicks — Last 30 Days</h3>
-                    <div className="flex items-center gap-4 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" />Total</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" />Unique</span>
+                    <div className="flex items-center gap-3 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />Total</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400" />Unique</span>
                     </div>
                   </div>
                   {analytics.clicksByDay.length > 0 || analytics.uniqueClicksByDay.length > 0 ? (
-                    <div className="relative flex items-end gap-1 h-72 sm:h-80">
+                    <div className="relative flex items-end gap-1 h-56 sm:h-64">
                       <div className="absolute left-0 right-0 top-0 bottom-6 flex flex-col justify-between pointer-events-none">
                         {[25, 50, 75].map((p) => (
                           <div key={p} className="border-t border-dashed border-zinc-800/80" />
@@ -1886,7 +2634,7 @@ export function Dashboard() {
                           >
                             <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
-                                <p className="text-[11px] font-semibold text-white">{day.label}</p>
+                                <p className="text-xs font-semibold text-white">{day.label}</p>
                                 <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
                                 <p className="text-xs"><span className="text-amber-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
                               </div>
@@ -1926,27 +2674,177 @@ export function Dashboard() {
                     <p className="text-sm text-zinc-500 text-center py-8">No clicks yet</p>
                   )}
                 </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-sm font-medium text-white">Views — Last 24 Hours</h3>
+                    <div className="flex items-center gap-3 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />Total</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-sky-400" />Unique</span>
+                    </div>
+                  </div>
+                  {hourlyViewsChart && (hourlyViewsChart.hours.some((h) => h.total > 0) || hourlyViewsChart.hours.some((h) => h.unique > 0)) ? (
+                    <div className="relative flex items-end gap-1 h-48 sm:h-56 overflow-x-auto">
+                      <div className="absolute left-0 right-0 top-0 bottom-4 flex flex-col justify-between pointer-events-none">
+                        {[25, 50, 75].map((p) => (
+                          <div key={p} className="border-t border-dashed border-zinc-800/80" />
+                        ))}
+                      </div>
+                      {hourlyViewsChart.hours.map((h, i) => (
+                        <div key={i} className="flex-1 min-w-[14px] flex flex-col h-full relative group">
+                          <div className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
+                              <p className="text-xs font-semibold text-white">{h.label}</p>
+                              <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{h.total}</span> <span className="text-zinc-500">total</span></p>
+                              <p className="text-xs"><span className="text-sky-400 font-semibold">{h.unique}</span> <span className="text-zinc-500">unique</span></p>
+                            </div>
+                            <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
+                          </div>
+                          <div className="flex-1 flex items-end gap-px">
+                            <div
+                              className="flex-1 rounded-t-sm transition-all duration-150 hover:brightness-125"
+                              style={{
+                                height: `${(h.total / hourlyViewsChart.max) * 100}%`,
+                                minHeight: h.total > 0 ? "4px" : "2px",
+                                background: `linear-gradient(to top, #7c3aed, #a78bfa)`,
+                                opacity: h.total > 0 ? 0.85 : 0.25,
+                              }}
+                            />
+                            <div
+                              className="flex-1 rounded-t-sm transition-all duration-150 hover:brightness-125"
+                              style={{
+                                height: `${(h.unique / hourlyViewsChart.max) * 100}%`,
+                                minHeight: h.unique > 0 ? "4px" : "2px",
+                                background: `linear-gradient(to top, #0ea5e9, #38bdf8)`,
+                                opacity: h.unique > 0 ? 0.85 : 0.25,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 text-center py-8">No views in the last 24 hours</p>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-sm font-medium text-white">Clicks — Last 24 Hours</h3>
+                    <div className="flex items-center gap-3 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />Total</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400" />Unique</span>
+                    </div>
+                  </div>
+                  {hourlyClicksChart && (hourlyClicksChart.hours.some((h) => h.total > 0) || hourlyClicksChart.hours.some((h) => h.unique > 0)) ? (
+                    <div className="relative flex items-end gap-1 h-48 sm:h-56 overflow-x-auto">
+                      <div className="absolute left-0 right-0 top-0 bottom-4 flex flex-col justify-between pointer-events-none">
+                        {[25, 50, 75].map((p) => (
+                          <div key={p} className="border-t border-dashed border-zinc-800/80" />
+                        ))}
+                      </div>
+                      {hourlyClicksChart.hours.map((h, i) => (
+                        <div key={i} className="flex-1 min-w-[14px] flex flex-col h-full relative group">
+                          <div className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
+                              <p className="text-xs font-semibold text-white">{h.label}</p>
+                              <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{h.total}</span> <span className="text-zinc-500">total</span></p>
+                              <p className="text-xs"><span className="text-amber-400 font-semibold">{h.unique}</span> <span className="text-zinc-500">unique</span></p>
+                            </div>
+                            <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
+                          </div>
+                          <div className="flex-1 flex items-end gap-px">
+                            <div
+                              className="flex-1 rounded-t-sm transition-all duration-150 hover:brightness-125"
+                              style={{
+                                height: `${(h.total / hourlyClicksChart.max) * 100}%`,
+                                minHeight: h.total > 0 ? "4px" : "2px",
+                                background: `linear-gradient(to top, #059669, #34d399)`,
+                                opacity: h.total > 0 ? 0.85 : 0.25,
+                              }}
+                            />
+                            <div
+                              className="flex-1 rounded-t-sm transition-all duration-150 hover:brightness-125"
+                              style={{
+                                height: `${(h.unique / hourlyClicksChart.max) * 100}%`,
+                                minHeight: h.unique > 0 ? "4px" : "2px",
+                                background: `linear-gradient(to top, #d97706, #fbbf24)`,
+                                opacity: h.unique > 0 ? 0.85 : 0.25,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 text-center py-8">No clicks in the last 24 hours</p>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                  <h3 className="text-sm font-medium text-white mb-4">Clicks by Link — Last 30 Days</h3>
+                  {analytics.clicksByLink.length > 0 ? (
+                    <div className="space-y-3">
+                      {analytics.clicksByLink.map((item) => {
+                        const unique = analytics.uniqueClicksByLink.find((u) => u.slug === item.slug)?.uniqueCount ?? 0;
+                        return (
+                          <div
+                            key={`${item.platform}|${item.slug}`}
+                            className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3.5 py-3"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-zinc-200 font-medium truncate">{item.slug}</p>
+                              <p className="text-xs text-zinc-500">
+                                {platformDisplayNames[item.platform.toLowerCase()] ?? item.platform}
+                                {item.lastClickedAt ? ` · last ${new Date(item.lastClickedAt).toLocaleString()}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className="text-zinc-300"><span className="text-emerald-400 font-semibold">{item.count}</span> <span className="text-zinc-600">clicks</span></span>
+                              <span className="text-zinc-400"><span className="text-amber-400 font-semibold">{unique}</span> <span className="text-zinc-600">unique</span></span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={`Reset "${item.slug}"`}
+                              disabled={analyticsResetting !== null}
+                              onClick={() => void handleResetAnalytics(item.slug)}
+                            >
+                              {analyticsResetting === item.slug ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 text-center py-4">No clicks yet</p>
+                  )}
+                </div>
               </>
             ) : (
               <p className="text-sm text-zinc-500 text-center py-12">No analytics data available</p>
             )}
             </div>
           ) : (
-            <LockedTab feature="Analytics" required="premium" />
+            <LockedFeature feature="Analytics" required="premium" onAction={() => setTab("billing")} />
           )
         )}
 
         {tab === "music" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {musicLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
               </div>
             ) : music ? (
               <>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <Music className="h-5 w-5 text-violet-400" />
                       <div>
                         <h3 className="text-sm font-medium text-white">Music Player</h3>
@@ -2009,9 +2907,9 @@ export function Dashboard() {
                                   placeholder="Full version URL (optional)"
                                   className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                                 />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => saveEditTrack(track.id)}
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => saveEditTrack(track.id)}
                                     className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
                                   >
                                     Save
@@ -2071,8 +2969,8 @@ export function Dashboard() {
                 </div>
 
                 {music.tracks.length < music.limit && (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-                    <h3 className="text-sm font-medium text-white mb-4">Add Track</h3>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
+                    <h3 className="text-sm font-medium text-white mb-3">Add Track</h3>
 
                     <div className="flex gap-2 mb-4">
                       {(["local", "spotify", "youtube"] as const).map((p) => (
@@ -2096,7 +2994,7 @@ export function Dashboard() {
                     {musicProvider === "local" ? (
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                          <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                             Audio File <span className="text-zinc-500">(MP3, OGG, OPUS, WAV, M4A, FLAC, AAC — max 25MB)</span>
                           </label>
                           <input
@@ -2107,30 +3005,30 @@ export function Dashboard() {
                             className="w-full text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-violet-500 file:cursor-pointer cursor-pointer"
                           />
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Title</label>
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Title</label>
                             <input
                               type="text"
                               value={musicTitle}
                               onChange={(e) => setMusicTitle(e.target.value)}
                               placeholder="Track title"
-                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Artist</label>
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Artist</label>
                             <input
                               type="text"
                               value={musicArtist}
                               onChange={(e) => setMusicArtist(e.target.value)}
                               placeholder="Artist name"
-                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                          <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                             Full version URL <span className="text-zinc-500">(optional)</span>
                           </label>
                           <input
@@ -2138,9 +3036,9 @@ export function Dashboard() {
                             value={musicFullUrl}
                             onChange={(e) => setMusicFullUrl(e.target.value)}
                             placeholder="https://... (audio file, YouTube, or other stream)"
-                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                           />
-                          <p className="mt-1 text-[11px] text-zinc-500">
+                          <p className="mt-1 text-xs text-zinc-500">
                             Optional full streaming source for visitors. You are solely responsible for the content and any
                             terms of service of the source you link. See the{" "}
                             <a href="/terms" className="text-violet-400 hover:text-violet-300">Terms of Service</a>.
@@ -2150,7 +3048,7 @@ export function Dashboard() {
                     ) : (
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                          <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                             {musicProvider === "spotify" ? "Spotify URL" : "YouTube / YouTube Music URL"}
                           </label>
                           <input
@@ -2162,12 +3060,12 @@ export function Dashboard() {
                                 ? "https://open.spotify.com/track/..."
                                 : "https://www.youtube.com/watch?v=... or https://music.youtube.com/watch?v=..."
                             }
-                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                           />
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                               Title <span className="text-zinc-500">(optional)</span>
                             </label>
                             <input
@@ -2175,11 +3073,11 @@ export function Dashboard() {
                               value={musicTitle}
                               onChange={(e) => setMusicTitle(e.target.value)}
                               placeholder="Track title"
-                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                               Artist <span className="text-zinc-500">(optional)</span>
                             </label>
                             <input
@@ -2187,13 +3085,13 @@ export function Dashboard() {
                               value={musicArtist}
                               onChange={(e) => setMusicArtist(e.target.value)}
                               placeholder="Artist name"
-                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                         </div>
                         {musicProvider === "spotify" && (
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                               Full version URL <span className="text-zinc-500">(optional)</span>
                             </label>
                             <input
@@ -2201,9 +3099,9 @@ export function Dashboard() {
                               value={musicFullUrl}
                               onChange={(e) => setMusicFullUrl(e.target.value)}
                               placeholder="https://... (audio file, YouTube, or other stream)"
-                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
-                            <p className="mt-1 text-[11px] text-zinc-500">
+                            <p className="mt-1 text-xs text-zinc-500">
                               Spotify embeds only play previews. Provide an optional full streaming source here — you are
                               solely responsible for the content and any terms of service of the source. See the{" "}
                               <a href="/terms" className="text-violet-400 hover:text-violet-300">Terms of Service</a>.
@@ -2248,7 +3146,7 @@ export function Dashboard() {
           hasEnterprise ? (
             <WebhooksTab />
           ) : (
-            <LockedTab feature="Webhooks" required="enterprise" />
+            <LockedFeature feature="Webhooks" required="enterprise" onAction={() => setTab("billing")} />
           )
         )}
 
@@ -2256,7 +3154,7 @@ export function Dashboard() {
           hasAdvanced ? (
             <DiscordTab profileId={profile?.id} />
           ) : (
-            <LockedTab feature="Discord" required="premium" />
+            <LockedFeature feature="Discord" required="premium" onAction={() => setTab("billing")} />
           )
         )}
 
@@ -2264,7 +3162,7 @@ export function Dashboard() {
           hasAdvanced ? (
             <DataTab profileId={profile?.id} />
           ) : (
-            <LockedTab feature="Data" required="premium" />
+            <LockedFeature feature="Data" required="premium" onAction={() => setTab("billing")} />
           )
         )}
 
@@ -2272,84 +3170,181 @@ export function Dashboard() {
           <InvitesTab />
         )}
 
-        {tab === "email" && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`h-2.5 w-2.5 rounded-full ${emailSettings.smtpConfigured ? "bg-emerald-500" : "bg-zinc-600"}`} />
-                <h4 className="text-sm font-medium text-white">
-                  {emailSettings.smtpConfigured ? "SMTP Configured" : "SMTP Not Configured"}
-                </h4>
-              </div>
-              {emailSettings.smtpConfigured ? (
-                <p className="text-xs text-zinc-400">
-                  Emails are sent from <span className="text-zinc-300">{emailSettings.fromEmail}</span>
-                </p>
-              ) : (
-                <p className="text-xs text-zinc-500">
-                  Configure SMTP in your server's <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">.env</code> file to enable email notifications.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-white">Notification Preferences</h3>
-              <p className="text-xs text-zinc-500">Choose which events trigger an email notification.</p>
-
-              {[
-                { key: "notifyOnView" as const, label: "Profile Views", desc: "Get notified when someone visits your profile page." },
-                { key: "notifyOnClick" as const, label: "Link Clicks", desc: "Get notified when someone clicks one of your social links." },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-5 py-4"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-white">{item.label}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{item.desc}</p>
-                  </div>
-                  <button
-                    onClick={() => setEmailSettings({ ...emailSettings, [item.key]: !emailSettings[item.key] })}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                      emailSettings[item.key] ? "bg-violet-600" : "bg-zinc-700"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        emailSettings[item.key] ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
+        {tab === "enterprise" && (
+          hasEnterprise ? (
+            <SectionCard
+              icon={<Building2 className="h-4 w-4" />}
+              title="Enterprise dashboard"
+              desc="A centralized workspace for your organization."
+            >
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 px-6 py-12 text-center">
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-violet-500/10 text-violet-400">
+                  <Construction className="h-6 w-6" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-white">Coming soon</p>
+                  <p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">
+                    Team management, seat overview and centralized controls for your organization are on the way. In the meantime, seat limits are available in the Invites tab and business SSO can be configured in Security.
+                  </p>
                 </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3">
-              <Button onClick={handleSaveEmail} disabled={emailSaving}>
-                <Save className="h-4 w-4" />
-                {emailSaving ? "Saving..." : emailSaved ? "Saved!" : "Save Preferences"}
-              </Button>
-              {emailSettings.smtpConfigured && (
-                <Button variant="secondary" onClick={handleTestEmail} disabled={emailTesting}>
-                  <Send className="h-4 w-4" />
-                  {emailTesting ? "Sending..." : "Send Test Email"}
-                </Button>
-              )}
-            </div>
-
-            {emailTestResult === "success" && (
-              <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
-                <CheckCircle className="h-4 w-4" />
-                Test email sent successfully!
               </div>
-            )}
-            {emailTestResult === "error" && (
-              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
-                <XCircle className="h-4 w-4" />
-                Failed to send test email. Check server SMTP config.
+            </SectionCard>
+          ) : (
+            <LockedFeature feature="Enterprise dashboard" required="enterprise" onAction={() => setTab("billing")} />
+          )
+        )}
+
+        {tab === "affiliate" && (
+          <AffiliateTab />
+        )}
+
+        {tab === "billing" && (
+          <BillingTab currentTier={user?.tier ?? "FREE"} />
+        )}
+
+        {tab === "email" && (
+          <div className="space-y-4">
+            <SectionCard
+              icon={
+                emailSettings.smtpConfigured ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
+                    Unavailable
+                  </span>
+                )
+              }
+              title="Email Notifications"
+              desc={
+                emailSettings.smtpConfigured
+                  ? `Emails are sent from ${emailSettings.fromEmail}`
+                  : "Email notifications are not enabled on this instance. Contact the instance owner to activate them."
+              }
+            >
+              <div className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-medium text-white">Notification Preferences</h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Choose which events trigger an email notification.
+                  </p>
+                </div>
+
+                {[
+                  { key: "notifyOnView" as const, label: "Profile Views", desc: "Get notified when someone visits your profile page." },
+                  { key: "notifyOnClick" as const, label: "Link Clicks", desc: "Get notified when someone clicks one of your social links." },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white">{item.label}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{item.desc}</p>
+                    </div>
+                    <Toggle
+                      on={emailSettings[item.key]}
+                      onChange={() => setEmailSettings({ ...emailSettings, [item.key]: !emailSettings[item.key] })}
+                    />
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">Platform announcements</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {platformAnnouncements
+                        ? "You're subscribed to news and product announcements from the platform."
+                        : "Opt in to receive occasional news and product announcements from the platform."}
+                    </p>
+                  </div>
+                  <Toggle
+                    on={platformAnnouncements}
+                    onChange={() => void toggleOptIn(!platformAnnouncements)}
+                  />
+                </div>
+                {optInMsg === "saved" && (
+                  <p className="text-xs text-emerald-400">Preference saved.</p>
+                )}
+                {optInMsg === "error" && (
+                  <p className="text-xs text-red-400">Could not save this preference. Try again.</p>
+                )}
+
+                <div className="flex gap-2.5">
+                  <Button onClick={handleSaveEmail} disabled={emailSaving}>
+                    <Save className="h-4 w-4" />
+                    {emailSaving ? "Saving..." : emailSaved ? "Saved!" : "Save Preferences"}
+                  </Button>
+                  {emailSettings.smtpConfigured && (
+                    <Button variant="secondary" onClick={handleTestEmail} disabled={emailTesting}>
+                      <Send className="h-4 w-4" />
+                      {emailTesting ? "Sending..." : "Send Test Email"}
+                    </Button>
+                  )}
+                </div>
+
+                {emailTestResult === "success" && (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-400">
+                    <CheckCircle className="h-4 w-4" />
+                    Test email sent successfully!
+                  </div>
+                )}
+                {emailTestResult === "error" && (
+                  <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-400">
+                    <XCircle className="h-4 w-4" />
+                    Failed to send test email. Check the server SMTP configuration.
+                  </div>
+                )}
               </div>
-            )}
+            </SectionCard>
+
+            <NewsletterManager
+              key={profile?.id ?? "none"}
+              profile={profile}
+              tier={user?.tier ?? "FREE"}
+              senderWhitelisted={user?.newsletterSenderWhitelisted ?? false}
+              hasPlatformSender={(user?.permissions ?? []).includes("newsletter.manage")}
+              onProfileChange={(patch) =>
+                setProfiles((prev) =>
+                  prev.map((p) => (p.id === profile?.id ? { ...p, ...patch } : p))
+                )
+              }
+            />
           </div>
+        )}
+
+        {tab === "tips" && (
+          <div className="space-y-4">
+            <TipsTab
+              key={profile?.id ?? "none"}
+              profile={profile}
+              onProfileChange={(patch) =>
+                setProfiles((prev) =>
+                  prev.map((p) => (p.id === profile?.id ? { ...p, ...patch } : p))
+                )
+              }
+            />
+          </div>
+        )}
+
+        {tab === "shop" && (
+          <div className="space-y-4">
+            <ShopTab
+              key={profile?.id ?? "none"}
+              profile={profile}
+              onProfileChange={(patch) =>
+                setProfiles((prev) =>
+                  prev.map((p) => (p.id === profile?.id ? { ...p, ...patch } : p))
+                )
+              }
+            />
+          </div>
+        )}
+
+        {tab === "purchases" && (
+          <PurchasesTab />
         )}
 
         {tab === "domain" && (
@@ -2367,6 +3362,45 @@ export function Dashboard() {
           onConfirm={confirmAvatarCrop}
           onCancel={() => setAvatarCropFile(null)}
         />
+      )}
+
+      {qrLink && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setQrLink(null)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">QR code</h3>
+              <button
+                onClick={() => setQrLink(null)}
+                className="text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {resolveQrValue(qrLink) ? (
+              <>
+                <div className="mx-auto mb-4 w-fit rounded-xl bg-white p-3">
+                  <QRCodeCanvas ref={qrCanvasRef} value={resolveQrValue(qrLink)} size={208} level="M" />
+                </div>
+                <p className="mb-4 text-center text-xs text-zinc-500 break-all">
+                  {qrLink.label || (platformDisplayNames[qrLink.platform.toLowerCase()] ?? qrLink.platform)} —{" "}
+                  {resolveQrValue(qrLink)}
+                </p>
+                <Button onClick={handleQrDownload} className="w-full">
+                  <Download className="h-4 w-4" />
+                  <span className="ml-2">Download PNG</span>
+                </Button>
+              </>
+            ) : (
+              <p className="text-center text-sm text-zinc-500">This link has no scannable URL.</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

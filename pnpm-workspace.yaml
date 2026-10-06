@@ -17,7 +17,7 @@ allowBuilds:
   sharp: true
 
 minimumReleaseAgeExclude:
-  - nodemailer@10.0.13
+  - nodemailer@9.0.4 || 10.0.13
 
 # Overrides live here rather than in root package.json's pnpm.overrides, because
 # pnpm-workspace.yaml is the source of truth for a workspace and keeps the
@@ -32,6 +32,8 @@ overrides:
   # Dependabot: CVE in multer < 2.4.0. Same situation — the upload middleware is
   # pulled in transitively.
   multer: ^2.4.0
+  # Dependabot: CVE in qs (< 6.16.0) reached transitively — pin the patched line.
+  qs: 6.16.0
 
 # NOT overridable, recorded so the exception is deliberate rather than an
 # oversight. node-forge <= 1.4.0 carries CVE-2026-85393 (RSA signature forgery).

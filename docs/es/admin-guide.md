@@ -1,75 +1,166 @@
-# Guía de Administración
+# Guía de administración
 
 Guía de operaciones para administradores: códigos de invitación, gestión de usuarios, roles y permisos, insignias, baneos y bloqueos, desbloqueo de cuentas de usuario y el registro de autenticación.
 
 ## Resumen
 
-Inicia sesión como administrador y abre **Panel de Administración**. Tiene hasta seis pestañas:
+Inicia sesión como administrador y abre el **Panel de administración**. Dispone de hasta seis pestañas:
 
-- **Códigos de Invitación** — crea y revoca códigos de registro.
+- **Códigos de invitación** — crea y revoca códigos de registro.
 - **Usuarios** — lista cuentas, edita perfiles, asigna roles, cambia planes y límites de pistas, restablece contraseñas.
-- **Roles** — define roles con conmutadores de permisos individuales.
+- **Roles** — define roles con interruptores de permiso individuales.
 - **Insignias** — gestiona el catálogo de insignias (etiqueta, color, icono).
-- **Baneos** — cada baneo de huella/cuenta activo con su estado.
-- **Registros** — el registro de autenticación (intentos fallidos, razones, penalizaciones).
+- **Baneos** — cada baneo de huella / cuenta activo con su estado y la **Lista blanca de IP**.
+- **Registros** — el registro de autenticación (intentos fallidos, motivos, penalizaciones).
 
-Las pestañas que ves dependen de los permisos de tu propio rol: un rol con solo `invites.manage` verá únicamente **Códigos de Invitación**, mientras que el rol Admin integrado lo ve todo.
+Las pestañas que ves dependen de los permisos de tu propio rol: un rol con solo `invites.manage` verá únicamente **Códigos de invitación**, mientras que el rol Admin integrado lo ve todo.
 
-## Códigos de Invitación
+Cada pestaña carga sus datos de forma **diferida** la primera vez que la abres, y las listas largas (códigos de invitación, usuarios, eventos de invitación, baneos, lista blanca de IP, registro de autenticación, dominios personalizados, pedidos y la lista de remitentes permitidos de boletines) están **paginadas a 10 filas por página** — usa **Anterior** / **Siguiente** debajo de la tabla. Los contadores **Total** / **Usados** / **Disponibles** de los códigos son globales, no solo de la página actual. Las listas de referencia usadas por selectores (roles, insignias) y los rankings acotados de temas/afiliados se cargan completos.
 
-El registro es solo con invitación. En la pestaña **Códigos de Invitación**:
+## Códigos de invitación
 
-1. Define la **Cantidad** (1–50) y opcionalmente **Expira en días**.
+El registro es solo con invitación. En la pestaña **Códigos de invitación**:
+
+1. Define la **Cantidad** (1–50) y, opcionalmente, **Expira en días**.
 2. Haz clic en **Generar** — los códigos aparecen en la tabla.
 3. Comparte los códigos con quien quieras invitar. Un código usado muestra **Usado**; puedes **Revocar** uno sin usar en cualquier momento.
 
-La tabla lista **todos** los códigos de invitación de todos los administradores, con el creador en la columna **Creado por**. Usa los chips de filtro sobre la tabla para acotar:
+El generador de esta pestaña de administración es la **vía del operador** (`POST /api/admin/invites`): crea códigos **sin** consumir tu allowance de evento ni la cuota de rol. El generador de autoservicio al que los usuarios acceden desde la pestaña **Invites** de su propio panel (`POST /api/invites`) siempre consume allowance/cuota —también para los administradores—, así que usa esta pestaña cuando quieras códigos ilimitados.
+
+La tabla lista **todos** los códigos de invitación de todos los administradores, con el creador en la columna **Creado por**. Usa los chips de filtro encima de la tabla para acotar los resultados:
 
 - **Todos** — todos los códigos de invitación.
 - **Disponibles** — códigos que no están usados, ni revocados, ni vencidos.
 - **Creados por mí** — solo los códigos que generaste.
 
-Los administradores con `invites.manage` pueden revocar cualquier código sin usar, no solo los suyos. Los códigos generados por usuarios desde un allowance de evento están etiquetados **EVENT**.
+Los administradores con `invites.manage` pueden revocar cualquier código sin usar, no solo los suyos. Los códigos generados por usuarios a partir de un allowance de evento están etiquetados **EVENT**.
 
 ### Permitir que los usuarios generen invitaciones
 
-Los usuarios no administradores pueden generar sus propios códigos si se cumplen **todas** estas condiciones:
+Los usuarios generan sus propios códigos desde la pestaña **Invites** de su panel si se cumplen **todas** estas condiciones:
 
-1. El interruptor **Generación de invitaciones de usuarios** al inicio de la pestaña está **activado** (solo panel de administración — no hay variable de entorno; este interruptor es el interruptor maestro).
-2. El rol del usuario tiene el permiso **Generar sus propios códigos de invitación** (`invites.generate`) **y** un **Máximo por lote** mayor que 0, **o** el usuario tiene un allowance de evento.
-3. El usuario no está **baneado de invitaciones** (ver abajo).
+1. El interruptor **Generación de invitaciones de usuarios** en la parte superior de la pestaña está **activado** (solo desde el panel de administración; no existe variable de entorno, este interruptor es el maestro).
+2. El rol del usuario tiene el permiso **Generar sus propios códigos de invitación** (`invites.generate`) **y** un **Máximo por lote** mayor que 0, **o** el usuario dispone de un allowance de evento.
+3. El usuario no está **baneado de invitaciones** (ver más abajo).
+
+Estas reglas se aplican a todas las cuentas, **incluidos los administradores**: un administrador que genera desde su propia pestaña **Invites** consume su allowance/cuota igual que cualquier otro. El generador sin límites del operador es la pestaña de administración **Códigos de invitación** de arriba.
 
 ### Eventos de invitación (conceder un allowance a todos)
 
 Usa la tarjeta **Evento de invitación** para conceder un allowance de invitación a **todos** los usuarios no baneados a la vez:
 
-- **Invitaciones por usuario** — cuántos códigos puede generar cada usuario de este allowance.
+- **Invitaciones por usuario** — cuántos códigos puede generar cada usuario a partir de este allowance.
 - **El allowance expira en** — un número más **días** o **semanas**. El allowance y cada código generado a partir de él expiran en esa fecha.
 
-Cuando los usuarios generan un código de un allowance, pueden elegir el vencimiento hasta el vencimiento del allowance (el predeterminado). Si un código vence **sin usarse antes** del vencimiento del allowance, el crédito se reembolsa automáticamente al allowance del usuario (en su siguiente carga de invitaciones), así no se desperdicia nada. Cuando el propio allowance vence, los créditos sobrantes desaparecen.
+Cuando los usuarios generan un código a partir de un allowance, pueden elegir el vencimiento hasta el vencimiento del allowance (valor predeterminado). Si un código vence **sin usarse antes** de que expire el allowance, el crédito se reembolsa automáticamente al allowance del usuario (en su siguiente carga de invitaciones), de modo que no se desperdicia nada. Cuando el allowance vence, los créditos sobrantes se pierden.
 
 Los eventos recientes se listan debajo del formulario para que puedas auditar quién concedió qué y cuándo.
 
 ### Baneos de invitación
 
-Usa **Editar Perfil → Banear invitaciones** en un usuario para excluirlo del sistema de invitaciones por completo:
+Usa **Editar perfil → Banear invitaciones** en un usuario para excluirlo del sistema de invitaciones:
 
-- Ya no puede generar códigos (cuota de rol o allowance).
+- Ya no puede ganar créditos: ni por cuota de rol ni por allowance.
+- No puede unirse a un evento de invitación (un código de evento deja de funcionarle).
+- No puede comprar créditos de invitación.
 - Se le omite en futuros eventos de invitación.
-- Sus códigos sin usar actuales se revocan inmediatamente y su allowance restante se pone a cero.
+- Sus códigos **ganados** se revocan inmediatamente y su allowance ganado restante se pone a cero.
 
-**Desbanear invitaciones** (en el mismo lugar) restaura el acceso (su allowance anterior no se restaura). Esta es la forma recomendada de tratar el abuso de invitaciones sin eliminar la cuenta.
+**Los créditos comprados sobreviven al baneo.** El dinero que el usuario ya pagó no se tira: conserva su saldo comprado, sigue pudiendo convertirlo en códigos y sigue pudiendo canjear sus propios códigos. Los códigos de invitado comprados pasan a ser utilizables durante los primeros 14 días tras el baneo y dejan de funcionar después, de modo que un baneo no se puede esquivar esperando a un código que ya es tuyo. Si lo que necesitas es actuar sobre una compra pagada, reembolásala (ver **Vender créditos de invitación**): eso revoca exactamente lo que la orden aún tiene.
 
-## Gestión de Usuarios
+**Desbanear invitaciones** (en el mismo sitio) restaura el acceso (su allowance ganado anterior no se restaura). Esta es la forma recomendada de tratar el abuso de invitaciones sin eliminar la cuenta.
 
-La pestaña **Usuarios** lista todas las cuentas. Haz clic en **Editar Perfil** para:
+## Vender créditos de invitación
 
-- Cambiar nombre, bio, ubicación, sitio web y visibilidad pública/privada.
+Las invitaciones de pago están desactivadas hasta que las actives. Para que la tienda aparezca públicamente hacen falta dos cosas: el interruptor de abajo **y** paquetes con precio en `INVITE_PRICE_PACKS`.
+
+En la pestaña **Códigos de invitación**, la tarjeta **Créditos de invitación de pago** contiene:
+
+- **Vender créditos de invitación** — el interruptor maestro. Desactivado, `/api/invite-purchases` se niega a crear órdenes aunque haya paquetes configurados.
+- **Modo de reventa** — lo que dicen los términos sobre si quien compra puede pasarle el código a otro. Es independiente del interruptor anterior, así que puedes vender invitaciones en una instancia cuyos términos prohíben la reventa. Cuatro valores, y la elección se publica literalmente en Términos y Privacidad:
+
+  | Modo | ¿Vender permitido? | Los términos dicen |
+  |---|---|---|
+  | `off` | Sí | nada en absoluto |
+  | `permitted` | Sí | la reventa **está permitida**, con los límites concretados |
+  | `legal` | No | la reventa está **prohibida** |
+  | `enforced` | No | prohibida, y los códigos comprados se rastrean por origen |
+
+  `off` y `permitted` permiten vender en ambos casos; solo difieren en si la instancia lo deja por escrito. Elige `permitted` cuando quieras que los miembros puedan vender y que el documento lo diga: la cláusula además les aclara que la reventa no transfiere la membresía ni elimina su derecho a reembolso. Al cambiar esto se reconstruye de inmediato la copia en caché del texto legal, así que la página nunca va por detrás del interruptor.
+
+  Los códigos de invitación son secretos Bearer sin más, así que nada de esto puede impedir técnicamente una transferencia; `enforced` registra de dónde salió cada código comprado para poder responder a esa pregunta más tarde, no impide compartirlo.
+
+### Paquetes
+
+Los paquetes se configuran con la variable de entorno `INVITE_PRICE_PACKS`, como pares `cantidad:precioEnCentimos` separados por comas:
+
+```env
+INVITE_PRICE_PACKS=1:100,3:200,10:600
+INVITE_PURCHASE_CODE_TTL_DAYS=30
+```
+
+- Las cantidades deben ser números enteros del 1 al **50**, y los precios céntimos enteros (100 = 1,00€).
+- **No hay bonuses.** Un paquete de 10 da exactamente 10 créditos; los paquetes no son una escalera de descuentos, son lotes.
+- Solo se pueden comprar las cantidades exactas que configures. Pedir 7 se rechaza en lugar de redondear.
+- `INVITE_PURCHASE_CODE_TTL_DAYS` solo se aplica a los códigos con caducidad que se envían a un comprador **invitado**. Los créditos acreditados a una cuenta existente nunca caducan.
+- **Precio el paquete grande por debajo de los individuales.** El comprador solo puede comprar las cantidades que indiques, así que un paquete de "10" a 800 queda superado por un paquete de 3 más uno de 1 (700 por los mismos diez créditos). La tienda marca como *mejor valor* la tarifa por crédito más barata; cualquier precio por encima parecerá un error al comprador. Con `10:600` el paquete grande queda a 60 unidades por crédito frente a las 67 del paquete de 3.
+- Cambiar esta variable requiere **reiniciar el contenedor**, no solo guardar desde el panel: a diferencia de los interruptores de abajo, que viven en la base de datos.
+
+La tienda solo está abierta si el interruptor está activado **y** hay al menos un paquete válido. Un interruptor activado sin paquetes nunca llega a decir "aquí puedes comprar", y las páginas legales no mencionan la compra.
+
+### Quién puede comprar
+
+- **Miembro** — los créditos se abonan en la cuenta como saldo permanente nada más pagar.
+- **Invitado** — no hace falta cuenta. Los códigos se envían por email con un enlace de reclamo privado. Canjear uno de esos códigos durante el registro transfiere automáticamente a la cuenta nueva los códigos restantes de la misma compra, así que nadie tiene que repartirlos uno a uno.
+
+### Pagos
+
+Se admiten tarjeta (Stripe), PayPal y la pasarela de criptomonedas configurada, además de un método **MANUAL** en el que confirmas la orden a mano. Las órdenes se crean como **PENDING** y solo pasan a **PAID** cuando la pasarela confirma el pago (o cuando pulsas **Confirmar** en una orden manual). Las órdenes de invitado envían sus códigos una vez se confirma el pago.
+
+### Instrucciones de pago manual
+
+Una orden **MANUAL** no le sirve de nada a quien compra si no le dices dónde enviar el dinero, así que la tienda solo ofrece "pago a mano" cuando has publicado instrucciones. Se configuran en la misma tarjeta, en **Instrucciones de pago a mano**: elige un método (email, Telegram, Discord o WhatsApp) y el valor a publicar. El mismo editor está en la pestaña **Órdenes** y ambos escriben un único ajuste (`orders.contactMethod` / `orders.contactValue`), así que las compras de planes y los créditos de invitación siempre muestran las mismas instrucciones.
+
+Mientras no haya instrucciones publicadas, la tienda **oculta** la opción "pagar a mano" en lugar de ofrecer una caja que no se puede pagar, y el editor muestra un aviso ámbar para que un ajuste a medias no pueda eliminar en silencio un método de pago. El valor se sanea y se limita a 300 caracteres.
+
+### Gestión de órdenes
+
+La tabla bajo la tarjeta lista las compras recientes con el comprador, el método y el estado:
+
+- **Confirmar** — marca como pagada una orden **MANUAL** y concede los créditos o envía los códigos.
+- **Marcar reembolsada** — registra el reembolso y revoca lo que la orden aún tiene: sus créditos sin usar se eliminan y sus códigos de invitado sin usar se revocan. **No devuelve ningún dinero**: hazlo antes en la pasarela de pago y luego márcalo aquí. El crédito ya canjeado nunca se revoca, porque revocarlo implicaría borrar una cuenta real.
+- **Cancelar** — anula una orden de pasarela pendiente que nunca se pagó.
+
+### Cuando el correo no está configurado
+
+Las compras de invitado no tienen cuenta a la que volver, así que los códigos *deben* llegarle al comprador. El correo es la forma normal, pero una instancia con **SMTP desactivado** retendría una orden pagada que no puede entregar. Esa situación exacta apareció al verificar esta función de principio a fin: la tienda estaba abierta, una orden estaba pagada y los códigos no tenían adónde ir.
+
+- Mientras las compras estén **abiertas y el correo no esté disponible**, el panel muestra un aviso destacado en la tarjeta de invitaciones. Trátalo como «no dejes esto así» y no como un aviso cosmético: significa que un invitado que paga no recibiría nada.
+- El aviso indica la solución: configura un buzón real (por ejemplo una cuenta de Gmail con contraseña de aplicación, o tu proveedor SMTP) mediante `SMTP_*`. No lo tapes con un remitente falso; los compradores verán que el mensaje llega desde el sitio equivocado, o directamente no llegará.
+- **Mientras el correo no funcione**, cada orden de invitado pagada tiene un botón **Copiar enlace de reclamo**. Genera un enlace firmado nuevo para esa orden y lo pone en el portapapeles. Envíaselo al comprador como quieras: chat, mensaje directo o un correo enviado desde otra cuenta. El endpoint (`POST /api/admin/invite-purchases/:id/claim-link`, requiere `invites.manage`) devuelve el enlace y su vigencia, nunca los códigos en bruto.
+- Dos propiedades hacen que esto sea seguro de usar a mano: la orden **no** se marca como enviada por correo, de modo que la vía automática sigue reintentando cuando se configure el correo; y los códigos siguen ocultos hasta que la orden está **Pagada**, así que no puedes repartir por accidente códigos no pagados.
+- No leas los códigos en voz alta a un comprador y los pegues en un chat. El enlace de reclamo es el único identificador que queda limitado a esa única orden.
+
+Se avisa a los invitados que revisen su carpeta de correo no deseado tras una compra, porque un correo legítimo de una instancia pequeña es justo lo que los filtros consideran spam.
+
+### Reembolsar, en orden
+
+1. Devuelve el dinero en la pasarela de pago.
+2. Pulsa **Marcar reembolsada** para que nuestros registros y el acceso del comprador coincidan.
+
+Si te saltas el paso 2, el comprador conserva los créditos y no queda registro de que la orden se reembolsó.
+
+## Gestión de usuarios
+
+La pestaña **Usuarios** lista todas las cuentas. Haz clic en **Editar perfil** para:
+
+- Cambiar el nombre visible, la bio, la ubicación, el sitio web y la visibilidad pública/privada.
 - Asignar el **rol** del usuario (de los definidos en la pestaña **Roles**).
-- Definir el **plan** del usuario (Free / Pro / Enterprise) y un **límite de pistas** personalizado (anula el predeterminado del plan para el reproductor de música).
-- Definir un **límite de perfiles** y **límite de aliases** personalizado (anula los predeterminados del plan para las páginas multiperfil y los aliases).
-- Alternar **insignias** del catálogo — estas son las insignias que el usuario puede mostrar en sus perfiles.
+- Definir el **plan** del usuario (Free / Pro / Enterprise) y un **límite de pistas** personalizado (sobreescribe el predeterminado del plan para el reproductor de música).
+- Definir un **límite de perfiles** y un **límite de aliases** personalizado (sobreescribe los valores predeterminados del plan para las páginas multiperfil y los aliases).
+- Activar o desactivar **insignias** del catálogo — son las insignias que el usuario puede mostrar en sus perfiles.
 - Restablecer la contraseña de un usuario (backend `POST /api/admin/users/:id/reset-password`).
+- Eliminar una passkey de un usuario (backend `DELETE /api/admin/users/:id/passkeys/:passkeyId`): útil cuando un usuario ha perdido un dispositivo o pide eliminar un autenticador comprometido. Los indicadores de seguridad de passkeys se recalculan al instante, por lo que la lista de **Usuarios** refleja el cambio de inmediato.
 
 ### Eliminar un usuario (borrado GDPR)
 
@@ -79,11 +170,11 @@ Usa **Eliminar** junto a la fila de un usuario para **borrar permanentemente** l
 - cada perfil (aliases, vistas de página, clics en enlaces, pistas de música, conexión de Discord, archivos de avatar/banner/música subidos);
 - insignias, códigos de invitación creados por el usuario y las referencias del usuario en el registro de autenticación y en los baneos de cuenta.
 
-No puedes eliminar tu propia cuenta desde el panel de administración. Para una alternativa reversible, usa **Editar Perfil → isPublic desactivado** en su perfil.
+No puedes eliminar tu propia cuenta desde el panel de administración. Para una alternativa reversible, usa **Editar perfil → isPublic desactivado** en su perfil.
 
-## Roles y Permisos
+## Roles y permisos
 
-La pestaña **Roles** gestiona el acceso. Cada usuario tiene exactamente un rol; cada rol lleva un conjunto de permisos:
+La pestaña **Roles** gestiona el acceso. Cada usuario tiene exactamente un rol; cada rol conlleva un conjunto de permisos:
 
 - `users.view` — ver la pestaña Usuarios.
 - `users.manage` — editar usuarios (rol, plan, límites, insignias, perfil).
@@ -92,105 +183,200 @@ La pestaña **Roles** gestiona el acceso. Cada usuario tiene exactamente un rol;
 - `bans.manage` — gestionar baneos y bloqueos.
 - `roles.manage` — crear/editar/eliminar roles.
 - `badges.manage` — crear/editar/eliminar insignias.
+- `themes.manage` — gestionar la pestaña Temas de temporada / Theming.
+- `settings.manage` — gestionar la pestaña Landing (enlace al perfil destacado).
+- `newsletter.manage` — gestionar la pestaña Newsletter (límites por plan + búsqueda de consentimiento) y permite a los usuarios enviar boletines a sus propios suscriptores.
 - `logs.view` — ver el registro de autenticación.
-- `invites.generate` — permite al rol generar sus **propios** códigos de invitación (sujeto al interruptor global, a la configuración de invitaciones del rol a continuación y a los baneos de invitación).
+- `invites.generate` — permite al rol generar sus **propios** códigos de invitación (sujeto al interruptor global, a la configuración de invitaciones del rol que se indica más abajo y a los baneos de invitación).
 
 ### Configuración de invitaciones por rol
 
-Junto a los permisos, cada rol tiene un bloque **Generación de invitaciones**:
+Junto a los permisos, cada rol tiene un bloque de configuración **Generación de invitaciones**:
 
-- **Máximo por lote** — cuántos códigos puede crear una acción de generación. `0` desactiva la generación basada en el rol.
+- **Máximo por lote** — cuántos códigos puede crear una sola acción de generación. `0` desactiva la generación basada en el rol.
 - **Máximo sin usar a la vez** — límite del total de códigos pendientes (sin usar) del usuario. `0` significa ilimitado.
-- **Tiempo de espera (minutos)** — espera mínima entre dos acciones de generar. `0` significa sin tiempo de espera.
-- **Vencimiento por defecto / Vencimiento mínimo / Vencimiento máximo (días)** — el usuario elige un vencimiento entre el mínimo y el máximo; cuando no elige, se usa el predeterminado. El mínimo es el suelo para que los códigos no puedan crearse con vencimiento inmediato; el máximo es el tope para que no puedan crear invitaciones permanentes.
+- **Tiempo de espera (minutos)** — espera mínima entre dos acciones de generación. `0` significa sin tiempo de espera.
+- **Vencimiento predeterminado / Vencimiento mínimo / Vencimiento máximo (días)** — el usuario elige un vencimiento entre el mínimo y el máximo; cuando no elige, se usa el predeterminado. El mínimo es el límite inferior para que los códigos no puedan crearse con vencimiento inmediato; el máximo es el tope para que no puedan crear invitaciones permanentes.
 
-Un rol necesita **tanto** el permiso `invites.generate` como un límite por lote mayor que 0 para que sus miembros generen invitaciones por su cuenta. Los allowances de evento permiten generar independientemente de la configuración del rol (pero se aplican el mismo tiempo de espera y los mismos límites de vencimiento, limitados por la fecha de vencimiento del allowance).
+Un rol necesita **tanto** el permiso `invites.generate` como un límite de lote mayor que 0 para que sus miembros generen invitaciones por su cuenta. Los allowances de evento permiten generar independientemente de la configuración del rol (pero se aplican el mismo tiempo de espera y los mismos límites de vencimiento, limitados por la fecha de caducidad del allowance).
 
 Siempre existen dos roles de sistema:
 
-- **Admin** — acceso completo. Sus permisos están bloqueados (siempre todos); puedes renombrarlo pero no quitarle permisos.
-- **User** — el rol por defecto para los nuevos registros. Su nombre, descripción y permisos son editables.
+- **Admin** — acceso completo. Sus permisos están bloqueados (siempre son todos); puedes renombrarlo pero no quitarle permisos.
+- **User** — el rol predeterminado para los nuevos registros. Su nombre, descripción y permisos son editables.
 
-Para crear un rol, introduce un nombre/descripción, marca los permisos y haz clic en **Crear Rol**. Puedes **Editarlo** después (el slug se deriva del nombre) o **Eliminarlo** — un rol personalizado solo puede eliminarse cuando ningún usuario lo tiene. Los nombres reservados (`admin` / `user`) no pueden reutilizarse en roles personalizados. Los roles nuevos solo son tan poderosos como los permisos que les concedas.
+Para crear un rol, introduce un nombre y una descripción, marca los permisos y haz clic en **Crear rol**. Después puedes **editarlo** (el slug se deriva del nombre) o **eliminarlo** — un rol personalizado solo puede eliminarse cuando ningún usuario lo tiene asignado. Los nombres reservados (`admin` / `user`) no pueden reutilizarse en roles personalizados. Los roles nuevos solo son tan potentes como los permisos que les concedas.
 
 ## Insignias
 
 La pestaña **Insignias** gestiona el catálogo de insignias. Cada insignia tiene:
 
 - **Etiqueta** — lo que se muestra en el perfil (p. ej. «Gold Member»).
-- **Slug** — una clave única (opcional; por defecto la etiqueta).
-- **Color** — un color hex (`#22c55e`) usado para la píldora y el icono.
+- **Slug** — una clave única (opcional; por defecto se toma la etiqueta).
+- **Color** — un color hex (`#22c55e`) usado para la etiqueta y el icono.
 - **Icono** — un nombre de icono lucide (p. ej. `Crown`, `Award`, `Code`).
 
-Haz clic en **Crear Insignia** para añadir una; una vista previa en vivo muestra cómo se renderiza. Las insignias de sistema (developer, owner, staff, moderator, verified, premium, enterprise) no pueden eliminarse ni cambiar su slug; las personalizadas pueden editarse o eliminarse libremente (eliminar las quita de todos los perfiles y usuarios).
+Haz clic en **Crear insignia** para añadir una; una vista previa en vivo muestra cómo se renderiza. Las insignias de sistema (developer, owner, staff, moderator, verified, premium, enterprise) no pueden eliminarse ni cambiar su slug; las personalizadas pueden editarse o eliminarse libremente (eliminarlas las quita de todos los perfiles y usuarios).
 
-Las insignias se asignan a los usuarios en **Usuarios → Editar Perfil**. Una vez que un usuario tiene una insignia, puede activarla en cada perfil desde su panel, y se muestra como un icono de color en la página pública. El catálogo es público en `GET /api/badges`.
+Las insignias se asignan a los usuarios en **Usuarios → Editar perfil**. Una vez que un usuario tiene una insignia, puede activarla o desactivarla en cada perfil desde su panel, y se muestra como un icono de color en la página pública. El catálogo es público en `GET /api/badges`.
 
-## Dominios Personalizados
+## Dominios personalizados
 
-La pestaña **Custom Domains** lista cada solicitud de dominio personalizado de autoservicio, de la más reciente a la más antigua, con el propietario (usuario, tier, email), el perfil al que pertenece, su destino de raíz, estado, fecha de solicitud y estado TLS. Los dominios personalizados pasan por un flujo de dos pasos:
+La pestaña **Custom Domains** lista cada solicitud de dominio personalizado de autoservicio, de la más reciente a la más antigua, con el propietario (usuario, plan, email), el perfil al que pertenece, su destino raíz, estado, fecha de solicitud y estado TLS. Los dominios personalizados siguen un flujo de dos pasos:
 
 1. **Verificación del usuario** — el usuario añade un registro TXT (`_bioplatform.<domain>` con el valor mostrado) y pulsa **Verify now** en su panel. La instancia resuelve el registro DNS directamente; la solicitud pasa de *Pending TXT* a **Verified**.
-2. **Aprobación del administrador** — solo una solicitud **Verified** puede **activarse**. Pulsa **Activate** para pasarla a *Active* (su dominio canónico queda en vivo para el perfil). Usa **Reject** para rechazar una solicitud (en estado *Pending TXT* o *Verified*); una solicitud rechazada permite al usuario enviar una nueva.
+2. **Aprobación del administrador** — solo una solicitud en estado **Verified** puede **activarse**. Pulsa **Activate** para pasarla a *Active* (su dominio canónico queda activo para el perfil). Usa **Reject** para rechazar una solicitud (en estado *Pending TXT* o *Verified*); una solicitud rechazada permite al usuario enviar una nueva.
 
-Una vez que un dominio está **Active**, la columna **TLS** sigue su certificado automático:
-- *valid to \<fecha\>* — ACME emitió el certificado; se renueva solo cerca de la expiración.
+Una vez que un dominio está en estado **Active**, la columna **TLS** sigue su certificado automático:
+- *valid to \<fecha\>* — ACME emitió el certificado; se renueva automáticamente cerca de la expiración.
 - *issuing…* — el backend está obteniendo el certificado.
-- *failed* (pasa el cursor para ver el error) — falló la emisión; arregla el DNS/puerto 80 y pulsa **Issue cert** para reintentar.
-- *none* — todavía sin certificado. Pulsa **Issue cert** para solicitar uno de inmediato (el backend también reintenta automáticamente).
+- *failed* (pasa el cursor para ver el error) — falló la emisión; corrige el DNS / puerto 80 y pulsa **Issue cert** para reintentar.
+- *none* — aún sin certificado. Pulsa **Issue cert** para solicitar uno de inmediato (el backend también reintenta automáticamente).
 
 Ten en cuenta:
-- La activación requiere que la instancia enrute realmente el dominio (ingress del túnel con el `Host` correcto, más un certificado TLS — ver la [Guía de Despliegue](./deployment.md)).
-- Solo el **propietario** del perfil puede gestionar su dominio. El permiso `profiles.manage` es necesario para ver/aprobar/rechazar/emitir aquí.
-- **El DNS y el TLS deben estar instalados** antes de que la activación sea útil; el perfil redirige al dominio personalizado solo cuando la instancia lo sirve. El TLS automático necesita `ACME_ENABLED=true` y el dominio accesible en el puerto 80.
+- La activación requiere que la instancia enrute realmente el dominio (ingress del túnel con el `Host` correcto, además de un certificado TLS — ver la [Guía de despliegue](./deployment.md)).
+- Solo el **propietario** del perfil puede gestionar su dominio. Se requiere el permiso `profiles.manage` para ver/aprobar/rechazar/emitir aquí.
+- **El DNS y el TLS deben estar instalados** antes de que la activación sea útil; el perfil redirige al dominio personalizado solo cuando la instancia lo sirve. El TLS automático necesita `ACME_ENABLED=true` y que el dominio sea accesible en el puerto 80.
 
-## Cómo Funcionan los Baneos y Bloqueos
+## Temas de temporada
 
-El sistema de autenticación bloquea tras intentos de inicio de sesión fallidos repetidos. Existen dos tipos de baneos:
+La pestaña **Temas de temporada** (requiere el permiso `themes.manage`) te permite programar temas recurrentes que se aplican a todos los perfiles de usuario mientras están activos. El sistema incluye nueve temas predefinidos: Primavera, Verano, Otoño, Invierno (estaciones) y Halloween, Navidad, Año Nuevo, San Valentín, San Patricio (festivos), cada uno con una ventana de mes/día predeterminada (p. ej. Navidad del 1 dic al 8 ene).
+
+### Ajustes globales
+
+Tres interruptores controlan toda la funcionalidad:
+
+- **Temas de temporada** — el interruptor principal. Cuando está desactivado, nunca se aplica ningún tema (salvo que un usuario tenga activado «permitir siempre Navidad»).
+- **Programación automática** — al activarla, los temas dentro de sus ventanas de fecha se aplican automáticamente. Al desactivarla, solo se aplica una anulación manual.
+- **Respetar la preferencia del usuario** — al activarla, los usuarios pueden desactivar las decoraciones de temporada en su pestaña Apariencia; al desactivarla, los usuarios no pueden optar por no recibir decoraciones.
+
+### Gestionar temas
+
+Abre cualquier tema con **Editar** para cambiar su etiqueta, emoji, colores (fondo, tarjeta, texto, acento), activarlo o desactivarlo, marcarlo como **permitir siempre** o establecer una **anulación** manual:
+
+- **Programar** — aplicar solo dentro de la ventana de fechas (más cualquier anulación).
+- **Forzado activo** — aplicar independientemente de la ventana.
+- **Forzado inactivo** — nunca aplicarlo.
+
+Cada tema también admite un **efecto animado**, una **distribución (layout)** (de las mismas trece plantillas que pueden elegir los usuarios) y una **imagen de fondo** (elige un preset de degradado o de temporada, una URL personalizada o **sube** una imagen/GIF — la validez se comprueba mediante los bytes mágicos y las subidas están limitadas a 12 MB). Los GIF subidos se animan; los JPEG/PNG/WebP se optimizan automáticamente.
+
+Cada vista de edición incluye una **vista previa en vivo** que reutiliza el mismo perfil de muestra editable localmente que se muestra en la página de inicio: las ediciones de la vista previa se ejecutan enteramente en el navegador y nunca tocan datos reales de usuarios.
+
+### Orden de resolución
+
+Cuando más de un tema podría aplicarse, el tema efectivo se elige así: la anulación manual **activada** gana sobre todo; en caso contrario un festivo gana sobre una estación; en caso de empate, gana el tema con el `sortOrder` más alto. El **permitir siempre Navidad** de un usuario gana incluso sobre una anulación **desactivada** del operador, pero solo para ese usuario y solo para el tema de Navidad. Mientras un tema está activo, sustituye por completo los colores, la distribución y el fondo personalizados del usuario.
+
+> **Configuración**: esta función guarda sus temas en la base de datos. Antes de usarla, aplica la migración `docs/migrations/2026-09-03_seasonal-themes.sql` (ver la [Guía de despliegue](./deployment.md)).
+
+## Ajustes de Landing
+
+La pestaña **Landing** (requiere el permiso `settings.manage`) enlaza un perfil real desde la página de aterrizaje de marketing. Establece un **nombre de usuario del perfil destacado** — cuando se configura, el hero de la página de aterrizaje muestra un tercer botón **View live profile** y el editor de previsualización del showcase muestra un enlace **View /username**, ambos apuntando a `/{username}` en el mismo host.
+
+- El valor es solo un nombre de usuario (letras minúsculas, números, guiones y guiones bajos); se acepta y elimina un `@` inicial.
+- Guardar un valor **vacío** borra el ajuste y oculta los botones en todas partes. Los botones solo aparecen cuando hay un nombre de usuario configurado.
+- El valor se sirve públicamente mediante `GET /api/landing/config` (caché de 60 segundos) para que la página de aterrizaje no necesite credenciales de administrador para renderizarse. Se almacena en la base de datos (`SystemSetting`) — no existe variable de entorno.
+- El rol **Admin** integrado ya incluye `settings.manage`; concédelo a roles personalizados que deban configurar la página de aterrizaje.
+
+## Boletín (Newsletter)
+
+La pestaña **Newsletter** (requiere el permiso `newsletter.manage`) cubre las responsabilidades de administración alrededor de los boletines por perfil: **límites por plan**, **auditoría de consentimiento**, **lista de remitentes permitidos** y **anuncios de la plataforma**.
+
+- **Límites por plan** — muestra la ventana de envíos efectiva por plan: cuántos envíos puede hacer cada plan en `windowHours` (predeterminados: FREE 0 / PRO 1 / ENTERPRISE 5 cada 24 h). Puedes sobrescribir el `sendLimit` / `windowHours` de cada plan y persistir la sobrescritura en la base de datos (surte efecto de inmediato y solo sobre envíos futuros — nunca cuenta retroactivamente); **Reset to defaults** elimina la sobrescritura. El marcador de origen te indica si la configuración efectiva procede de los valores predeterminados del entorno o de tu sobrescritura en base de datos. Por debajo es el ajuste de sistema `newsletter.tierConfig` (`GET/PUT/DELETE /api/admin/newsletter/config`).
+- **Sender allowlist** — busca cuentas y activa **Whitelist**. Es la aprobación manual del administrador para el envío de boletines: exime al usuario de los requisitos de plan y de verificación DNS de su **propio servidor SMTP** (útil para cuentas de Proton Mail / Gmail SMTP) y, cuando el propietario de la instancia ha activado `NEWSLETTER_PLATFORM_SMTP_ENABLED=true`, también es la autorización por usuario necesaria para enviar por el **remitente de la plataforma**. Los usuarios en la lista siguen sujetos a la ventana de envío por plan, deben superar un correo de prueba SMTP y están limitados por `NEWSLETTER_PLATFORM_RECIPIENT_CAP` en el remitente de la plataforma. Endpoints: `GET /api/admin/newsletter/sender-whitelist`, `PUT /api/admin/newsletter/sender-whitelist/:userId`.
+- **Búsqueda de consentimiento** — escribe el correo de un suscriptor para auditar sus registros de consentimiento (responsabilidad GDPR / CASL):
+  - **Filas permanentes** — cada suscripción de ese correo en todos los perfiles, con cuándo aceptó, las versiones de políticas (Términos/Privacidad) que aceptó y su estado de baja. Son la prueba duradera de consentimiento almacenada en la base de datos.
+  - **Evidencia transitoria** — dirección IP y User-Agent capturados en el momento de la suscripción. Viven **solo en memoria durante 24 horas** y nunca se escriben en la base de datos; tras 24 h desaparecen y solo quedan las filas permanentes.
+- **Anuncios de la plataforma** — redacta un **anuncio** puntual que se entrega por el remitente SMTP/Resend de la instancia a todos los usuarios que **optaron por noticias de la plataforma** en el registro (`newsletterOptIn` en el registro del usuario; `acceptedPoliciesAt` y las versiones de políticas registran su consentimiento de Términos + Privacidad). El editor muestra la audiencia actual sin abreviar y envía con un tope de seguridad de 5000 destinatarios, registrando cada envío en `admin_newsletter_sends`. Cada destinatario recibe un enlace de baja de **un clic a nivel de cuenta** firmado (`GET /api/newsletter/unsubscribe/broadcast?token=`), que desactiva su opt-in y guarda `broadcastUnsubscribedAt`; volver a activarlo lo gestiona el usuario desde **Ajustes de cuenta**. Endpoints: `GET /api/admin/newsletter/broadcast-audience`, `GET /api/admin/newsletter/broadcasts`, `POST /api/admin/newsletter/broadcast`.
+
+Los límites de envío solo restringen el boletín del **creador**. El perfil sigue capturando suscriptores mientras un límite está agotado o el perfil está en pausa; simplemente no se enviará correo. Los administradores (`newsletter.manage`) conservan siempre el límite fijo de 5000 destinatarios del remitente de la plataforma y omiten la ventana por plan — el anuncio de plataforma es una audiencia aparte, solo de usuarios que optaron, y no cuenta contra las ventanas por plan.
+
+## Propinas
+
+Las propinas las gestiona por completo el **propietario** (sin permiso de administrador): el propietario de un perfil fija las direcciones de cartera (Bitcoin y/o Litecoin) y un encabezado en su pestaña **Tips** del panel, y los visitantes dejan propinas desde el perfil público.
+
+Lo que configuras como operador es la **confirmación de pago**:
+
+- **Sin BTCPay** — las propinas son intenciones registradas: el diálogo público muestra el código QR / la dirección (`GET /api/tips` devuelve `mode: "address"`), y el propietario concilia el registro (`GET /api/tips/overview`, `DELETE /api/tips/:id`) con lo que realmente llegue a su cartera. No hace falta nada más.
+- **Con BTCPay** (`CRYPTO_ENABLED`, `BTCPAY_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID` configurados y el webhook de la tienda apuntando a `POST /api/payments/webhooks/crypto/btcpayserver`) — crear una propina abre un pago por BTCPay (`mode: "btcpay"`); `InvoiceSettled` marca la propina como `CONFIRMED` a través del mismo webhook que cumple los pedidos de planes, y `InvoiceExpired` / `InvoiceInvalid` la marcan como `CANCELLED`. Si la creación de la factura falla (BTCPay inaccesible o mal configurado), la propina vuelve automáticamente al modo dirección, de modo que los visitantes nunca quedan bloqueados por una caída del proveedor de pagos.
+
+Las facturas de propina reutilizan el canal de metadatos `orderId` de BTCPay con el prefijo `tip-<id>`, por lo que dejar que extraños las creen es seguro — el webhook solo puede cambiar el estado de un registro de propina, nunca un pedido o una cuenta.
+
+## Pedidos y pagos
+
+La pestaña **Pedidos** (requiere el permiso `orders.manage`) es el lado de cumplimiento de la facturación. Los usuarios crean pedidos desde su pestaña Facturación — manualmente (`MANUAL`, pago fuera del sistema) o a través de una pasarela en línea habilitada (Tarjeta/Stripe, PayPal, Cripto). Tú configuras los datos de contacto y procesas sus pedidos:
+
+1. **Configura tu método de contacto** — arriba de la pestaña (**Instrucciones de pago a mano**), elige un método (email, Telegram, Discord o WhatsApp — o **none** para ocultarlo) y el valor que verán los usuarios en su pestaña Facturación y en la página pública de precios. El valor debe tener una forma válida para el método elegido (una dirección de email, un usuario de Telegram/Discord, un número de teléfono) y se almacena en la base de datos (`system_setting`). Es el único ajuste que también lee la tienda de invitaciones, así que decide si allí se ofrece «pagar a mano».
+2. **Procesa los pedidos** — la lista muestra todos los pedidos (los más recientes primero) con el comprador (usuario, email, plan), el plan solicitado, el método de pago (Contactar propietario / Tarjeta / PayPal / Cripto), la moneda + precio base, el % de descuento del comprador y el precio final pedido, los datos de la pasarela (id de transacción, estado del proveedor, moneda cripto + cantidad cotizada) cuando aplica, la nota del usuario, su estado y cualquier nota de administrador. Filtra por estado y pagina según necesites.
+   - **Marcar pagado** — aprueba un pedido **Pendiente** cuando hayas recibido el pago. La cuenta se mejora automáticamente al plan solicitado si es superior a su plan actual (Gratuito → PRO → Enterprise).
+   - **Cancelar** — rechaza un pedido **Pendiente** (el usuario puede pedir de nuevo).
+   - **Reembolsar** — revierte un pedido **Pagado** (por ejemplo, un error); la cuenta **no** se degrada.
+   - **Pendiente de nuevo** — reabre un pedido cancelado.
+   - Cada cambio de estado puede incluir una **nota de administrador** (máx. 500 caracteres) que se muestra en el historial de pedidos de la pestaña Facturación del comprador.
+
+> **Los pagos en línea** se configuran mediante el entorno: `STRIPE_*`, `PAYPAL_*`, `CRYPTO_*` (ver [Variables de entorno](./environment-variables.md#facturación--pedidos)). Cuando una pasarela está habilitada, crear un pedido genera la sesión de pago automáticamente y el webhook del proveedor (`POST /api/payments/webhooks/stripe`, `/paypal`, `/crypto/{provider}`) lo marca como **pagado** y mejora al comprador por sí solo — no necesitas hacer nada con los pedidos de pasarela salvo gestionar un reembolso. El panel de cada proveedor necesita la URL del webhook configurada (`https://<host>/api/payments/webhooks/...`) con el secreto correspondiente.
+
+> **Los precios** provienen del entorno (`BILLING_PRICE_PRO_CENTS`, `BILLING_PRICE_ENTERPRISE_CENTS`, `BILLING_CURRENCY`); el frontend nunca envía sus propios precios — el descuento se recalcula en el servidor a partir de los datos de afiliado del comprador.
+
+## Cómo funcionan los baneos y bloqueos
+
+El sistema de autenticación se bloquea tras intentos de inicio de sesión fallidos repetidos. Existen dos tipos de baneos:
 
 - **Baneos de huella** — sobre la IP, la cookie del navegador y el user-agent del atacante. Una petición se bloquea solo cuando **2 de 3** partes de la huella están bloqueadas.
-- **Baneos de cuenta** — aplicados a la cuenta atacada tras fallos repetidos.
+- **Baneos de cuenta** — aplicados a la cuenta objetivo tras fallos repetidos.
 
 En la pestaña **Baneos**, cada fila muestra su tipo, valor, número de fallos y estado (Permanente / Bloqueada hasta / Limpia). Puedes eliminar un registro individual con **Desbanear**.
 
-## Desbloquear una Cuenta de Usuario
+## Lista blanca de IP
 
-Una cuenta bloqueada tiene una fila de **ACCOUNT** (valor = el nombre de usuario). Para restaurar el acceso:
+La **Lista blanca de IP** se encuentra al principio de la pestaña **Baneos**. Es una lista persistida en la base de datos de direcciones IP o redes CIDR que quedan **exentas del guardián de huella contra el abuso**:
 
-1. Abre **Panel de Administración → Baneos**.
-2. Encuentra la fila **ACCOUNT** del usuario y haz clic en **Desbloquear**.
+- Los usuarios que se registran desde una red incluida en la lista pueden **crear varias cuentas** en el mismo dispositivo/red: la comprobación antiahuso de invitaciones/referidos (`AFFILIATE_ABUSE_ACTION`) no los rechaza y el límite de intentos de registro no les aplica.
+- Los **bloqueos de huella de inicio de sesión** (baneos de IP/cookie/user-agent y la regla de 2 de 3) se ignoran para las IP incluidas, y no se registran nuevas penalizaciones de huella mientras exista la entrada de la lista blanca.
 
-El desbloqueo elimina el baneo de la cuenta **y** los baneos de IP/cookie registrados contra esa cuenta durante los intentos fallidos, y borra sus entradas de registro fallidas. Esto importa porque eliminar solo la fila de la cuenta puede dejar una huella bloqueada (regla 2-de-3).
+Está pensada para redes de confianza — por ejemplo, IPs compartidas de oficinas o desarrollo, o tus propios **probadores beta**, que necesitan legítimamente más de una cuenta desde la misma máquina. A diferencia de los registros de baneo, la lista blanca vive en la base de datos, por lo que **sobrevive a redespliegues y reinicios**.
+
+Para añadir una entrada: introduce una dirección IP (p. ej. `203.0.113.7`) o una red CIDR (p. ej. `203.0.113.0/24`), opcionalmente una nota, y haz clic en **Añadir**. Se admiten IPv4 e IPv6 (incluidas las direcciones de mapeo IPv4 `::ffff:`). Elimina una entrada en cualquier momento con **Quitar**.
+
+La misma lista blanca se sirve por la API de administración (`GET /api/admin/whitelist`, `POST /api/admin/whitelist`, `DELETE /api/admin/whitelist/:id`, controlada por el permiso `bans.manage`) y se aplica en el servidor en la comprobación antiahuso de referidos, en el límite de registros y en el guardián de huella del inicio de sesión.
+
+## Desbloquear una cuenta de usuario
+
+Una cuenta bloqueada tiene una fila de tipo **ACCOUNT** (valor = el nombre de usuario). Para restaurar el acceso:
+
+1. Abre **Panel de administración → Baneos**.
+2. Busca la fila **ACCOUNT** del usuario y haz clic en **Desbloquear**.
+
+El desbloqueo elimina el baneo de la cuenta **y** los baneos de IP/cookie registrados contra esa cuenta durante los intentos fallidos, y borra sus entradas fallidas del registro de autenticación. Esto es importante porque eliminar solo la fila de la cuenta puede dejar una huella bloqueada (regla de 2 de 3).
 
 También puedes desbloquear directamente desde la pestaña **Registros**: cualquier entrada que muestre un bloqueo (Permanente o +N min) tiene un botón **Desbloquear**.
 
 Para eliminar un registro de huella individual sin desbloquear toda la cuenta, usa **Desbanear** a nivel de fila.
 
-## Registro de Autenticación
+## Registro de autenticación
 
-La pestaña **Registros** es el rastro de auditoría de la autenticación. Cada entrada registra la hora, el usuario, la razón, la IP, la penalización (permanente o `+N min`) y qué la provocó. Las entradas se purgan automáticamente cuando su bloqueo expira o tras el período de retención (`AUTH_LOG_RETENTION_DAYS`).
+La pestaña **Registros** es el rastro de auditoría de la autenticación. Cada entrada registra la hora, el usuario, el motivo, la IP, la penalización (permanente o `+N min`) y qué la provocó. Las entradas se purgan automáticamente cuando su bloqueo expira o tras el período de retención (`AUTH_LOG_RETENTION_DAYS`).
 
-## Políticas de Bloqueo
+## Políticas de bloqueo
 
-El comportamiento global de bloqueo se define con `AUTH_LOCK_POLICY` (ver [Configuración](./configuration.md#seguridad)):
+El comportamiento global de bloqueo se define con `AUTH_LOCK_POLICY` (ver [Configuración](./configuration.md#security)):
 
 - `block` — las cuentas bloqueadas rechazan todos los inicios de sesión hasta que un administrador las desbloquee.
-- `trusted_ip` (por defecto) — la IP registrada/último acceso de la cuenta puede iniciar sesión sin desbloquear.
-- `email` — los usuarios bloqueados deben hacer clic en el enlace de desbloqueo enviado por correo (requiere SMTP); los administradores pueden desbloquear manualmente igualmente.
+- `trusted_ip` (predeterminado) — la IP registrada / último acceso de la cuenta puede iniciar sesión sin desbloquear.
+- `email` — los usuarios bloqueados deben hacer clic en el enlace de desbloqueo enviado por correo (requiere SMTP); los administradores también pueden desbloquear manualmente.
 
-## Administración por Línea de Comandos
+## Administración por línea de comandos
 
-La imagen del backend incluye un CLI `bioplatform` que habla directamente con la base de datos. Está pensado para autoalojadores que necesitan administrar **su propia** cuenta: el panel de administración web bloquea deliberadamente la autoedición (plan, límites, contraseña y eliminación de la propia cuenta), y el CLI no tiene esa restricción — se ejecuta como el dueño de la instancia.
+La imagen del backend incluye un CLI `bioplatform` que se comunica directamente con la base de datos. Está pensado para autoalojadores que necesitan administrar **su propia** cuenta: el panel de administración web bloquea deliberadamente la autoedición (plan, límites, contraseña y eliminación de la propia cuenta), y el CLI no tiene esa restricción — se ejecuta como el propietario de la instancia.
 
 Ejecútalo dentro del stack en marcha:
 
 ```sh
-./scripts/bioplatform.sh <comando> …        # Linux/macOS
-./scripts/bioplatform.ps1 <comando> …       # Windows
-pnpm cli -- <comando> …                     # atajo equivalente
+./scripts/bioplatform.sh <command> …        # Linux/macOS
+./scripts/bioplatform.ps1 <command> …       # Windows
+pnpm cli -- <command> …                     # atajo equivalente
 ```
 
-En desarrollo (sin Docker), `pnpm --filter @bioplatform/backend cli -- <comando> …` funciona contra la base de datos local usando el `.env` del repositorio.
+En desarrollo (sin Docker), `pnpm --filter @bioplatform/backend cli -- <command> …` funciona contra la base de datos local usando el `.env` del repositorio.
 
 ### Comandos
 
@@ -200,17 +386,17 @@ Los identificadores aceptan `@usuario`, `usuario@ejemplo.com`, un slug o alias d
 | --- | --- |
 | `users list [--tier T] [--json]` | Lista cuentas con plan, límites, rol y número de insignias. |
 | `users show &lt;id&gt;` | Detalles completos de la cuenta + slugs de perfiles (JSON). |
-| `users set-tier &lt;id&gt; FREE\|PRO\|ENTERPRISE` | Cambia el plan (sin techo — anulación del dueño). |
-| `users set-limits &lt;id&gt; [--tracks N\|none] [--profiles N\|none] [--aliases N\|none]` | Fija límites por cuenta; `none` vuelve al valor por defecto del plan (`null`). |
-| `users set-username &lt;id&gt; &lt;nuevoUsuario&gt;` | Renombra una cuenta; sincroniza el slug del perfil primario en una transacción. |
-| `users set-email &lt;id&gt; &lt;nuevoEmail&gt;` | Cambia el email de inicio de sesión (se valida unicidad). |
-| `users reset-password &lt;id&gt; [--password pw]` | Sobrescribe una contraseña (bcrypt, 12 rondas). Pide escribir **YES**; sin `--password` pregunta dos veces con entrada oculta. |
-| `users unlock &lt;id&gt;` | Limpia baneos ACCOUNT/IP/COOKIE derivados del registro de autenticación de la cuenta y borra los intentos fallidos. |
+| `users set-tier &lt;id&gt; FREE\|PRO\|ENTERPRISE` | Cambia el plan (sin límite — anulación del propietario). |
+| `users set-limits &lt;id&gt; [--tracks N\|none] [--profiles N\|none] [--aliases N\|none]` | Fija límites por cuenta; `none` restaura el valor predeterminado del plan (`null`). |
+| `users set-username &lt;id&gt; &lt;newUsername&gt;` | Renombra una cuenta; sincroniza el slug del perfil primario en una transacción. |
+| `users set-email &lt;id&gt; &lt;newEmail&gt;` | Cambia el email de inicio de sesión (se valida unicidad). |
+| `users reset-password &lt;id&gt; [--password pw]` | Sobrescribe una contraseña (bcrypt, 12 rondas). Solicita escribir **YES**; sin `--password` pregunta dos veces con entrada oculta. |
+| `users unlock &lt;id&gt;` | Limpia los baneos ACCOUNT/IP/COOKIE derivados del registro de autenticación de la cuenta y borra los intentos fallidos. |
 | `users ban-invites &lt;id&gt;` / `unban-invites &lt;id&gt;` | Alterna la elegibilidad para invitaciones (banear también revoca códigos sin usar). |
 | `users delete &lt;id&gt; [--yes]` | Elimina cuenta + perfiles + subidas (almacenamiento local) y dispara webhooks `user.deleted`. Requiere escribir **YES** salvo con `--yes`. |
 | `profiles list &lt;id&gt;` | Lista los perfiles de la cuenta. |
-| `profiles show &lt;id&gt; [--profile-id uuid]` | Vuelca un perfil completo incluidos enlaces sociales y alias. |
-| `profiles edit &lt;id&gt; […]` | Edita nombre visible, bio, ubicación, sitio web y visibilidad. Usa `none` como valor para limpiar un campo; misma validación que la API del dashboard. |
+| `profiles show &lt;id&gt; [--profile-id uuid]` | Vuelca un perfil completo incluyendo enlaces sociales y alias. |
+| `profiles edit &lt;id&gt; […]` | Edita nombre visible, bio, ubicación, sitio web y visibilidad. Usa `none` como valor para vaciar un campo; misma validación que la API del dashboard. |
 
 Ejemplos:
 
@@ -220,8 +406,8 @@ Ejemplos:
 ./scripts/bioplatform.sh profiles edit @admin --display-name "Kino" --website https://example.com --bio none
 ```
 
-El CLI no hace comprobaciones de permisos a propósito — cualquiera que pueda ejecutarlo tiene control total de la base de datos de la instancia. Restringe el acceso al socket de Docker / host en consecuencia. Los cambios de contraseña siempre se confirman interactivamente antes de escribirse.
+El CLI no realiza comprobaciones de permisos a propósito — cualquiera que pueda ejecutarlo tiene control total sobre la base de datos de la instancia. Restringe el acceso al socket de Docker / al host en consecuencia. Los cambios de contraseña siempre se confirman interactivamente antes de escribirse.
 
 ---
 
-← [Guía de Usuario](./user-guide.md) · [Despliegue](./deployment.md) →
+← [Guía de usuario](./user-guide.md) · [Despliegue](./deployment.md) →

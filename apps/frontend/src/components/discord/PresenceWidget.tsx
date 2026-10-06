@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import type { DiscordAccount, DiscordActivity, DiscordPresence } from "@/lib/api";
 import { Gamepad2, Radio, ListMusic, Tv, Trophy, MessageCircle, ExternalLink, Music2, PlayCircle } from "lucide-react";
 
+function safeLower(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  return value.toLowerCase();
+}
+
 const STATUS_COLORS: Record<string, string> = {
   online: "#3ba55d",
   idle: "#faa61a",
@@ -148,8 +153,8 @@ function resolveButtonUrl(activity: DiscordActivity, label: string): string {
   if (direct) return direct;
 
   const query = [activity.details, activity.state, activity.name].filter(Boolean).join(" ");
-  const lower = label.toLowerCase();
-  const activityName = activity.name.toLowerCase();
+  const lower = safeLower(label);
+  const activityName = safeLower(activity.name);
 
   if (activity.type === 2 || activityName.includes("spotify") || lower.includes("spotify")) {
     if (activity.syncId && activity.syncId.length > 8) {

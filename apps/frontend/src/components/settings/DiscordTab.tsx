@@ -186,7 +186,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
           <XCircle className="h-4 w-4" /> {error}
@@ -199,7 +199,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
       )}
 
       {!status.configured ? (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-8 text-center opacity-60 pointer-events-none select-none">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-5 text-center opacity-60 pointer-events-none select-none">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800">
             <AlertTriangle className="h-6 w-6 text-zinc-500" />
           </div>
@@ -212,7 +212,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
           </p>
         </div>
       ) : !status.connected ? (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-8 text-center">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-5 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#5865F2]/15">
             <Link2 className="h-6 w-6 text-[#7289da]" />
           </div>
@@ -239,7 +239,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="flex flex-col gap-1.5">
@@ -248,7 +248,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
                       Connected as {status.discord?.globalName ?? status.discord?.username}
                     </p>
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
                         status.sessionActive ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
                       }`}
                     >
@@ -313,7 +313,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
 
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-white">Privacy</h3>
-            <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-5 py-4">
+            <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
               <div>
                 <p className="text-sm font-medium text-white">Show Discord presence on my profile</p>
                 <p className="text-xs text-zinc-500 mt-0.5">
@@ -334,7 +334,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
               </button>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/30 px-5 py-4">
+            <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
               <div>
                 <p className="text-sm font-medium text-white">Show activity details</p>
                 <p className="text-xs text-zinc-500 mt-0.5">
@@ -356,7 +356,7 @@ export function DiscordTab({ profileId }: { profileId?: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 space-y-4">
             <h3 className="text-sm font-medium text-white">Post to Discord</h3>
             <p className="text-xs text-zinc-500 leading-relaxed">
               Set a Discord webhook URL to add a &quot;Post to Discord&quot; action. Posting sends your profile card image

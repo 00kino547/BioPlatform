@@ -75,9 +75,9 @@ docker compose -f docker-compose.prebuilt.yml up -d
 
 ## Building from Source
 
-### Using docker compose (recommended)
+### Using docker compose
 
-The default `docker-compose.yml` builds both images from the Dockerfiles:
+Prebuilt images are the recommended default (see [Deployment](./deployment.md)). To run modified local source instead, the default `docker-compose.yml` builds both images from the Dockerfiles:
 
 ```bash
 # Full stack with Nginx
@@ -171,11 +171,13 @@ The GitHub Actions workflow (`.github/workflows/docker-publish.yml`) builds and 
 
 | Scenario | Use |
 |----------|-----|
-| Quick deploy, no code changes | Prebuilt images (`docker-compose.prebuilt.yml`) |
+| Quick deploy, no code changes | Prebuilt images (`docker-compose.prebuilt.yml`) — the recommended default |
 | Custom branding without rebuilding | Prebuilt images + env vars |
 | Fork with modified source | Build from source (`docker-compose.yml` + `--build`) |
 | CI/CD pipeline | Build scripts or docker compose `--build` |
 | Testing a PR | Build from source |
+
+Prebuilt images are the recommended default for most deployments (`docker compose -f docker-compose.prebuilt.yml --profile nginx up -d`). Build from source only when you need to run modified code.
 
 ---
 

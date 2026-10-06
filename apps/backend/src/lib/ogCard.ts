@@ -1,7 +1,7 @@
 import fs from "fs";
-import path from "path";
-import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
-import { getEnv } from "../config/env.js";
+import { createCanvas, loadImage, GlobalFonts, Path2D } from "@napi-rs/canvas";
+import { PLATFORM_GLYPHS } from "./socialIcons.js";
+import { materializeUpload } from "./mediaStore.js";
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -66,6 +66,8 @@ interface CanvasContext {
   fillRect(x: number, y: number, w: number, h: number): void;
   arc(x: number, y: number, r: number, a: number, b: number): void;
   fill(): void;
+  fill(path: unknown): void;
+  scale(x: number, y: number): void;
   beginPath(): void;
   closePath(): void;
   moveTo(x: number, y: number): void;
@@ -84,7 +86,10 @@ interface OgCanvasContext extends CanvasContext {
   globalAlpha: number;
   strokeStyle: unknown;
   lineWidth: number;
+  lineCap: string;
+  lineJoin: string;
   stroke(): void;
+  stroke(path: unknown): void;
 }
 
 function wrapText(ctx: CanvasContext, text: string, maxWidth: number): string[] {
@@ -151,16 +156,39 @@ function drawBadgePill(ctx: OgCanvasContext, label: string, color: string, x: nu
   ctx.fillText(label, x + 17, y + 20);
 }
 
-function drawSocialTile(ctx: OgCanvasContext, platform: string, x: number, y: number): void {
-  const label = platform.replace(/\s+/g, "").slice(0, 2).toUpperCase();
-  ctx.font = "600 18px OgBold, Inter, sans-serif";
+function drawSocialTile(ctx: OgCanvasContext, platform: string, x: number, y: number, accent: string): void {
+  const tileR = 18;
   ctx.fillStyle = "rgba(255,255,255,0.07)";
   ctx.beginPath();
-  ctx.arc(x, y, 18, 0, Math.PI * 2);
+  ctx.arc(x, y, tileR, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,0.16)";
   ctx.lineWidth = 2;
   ctx.stroke();
+
+  const glyph = PLATFORM_GLYPHS[platform.toLowerCase()];
+  if (glyph) {
+    const scale = 22 / 24;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.translate(-11, -11);
+    if (glyph.type === "fill") {
+      ctx.fillStyle = accent;
+      ctx.fill(new Path2D(glyph.d));
+    } else {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2 / scale;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke(new Path2D(glyph.d));
+    }
+    ctx.restore();
+    return;
+  }
+
+  const label = platform.replace(/\s+/g, "").slice(0, 2).toUpperCase();
+  ctx.font = "600 18px OgBold, Inter, sans-serif";
   ctx.fillStyle = "#d4d4d8";
   ctx.textAlign = "center";
   ctx.fillText(label, x, y + 6);
@@ -176,20 +204,106 @@ function drawCoverImage(ctx: OgCanvasContext, image: unknown, x: number, y: numb
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+// Resolve an avatar/banner reference (raw `/uploads/…` ref or an absolute URL
+// of our own uploads endpoint) to an on-disk file we can draw. Uploads must go
+// through the storage provider via `materializeUpload` — the local `LOCAL_STORAGE_PATH`
+// only holds them for the `local` provider, and self-fetching APP_URL from inside
+// the container risks hairpin-NAT/DNS failures. Truly external URLs (e.g. Discord
+// CDN avatars) fall back to a direct network image load.
+function uploadKeyFromRef(value: string): string | null | undefined {
+  if (!value) return null;
+  if (value.startsWith("/uploads/")) {
+    return value.slice("/uploads/".length);
+  }
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      if (url.pathname.startsWith("/uploads/")) {
+        return url.pathname.slice("/uploads/".length);
+      }
+      // External URL (not one of our uploads) — load over the network.
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return null;
+}
+
 async function loadAvatarImage(avatar: string | null): Promise<unknown | null> {
   try {
     if (!avatar) return null;
-    if (/^https?:\/\//i.test(avatar)) {
+    const uploadKey = uploadKeyFromRef(avatar);
+    if (uploadKey === undefined) {
       return await loadImage(avatar);
     }
-    if (avatar.startsWith("/uploads/")) {
-      const filePath = path.resolve(getEnv().LOCAL_STORAGE_PATH, path.basename(avatar));
-      if (fs.existsSync(filePath)) return await loadImage(filePath);
+    if (uploadKey) {
+      const filePath = await materializeUpload(uploadKey);
+      if (filePath) return await loadImage(filePath);
     }
     return null;
   } catch {
     return null;
   }
+}
+
+export function renderLandingOgCard(input: { appName: string; appTagline: string; url: string }): Buffer {
+  ensureFonts();
+
+  const canvas = createCanvas(WIDTH, HEIGHT);
+  const ctx = canvas.getContext("2d") as unknown as OgCanvasContext;
+
+  const bodyGradient = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
+  bodyGradient.addColorStop(0, "#0b0b0f");
+  bodyGradient.addColorStop(1, "#19112b");
+  ctx.fillStyle = bodyGradient;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.fillStyle = "#7c3aed";
+  ctx.globalAlpha = 0.16;
+  ctx.beginPath();
+  ctx.arc(WIDTH - 90, 210, 300, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = "rgba(124,58,237,0.35)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(WIDTH - 90, 210, 300, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const name = input.appName || "BioPlatform";
+  ctx.font = "700 84px OgBold, Inter, sans-serif";
+  ctx.fillStyle = "#fafafa";
+  const nameWidth = ctx.measureText(name).width;
+  const nameSize = Math.min(84, nameWidth > 900 ? Math.floor((900 / nameWidth) * 84) : 84);
+  ctx.font = `700 ${nameSize}px OgBold, Inter, sans-serif`;
+  ctx.fillText(truncate(ctx, name, 980), (WIDTH - Math.min(nameWidth, 980)) / 2, 310, 980);
+
+  if (input.appTagline) {
+    ctx.font = "400 30px OgRegular, Inter, sans-serif";
+    ctx.fillStyle = "#c7c7ce";
+    const tagline = truncate(ctx, input.appTagline, 900);
+    const tagWidth = ctx.measureText(tagline).width;
+    ctx.fillText(tagline, (WIDTH - tagWidth) / 2, 372, 900);
+  }
+
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(60, 470);
+  ctx.lineTo(WIDTH - 60, 470);
+  ctx.stroke();
+
+  if (input.url) {
+    ctx.font = "400 24px OgRegular, Inter, sans-serif";
+    ctx.fillStyle = "#8b8b93";
+    ctx.textAlign = "center";
+    ctx.fillText(truncate(ctx, input.url.replace(/^https?:\/\//i, "").replace(/\/+$/, ""), 700), WIDTH / 2, 530, 700);
+    ctx.textAlign = "left";
+  }
+
+  return canvas.toBuffer("image/png");
 }
 
 export async function renderOgCard(input: OgCardInput): Promise<Buffer> {
@@ -286,7 +400,7 @@ export async function renderOgCard(input: OgCardInput): Promise<Buffer> {
   const socials = (input.socialLinks ?? []).slice(0, 8);
   const startX = 78;
   socials.forEach((social, index) => {
-    drawSocialTile(ctx, social.platform, startX + index * 44, 522);
+    drawSocialTile(ctx, social.platform, startX + index * 44, 522, accent);
   });
 
   ctx.strokeStyle = "rgba(255,255,255,0.08)";

@@ -16,3 +16,24 @@ export function bannerSrcSet(src: string): string {
 export function avatarSrcSet(src: string): string {
   return AVATAR_WIDTHS.map((w) => `${mediaUrl(src, { w })} ${w}w`).join(", ");
 }
+
+const GRADIENT_RE = /^(url\(|(repeating-)?(linear|radial|conic)-gradient\()/i;
+
+function proxyUrl(value: string): string | null {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "https:") return null;
+    return `/api/media/proxy?url=${encodeURIComponent(u.href)}`;
+  } catch {
+    return null;
+  }
+}
+
+export function toBackgroundImage(value: string): string {
+  if (GRADIENT_RE.test(value)) return value;
+  if (value.startsWith("data:") || value.startsWith("blob:")) return `url(${value})`;
+  const isSameOrigin = value.startsWith("/") && !value.startsWith("//");
+  const proxied = isSameOrigin ? value : proxyUrl(value);
+  return `url(${proxied ?? value})`;
+}
+

@@ -1,11 +1,23 @@
+import { useCallback, useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { api, type OrderConfig } from "@/lib/api";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { branding } from "@/config/branding";
 
+function money(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+}
+
 const plans = [
   {
+    key: "FREE" as const,
     name: "Free",
     price: "$0",
     period: "forever",
@@ -14,6 +26,7 @@ const plans = [
       "1 profile page",
       "Basic themes",
       "Up to 2 music tracks",
+      "Social sign-in (Google, GitHub, Discord)",
       "Community support",
     ],
     cta: "Get Started",
@@ -21,6 +34,7 @@ const plans = [
     highlighted: false,
   },
   {
+    key: "PRO" as const,
     name: "Premium",
     price: "$5",
     period: "/month",
@@ -36,10 +50,11 @@ const plans = [
       "Priority support",
     ],
     cta: "Upgrade to Premium",
-    ctaTo: "/register",
+    ctaTo: "/dashboard?tab=billing",
     highlighted: true,
   },
   {
+    key: "ENTERPRISE" as const,
     name: "Enterprise",
     price: "$29",
     period: "/month",
@@ -51,7 +66,7 @@ const plans = [
       "Badges",
       "Team management",
       "API access",
-      "SSO",
+      "Business SSO (OIDC)",
       "Dedicated support",
       "Custom limits on request",
     ],
@@ -62,27 +77,55 @@ const plans = [
 ];
 
 function PricingButton({ plan }: { plan: (typeof plans)[number] }) {
+  const { user } = useAuth();
   const btnClasses = `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-200 w-full h-11 ${
     plan.highlighted
       ? "bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/40 transition-shadow"
       : "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700"
   }`;
-  const isExternal = !plan.ctaTo.startsWith("/");
+  const ctaTo = user && plan.key !== "FREE" ? "/dashboard?tab=billing" : plan.ctaTo;
+  const ctaLabel = user && plan.key !== "FREE" ? (user?.tier === plan.key ? "Current plan" : plan.cta) : plan.cta;
+  const isExternal = !ctaTo.startsWith("/");
   if (isExternal) {
     return (
-      <a href={plan.ctaTo} target="_blank" rel="noopener noreferrer" className={btnClasses}>
-        {plan.cta}
+      <a href={ctaTo} target="_blank" rel="noopener noreferrer" className={btnClasses}>
+        {ctaLabel}
       </a>
     );
   }
   return (
-    <Link to={plan.ctaTo} className={btnClasses}>
-      {plan.cta}
+    <Link to={ctaTo} className={btnClasses}>
+      {ctaLabel}
     </Link>
   );
 }
 
 export function Pricing() {
+  const [config, setConfig] = useState<OrderConfig | null>(null);
+
+  const loadConfig = useCallback(async () => {
+    try {
+      const res = await api.getOrderConfig();
+      if (res.success && res.data) setConfig(res.data);
+    } catch {
+      // fall back to static prices
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  const priced = plans.map((plan) => {
+    const envPlan = config?.plans.find((p) => p.plan === plan.key);
+    const priceCents = envPlan?.priceCents ?? (plan.key === "PRO" ? 500 : plan.key === "ENTERPRISE" ? 2900 : 0);
+const currency = config?.currency ?? "USD";
+  const mode = config?.billingMode ?? "one-time";
+  const periodLabel = mode === "one-time" ? "one-time" : mode === "fixed-term" ? "per term" : "/month";
+  const modeLabel = mode === "one-time" ? "Pay once, keep the plan" : mode === "subscription" ? "Billed monthly, cancel anytime" : "Billed per term";
+  return { ...plan, priceCents, currency, periodLabel, modeLabel };
+  });
+
   return (
     <section id="pricing" className="py-24 sm:py-32 relative">
       <Container>
@@ -101,7 +144,7 @@ export function Pricing() {
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-5xl mx-auto items-start">
-          {plans.map((plan, i) => (
+          {priced.map((plan, i) => (
             <ScrollReveal key={plan.name} delay={i * 100}>
               <div
                 className={`relative rounded-2xl transition-all duration-300 ${
@@ -114,13 +157,16 @@ export function Pricing() {
                   <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
                   <div className="mt-3 flex items-baseline gap-1">
                     <span className="text-4xl sm:text-5xl font-bold text-white tracking-tight">
-                      {plan.price}
+                      {plan.priceCents > 0 ? money(plan.priceCents, plan.currency) : plan.price}
                     </span>
-                    <span className="text-sm text-zinc-500 font-medium">{plan.period}</span>
+                    {plan.priceCents > 0 ? <span className="text-sm text-zinc-500 font-medium">{plan.periodLabel}</span> : <span className="text-sm text-zinc-500 font-medium">{plan.period}</span>}
                   </div>
                   <p className="mt-3 text-sm text-zinc-400 leading-relaxed">
                     {plan.description}
                   </p>
+                  {plan.priceCents > 0 && (
+                    <p className="mt-2 text-xs text-zinc-500">{plan.modeLabel}</p>
+                  )}
                 </div>
 
                 {plan.badge && (

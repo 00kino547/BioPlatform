@@ -13,6 +13,20 @@ enum UserTier {
   ENTERPRISE
 }
 
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderMethod {
+  MANUAL
+  STRIPE
+  PAYPAL
+  CRYPTO
+}
+
 enum CustomDomainStatus {
   PENDING_VERIFICATION
   VERIFIED
@@ -38,28 +52,64 @@ model User {
   trackLimit   Int?      @map("track_limit")
   profileLimit Int?      @map("profile_limit")
   aliasLimit   Int?      @map("alias_limit")
+  seatLimit    Int?      @map("seat_limit")
   badges       Badge[]
   totpSecret   String?   @map("totp_secret")
   totpEnabled  Boolean   @default(false) @map("totp_enabled")
+  oauthBypass2fa Boolean @default(false) @map("oauth_bypass_2fa")
+  authVersion  Int       @default(0) @map("auth_version")
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt DateTime? @map("email_verified_at")
   registeredIp String?   @map("registered_ip")
   lastLoginIp  String?   @map("last_login_ip")
+  lastLoginAt  DateTime? @map("last_login_at")
+  registeredFingerprint String? @map("registered_fingerprint")
+  registeredUserAgentHash String? @map("registered_user_agent_hash")
   inviteAllowance      Int       @default(0) @map("invite_allowance")
   inviteAllowanceExpiresAt DateTime? @map("invite_allowance_expires_at")
   inviteLastGeneratedAt DateTime? @map("invite_last_generated_at")
   inviteBanned Boolean   @default(false) @map("invite_banned")
   inviteBannedAt DateTime? @map("invite_banned_at")
+  newsletterSenderWhitelisted Boolean @default(false) @map("newsletter_sender_whitelisted")
+  acceptedTosVersion  String?  @map("accepted_tos_version")
+  acceptedPrivacyVersion String? @map("accepted_privacy_version")
+  acceptedPoliciesAt DateTime? @map("accepted_policies_at")
+  /// True when `acceptedPoliciesAt` was written by the operator auto-accept
+  /// rule (see POLICY_ADMIN_AUTO_ACCEPT) rather than by the person clicking
+  /// accept. Kept so an acceptance record never claims a human consented when
+  /// the platform recorded it on their behalf.
+  policiesAutoAccepted Boolean @default(false) @map("policies_auto_accepted")
+  newsletterOptIn     Boolean  @default(false) @map("newsletter_opt_in")
+  newsletterOptInAt   DateTime? @map("newsletter_opt_in_at")
+  lastUsernameChangeAt DateTime? @map("last_username_change_at")
+  broadcastUnsubscribedAt DateTime? @map("broadcast_unsubscribed_at")
+  discountPercent     Int       @default(0) @map("discount_percent")
+  discountExpiresAt   DateTime? @map("discount_expires_at")
+  referredById        String?   @db.Uuid @map("referred_by_id")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   inviteUsed   InviteCode? @relation("InviteUsedBy")
   inviteCreated InviteCode[] @relation("InviteCreatedBy")
   inviteGrants InviteGrantEvent[]
+  inviteCreditGrants InviteCreditGrant[]
+  invitePurchases InvitePurchaseOrder[] @relation("InvitePurchases")
+  invitePurchasesClaimed InvitePurchaseOrder[] @relation("InvitePurchasesClaimed")
+  referredBy   User?       @relation("ReferredBy", fields: [referredById], references: [id])
+  referrals    User[]      @relation("ReferredBy")
+  affiliateRewards AffiliateReward[]
+  orders       Order[]
   profiles     Profile[]
   passkeys     Passkey[]
   webauthnChallenges WebAuthnChallenge[]
+  oauthAccounts OAuthAccount[]
   webhooks     Webhook[]
+  enterpriseSso EnterpriseSso?
+  enterpriseSsoIdentities EnterpriseSsoIdentity[]
+  productPurchases ProductPurchase[] @relation("ProductPurchases")
 
   @@index([roleId])
+  @@index([referredById])
   @@map("users")
 }
 
@@ -115,9 +165,20 @@ model Profile {
   website       String?
   socialLinks         Json?    @map("social_links")
   theme               Json?
+  terminalCommands    Json?    @map("terminal_commands")
   notifyOnView        Boolean  @default(false) @map("notify_on_view")
   notifyOnClick       Boolean  @default(false) @map("notify_on_click")
   isPublic            Boolean  @default(true) @map("is_public")
+  presenceStatus      String?  @map("presence_status")
+  countdown           Json?
+  newsletterEnabled   Boolean  @default(false) @map("newsletter_enabled")
+  newsletterVisible   Boolean  @default(false) @map("newsletter_visible")
+  newsletterHeading   String?  @map("newsletter_heading")
+  tipsEnabled         Boolean  @default(false) @map("tips_enabled")
+  tipsHeading         String?  @map("tips_heading")
+  tipsBtcAddress      String?  @map("tips_btc_address")
+  tipsLtcAddress      String?  @map("tips_ltc_address")
+  shopDiscountPercent Int?     @map("shop_discount_percent")
   showDiscordPresence Boolean  @default(false) @map("show_discord_presence")
   showDiscordActivity Boolean  @default(true) @map("show_discord_activity")
   discordWebhookUrlEncrypted String? @map("discord_webhook_url_encrypted")
@@ -127,12 +188,18 @@ model Profile {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  aliases    ProfileAlias[]
-  pageViews  PageView[]
+  aliases        ProfileAlias[]
+  slugNamespaces SlugNamespace[]
+  pageViews      PageView[]
   linkClicks LinkClick[]
   musicTracks MusicTrack[]
   discordConnection DiscordConnection?
   customDomain ProfileDomain?
+  newsletterSubscribers NewsletterSubscriber[]
+  newsletterSends NewsletterSend[]
+  newsletterSender NewsletterSender?
+  tips Tip[]
+  products Product[]
 
   @@index([userId])
   @@map("profiles")
@@ -148,6 +215,19 @@ model ProfileAlias {
 
   @@index([profileId])
   @@map("profile_aliases")
+}
+
+model SlugNamespace {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  kind      String // "profile" | "alias"
+  profileId String?  @db.Uuid @map("profile_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([kind])
+  @@map("slug_namespace")
 }
 
 model ProfileDomain {
@@ -213,6 +293,7 @@ model LinkClick {
   id        String   @id @default(uuid()) @db.Uuid
   profileId String   @db.Uuid @map("profile_id")
   platform  String
+  slug      String?
   ip        String?
   userAgent String?  @map("user_agent")
   visitorId String?  @map("visitor_id")
@@ -221,6 +302,7 @@ model LinkClick {
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([profileId, createdAt])
+  @@index([profileId, slug])
   @@index([profileId, visitorId])
   @@map("link_clicks")
 }
@@ -245,24 +327,274 @@ model MusicTrack {
   @@map("music_tracks")
 }
 
+model Product {
+  id           String   @id @default(uuid()) @db.Uuid
+  profileId    String   @db.Uuid @map("profile_id")
+  title        String
+  description  String?
+  priceCents   Int      @map("price_cents")
+  type         ProductType @default(DOWNLOAD) @map("type")
+  enabled      Boolean  @default(true)
+  filePath     String   @map("file_path")
+  fileName     String   @map("file_name")
+  fileSize     Int      @map("file_size")
+  previewImage String?  @map("preview_image")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  profile   Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  purchases ProductPurchase[]
+
+  @@index([profileId])
+  @@index([type])
+  @@map("products")
+}
+
+model ProductPurchase {
+  id               String          @id @default(uuid()) @db.Uuid
+  productId        String          @db.Uuid @map("product_id")
+  buyerUserId      String?         @db.Uuid @map("buyer_user_id")
+  buyerEmail       String?         @map("buyer_email")
+  title            String
+  fileName         String          @map("file_name")
+  filePath         String          @map("file_path")
+  fileSize         Int             @map("file_size")
+  method           PurchaseMethod  @map("method")
+  status           PurchaseStatus  @default(PENDING)
+  currency         String          @default("USD")
+  basePriceCents   Int             @map("base_price_cents")
+  discountPercent  Int             @default(0) @map("discount_percent")
+  finalPriceCents  Int             @map("final_price_cents")
+  gatewayTransactionId String?     @map("gateway_transaction_id")
+  gatewayStatus         String?    @map("gateway_status")
+  gatewayCheckoutUrl    String?    @map("gateway_checkout_url")
+  cryptoCoin            String?    @map("crypto_coin")
+  cryptoAmount          Decimal?   @db.Decimal(18, 8) @map("crypto_amount")
+  cryptoRateUsd         Decimal?   @db.Decimal(20, 8) @map("crypto_rate_usd")
+  invoiceId             String?    @unique @map("invoice_id")
+  requestText           String?    @map("request_text")
+  paidAt                DateTime?  @map("paid_at")
+  refundedAt            DateTime?  @map("refunded_at")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyer   User?   @relation("ProductPurchases", fields: [buyerUserId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([buyerUserId])
+  @@index([status])
+  @@map("product_purchases")
+}
+
 model InviteCode {
   id        String    @id @default(uuid()) @db.Uuid
   code      String    @unique
-  createdById String  @db.Uuid @map("created_by_id")
+  /// Nullable only for codes minted by a guest invite purchase: they are emailed
+  /// to the buyer before they have an account, so there is no owner until the
+  /// buyer redeems one and adopts the rest. Every other code has a creator.
+  createdById String? @db.Uuid @map("created_by_id")
   usedById  String?   @unique @db.Uuid @map("used_by_id")
   usedAt    DateTime? @map("used_at")
   expiresAt DateTime? @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   fromAllowance Boolean @default(false) @map("from_allowance")
   refundedAt DateTime? @map("refunded_at")
+  note       String?
+
+  // Paid-invite provenance. `purchased` marks a code the owner paid for, which
+  // is what the resale rules attach to; it is deliberately separate from
+  // `fromAllowance` (funded by an event or affiliate grant) so the paid channel
+  // can be governed on its own.
+  purchased   Boolean   @default(false)
+  purchasedAt DateTime? @map("purchased_at")
+
+  // Which credit grant funded this code. Null for legacy rows and for codes
+  // funded by a role quota or the unconstrained admin generator.
+  sourceGrantId String?           @db.Uuid @map("source_grant_id")
+  sourceGrant   InviteCreditGrant? @relation("InviteCreditGrantCodes", fields: [sourceGrantId], references: [id], onDelete: SetNull)
+
   createdAt DateTime  @default(now()) @map("created_at")
 
-  createdBy User    @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  // Restrict is kept explicitly: an account that has issued invites cannot be
+  // deleted out from under them. Prisma would otherwise infer SetNull now that
+  // the relation is optional (guest codes have no creator), which would silently
+  // orphan codes on user deletion.
+  createdBy User?   @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   usedBy    User?   @relation("InviteUsedBy", fields: [usedById], references: [id])
 
   @@index([code])
   @@index([createdById])
+  // Serves the resale listing (a buyer's own unpurchased codes) and the
+  // ban sweep, which must reach every unused purchased code cheaply.
+  @@index([createdById, purchased, usedAt, revokedAt])
   @@map("invite_codes")
+}
+
+/**
+ * Durable ledger for invite credits granted to an account.
+ *
+ * `User.inviteAllowance` is a bare counter, so a refund or an expiry needs to
+ * know how many credits came from which source and when. This table is that
+ * record: grants are written inside the same transaction as the counter
+ * increment, so the counter can always be reconciled against it.
+ */
+model InviteCreditGrant {
+  id       String             @id @default(uuid()) @db.Uuid
+  userId   String             @db.Uuid @map("user_id")
+  source   InviteCreditSource
+  quantity Int
+
+  // Set only for credits that carry a window (EVENT, AFFILIATE). Purchased
+  // credits never expire, so they deliberately store null.
+  expiresAt DateTime? @map("expires_at")
+
+  // Set when the underlying paid order is refunded, so the already-generated
+  // codes funded by it can be revoked in the same transaction.
+  revokedAt DateTime? @map("revoked_at")
+
+  // Identifies the paid order that funded this grant, for idempotency and for
+  // the refund path. TEXT, not a uuid: `InvitePurchaseOrder.id` is a prefixed
+  // string (`invites-<hex>`) so it can be dispatched on by prefix in the webhook.
+  // Redelivery is handled by the conditional PENDING -> PAID update rather than by
+  // a constraint here.
+  orderId String? @map("order_id")
+
+  // Marks an expiry sweep that already returned these credits, so a late-arriving
+  // run cannot restore them twice.
+  recoveredAt DateTime? @map("recovered_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codes InviteCode[] @relation("InviteCreditGrantCodes")
+
+  @@index([userId])
+  @@index([orderId])
+  // Drives the expiry sweep: lapsed grants that have not been recovered yet.
+  @@index([source, expiresAt, recoveredAt])
+  @@map("invite_credit_grants")
+}
+
+/**
+ * A paid invite purchase.
+ *
+ * Separate from `Order` because that table's `plan` column is a `UserTier` and
+ * can only express a plan upgrade. The money columns are named identically to
+ * `Order` on purpose, so the Stripe / PayPal / crypto helpers and the existing
+ * webhook plumbing work against both without branching.
+ */
+model InvitePurchaseOrder {
+  /// Text id carrying the `invites-` prefix that `handleGatewayEvent` dispatches on.
+  id       String      @id
+  /// Null for a guest purchase: the buyer has no account yet.
+  userId   String?     @db.Uuid @map("user_id")
+  /// Always recorded, for both guests and members, so a guest purchase is
+  /// traceable and the codes can be delivered.
+  buyerEmail String    @map("buyer_email")
+
+  quantity   Int
+  priceCents Int         @map("price_cents")
+  currency   String
+
+  method OrderMethod @default(MANUAL)
+  status OrderStatus  @default(PENDING)
+
+  gatewayTransactionId String? @map("gateway_transaction_id")
+  gatewayStatus        String? @map("gateway_status")
+  gatewayCheckoutUrl   String? @map("gateway_checkout_url")
+
+  cryptoCoin    String?  @map("crypto_coin")
+  cryptoAmount  Decimal? @db.Decimal(18, 8) @map("crypto_amount")
+  cryptoRateUsd Decimal? @db.Decimal(20, 8) @map("crypto_rate_usd")
+
+  paidAt     DateTime? @map("paid_at")
+  refundedAt DateTime? @map("refunded_at")
+
+  /// Claimed before the guest delivery email is sent, so a gateway that
+  /// redelivers the paid event cannot send the codes twice.
+  codesNotifiedAt DateTime? @map("codes_notified_at")
+
+  /// Set once a guest purchase is adopted by the account that registered with it.
+  claimedById String?   @db.Uuid @map("claimed_by_id")
+  claimedAt   DateTime? @map("claimed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User? @relation("InvitePurchases", fields: [userId], references: [id], onDelete: Cascade)
+  claimedBy User? @relation("InvitePurchasesClaimed", fields: [claimedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@map("invite_purchase_orders")
+}
+
+enum InviteCreditSource {
+  /// Global invite event (`POST /api/admin/invite-events`).
+  EVENT
+  /// Affiliate referral milestone reward.
+  AFFILIATE
+  /// Paid invite purchase.
+  PURCHASED
+  /// Credits returned by a sweep (expired purchased window, or a code expiry).
+  REFUND
+}
+
+model OAuthAccount {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @db.Uuid @map("user_id")
+  provider           String   @map("provider")
+  providerAccountId  String   @map("provider_account_id")
+  email              String?
+  emailVerified      Boolean  @default(false) @map("email_verified")
+  displayName        String?  @map("display_name")
+  avatarUrl          String?  @map("avatar_url")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model EnterpriseSso {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid @map("user_id")
+  issuerUrl      String   @map("issuer_url")
+  clientId       String   @map("client_id")
+  clientSecret   String   @map("client_secret")
+  scopes         String   @default("openid email profile") @map("scopes")
+  displayName    String   @map("display_name")
+  logoUrl        String?  @map("logo_url")
+  allowedDomains String   @default("") @map("allowed_domains")
+  enforced       Boolean  @default(false)
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  identities EnterpriseSsoIdentity[]
+
+  @@unique([userId])
+  @@map("enterprise_sso")
+}
+
+model EnterpriseSsoIdentity {
+  id                String   @id @default(uuid()) @db.Uuid
+  ssoId             String   @db.Uuid @map("sso_id")
+  sso               EnterpriseSso @relation(fields: [ssoId], references: [id], onDelete: Cascade)
+  providerAccountId String   @map("provider_account_id")
+  email             String
+  emailVerified     Boolean  @default(true) @map("email_verified")
+  userId            String   @db.Uuid @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([ssoId, providerAccountId])
+  @@index([userId])
+  @@map("enterprise_sso_identities")
 }
 
 model SystemSetting {
@@ -271,6 +603,189 @@ model SystemSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("system_settings")
+}
+
+model NewsletterSubscriber {
+  id             String   @id @default(uuid()) @db.Uuid
+  profileId      String   @db.Uuid @map("profile_id")
+  email          String
+  subscribedAt   DateTime @default(now()) @map("subscribed_at")
+  agreedAt       DateTime @map("agreed_at")
+  tosVersion     String   @map("tos_version")
+  privacyVersion String   @map("privacy_version")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, email])
+  @@index([profileId])
+  @@index([email])
+  @@map("newsletter_subscribers")
+}
+
+model NewsletterSend {
+  id             String   @id @default(uuid()) @db.Uuid
+  profileId      String   @db.Uuid @map("profile_id")
+  subject        String
+  recipientCount Int      @map("recipient_count")
+  successCount   Int      @map("success_count")
+  sentAt         DateTime @default(now()) @map("sent_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, sentAt])
+  @@map("newsletter_sends")
+}
+
+model AdminNewsletterSend {
+  id             String   @id @default(uuid()) @db.Uuid
+  subject        String
+  recipientCount Int      @map("recipient_count")
+  successCount   Int      @map("success_count")
+  sentAt         DateTime @default(now()) @map("sent_at")
+
+  @@index([sentAt])
+  @@map("admin_newsletter_sends")
+}
+
+model NewsletterSender {
+  id                String    @id @default(uuid()) @db.Uuid
+  profileId         String    @unique @db.Uuid @map("profile_id")
+  fromName          String    @map("from_name")
+  fromEmail         String    @map("from_email")
+  smtpHost          String    @map("smtp_host")
+  smtpPort          Int       @default(587) @map("smtp_port")
+  smtpSecure        Boolean   @default(false) @map("smtp_secure")
+  smtpUser          String?   @map("smtp_user")
+  smtpPassEnc       String?   @map("smtp_pass_enc")
+  verificationToken String?   @map("verification_token")
+  verifiedAt        DateTime? @map("verified_at")
+  testedAt          DateTime? @map("tested_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("newsletter_senders")
+}
+
+enum TipStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum PurchaseStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CANCELLED
+}
+
+enum PurchaseMethod {
+  STRIPE
+  PAYPAL
+  CRYPTO
+  FREE
+}
+
+enum ProductType {
+  DOWNLOAD
+  REQUEST
+}
+
+model Tip {
+  id        String     @id @default(uuid()) @db.Uuid
+  profileId String     @db.Uuid @map("profile_id")
+  coin      String
+  amount    Decimal    @db.Decimal(18, 8)
+  name      String?
+  message   String?
+  status    TipStatus  @default(PENDING)
+  source    String     @default("address")
+  invoiceId String?    @unique @map("invoice_id")
+  paidAt    DateTime?  @map("paid_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+  @@map("tips")
+}
+
+model CacheEntry {
+  key       String   @id
+  value     String
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  @@index([expiresAt])
+  @@map("cache_entries")
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  userId          String      @db.Uuid @map("user_id")
+  plan            UserTier
+  method          OrderMethod @default(MANUAL)
+  status          OrderStatus @default(PENDING)
+  currency        String      @default("USD")
+  basePriceCents  Int         @map("base_price_cents")
+  discountPercent Int         @default(0) @map("discount_percent")
+  finalPriceCents Int         @map("final_price_cents")
+  adminNote       String?     @map("admin_note")
+  gatewayTransactionId String? @map("gateway_transaction_id")
+  gatewayStatus        String? @map("gateway_status")
+  gatewayCheckoutUrl   String? @map("gateway_checkout_url")
+  cryptoCoin           String? @map("crypto_coin")
+  cryptoAmount         Decimal? @db.Decimal(18, 8) @map("crypto_amount")
+  cryptoRateUsd        Decimal? @db.Decimal(20, 8) @map("crypto_rate_usd")
+  paidAt          DateTime?   @map("paid_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model SeasonalTheme {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique
+  label       String
+  emoji       String?
+  kind        String    @default("season") // "season" (generic window) | "holiday" (festive, beats seasons)
+  enabled     Boolean   @default(false) // whether it participates in automatic scheduling
+  config      Json      @default("{}") // { bg, cardBg, text, accent, fontFamily, layout, backgroundImage }
+  startMonth  Int? @map("start_month")
+  startDay    Int? @map("start_day")
+  endMonth    Int? @map("end_month")
+  endDay      Int? @map("end_day")
+  overrideState String? @map("override_state")  // null=follow schedule | "on" (force) | "off" (force off)
+  allowedByAdmin Boolean @default(true) @map("allowed_by_admin") // master per-theme allowlist
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("seasonal_themes")
+}
+
+model AffiliateReward {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  kind      String   // "discount" | "allowance" | "badge"
+  value     String   // percent for discount, count for allowance, badge slug for badge
+  level     Int      // referral milestone level
+  ref       String?  // optional contextual ref (e.g. badge slug)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([userId, kind, level])
+  @@map("affiliate_rewards")
 }
 
 model InviteGrantEvent {

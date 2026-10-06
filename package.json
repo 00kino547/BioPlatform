@@ -1,7 +1,7 @@
 {
   "name": "bioplatform",
   "private": true,
-  "version": "2.0.0-canary.1",
+  "version": "2.0.0-canary.1-hotfix",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @bioplatform/backend dev\" \"pnpm --filter @bioplatform/frontend dev\"",
     "dev:backend": "pnpm --filter @bioplatform/backend dev",
@@ -19,6 +19,8 @@
     "db:studio": "pnpm --filter @bioplatform/backend db:studio",
     "docker:build": "node scripts/docker-build.mjs",
     "cli": "node scripts/cli.mjs",
+    "tooling:check": "node scripts/tooling-check.mjs",
+    "compose:check": "node scripts/check-compose-env-parity.mjs",
     "docker:prune": "docker image prune -af && docker builder prune -af"
   },
   "devDependencies": {
