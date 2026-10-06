@@ -13,9 +13,6 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/no-namespace": ["error", { allowDeclarations: true }],
-      // Underscore-prefixed bindings are the convention for "deliberately
-      // unused" (a destructured omit, a callback signature kept for shape), and
-      // several test files rely on it. Without this they are hard errors.
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   }

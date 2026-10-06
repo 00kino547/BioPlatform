@@ -8,7 +8,12 @@ export const PERMISSIONS = {
   BANS_MANAGE: "bans.manage",
   ROLES_MANAGE: "roles.manage",
   BADGES_MANAGE: "badges.manage",
+  THEMES_MANAGE: "themes.manage",
+  AFFILIATES_MANAGE: "affiliates.manage",
+  ORDERS_MANAGE: "orders.manage",
   LOGS_VIEW: "logs.view",
+  SETTINGS_MANAGE: "settings.manage",
+  NEWSLETTER_MANAGE: "newsletter.manage",
   API_BASIC: "api.basic",
   API_ADVANCED: "api.advanced",
   API_ENTERPRISE: "api.enterprise",
@@ -26,7 +31,12 @@ export const ADMIN_GATE_PERMISSIONS: ReadonlySet<Permission> = new Set([
   PERMISSIONS.BANS_MANAGE,
   PERMISSIONS.ROLES_MANAGE,
   PERMISSIONS.BADGES_MANAGE,
+  PERMISSIONS.THEMES_MANAGE,
+  PERMISSIONS.AFFILIATES_MANAGE,
+  PERMISSIONS.ORDERS_MANAGE,
   PERMISSIONS.LOGS_VIEW,
+  PERMISSIONS.SETTINGS_MANAGE,
+  PERMISSIONS.NEWSLETTER_MANAGE,
 ]);
 
 export const SYSTEM_ROLE_SLUGS = {

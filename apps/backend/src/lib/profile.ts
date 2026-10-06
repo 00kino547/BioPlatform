@@ -53,5 +53,14 @@ export async function upsertPrimaryProfile<T extends Prisma.ProfileInclude | und
     slug: user?.username ?? `user_${userId}`,
     isPrimary: true,
   };
-  return prisma.profile.create({ data: createData, include });
+  // Create the profile and reserve its slug in the shared namespace in the same
+  // transaction, so a race with another profile/alias can never yield two
+  // entities owning the same slug.
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.profile.create({ data: createData, include });
+    await tx.slugNamespace.create({
+      data: { slug: createData.slug, kind: "profile", profileId: created.id },
+    });
+    return created;
+  });
 }

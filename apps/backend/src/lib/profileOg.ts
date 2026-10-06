@@ -5,6 +5,7 @@ import { getEnv } from "../config/env.js";
 import { toAbsoluteUrl } from "./discord.js";
 import { resolvePublicProfile } from "./profile.js";
 import { orderBadges } from "./badges.js";
+import { cacheKey, getCacheDriver } from "./cache.js";
 
 export interface ProfileOgData {
   username: string;
@@ -81,6 +82,30 @@ const ogPngCache = new Map<string, OgCacheEntry>();
 const OG_PNG_CACHE_MAX = 200;
 const OG_PNG_CACHE_TTL_MS = 5 * 60 * 1000;
 
+function ogDriverKey(og: ProfileOgData): string {
+  return cacheKey("og-profile", ogCacheKey(og));
+}
+
+async function getOgFromDriver(og: ProfileOgData): Promise<OgCacheEntry | null> {
+  try {
+    const raw = await getCacheDriver().get(ogDriverKey(og));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { base64?: string; etag?: string; createdAt?: number };
+    if (typeof parsed.base64 !== "string" || typeof parsed.etag !== "string") return null;
+    return { buffer: Buffer.from(parsed.base64, "base64"), etag: parsed.etag, createdAt: parsed.createdAt ?? 0 };
+  } catch {
+    return null;
+  }
+}
+
+async function setOgToDriver(og: ProfileOgData, entry: OgCacheEntry): Promise<void> {
+  await getCacheDriver().set(
+    ogDriverKey(og),
+    JSON.stringify({ base64: entry.buffer.toString("base64"), etag: entry.etag, createdAt: entry.createdAt }),
+    OG_PNG_CACHE_TTL_MS
+  );
+}
+
 function ogCacheKey(og: ProfileOgData): string {
   return [
     og.username,
@@ -153,13 +178,25 @@ export async function renderProfileOgCached(identifier: string): Promise<{ buffe
     return { buffer: entry.buffer, etag: entry.etag };
   }
 
+  const fromDriver = await getOgFromDriver(og);
+  if (fromDriver && now - fromDriver.createdAt < OG_PNG_CACHE_TTL_MS) {
+    ogPngCache.set(key, fromDriver);
+    if (ogPngCache.size > OG_PNG_CACHE_MAX) {
+      const oldestKey = ogPngCache.keys().next().value;
+      if (oldestKey !== undefined) ogPngCache.delete(oldestKey);
+    }
+    return { buffer: fromDriver.buffer, etag: fromDriver.etag };
+  }
+
   const buffer = await renderOgCardFor(og);
   const etag = `"${createHash("sha1").update(key).digest("hex").slice(0, 16)}"`;
-  ogPngCache.set(key, { buffer, etag, createdAt: now });
+  const fresh: OgCacheEntry = { buffer, etag, createdAt: now };
+  ogPngCache.set(key, fresh);
   if (ogPngCache.size > OG_PNG_CACHE_MAX) {
     const oldestKey = ogPngCache.keys().next().value;
     if (oldestKey !== undefined) ogPngCache.delete(oldestKey);
   }
+  await setOgToDriver(og, fresh);
   return { buffer, etag };
 }
 

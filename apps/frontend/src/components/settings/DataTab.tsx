@@ -61,8 +61,8 @@ export function DataTab({ profileId }: { profileId?: string }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+    <div className="space-y-4">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <h4 className="text-sm font-medium text-white">About profile transfer</h4>
         <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
           Export your profile as a generic spreadsheet (single sheet, one field per row) that you can
@@ -100,7 +100,7 @@ export function DataTab({ profileId }: { profileId?: string }) {
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 space-y-4">
         <div className="flex items-center gap-3">
           <FileSpreadsheet className="h-5 w-5 text-violet-400" />
           <div>
@@ -120,7 +120,7 @@ export function DataTab({ profileId }: { profileId?: string }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 space-y-4">
         <div className="flex items-center gap-3">
           <Upload className="h-5 w-5 text-violet-400" />
           <div>

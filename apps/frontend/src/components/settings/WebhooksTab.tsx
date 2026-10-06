@@ -246,7 +246,7 @@ export function WebhooksTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
           <XCircle className="h-4 w-4" /> {error}
@@ -259,7 +259,7 @@ export function WebhooksTab() {
       )}
 
       {locked && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+        <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
           <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-red-300">
             <p className="font-semibold">
@@ -273,7 +273,7 @@ export function WebhooksTab() {
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <h4 className="text-sm font-medium text-white">About webhooks</h4>
         <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
           BioPlatform posts JSON to your endpoint whenever an event you subscribe to fires. Each request
@@ -286,7 +286,7 @@ export function WebhooksTab() {
       </div>
 
       {revealedSecret && (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-5">
+        <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 py-3.5">
           <div className="flex items-start gap-3">
             <KeyRound className="h-5 w-5 text-violet-400 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
@@ -312,7 +312,7 @@ export function WebhooksTab() {
           <Plus className="h-4 w-4" /> New Webhook
         </Button>
       ) : (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 space-y-4">
           <h4 className="text-sm font-medium text-white">Create webhook</h4>
           <div className="space-y-1">
             <label className="text-xs text-zinc-400">Name</label>
@@ -399,7 +399,7 @@ export function WebhooksTab() {
       ) : (
         <div className="space-y-4">
           {webhooks.map((w) => (
-            <div key={w.id} className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+            <div key={w.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden">
               {editingId === w.id ? (
                 <div className="p-5 space-y-4">
                   <h4 className="text-sm font-medium text-white">Edit webhook</h4>

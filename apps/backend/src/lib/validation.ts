@@ -37,6 +37,14 @@ export const ALLOWED_PLATFORMS = new Set([
 
 const ALLOWED_URL_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
+const BASE58_CHARS = "1-9A-HJ-NP-Za-km-z";
+export const BTC_ADDRESS_RE = new RegExp(
+  `^(bc1[02-9ac-hj-np-z]{20,80}|1[${BASE58_CHARS}]{25,62}|3[${BASE58_CHARS}]{25,62})$`
+);
+export const LTC_ADDRESS_RE = new RegExp(
+  `^(ltc1[02-9ac-hj-np-z]{20,80}|[LM][${BASE58_CHARS}]{25,62}|3[${BASE58_CHARS}]{25,62})$`
+);
+
 export function stripHtml(input: string): string {
   return input.replace(/[<>{}]/g, "").replace(/\s+/g, " ").trim();
 }
@@ -108,6 +116,12 @@ export const themeSchema = z
     text: z.string().max(128).refine(isSafeCssColor, { message: "Invalid text color" }).optional(),
     accent: z.string().max(128).refine(isSafeCssColor, { message: "Invalid accent color" }).optional(),
     fontFamily: z.string().max(128).refine(isSafeCssFontFamily, { message: "Invalid font family" }).optional(),
+    seasonalDecorations: z.boolean().optional(),
+    alwaysAllowChristmas: z.boolean().optional(),
+    animatedFx: z.boolean().optional(),
+    effect: z.enum(["none", "snow", "pumpkins", "hearts", "leaves", "stars", "confetti", "sparkle"]).optional(),
+    backgroundImage: z.string().max(512).nullable().optional(),
+    layout: z.enum(["default", "grid", "compact", "wide", "glassmorphism", "minimal", "sidebar", "editorial", "hero", "bento", "terminal", "polaroid", "topbar"]).nullable().optional(),
   })
   .nullable()
   .optional();
@@ -117,6 +131,57 @@ export const profileSlugSchema = z
   .min(2)
   .max(64)
   .regex(/^[a-z0-9_-]+$/, { message: "Only lowercase letters, numbers, dashes and underscores" });
+
+export const terminalCommandsSchema = z
+  .array(
+    z.object({
+      command: z
+        .string()
+        .transform((v) => stripHtml(v).toLowerCase())
+        .pipe(z.string().min(1).max(24).regex(/^[a-z0-9_-]+$/, { message: "Only lowercase letters, numbers, dashes and underscores" })),
+      output: z.string().min(1).max(300).transform((v) => stripHtml(v)),
+      description: z
+        .string()
+        .max(120)
+        .optional()
+        .transform((v) => (v ? stripHtml(v).trim() : v)),
+      url: z
+        .string()
+        .max(256)
+        .transform((v) => stripHtml(v).trim())
+        .refine(
+          (v) => {
+            if (!v) return true;
+            if (/^(https?:|mailto:)/i.test(v)) return isSafeWebUrl(v) || /^mailto:[^\s<>]{1,256}$/i.test(v);
+            return /^[a-zA-Z0-9@_.:+ -]{1,64}$/.test(v) && !/^[a-z]+:/i.test(v);
+          },
+          { message: "Invalid link target" }
+        )
+        .optional(),
+    })
+  )
+  .max(12)
+  .nullable()
+  .optional()
+  .refine((cmds) => {
+    if (!cmds) return true;
+    const seen = new Set<string>();
+    for (const c of cmds) {
+      const name = c.command.toLowerCase();
+      if (seen.has(name)) return false;
+      seen.add(name);
+    }
+    return true;
+  }, { message: "Terminal commands must be unique" });
+
+function tipAddressField(label: string, re: RegExp) {
+  return z
+    .union([
+      z.string().max(128).transform((v) => stripHtml(v).replace(/\s+/g, "")).refine((v) => v === "" || re.test(v), { message: `Invalid ${label} address` }),
+      z.null(),
+    ])
+    .transform((v) => (v === null || v === "" ? null : v));
+}
 
 export const updateProfileSchema = z.object({
   slug: profileSlugSchema.optional().transform((v) => (v ? stripHtml(v) || v : v)),
@@ -132,6 +197,24 @@ export const updateProfileSchema = z.object({
         }),
         url: z.string().max(256).transform((v) => stripHtml(v)),
         label: z.string().max(64).transform((v) => stripHtml(v).trim() || undefined).optional(),
+        heading: z
+          .string()
+          .max(48)
+          .transform((v) => stripHtml(v).trim() || undefined)
+          .optional(),
+        icon: z
+          .string()
+          .max(24)
+          .transform((v) => stripHtml(v).trim() || undefined)
+          .optional(),
+        image: z
+          .string()
+          .max(256)
+          .refine((v) => v.startsWith("/uploads/") && /^\/uploads\/[A-Za-z0-9._-]+\.[A-Za-z0-9]+$/.test(v), {
+            message: "Favicon image must be a local upload path",
+          })
+          .optional(),
+        showQr: z.boolean().optional(),
       })
     )
     .max(10)
@@ -141,5 +224,37 @@ export const updateProfileSchema = z.object({
       message: "One or more links have an invalid URL or username",
     }),
   theme: themeSchema,
+  terminalCommands: terminalCommandsSchema,
+  presenceStatus: z
+    .enum(["online", "idle", "offline"])
+    .nullable()
+    .optional(),
+  countdown: z
+    .object({
+      label: z
+        .string()
+        .max(60)
+        .transform((v) => stripHtml(v).trim() || undefined),
+      targetDate: z.string().refine((v) => {
+        const ts = Date.parse(v);
+        return !Number.isNaN(ts);
+      }, { message: "Countdown target date must be a valid date/time string" }),
+    })
+    .nullable()
+    .optional(),
   isPublic: z.boolean().optional(),
+  newsletterEnabled: z.boolean().optional(),
+  newsletterVisible: z.boolean().optional(),
+  newsletterHeading: z
+    .union([z.string().max(60), z.null()])
+    .transform((v) => (v === null ? null : stripHtml(v).trim() || null))
+    .optional(),
+  tipsEnabled: z.boolean().optional(),
+  tipsHeading: z
+    .union([z.string().max(60), z.null()])
+    .transform((v) => (v === null ? null : stripHtml(v).trim() || null))
+    .optional(),
+  tipsBtcAddress: tipAddressField("Bitcoin", BTC_ADDRESS_RE).optional(),
+  tipsLtcAddress: tipAddressField("Litecoin", LTC_ADDRESS_RE).optional(),
+  shopDiscountPercent: z.number().int().min(0).max(100).nullable().optional(),
 });

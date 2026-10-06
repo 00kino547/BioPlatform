@@ -4,6 +4,7 @@ import path from "path";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { dispatchWebhookEventAsync } from "../lib/webhook.js";
+import { applyInviteBanPolicy, type InviteDb } from "../lib/inviteService.js";
 import { getEnv } from "../config/env.js";
 import {
   confirm,
@@ -258,15 +259,26 @@ async function usersInviteBan(identifier: string | undefined, banned: boolean): 
   const id = await resolveUserId(identifier);
   const data: Record<string, unknown> =
     banned === true
-      ? { inviteBanned: true, inviteBannedAt: new Date(), inviteAllowance: 0 }
+      ? // The balance is handled inside the transaction by `applyInviteBanPolicy`,
+        // which preserves purchased credits instead of wiping them.
+        { inviteBanned: true, inviteBannedAt: new Date() }
       : { inviteBanned: false, inviteBannedAt: null };
   await prisma.$transaction(async (tx) => {
     const updated = await tx.user.update({ where: { id }, data, select: { username: true } });
     if (banned === true) {
+      // Only non-purchased codes are revoked; see the admin route for the reasoning.
       await tx.inviteCode.updateMany({
-        where: { createdById: id, usedAt: null, revokedAt: null },
+        where: { createdById: id, purchased: false, usedAt: null, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      // Earned grants are revoked alongside their codes so the ledger cannot claim
+      // credits the ban has already taken off the balance.
+      await tx.inviteCreditGrant.updateMany({
+        where: { userId: id, source: { not: "PURCHASED" }, revokedAt: null, recoveredAt: null },
+        data: { revokedAt: new Date() },
+      });
+      const banPolicy = await applyInviteBanPolicy(id, tx as unknown as InviteDb);
+      await tx.user.update({ where: { id }, data: banPolicy });
     }
     return updated;
   });
