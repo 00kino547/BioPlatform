@@ -1,10 +1,15 @@
 #!/bin/sh
 # BioPlatform operator scripts — shared helpers.
 #
-# Sourced by `update.sh` (repo root) and, by design, by `install.sh` /
-# `uninstall.sh` when they land: the three flows must not drift, so everything
-# they have in common lives here instead of being copy-pasted. Adding a helper
-# here is the only change needed to make it available to every script.
+# Sourced by the three operator scripts (repo root): `install.sh`,
+# `uninstall.sh` and `update.sh`. The flows must not drift, so everything they
+# have in common lives here instead of being copy-pasted. Adding a helper here
+# is the only change needed to make it available to every script.
+#
+# This file is the "preflight + shared surface" half of the composable installer
+# contract. The interactive half (menus, prompts, secrets, port/disk checks and
+# .env editing) lives in `bioplatform-cli.sh`, which install.sh and uninstall.sh
+# source on top of this one.
 #
 # Everything is POSIX sh (`/bin/sh`) so the scripts work when piped straight
 # from `curl ... | sh` on Alpine, Debian/Ubuntu and macOS without a bash
@@ -34,6 +39,23 @@ bp_ok() { printf '%s  ok%s %s\n' "$BP_C_GREEN" "$BP_C_RESET" "$*"; }
 bp_warn() { printf '%swarning:%s %s\n' "$BP_C_YELLOW" "$BP_C_RESET" "$*" >&2; }
 bp_error() { printf '%serror:%s %s\n' "$BP_C_RED" "$BP_C_RESET" "$*" >&2; }
 bp_die() { bp_error "$@"; exit 1; }
+
+# bp_banner <title> [subtitle]
+#
+# Compact boxed header used by every operator script so the three flows share
+# one visual identity (the Pterodactyl-installer style the scripts imitate).
+# Plain ASCII — it must render identically in a pipe, a CI log and a terminal.
+bp_banner() {
+  _b_title=$1
+  _b_sub=${2:-}
+  _b_w=58
+  _b_rule=$(printf '%*s' "$_b_w" '' | tr ' ' '=')
+
+  printf '\n%s\n' "$_b_rule"
+  printf '%s%s%s\n' "$BP_C_BLUE" "$_b_title" "$BP_C_RESET"
+  [ -n "$_b_sub" ] && printf '%s\n' "$_b_sub"
+  printf '%s\n\n' "$_b_rule"
+}
 
 # ----------------------------------------------------------- tracing hook ---
 #
@@ -78,10 +100,14 @@ bp_require_docker() {
 #
 #   1. the flags the operator passed (--compose-file / --env-file)
 #   2. $BIOPLATFORM_COMPOSE_FILE (for scripted/cron use)
-#   3. docker-compose.prebuilt.yml when it exists (the published-image layout,
+#   3. BIOPLATFORM_COMPOSE_FILE recorded in the deployment's own .env — the
+#      installer writes docker-compose.prebuilt.yml (image installs) or
+#      docker-compose.yml (source builds) there, so update/uninstall resolve the
+#      SAME layout the install deployed even when both compose files are present
+#   4. docker-compose.prebuilt.yml when it exists (the published-image layout,
 #      which is what `curl | sh` installs and what a deployment directory copied
 #      from a release contains)
-#   4. docker-compose.yml (the source-build layout)
+#   5. docker-compose.yml (the source-build layout)
 #
 # COMPOSE_PROJECT_NAME wins over the directory name, because that is what
 # Compose itself does: an operator who set it is already running their stack
@@ -92,6 +118,12 @@ bp_resolve_deployment() {
 
   BP_DEPLOY_DIR=$(cd "$BP_DEPLOY_DIR" && pwd)
 
+  if [ -n "${BP_ENV_FILE_OVERRIDE:-}" ]; then
+    BP_ENV_FILE=$BP_ENV_FILE_OVERRIDE
+  else
+    BP_ENV_FILE=$BP_DEPLOY_DIR/.env
+  fi
+
   if [ -n "${BP_COMPOSE_FILE_OVERRIDE:-}" ]; then
     BP_COMPOSE_FILE=$BP_COMPOSE_FILE_OVERRIDE
     [ -f "$BP_COMPOSE_FILE" ] || bp_die "compose file not found: $BP_COMPOSE_FILE"
@@ -99,18 +131,20 @@ bp_resolve_deployment() {
   elif [ -n "${BIOPLATFORM_COMPOSE_FILE:-}" ]; then
     BP_COMPOSE_FILE=$BIOPLATFORM_COMPOSE_FILE
     [ -f "$BP_COMPOSE_FILE" ] || bp_die "BIOPLATFORM_COMPOSE_FILE does not exist: $BP_COMPOSE_FILE"
+  elif _bp_cf=$(bp_env_get BIOPLATFORM_COMPOSE_FILE) && [ -n "$_bp_cf" ]; then
+    # Resolve a plain filename against the deployment directory, so a relative
+    # "docker-compose.yml" written by the installer works from any cwd.
+    if [ "${_bp_cf#/}" = "$_bp_cf" ]; then
+      _bp_cf=$BP_DEPLOY_DIR/$_bp_cf
+    fi
+    [ -f "$_bp_cf" ] || bp_die "BIOPLATFORM_COMPOSE_FILE from .env does not exist: $_bp_cf"
+    BP_COMPOSE_FILE=$_bp_cf
   elif [ -f "$BP_DEPLOY_DIR/docker-compose.prebuilt.yml" ]; then
     BP_COMPOSE_FILE=$BP_DEPLOY_DIR/docker-compose.prebuilt.yml
   elif [ -f "$BP_DEPLOY_DIR/docker-compose.yml" ]; then
     BP_COMPOSE_FILE=$BP_DEPLOY_DIR/docker-compose.yml
   else
     bp_die "no docker-compose.prebuilt.yml or docker-compose.yml in $BP_DEPLOY_DIR — is this the BioPlatform deployment directory?"
-  fi
-
-  if [ -n "${BP_ENV_FILE_OVERRIDE:-}" ]; then
-    BP_ENV_FILE=$BP_ENV_FILE_OVERRIDE
-  else
-    BP_ENV_FILE=$BP_DEPLOY_DIR/.env
   fi
 
   BP_COMPOSE_PROJECT=$(bp_env_get COMPOSE_PROJECT_NAME)
@@ -147,6 +181,32 @@ bp_env_get() {
   esac
 
   if [ -z "$_value" ]; then printf '%s' "$_default"; else printf '%s' "$_value"; fi
+}
+
+# bp_missing_env_keys <env-file> <example-file>
+#
+# Prints, one per line, every KEY that the example file defines but the env file
+# does not. This is the read side of the installer contract: `.env.example` is
+# the single schema, install.sh copies it verbatim, and update.sh reports any
+# variable that a new release adds so a deployment on the previous schema can
+# adopt it (see deployment.md "Check for new environment variables").
+bp_missing_env_keys() {
+  _env_file=$1
+  _example_file=$2
+  [ -f "$_example_file" ] || return 0
+  [ -f "$_env_file" ] || {
+    # No .env at all: every variable is "missing". Returning the full list is
+    # honest and only reachable from a check that is already warning loudly.
+    sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$_example_file"
+    return 0
+  }
+
+  while read -r _k; do
+    [ -n "$_k" ] || continue
+    grep -q "^[[:space:]]*${_k}[[:space:]]*=" "$_env_file" || printf '%s\n' "$_k"
+  done <<EOF
+$(sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$_example_file")
+EOF
 }
 
 # bp_compose <args...>

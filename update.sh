@@ -34,7 +34,7 @@
 
 set -eu
 
-UPDATE_SH_VERSION="2.0.0-canary.1-hotfix"
+UPDATE_SH_VERSION="2.0.0-canary.2"
 
 # ------------------------------------------------------------------- usage ---
 
@@ -159,7 +159,7 @@ done
 # through a pipe, `$0` is the *shell's* name (`bash`, `sh`, `-bash`), never
 # `/dev/stdin`, so a `$0` test rejects the documented `curl … | bash` form. The
 # only reliable signal is "are the libraries actually next to me?".
-SCRIPT_DIR=$(dirname "$0")
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 LIB_DIR=$SCRIPT_DIR/scripts/lib
 
 if [ ! -f "$LIB_DIR/bioplatform-common.sh" ]; then
@@ -210,6 +210,8 @@ fi
 . "$LIB_DIR/bioplatform-common.sh"
 # shellcheck source=scripts/lib/bioplatform-backup.sh
 . "$LIB_DIR/bioplatform-backup.sh"
+
+bp_banner "BioPlatform updater" "verified backup first; migration cannot skip it"
 
 # ------------------------------------------------------------- failure path ---
 
