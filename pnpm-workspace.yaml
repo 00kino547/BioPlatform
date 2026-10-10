@@ -34,6 +34,19 @@ overrides:
   multer: ^2.4.0
   # Dependabot: CVE in qs (< 6.16.0) reached transitively — pin the patched line.
   qs: 6.16.0
+  # Dependabot: CVE-2026-102422 in shell-quote (< 1.11.0) — critical. Reached
+  # transitively via concurrently (root devDependency), which pins it EXACTLY at
+  # 1.9.0, so no manifest bump can move it — the override is the only correction.
+  # `quote()` command injection via a line terminator in a token after a `{ comment }`.
+  shell-quote: 1.11.0
+  # Dependabot: CVE-2026-90711 in proxy-addr (< 2.0.8) — critical. IP spoofing via
+  # IPv4-mapped IPv6 trust subnet. Reached transitively via express@5.2.1 (^2.0.7)
+  # — pin the patched line explicitly.
+  proxy-addr: ^2.0.8
+  # Dependabot: CVE-2026-93749 in source-map-js (< 1.2.2) — high. Event-loop DoS
+  # through indexed source-map section offsets. Reached transitively via vite /
+  # @tailwindcss/node / postcss — pin the patched line explicitly.
+  source-map-js: ^1.2.2
 
 # NOT overridable, recorded so the exception is deliberate rather than an
 # oversight. node-forge <= 1.4.0 carries CVE-2026-85393 (RSA signature forgery).
