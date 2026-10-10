@@ -28,10 +28,10 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.3.0",
+    "multer": "^2.4.0",
     "nodemailer": "^10.0.13",
     "otplib": "^13.4.1",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "zod": "^3.24.4"
   },
   "devDependencies": {

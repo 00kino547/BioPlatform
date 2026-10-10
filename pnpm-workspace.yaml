@@ -18,3 +18,24 @@ minimumReleaseAgeExclude:
 overrides:
   nanoid: ^3.3.18
   deepmerge-ts: ^8.0.0
+  # Dependabot: CVE-2026-XXXXX in axios < 1.20.0. Reached transitively (Prisma
+  # client tooling and friends), never declared directly, so there is no manifest
+  # to bump — the override is the only place this can be corrected.
+  axios: ^1.20.0
+  # Dependabot: CVE in multer < 2.4.0. The upload middleware is declared in
+  # apps/backend/package.json; the manifest is bumped to ^2.4.0 and the override
+  # also pins it here so all transitive copies resolve to the patched line.
+  multer: ^2.4.0
+  # Dependabot: CVE-2026-102422 in shell-quote (< 1.11.0) — critical. Reached
+  # transitively via concurrently (root devDependency), which pins it EXACTLY at
+  # 1.9.0, so no manifest bump can move it — the override is the only correction.
+  # `quote()` command injection via a line terminator in a token after a `{ comment }`.
+  shell-quote: 1.11.0
+  # Dependabot: CVE-2026-90711 in proxy-addr (< 2.0.8) — critical. IP spoofing via
+  # IPv4-mapped IPv6 trust subnet. Reached transitively via express@5.2.1 (^2.0.7)
+  # — pin the patched line explicitly.
+  proxy-addr: ^2.0.8
+  # Dependabot: CVE-2026-93749 in source-map-js (< 1.2.2) — high. Event-loop DoS
+  # through indexed source-map section offsets. Reached transitively via vite /
+  # @tailwindcss/node / postcss — pin the patched line explicitly.
+  source-map-js: ^1.2.2
