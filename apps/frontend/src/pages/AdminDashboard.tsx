@@ -22,6 +22,7 @@ import { AdminOrdersTab } from "./admin/AdminOrdersTab";
 import { AdminNewsletterTab } from "./admin/AdminNewsletterTab";
 import { AdminPolicyTab } from "./admin/AdminPolicyTab";
 import { AdminInvitePurchaseCard } from "./admin/AdminInvitePurchaseCard";
+import { ModerationTab } from "./admin/ModerationTab";
 import { Pagination } from "./admin/Pagination";
 
 interface InviteCode {
@@ -132,7 +133,7 @@ interface AdminDomainEntry {
   createdAt: string;
 }
 
-type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "logs" | "domains" | "themes" | "landing" | "affiliates" | "orders" | "newsletter" | "policy";
+type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "moderation" | "logs" | "domains" | "themes" | "landing" | "affiliates" | "orders" | "newsletter" | "policy";
 
 function securityFlagLabel(flag: User["securityFlag"]): string {
   return flag === "no-passkeys" ? "NO PASSKEY" : flag === "passkeys-unverified" ? "PASSKEYS UNVERIFIED" : "";
@@ -160,6 +161,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "invites.manage": "Manage invite codes",
   "invites.generate": "Generate own invite codes",
   "bans.manage": "Manage bans & lockouts",
+  "moderation.manage": "DMCA moderation",
   "roles.manage": "Manage roles",
   "badges.manage": "Manage badges",
   "themes.manage": "Manage seasonal themes",
@@ -188,6 +190,7 @@ export function AdminDashboard() {
   const canRoles = perms.has("roles.manage");
   const canBadges = perms.has("badges.manage");
   const canBans = perms.has("bans.manage");
+  const canModeration = perms.has("moderation.manage");
   const canLogs = perms.has("logs.view");
   const canDomains = perms.has("profiles.manage");
   const canThemes = perms.has("themes.manage");
@@ -202,6 +205,7 @@ export function AdminDashboard() {
     ...(canRoles ? (["roles"] as Tab[]) : []),
     ...(canBadges ? (["badges"] as Tab[]) : []),
     ...(canBans ? (["bans"] as Tab[]) : []),
+    ...(canModeration ? (["moderation"] as Tab[]) : []),
     ...(canLogs ? (["logs"] as Tab[]) : []),
     ...(canDomains ? (["domains"] as Tab[]) : []),
     ...(canThemes ? (["themes"] as Tab[]) : []),
@@ -1104,7 +1108,7 @@ export function AdminDashboard() {
                   : "text-zinc-400 hover:text-zinc-300"
               }`}
             >
-              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : t === "domains" ? "Custom Domains" : t === "themes" ? "Theming" : t === "landing" ? "Landing" : t === "affiliates" ? "Affiliate" : t === "orders" ? "Orders" : t === "newsletter" ? "Newsletter" : t === "policy" ? "Legal" : "Logs"}
+              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : t === "moderation" ? "Moderation" : t === "domains" ? "Custom Domains" : t === "themes" ? "Theming" : t === "landing" ? "Landing" : t === "affiliates" ? "Affiliate" : t === "orders" ? "Orders" : t === "newsletter" ? "Newsletter" : t === "policy" ? "Legal" : "Logs"}
             </button>
           ))}
         </div>
@@ -2091,6 +2095,9 @@ export function AdminDashboard() {
               }}
             />
           </div>
+        )}
+        {tab === "moderation" && (
+          <ModerationTab locked={locked} />
         )}
         {tab === "logs" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">

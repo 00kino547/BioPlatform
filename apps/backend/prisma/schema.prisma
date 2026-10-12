@@ -83,6 +83,18 @@ model User {
   newsletterOptInAt   DateTime? @map("newsletter_opt_in_at")
   lastUsernameChangeAt DateTime? @map("last_username_change_at")
   broadcastUnsubscribedAt DateTime? @map("broadcast_unsubscribed_at")
+  /// When a DMCA/hash takedown locks the account (see disabled_reason).
+  disabledAt          DateTime? @map("disabled_at")
+  /// Why the account was disabled ("dmca" today; free-form for operators).
+  disabledReason      String?   @map("disabled_reason")
+  /// When the operator's disable-notice email was sent (or NULL if mail is off).
+  disabledNoticeSentAt DateTime? @map("disabled_notice_sent_at")
+  /// Appeal text the account holder submitted after a disable (account disabled).
+  appealText          String?   @map("appeal_text")
+  appealSubmittedAt   DateTime? @map("appeal_submitted_at")
+  /// Decision + timestamp once an operator reviews the appeal.
+  appealDecision      String?   @map("appeal_decision")
+  appealReviewedAt    DateTime? @map("appeal_reviewed_at")
   discountPercent     Int       @default(0) @map("discount_percent")
   discountExpiresAt   DateTime? @map("discount_expires_at")
   referredById        String?   @db.Uuid @map("referred_by_id")
@@ -107,6 +119,11 @@ model User {
   enterpriseSso EnterpriseSso?
   enterpriseSsoIdentities EnterpriseSsoIdentity[]
   productPurchases ProductPurchase[] @relation("ProductPurchases")
+  mediaFiles  MediaFile[]
+  dmcaReportsFiled DmcaReport[] @relation("DmcaReportsFiled")
+  dmcaReportsHandled DmcaReport[] @relation("DmcaReportsHandled")
+  hashesBanned BannedHash[] @relation("HashesBanned")
+  hashesUnbanned BannedHash[] @relation("HashesUnbanned")
 
   @@index([roleId])
   @@index([referredById])
@@ -179,6 +196,10 @@ model Profile {
   tipsBtcAddress      String?  @map("tips_btc_address")
   tipsLtcAddress      String?  @map("tips_ltc_address")
   shopDiscountPercent Int?     @map("shop_discount_percent")
+  hideAds             Boolean  @default(false) @map("hide_ads")
+  // Adblock-notice gate. True by default (FREE profiles always show the notice
+  // when ads render; only PRO/Enterprise may turn it off per profile).
+  adblockDetectorEnabled Boolean @default(true) @map("adblock_detector_enabled")
   showDiscordPresence Boolean  @default(false) @map("show_discord_presence")
   showDiscordActivity Boolean  @default(true) @map("show_discord_activity")
   discordWebhookUrlEncrypted String? @map("discord_webhook_url_encrypted")
@@ -200,6 +221,7 @@ model Profile {
   newsletterSender NewsletterSender?
   tips Tip[]
   products Product[]
+  mediaFiles MediaFile[]
 
   @@index([userId])
   @@map("profiles")
@@ -910,4 +932,120 @@ model WebhookDelivery {
   @@index([webhookId, createdAt])
   @@index([status, nextRetryAt])
   @@map("webhook_deliveries")
+}
+
+/// What a stored file was uploaded as. Determines whether a perceptual hash is
+/// computed (images only) and which admin tuft reports group under.
+enum MediaKind {
+  AVATAR
+  BANNER
+  LINK_ICON
+  BACKGROUND
+  MUSIC
+  SHOP_PREVIEW
+  SHOP_PRODUCT
+}
+
+/// Lifecycle of a DMCA takedown report.
+enum DmcaStatus {
+  NEW
+  TAKEN_DOWN
+  DISMISSED
+  COUNTER_NOTICE
+}
+
+/// Hash fingerprint for every stored user file. Written at upload time so a
+/// takedown of one copy can locate every other copy already uploaded by any
+/// account (those accounts' files are then removed and the hashes banned).
+model MediaFile {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid @map("user_id")
+  profileId String?   @db.Uuid @map("profile_id")
+  kind      MediaKind
+  /// SHA-256 of the exact bytes (byte-identical copies share this value).
+  sha256    String
+  /// Perceptual image hash (64-bit DCT pHash, lowercase hex). NULL for audio
+  /// and product binaries, which have no meaningful visual identity.
+  pHashHex  String?   @map("p_hash_hex")
+  /// The same relative `/uploads/...` path the owning model row stores.
+  filePath  String    @map("file_path")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([sha256, filePath])
+  @@index([sha256])
+  @@index([pHashHex])
+  @@index([userId])
+  @@index([profileId])
+  @@map("media_files")
+}
+
+/// A copyright holder's takedown request. Public submissions land here with
+/// status NEW; an operator review decides between take-down (which also bans
+/// the files and disables the account) and dismissal. A counter-notice keeps
+/// the report for the record and clears the associated hash bans.
+model DmcaReport {
+  id            String     @id @default(uuid()) @db.Uuid
+  status        DmcaStatus @default(NEW)
+  /// Who claims to own the copyrighted work (free text, sanitized).
+  claimantName  String     @map("claimant_name")
+  /// Contact address for the claim; never exposed on public pages.
+  claimantEmail String     @map("claimant_email")
+  /// URL where the claimed work lives (e.g. on the operator's own site).
+  workUrl       String     @map("work_url")
+  /// Free-text allegations, sanitized.
+  description   String
+  /// List of offending URLs from the report (sanitized).
+  infringingUrls Json      @map("infringing_urls")
+  /// Optional fill-in note (e.g. "filed while signed in as X").
+  contactNote   String?    @map("contact_note")
+  /// userId of a signed-in submittor, or NULL for anonymous reports.
+  filedByUserId String?    @db.Uuid @map("filed_by_user_id")
+  filedByUser   User?      @relation("DmcaReportsFiled", fields: [filedByUserId], references: [id], onDelete: SetNull)
+  /// Operator who reviewed / took action on this report.
+  handledById   String?    @db.Uuid @map("handled_by_id")
+  handledBy     User?      @relation("DmcaReportsHandled", fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt     DateTime?  @map("handled_at")
+  /// Operator note attached to the review (visible only to admin).
+  decisionNote  String?    @map("decision_note")
+  /// Counter-notice text if the reported party disputes the claim.
+  counterNotice String?    @map("counter_notice")
+  counterNoticeAt DateTime? @map("counter_notice_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  hashes BannedHash[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("dmca_reports")
+}
+
+/// A permanently-banned file fingerprint. Banned hashes reject every future
+/// upload with a matching SHA-256 (or close perceptual hash) from any account,
+/// until an operator unbans (e.g. after a valid counter-notice).
+model BannedHash {
+  id          String     @id @default(uuid()) @db.Uuid
+  /// The exact-byte fingerprint. Always set.
+  sha256      String
+  /// Perceptual image hash for images. NULL for audio/product binaries.
+  pHashHex    String?    @map("p_hash_hex")
+  /// Why this hash is banned ("dmca" today; free-form for future use).
+  reason      String
+  dmcaReportId String?   @db.Uuid @map("dmca_report_id")
+  dmcaReport  DmcaReport? @relation(fields: [dmcaReportId], references: [id], onDelete: SetNull)
+  /// Operator who issued the ban. Nullable so deleting a staff account never
+  /// blocks the purge/deletion path (the ban itself must outlive the operator).
+  bannedById  String?    @db.Uuid @map("banned_by_id")
+  bannedBy    User?      @relation("HashesBanned", fields: [bannedById], references: [id], onDelete: SetNull)
+  bannedAt    DateTime   @default(now()) @map("banned_at")
+  /// Operator who lifted the ban (counter-notice or false positive).
+  unbannedById String?   @db.Uuid @map("unbanned_by_id")
+  unbannedBy  User?      @relation("HashesUnbanned", fields: [unbannedById], references: [id], onDelete: SetNull)
+  unbannedAt  DateTime?  @map("unbanned_at")
+
+  @@index([sha256])
+  @@index([pHashHex])
+  @@map("banned_hashes")
 }

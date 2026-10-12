@@ -188,6 +188,7 @@ La pestaña **Roles** gestiona el acceso. Cada usuario tiene exactamente un rol;
 - `newsletter.manage` — gestionar la pestaña Newsletter (límites por plan + búsqueda de consentimiento) y permite a los usuarios enviar boletines a sus propios suscriptores.
 - `logs.view` — ver el registro de autenticación.
 - `invites.generate` — permite al rol generar sus **propios** códigos de invitación (sujeto al interruptor global, a la configuración de invitaciones del rol que se indica más abajo y a los baneos de invitación).
+- `moderation.manage` — concede la pestaña **Moderación**: la cola de informes DMCA, la búsqueda de media (selector de retiro), el historial de bloqueos de hash y la cola de cuentas deshabilitadas (desestimar / retirar / contraaviso / borrar / desbloquear / reactivar).
 
 ### Configuración de invitaciones por rol
 
@@ -289,6 +290,30 @@ La pestaña **Newsletter** (requiere el permiso `newsletter.manage`) cubre las r
 - **Anuncios de la plataforma** — redacta un **anuncio** puntual que se entrega por el remitente SMTP/Resend de la instancia a todos los usuarios que **optaron por noticias de la plataforma** en el registro (`newsletterOptIn` en el registro del usuario; `acceptedPoliciesAt` y las versiones de políticas registran su consentimiento de Términos + Privacidad). El editor muestra la audiencia actual sin abreviar y envía con un tope de seguridad de 5000 destinatarios, registrando cada envío en `admin_newsletter_sends`. Cada destinatario recibe un enlace de baja de **un clic a nivel de cuenta** firmado (`GET /api/newsletter/unsubscribe/broadcast?token=`), que desactiva su opt-in y guarda `broadcastUnsubscribedAt`; volver a activarlo lo gestiona el usuario desde **Ajustes de cuenta**. Endpoints: `GET /api/admin/newsletter/broadcast-audience`, `GET /api/admin/newsletter/broadcasts`, `POST /api/admin/newsletter/broadcast`.
 
 Los límites de envío solo restringen el boletín del **creador**. El perfil sigue capturando suscriptores mientras un límite está agotado o el perfil está en pausa; simplemente no se enviará correo. Los administradores (`newsletter.manage`) conservan siempre el límite fijo de 5000 destinatarios del remitente de la plataforma y omiten la ventana por plan — el anuncio de plataforma es una audiencia aparte, solo de usuarios que optaron, y no cuenta contra las ventanas por plan.
+
+## Moderación DMCA
+
+La pestaña **Moderación** (requiere el permiso `moderation.manage` — incluido en el rol **Admin** integrado) es la superficie del operador para el proceso de retiro de contenido protegido por derechos de autor. Tiene cuatro sub-vistas:
+
+**Informes** — la cola de recepción. Cada fila muestra al denunciante (nombre/email), la URL de la obra, cuándo llegó, quién lo presentó (nombre de usuario, o el registro persiste con `filedBy: null` cuando esa cuenta se elimina después), cuántos de sus bloqueos de hash siguen activos y su estado (`NEW` / `TAKEN_DOWN` / `DISMISSED` / `COUNTER_NOTICE`), con contadores por estado y búsqueda de texto libre. Al abrir un informe se ve el registro completo — descripción, URLs denunciadas, nota de contacto, texto del contraaviso, el operador y la nota de decisión, el historial de marcas de tiempo y los bloqueos de hash del informe. Desde ahí puedes:
+
+- **Desestimar** (`{ note? }`) — registrar que no se requiere acción; el denunciante recibe el resultado por correo. Se rechaza una vez que un informe ya está `TAKEN_DOWN`.
+- **Retirar** — construir el retiro desde la **búsqueda de media**: filtrar por sha256, pHash perceptual, nombre de usuario, id de usuario, perfil, tipo de media o fecha. Cada resultado muestra `copyOwners`/`copyCount` — cuántas cuentas ya tienen los mismos bytes — y si el sha256 está bloqueado, para que puedas previsualizar lo que tocará la expansión automática. Selecciona los archivos (o «seleccionar todos los mostrados»), añade opcionalmente una nota de decisión, elige si también se deshabilitan las cuentas de los propietarios, confirma (el diálogo lista las cuentas afectadas) y el retiro elimina **todas** las copias de esos bytes en todas las cuentas, inserta un bloqueo de hash por cada sha256 distinto y deshabilita a los propietarios. Volver a subir un hash todavía bloqueado se rechaza mientras el bloqueo esté activo.
+- **Contraaviso** (`{ text }`) — una disputa litigada. El informe pasa a `COUNTER_NOTICE` y sus bloqueos de hash activos se levantan (registrando quién lo hizo). Las cuentas de los propietarios siguen **deshabilitadas** — la reactivación nunca es automática; usa la vista Deshabilitadas.
+- **Borrar** — eliminar permanentemente el registro legal. Los bloqueos de hash activos se levantan **primero** (borrar un informe nunca es una manera de mantener un bloqueo vivo), las filas de hash se desvinculan y luego se elimina el informe.
+
+**Media** — la búsqueda de media de solo lectura del operador que respalda el selector del retiro (mismos filtros; cada fila con información de copias/bloqueo).
+
+**Hashes** — el registro de bloqueos de hash. Alterna **Activos** (bloqueos vivos) / **Historial** (prefijos previamente desbloqueados, la pista de auditoría) y **desbloquea** un único hash (falso positivo / criterio del operador), registrando quién lo levantó.
+
+**Deshabilitadas** — la cola de cuentas deshabilitadas: nombres de usuario, email, cuándo/por qué se deshabilitó, estado de la apelación (`appealSubmittedAt` / `appealReviewedAt` / `appealDecision`) y cuántos informes se presentaron contra cada cuenta. Haz clic en **Reactivar** (registrando una decisión) para levantar la deshabilitación tras la revisión.
+
+Notas:
+
+- La recepción puede desactivarse en toda la instancia desde `config.yml` (`public.policy.dmca.intakeEnabled`); los endpoints públicos devuelven entonces `403 dmca_intake_disabled`.
+- Las cuentas deshabilitadas pueden presentar una apelación desde su lado (aquí se ve como `appealSubmittedAt`); la apelación es una solicitud de revisión humana, nunca un desbloqueo automático.
+- Toda acción de moderación destructiva (retiro, contraaviso, borrado, desbloqueo, reactivación) se bloquea durante un bloqueo por actualización.
+- Los **correos** de resultado al denunciante usan el sistema de correo de la instancia y se envían al desestimar, retirar y al contraaviso (ver [Variables de Entorno](./environment-variables.md#email-smtp)).
 
 ## Propinas
 

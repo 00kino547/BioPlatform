@@ -18,8 +18,11 @@ import discordRoutes from "./routes/discord.js";
 import badgeRoutes from "./routes/badges.js";
 import versionRoutes from "./routes/version.js";
 import landingRoutes from "./routes/landing.js";
+import configRoutes from "./routes/config.js";
+import i18nRoutes from "./routes/i18n.js";
 import featureRoutes from "./routes/features.js";
 import policyRoutes from "./routes/policy.js";
+import dmcaRoutes from "./routes/dmca.js";
 import { renderProfileOgPage } from "./lib/profileOg.js";
 import { renderLandingOgCached } from "./lib/landingOg.js";
 import { buildLandingOgPage } from "./lib/og.js";
@@ -31,6 +34,7 @@ import { resolveCustomDomain } from "./middleware/domain.js";
 import { getChallenge } from "./lib/acme.js";
 import { serveUpload } from "./lib/media.js";
 import { resolveActiveSeasonalTheme } from "./lib/seasonalThemes.js";
+import { runHealthChecks } from "./lib/health.js";
 import mediaProxyRoutes from "./routes/mediaProxy.js";
 import privacyRoutes from "./routes/privacy.js";
 import newsletterRoutes from "./routes/newsletter.js";
@@ -51,8 +55,18 @@ app.use(resolveCustomDomain);
 
 app.use("/uploads", serveUpload);
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/api/health", async (_req, res) => {
+  // REAL readiness, not a stub: pings the DB through the actual Prisma client
+  // and full-scalar-reads every core model so a missing column/table (schema
+  // drift, e.g. the `hide_ads` gap that 4xx'd every profile route while the
+  // container reported "healthy") is surfaced instead of hidden. 503 whenever
+  // the DB is unreachable or the schema drifted — so Docker's healthcheck stops
+  // marking a broken backend as healthy.
+  const report = await runHealthChecks();
+  if (report.status === "degraded") {
+    res.status(503);
+  }
+  res.json(report);
 });
 
 app.get("/api/openapi.json", (_req, res) => {
@@ -155,8 +169,14 @@ app.use("/api/discord", discordRoutes);
 app.use("/api/badges", badgeRoutes);
 app.use("/api/version", versionRoutes);
 app.use("/api/landing", landingRoutes);
+app.use("/api/config", configRoutes);
+app.use("/api/i18n", i18nRoutes);
 app.use("/api/features", featureRoutes);
 app.use("/api/policy", policyRoutes);
+// Public DMCA intake + the authenticated status/appeal endpoints. Must be
+// mounted BEFORE the bare `app.use("/api", domainRoutes)` below, which would
+// otherwise swallow the path as a custom-domain lookup.
+app.use("/api/dmca", dmcaRoutes);
 app.use("/api", domainRoutes);
 
 const RESERVED_PATHS = new Set(["api", "health", "favicon.ico", "robots.txt", "sitemap.xml", "llms.txt", "llms-full.txt", "uploads", "og.png"]);

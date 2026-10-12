@@ -8,6 +8,8 @@ import { startAcmeLoop, acmeTick } from "./lib/acme.js";
 import { startOrphanCleanup } from "./lib/orphanCleanup.js";
 import { getPocketbaseConfig } from "./lib/pocketbase/index.js";
 import { maybeAutoNotifyPolicyChange } from "./lib/policyNotice.js";
+import { loadInstanceConfig, startInstanceConfigWatcher } from "./lib/instanceConfig.js";
+import { purgeDisabledAccounts } from "./lib/dmca.js";
 
 const env = getEnv();
 
@@ -70,6 +72,32 @@ setInterval(() => {
   void pruneAnalytics();
 }, ANALYTICS_CLEANUP_INTERVAL_MINUTES * 60 * 1000);
 
+// DMCA: after the configurable appeal window (30 days by default) a disabled
+// account is deleted completely — unless an unreviewed appeal is still open.
+// Runs at boot and every 6 hours; an active appeal pauses that account's clock
+// (see lib/dmca.ts purgeDisabledAccounts), so this never destroys a claimant
+// who did everything they could.
+const DMCA_PURGE_INTERVAL_HOURS = 6;
+let purgingDisabledAccounts = false;
+
+async function sweepDisabledAccounts() {
+  if (purgingDisabledAccounts) return;
+  purgingDisabledAccounts = true;
+  try {
+    const deleted = await purgeDisabledAccounts();
+    if (deleted > 0) {
+      console.log(`Purged ${deleted} disabled account(s) past the appeal window`);
+    }
+  } catch (error) {
+    console.error("Failed to purge disabled accounts:", error);
+  } finally {
+    purgingDisabledAccounts = false;
+  }
+}
+
+void sweepDisabledAccounts();
+setInterval(sweepDisabledAccounts, DMCA_PURGE_INTERVAL_HOURS * 60 * 60 * 1000);
+
 // PocketBase is optional and supports exactly one capability: the sign-in
 // provider. Report its status once at boot so an operator can see at a glance
 // whether the optional provider is available. This never contacts PocketBase and
@@ -91,6 +119,14 @@ function logPocketbaseStatus() {
 async function main() {
   await prisma.$connect();
   console.log("Database connected");
+
+  // Boot-time instance config (config.yml). Missing file = defaults; a broken
+  // file throws here and refuses to start, exactly as intended.
+  loadInstanceConfig();
+
+  // Hot reload: a few times a second pick up config.yml edits (auto) and any
+  // `config reload` sentinel (always). Invalid reloads keep the last-good.
+  startInstanceConfigWatcher();
 
   logPocketbaseStatus();
 

@@ -9,6 +9,8 @@ export const openapi = {
   servers: [{ url: "/api" }],
   security: [{ bearerAuth: [] }],
   tags: [
+    { name: "Config" },
+    { name: "I18n" },
     { name: "Health" },
     { name: "Version" },
     { name: "Auth" },
@@ -28,6 +30,7 @@ export const openapi = {
     { name: "Badges" },
     { name: "Custom Domains" },
     { name: "Orders" },
+    { name: "Dmca" },
     { name: "Admin" },
   ],
   paths: {
@@ -196,15 +199,174 @@ export const openapi = {
       get: {
         tags: ["Health"],
         summary: "Health check",
+        description:
+          "Real readiness probe. Pings the database through the actual Prisma client and runs a full-scalar read of every core model (profiles, users, seasonal_themes, invite_codes, newsletter_subscribers, orders, products, tips) so a missing column or table (schema drift) is surfaced instead of a bare `ok` — a container can no longer report healthy while every real route throws Prisma P2021. Also reports the cache driver state. Returns 200 with the full report when everything passes, and 503 with the same body when the DB is unreachable or the schema drifted from what the running client expects.",
         security: [],
         responses: {
           "200": {
-            description: "Service is healthy",
+            description: "All core checks pass",
             content: {
               "application/json": {
-                schema: { type: "object", properties: { status: { type: "string" }, timestamp: { type: "string", format: "date-time" } } },
+                schema: { $ref: "#/components/schemas/HealthReport" },
               },
             },
+          },
+          "503": {
+            description: "Database unreachable or schema drift detected",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/HealthReport" },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    "/config": {
+      get: {
+        tags: ["Config"],
+        summary: "Public instance configuration (config.yml)",
+        description:
+          "Returns the PUBLIC part of the instance's config.yml: the landing hero/footer copy, the announcement bar, hidePricing and (when enabled) the ad slot configuration plus any site-verification meta tags. The guarantee is that this endpoint ONLY ever carries data safe to ship to a public browser — the `private` section of config.yml (operator mailbox, ad secrets) is parsed and validated server-side but is never serialized anywhere. Hot-reloads in place; a response may change between requests without a restart. This endpoint is unauthenticated and its response is cacheable for 60 s.",
+        security: [],
+        responses: {
+          "200": {
+            description: "Public instance configuration",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        landing: {
+                          type: "object",
+                          properties: {
+                            tagline: { type: "string" },
+                            hero: { type: "object", properties: { heading: { type: "string" }, subheading: { type: "string" } } },
+                            footerAbout: { type: "string" },
+                          },
+                        },
+                        policy: {
+                          type: "object",
+                          properties: {
+                            operatorName: { type: "string" },
+                            operatorContact: { type: "string" },
+                            jurisdiction: { type: "string" },
+                          },
+                        },
+                        operational: {
+                          type: "object",
+                          properties: {
+                            announcement: { type: "object", properties: { message: { type: "string" }, href: { type: "string" } } },
+                            hidePricing: { type: "boolean", description: "True hides the pricing section from the landing page" },
+                          },
+                        },
+                        ads: {
+                          type: "object",
+                          description: "Present only when ads are enabled for this instance",
+                          properties: {
+                            enabled: { type: "boolean" },
+                            freeOptOutAllowed: {
+                              type: "boolean",
+                              description: "Derived from the ADS_FREE_OPT_OUT_ALLOWED env var, always current",
+                            },
+                            verificationMeta: {
+                              type: "array",
+                              items: {
+                                type: "object",
+                                properties: { name: { type: "string" }, content: { type: "string" } },
+                              },
+                              description: "Meta tags rendered on public profile pages for ad-network site verification",
+                            },
+                            slots: {
+                              type: "array",
+                              items: {
+                                type: "object",
+                                properties: {
+                                  network: { type: "string", description: "One of the 8 supported networks or raw" },
+                                  placement: { type: "string" },
+                                  params: {
+                                    type: "object",
+                                    properties: {
+                                      adsense: {
+                                        type: "object",
+                                        properties: {
+                                          client: { type: "string" },
+                                          slot: { type: "string" },
+                                          autoEnabled: { type: "boolean" },
+                                        },
+                                      },
+                                      script: {
+                                        type: "object",
+                                        properties: { src: { type: "string" }, token: { type: "string" } },
+                                      },
+                                      raw: {
+                                        type: "string",
+                                        description: "Operator snippet, network: raw. Not sanitized; must not carry secrets.",
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    "/openapi.json": {
+      get: {
+        tags: ["Config"],
+        summary: "This OpenAPI document",
+        security: [],
+        description: "Serves the raw OpenAPI 3.0 document that backs the frontend API reference page. Public.",
+        responses: { "200": { description: "OpenAPI 3.0 document", content: { "application/json": { schema: { type: "object" } } } } },
+      },
+    },
+
+    "/i18n/config": {
+      get: {
+        tags: ["I18n"],
+        summary: "Internationalization settings (structure scaffold)",
+        description:
+          "Returns the i18n configuration exposed by the instance: whether i18n is enabled, the default/fallback locale, and the locales the instance exposes. This route is a structure placeholder while the i18n pipeline is not implemented — it currently answers 503 with code `i18n_not_implemented` instead of a 200 payload so consumers can distinguish 'not implemented yet' from a real failure.",
+        security: [],
+        responses: {
+          "503": {
+            description: "Not implemented yet — `{ success:false, error, code:\"i18n_not_implemented\" }`",
+          },
+          "200": {
+            description: "Planned contract: `{ success:true, data:{ enabled, defaultLocale, fallbackLocale, locales } }`",
+          },
+        },
+      },
+    },
+
+    "/i18n/locales": {
+      get: {
+        tags: ["I18n"],
+        summary: "Available locale metadata (structure scaffold)",
+        description:
+          "Returns metadata for the locales the instance exposes — intended to feed the frontend language picker once i18n is wired up (en + es ship first, Spanish as an English placeholder). Structure only: currently answers 503 with code `i18n_not_implemented` so consumers can distinguish 'not implemented yet' from a real failure.",
+        security: [],
+        responses: {
+          "503": {
+            description: "Not implemented yet — `{ success:false, error, code:\"i18n_not_implemented\" }`",
+          },
+          "200": {
+            description: "Planned contract: `{ success:true, data:{ defaultLocale, fallbackLocale, locales } }`",
           },
         },
       },
@@ -344,6 +506,30 @@ export const openapi = {
         responses: { "200": { description: "token + user" } },
       },
     },
+    "/auth/login/passkey/discoverable/options": {
+      post: {
+        tags: ["Auth"],
+        summary: "Get WebAuthn assertion options for passwordless login without a username",
+        security: [],
+        description:
+          "Discoverable-credential variant of `POST /auth/login/passkey/options`: does not take an identifier — the authenticator resolves which resident key to use. Returns `PublicKeyCredentialRequestOptionsJSON`.",
+        responses: { "200": { description: "PublicKeyCredentialRequestOptionsJSON" } },
+      },
+    },
+    "/auth/login/passkey/discoverable/verify": {
+      post: {
+        tags: ["Auth"],
+        summary: "Verify a discoverable credential assertion and log in",
+        security: [],
+        description:
+          "Verifies an assertion produced against `POST /auth/login/passkey/discoverable/options` — no identifier is required because the credential itself maps to the account. Returns token + user.",
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["response"], properties: { response: { type: "object" } } } } },
+        },
+        responses: { "200": { description: "token + user" }, "401": { description: "Invalid assertion" } },
+      },
+    },
     "/auth/2fa/totp": {
       post: {
         tags: ["Auth"],
@@ -444,6 +630,16 @@ export const openapi = {
           content: { "application/json": { schema: { type: "object", required: ["currentPassword", "newPassword"], properties: { currentPassword: { type: "string" }, newPassword: { type: "string", minLength: 12 } } } } },
         },
         responses: { "200": { description: "Password changed" } },
+      },
+    },
+    "/auth/accept-policies": {
+      post: {
+        tags: ["Auth"],
+        summary: "Accept the instance's ToS / privacy policy for the current user",
+        description:
+          "Records explicit acceptance of the instance's policies for the signed-in user. Used when the instance requires acknowledgement and the user has not yet accepted. Requires authentication. No body — acceptance of the current policy versions is implicit.",
+        security: [],
+        responses: { "200": { description: "Accepted: returns accepted versions" }, "401": { description: "Not authenticated" } },
       },
     },
     "/auth/unlock": {
@@ -663,6 +859,35 @@ export const openapi = {
         summary: "Toggle whether SSO skips your 2FA step (when the instance allows it)",
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["oauthBypass2fa"], properties: { oauthBypass2fa: { type: "boolean" } } } } } },
         responses: { "200": { description: "Updated flag" }, "403": { description: "SSO_2FA_BYPASS_ALLOWED is false on this instance" } },
+      },
+    },
+    "/auth/oauth/pocketbase/config": {
+      get: {
+        tags: ["Auth"],
+        summary: "PocketBase OAuth provider configuration",
+        description: "Returns whether the optional PocketBase sign-in provider is enabled on this instance, plus the browser-facing client URL, the auth collection name, and the `signupRequiresInvite` / `twoFactorBypassAllowed` capability flags. Returns `{ enabled: false }` when PocketBase is not configured. Public.",
+        security: [],
+        responses: { "200": { description: "{ enabled, clientUrl, authCollection, signupRequiresInvite, twoFactorBypassAllowed }" } },
+      },
+    },
+    "/auth/oauth/pocketbase/exchange": {
+      post: {
+        tags: ["Auth"],
+        summary: "Exchange a PocketBase auth token for a platform session",
+        description:
+          "Signs the user in from a PocketBase collection auth record's token (rate-limited): an already-linked identity signs in, else a verified email already on an account auto-links, else onboarding continues through the invite gate. Answers 404 when PocketBase is not enabled and 400 for any invalid/expired token.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["token"], properties: { token: { type: "string", minLength: 20, maxLength: 4096 }, invite: { type: "string", minLength: 1, maxLength: 128 } } } } } },
+        responses: { "200": { description: "token + user (or needs_setup)" }, "400": { description: "Invalid body or expired PocketBase session" }, "404": { description: "PocketBase sign-in not enabled" } },
+      },
+    },
+    "/auth/oauth/pocketbase/link": {
+      post: {
+        tags: ["Auth"],
+        summary: "Link a PocketBase identity to the signed-in account",
+        description:
+          "Links the current account to a PocketBase auth record via its token (rate-limited, authentication required). Only a PB-verified email may be linked. Answers 404 when disabled, 400 for an invalid token or unverified email, and 409 when the identity is already linked to another account.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["token"], properties: { token: { type: "string", minLength: 20, maxLength: 4096 } } } } } },
+        responses: { "200": { description: "linked (or alreadyLinked)" }, "400": { description: "Invalid token or unverified email" }, "404": { description: "PocketBase sign-in not enabled" }, "409": { description: "Identity already linked to another account" } },
       },
     },
 
@@ -1013,6 +1238,30 @@ export const openapi = {
         security: [],
         description: "Public endpoint used by profiles and the landing page to discover the active global seasonal theme and its config (colors + animated FX effect). Resolution: admin override (on wins) → holiday > season → higher sortOrder, gated by the master enabled switch and per-theme enabled/allowedByAdmin flags.",
         responses: { "200": { description: "Active theme or `data: { theme: null }` when no theme is active", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { type: "object", properties: { theme: { $ref: "#/components/schemas/ResolvedSeasonalTheme" }, source: { type: "string", description: "Which rule resolved the theme: `override`, `holiday`, `season`, or `none`" } } } } } } } } },
+      },
+    },
+    "/features": {
+      get: {
+        tags: ["Config"],
+        summary: "Public feature flags",
+        security: [],
+        description: "Environment-derived feature flags the frontend uses to hide unsupported UI: `linksSections`, `linksCustomIcons`, `linksQr`, and `pocketbaseOauth` (the optional PocketBase sign-in provider). Public and cacheable for 60 s; answers 500 with `x-no-store` when the cache is unavailable.",
+        responses: {
+          "200": { description: "Feature flags", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { type: "object", properties: { linksSections: { type: "boolean" }, linksCustomIcons: { type: "boolean" }, linksQr: { type: "boolean" }, pocketbaseOauth: { type: "boolean" } } } } } } } },
+          "500": { description: "Features unavailable" },
+        },
+      },
+    },
+    "/policy/context": {
+      get: {
+        tags: ["Privacy"],
+        summary: "Legal/policy context snapshot",
+        security: [],
+        description: "Public snapshot the legal pages render with: operator identity, policy versions and effective dates, jurisdiction, and invite/resale wording. Cached for 60 s; answers 503 (and the pages fall back to neutral wording) when the cache is unavailable.",
+        responses: {
+          "200": { description: "Policy context snapshot" },
+          "503": { description: "Policy context unavailable" },
+        },
       },
     },
     "/profiles/{identifier}/presence": {
@@ -1928,6 +2177,43 @@ export const openapi = {
       },
     },
 
+    "/admin/invite-purchases": {
+      get: {
+        tags: ["Invites"],
+        summary: "Recent invite-credit purchases (admin)",
+        description: "Invite purchase orders, newest first, capped at 200. Optional `status` filter (PENDING | PAID | REFUNDED | CANCELLED). Requires `invites.manage`.",
+        parameters: [{ name: "status", in: "query", required: false, schema: { type: "string", enum: ["PENDING", "PAID", "REFUNDED", "CANCELLED"] } }],
+        responses: { "200": { description: "{ data: { purchases } }" }, "403": { description: "Missing invites.manage" } },
+      },
+    },
+    "/admin/invite-purchases/{id}/confirm": {
+      post: {
+        tags: ["Invites"],
+        summary: "Confirm a MANUAL purchase by hand (admin)",
+        description: "Applies the same fulfilment path a gateway webhook would (ledger, guest email, idempotency guards). Only `MANUAL` method purchases can be confirmed by hand. Requires `invites.manage`.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Confirmed + fulfilment result" }, "400": { description: "Invalid purchase or not MANUAL" }, "401": { description: "Not authenticated" }, "403": { description: "Missing invites.manage" }, "404": { description: "Purchase not found" } },
+      },
+    },
+    "/admin/invite-purchases/{id}/refund": {
+      post: {
+        tags: ["Invites"],
+        summary: "Refund a purchase (admin)",
+        description: "Marks the payment as refunded, applying the same refund path a gateway webhook would. Refused (409) when the purchase is not refundable in its current state.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "{ refunded: true, providerRefundPerformed: false }" }, "400": { description: "Invalid purchase" }, "401": { description: "Not authenticated" }, "403": { description: "Missing invites.manage" }, "404": { description: "Purchase not found" }, "409": { description: "Purchase is not refundable" } },
+      },
+    },
+    "/admin/invite-purchases/{id}/cancel": {
+      post: {
+        tags: ["Invites"],
+        summary: "Cancel a purchase (admin)",
+        description: "Cancels a pending purchase.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Cancelled" }, "400": { description: "Invalid purchase" }, "401": { description: "Not authenticated" }, "403": { description: "Missing invites.manage" }, "404": { description: "Purchase not found" } },
+      },
+    },
+
     "/invites": {
       get: {
         tags: ["Invites"],
@@ -1943,6 +2229,16 @@ export const openapi = {
         responses: { "201": { description: "Created invite codes + meta" }, "403": { description: "Banned / disabled / no credits" }, "429": { description: "Cooldown active" } },
       },
     },
+    "/invites/{code}": {
+      get: {
+        tags: ["Invites"],
+        summary: "Look up an invite code (public)",
+        description: "Public, rate-limited lookup of a single invite code. Returns the code status (`valid`), the invitee discount percent/duration derived from the AFFILIATE_* environment, and the referrer profile (username, slug, avatar, displayName) when the code was created by a member. Revoked, expired, or already-used codes answer 404.",
+        security: [],
+        parameters: [{ name: "code", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "{ success:true, data:{ code, status:\"valid\", inviteeDiscountPercent, discountDurationDays, referrer } }" }, "404": { description: "Code not found, revoked, expired, or used" } },
+      },
+    },
     "/invites/{id}": {
       delete: {
         tags: ["Invites"],
@@ -1950,6 +2246,8 @@ export const openapi = {
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Deleted" } },
       },
+    },
+    "/invites/{id}/note": {
       patch: {
         tags: ["Invites"],
         summary: "Set a note on an invite code",
@@ -2125,6 +2423,26 @@ export const openapi = {
         responses: { "200": { description: "Updated profile" } },
       },
     },
+    "/admin/auth/sign-out-all": {
+      post: {
+        tags: ["Admin"],
+        summary: "Sign out every user and reset stored credentials (admin only)",
+        description:
+          "Emergency credential reset. In a single transaction it increments every user's token version (invalidating all issued sessions), deletes all passkeys, clears TOTP enrolment and removes all enterprise-SSO identities. Passwords and OAuth links are intentionally left untouched. Refused while the instance is in update lockdown. Requires `{ confirm: true }` to run.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["confirm"], properties: { confirm: { type: "boolean" } } },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Counts of affected users, passkeys, TOTP enrolments and SSO identities" },
+          "400": { description: "`confirm: true` was not supplied" },
+        },
+      },
+    },
     "/admin/auth-bans": {
       get: {
         tags: ["Admin"],
@@ -2136,6 +2454,8 @@ export const openapi = {
         ],
         responses: { "200": { description: "{ data, pagination }" } },
       },
+    },
+    "/admin/auth-bans/{id}": {
       delete: {
         tags: ["Admin"],
         summary: "Remove an auth ban (admin only)",
@@ -2366,6 +2686,16 @@ export const openapi = {
           "200": { description: "Certificate issued and nginx reloaded" },
           "400": { description: "Domain not ACTIVE, or ACME is disabled" },
         },
+      },
+    },
+
+    "/admin/custom-domains/{id}": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete a custom-domain request (admin: profiles.manage)",
+        description: "Deletes a custom-domain request by id. Refused while any of its DNS verification records are still outstanding.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Deleted" }, "404": { description: "Request not found" }, "400": { description: "Verification records still pending" } },
       },
     },
 
@@ -2663,6 +2993,243 @@ export const openapi = {
       },
     },
 
+"/admin/themes": {
+      get: {
+        tags: ["Admin"],
+        summary: "List seasonal themes + config + active (admin: themes.manage)",
+        description: "Returns `{ data: { themes, config, active } }`. `/admin/seasonal-themes` is a legacy alias of this route.",
+        responses: { "200": { description: "{ themes, config, active }" }, "403": { description: "Missing themes.manage" } },
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Create a seasonal theme (admin: themes.manage)",
+        description: "Creates a `seasonalTheme`. A `slug` is derived from the body's `slug` (sanitized) or generated from the label; a duplicate slug answers 409. `/admin/seasonal-themes` is a legacy alias.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["label", "kind", "enabled", "allowedByAdmin"],
+                properties: {
+                  label: { type: "string", minLength: 1, maxLength: 64 },
+                  emoji: { type: "string", maxLength: 16, nullable: true },
+                  kind: { type: "string", enum: ["season", "holiday"] },
+                  enabled: { type: "boolean" },
+                  config: {
+                    type: "object",
+                    properties: {
+                      bg: { type: "string", nullable: true }, cardBg: { type: "string", nullable: true },
+                      text: { type: "string", nullable: true }, accent: { type: "string", nullable: true },
+                      fontFamily: { type: "string", nullable: true }, layout: { type: "string", nullable: true },
+                      backgroundImage: { type: "string", nullable: true },
+                      effect: { type: "string", enum: ["none", "snow", "pumpkins", "hearts", "leaves", "stars", "confetti", "sparkle"], nullable: true },
+                    },
+                  },
+                  startMonth: { type: "integer", minimum: 1, maximum: 12, nullable: true },
+                  startDay: { type: "integer", minimum: 1, maximum: 31, nullable: true },
+                  endMonth: { type: "integer", minimum: 1, maximum: 12, nullable: true },
+                  endDay: { type: "integer", minimum: 1, maximum: 31, nullable: true },
+                  overrideState: { type: "string", enum: ["on", "off", "schedule"], nullable: true },
+                  allowedByAdmin: { type: "boolean" },
+                  sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
+                },
+              },
+            },
+          },
+        },
+        responses: { "200": { description: "Created seasonal theme" }, "400": { description: "Invalid input" }, "409": { description: "Slug already exists" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+    "/admin/themes/config": {
+      put: {
+        tags: ["Admin"],
+        summary: "Set seasonal-theme automation config (admin: themes.manage)",
+        description: "`/admin/seasonal-themes/config` is a legacy alias of this route.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["enabled", "autoSchedule", "respectUserPreferences"], properties: { enabled: { type: "boolean" }, autoSchedule: { type: "boolean" }, respectUserPreferences: { type: "boolean" } } } } } },
+        responses: { "200": { description: "Saved config" }, "400": { description: "Invalid input" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+    "/admin/themes/{id}": {
+      put: {
+        tags: ["Admin"],
+        summary: "Update a seasonal theme (admin: themes.manage)",
+        description: "Same body as create. `/admin/seasonal-themes/{id}` is a legacy alias.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["label", "kind", "enabled", "allowedByAdmin"],
+                properties: {
+                  label: { type: "string", minLength: 1, maxLength: 64 },
+                  emoji: { type: "string", maxLength: 16, nullable: true },
+                  kind: { type: "string", enum: ["season", "holiday"] },
+                  enabled: { type: "boolean" },
+                  config: { type: "object" },
+                  startMonth: { type: "integer", minimum: 1, maximum: 12, nullable: true },
+                  startDay: { type: "integer", minimum: 1, maximum: 31, nullable: true },
+                  endMonth: { type: "integer", minimum: 1, maximum: 12, nullable: true },
+                  endDay: { type: "integer", minimum: 1, maximum: 31, nullable: true },
+                  overrideState: { type: "string", enum: ["on", "off", "schedule"], nullable: true },
+                  allowedByAdmin: { type: "boolean" },
+                  sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
+                },
+              },
+            },
+          },
+        },
+        responses: { "200": { description: "Updated seasonal theme" }, "400": { description: "Invalid input" }, "404": { description: "Not found" }, "403": { description: "Missing themes.manage" } },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete a seasonal theme (admin: themes.manage)",
+        description: "`/admin/seasonal-themes/{id}` is a legacy alias.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Deleted" }, "404": { description: "Not found" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+    "/admin/themes/{id}/background": {
+      post: {
+        tags: ["Admin"],
+        summary: "Upload a theme background image (admin: themes.manage)",
+        description: "Multipart upload; file field is `background` (JPEG/PNG/GIF/WebP). Stored as `config.backgroundImage` and the previous upload is deleted. `/admin/seasonal-themes/{id}/background` is a legacy alias.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: { "multipart/form-data": { schema: { type: "object", required: ["background"], properties: { background: { type: "string", format: "binary" } } } } } },
+        responses: { "200": { description: "{ backgroundImage }" }, "400": { description: "No file or invalid image" }, "404": { description: "Theme not found" }, "403": { description: "Missing themes.manage" } },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Remove a theme background image (admin: themes.manage)",
+        description: "`/admin/seasonal-themes/{id}/background` is a legacy alias.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Removed" }, "404": { description: "Theme not found" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+
+    "/admin/seasonal-themes": {
+      get: {
+        tags: ["Admin"],
+        summary: "List seasonal themes (legacy alias)",
+        description: "Legacy alias of `GET /api/admin/themes`.",
+        responses: { "200": { description: "{ themes, config, active }" }, "403": { description: "Missing themes.manage" } },
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Create a seasonal theme (legacy alias)",
+        description: "Legacy alias of `POST /api/admin/themes`.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label", "kind", "enabled", "allowedByAdmin"], properties: { label: { type: "string" }, emoji: { type: "string", nullable: true }, kind: { type: "string", enum: ["season", "holiday"] }, enabled: { type: "boolean" }, config: { type: "object" }, allowedByAdmin: { type: "boolean" } } } } } },
+        responses: { "200": { description: "Created seasonal theme" }, "400": { description: "Invalid input" }, "409": { description: "Slug already exists" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+    "/admin/seasonal-themes/config": {
+      put: {
+        tags: ["Admin"],
+        summary: "Set seasonal-theme automation config (legacy alias)",
+        description: "Legacy alias of `PUT /api/admin/themes/config`.",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["enabled", "autoSchedule", "respectUserPreferences"], properties: { enabled: { type: "boolean" }, autoSchedule: { type: "boolean" }, respectUserPreferences: { type: "boolean" } } } } } },
+        responses: { "200": { description: "Saved config" }, "400": { description: "Invalid input" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+    "/admin/seasonal-themes/{id}": {
+      put: {
+        tags: ["Admin"],
+        summary: "Update a seasonal theme (legacy alias)",
+        description: "Legacy alias of `PUT /api/admin/themes/{id}`.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label", "kind", "enabled", "allowedByAdmin"], properties: { label: { type: "string" }, emoji: { type: "string", nullable: true }, kind: { type: "string", enum: ["season", "holiday"] }, enabled: { type: "boolean" }, config: { type: "object" }, allowedByAdmin: { type: "boolean" } } } } } },
+        responses: { "200": { description: "Updated seasonal theme" }, "400": { description: "Invalid input" }, "404": { description: "Not found" }, "403": { description: "Missing themes.manage" } },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete a seasonal theme (legacy alias)",
+        description: "Legacy alias of `DELETE /api/admin/themes/{id}`.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Deleted" }, "404": { description: "Not found" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+    "/admin/seasonal-themes/{id}/background": {
+      post: {
+        tags: ["Admin"],
+        summary: "Upload a seasonal-theme background image (legacy alias)",
+        description: "Legacy alias of `POST /api/admin/themes/{id}/background`.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: { "multipart/form-data": { schema: { type: "object", required: ["background"], properties: { background: { type: "string", format: "binary" } } } } } },
+        responses: { "200": { description: "{ backgroundImage }" }, "400": { description: "No file or invalid image" }, "404": { description: "Theme not found" }, "403": { description: "Missing themes.manage" } },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Remove a seasonal-theme background image (legacy alias)",
+        description: "Legacy alias of `DELETE /api/admin/themes/{id}/background`.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Removed" }, "404": { description: "Theme not found" }, "403": { description: "Missing themes.manage" } },
+      },
+    },
+
+    "/admin/policy/status": {
+      get: {
+        tags: ["Admin"],
+        summary: "Read policy-acceptance rollout status (admin: settings.manage)",
+        description: "Returns the policy status snapshot the operator's reminder workflow uses (current versions, acceptance counts).",
+        responses: { "200": { description: "Policy status snapshot" }, "500": { description: "Failed to read policy status" }, "403": { description: "Missing settings.manage" } },
+      },
+    },
+    "/admin/policy/note": {
+      put: {
+        tags: ["Admin"],
+        summary: "Save the operator's policy-change note (admin: settings.manage)",
+        description: "Stores the operator-authored note shown when a policy version changes. Pass a string to set it, or null/absent to clear it.",
+        requestBody: { required: false, content: { "application/json": { schema: { type: "object", properties: { note: { type: "string", nullable: true } } } } } },
+        responses: { "200": { description: "{ success: true }" }, "400": { description: "Invalid note" }, "403": { description: "Missing settings.manage" } },
+      },
+    },
+    "/admin/policy/notify": {
+      post: {
+        tags: ["Admin"],
+        summary: "Notify users of a policy change (admin: settings.manage)",
+        description: "Sends the policy-change notification to users who have not yet accepted the current versions and returns the dispatch result.",
+        responses: { "200": { description: "Notification result" }, "500": { description: "Failed to send the notice" }, "403": { description: "Missing settings.manage" } },
+      },
+    },
+
+    "/affiliate/me": {
+      get: {
+        tags: ["Affiliate"],
+        summary: "Current user's affiliate/referral summary",
+        description:
+          "Returns the signed-in user's referral count, active discount (percent + expiry), who referred them, the next milestone, earned rewards, and the effective affiliate configuration.",
+        responses: {
+          "200": {
+            description: "Affiliate summary",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        referralCount: { type: "integer" },
+                        discountPercent: { type: "integer", nullable: true },
+                        discountExpiresAt: { type: "string", format: "date-time", nullable: true },
+                        referredBy: { type: "object", nullable: true, properties: { id: { type: "string" }, username: { type: "string" } } },
+                        nextMilestone: { type: "object", nullable: true },
+                        rewards: { type: "array", items: { type: "object", properties: { kind: { type: "string" }, value: { type: "string" }, level: { type: "integer" }, createdAt: { type: "string", format: "date-time" } } } },
+                        config: { type: "object" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Unauthorized" },
+        },
+      },
+    },
     "/affiliate/admin/overview": {
       get: {
         tags: ["Affiliate"],
@@ -2700,6 +3267,394 @@ export const openapi = {
         description:
           "Deletes the stored override so the effective milestone configuration falls back to the AFFILIATE_*_LEVELS environment variables.",
         responses: { "200": { description: "Effective config with configSource=env" } },
+      },
+    },
+
+    "/dmca": {
+      post: {
+        tags: ["Dmca"],
+        summary: "File a DMCA takedown request (public)",
+        description:
+          "Lets a complainant (optionally signed in) submit a takedown notice under 17 U.S.C. § 512. The three statutory statements (good faith, accuracy, signature) are required and enforced server-side — a notice missing them is not valid. User-facing strings are sanitized; the confirmations are composed into the stored description together with the signature and filing time. Rate-limited to 5/hour per IP. Returns 403 dmca_intake_disabled when the operator has turned intake off in config.yml.",
+        security: [{ bearerAuth: [] }, {}],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/DmcaReportIntake" },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Report recorded", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaReportReference" } } } },
+          "400": { description: "Validation or captcha failed" },
+          "403": { description: "dmca_intake_disabled" },
+          "429": { description: "dmca_rate_limited (5/hour per IP)" },
+        },
+      },
+    },
+
+    "/dmca/status": {
+      get: {
+        tags: ["Dmca"],
+        summary: "The caller's DMCA status and their own reports",
+        description:
+          "Requires a valid bearer token. Returns the caller's disabled/appeal state plus the reports this account filed (id, status, workUrl, createdAt, handledAt, infringingUrls). Only the caller's own filing history is ever shown — no operator or counter-party text.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": { description: "Disabled state + the caller's reports", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaStatusResponse" } } } },
+        },
+      },
+    },
+
+    "/dmca/appeal": {
+      post: {
+        tags: ["Dmca"],
+        summary: "Appeal a DMCA account disablement",
+        description:
+          "Lets a disabled account request a human review within the grace window. Records the appeal timestamp; an operator reviews it on the admin Disabled accounts view.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", properties: { text: { type: "string", maxLength: 2000 } }, required: ["text"] } } },
+        },
+        responses: {
+          "200": { description: "Appeal recorded" },
+          "400": { description: "Validation failed" },
+          "403": { description: "Account is not disabled or grace has passed" },
+        },
+      },
+    },
+
+    "/admin/dmca/reports": {
+      get: {
+        tags: ["Admin"],
+        summary: "List DMCA reports (admin: moderation.manage)",
+        description:
+          "Operator report queue with per-status counts, free-text search (claimant name/email or work URL), optional status / from / to filters and pagination. Each row carries only their active (un-un-banned) hash count, plus the account that filed it when it existed. Requires the moderation.manage permission.",
+        parameters: [
+          { name: "status", in: "query", required: false, schema: { type: "string", enum: ["NEW", "TAKEN_DOWN", "DISMISSED", "COUNTER_NOTICE"] } },
+          { name: "q", in: "query", required: false, schema: { type: "string" } },
+          { name: "from", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+          { name: "to", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+          { name: "limit", in: "query", required: false, schema: { type: "integer", maximum: 100 } },
+          { name: "offset", in: "query", required: false, schema: { type: "integer" } },
+        ],
+        responses: {
+          "200": { description: "Report rows + counts + pagination", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaReportList" } } } },
+          "403": { description: "Requires moderation.manage" },
+          "400": { description: "Unknown status or invalid date filter" },
+        },
+      },
+    },
+
+    "/admin/dmca/reports/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get a DMCA report in full (admin: moderation.manage)",
+        description:
+          "Operator view of a report: claimant identity, description, reported URLs, contact note, decisions (handler, note, timestamps), the counter-notice text and the report's hash-ban history. This is the internal record — the public /dmca/status endpoint returns a reduced subset.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Full operator record", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaReportDetail" } } } },
+          "404": { description: "Report not found" },
+          "403": { description: "Requires moderation.manage" },
+        },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete a report permanently (admin: moderation.manage)",
+        description:
+          "Hard-deletes the report row. Its active hash bans are lifted FIRST (delete is not a way to keep a ban alive), all hash rows are detached from the report, and the report is then removed. Blocked during an update lockdown.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "{ success: true, data: { hashesUnbanned } }" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "Report not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/reports/{id}/dismiss": {
+      post: {
+        tags: ["Admin"],
+        summary: "Dismiss a report (admin: moderation.manage)",
+        description:
+          "Records the operator decision that no action is needed and emails the claimant the outcome. Dismissing a TAKEN_DOWN report is refused.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { content: { "application/json": { schema: { type: "object", properties: { note: { type: "string", maxLength: 1000 } } } } } },
+        responses: {
+          "200": { description: "{ success: true, message: \"Report dismissed\" }" },
+          "400": { description: "Cannot dismiss a TAKEN_DOWN report / invalid body" },
+          "403": { description: "Requires moderation.manage" },
+          "404": { description: "Report not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/reports/{id}/takedown": {
+      post: {
+        tags: ["Admin"],
+        summary: "Execute a takedown (admin: moderation.manage)",
+        description:
+          "Removes every copy of the selected files' bytes across all accounts (CASCADE on media_files and cleared profile references), bans one hash per distinct sha256, and disables the owners' accounts unless disableAccount is false. The operator picks explicit mediaFileIds from the media search. Blocked during an update lockdown.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  mediaFileIds: { type: "array", minItems: 1, maxItems: 500, items: { type: "string" } },
+                  note: { type: "string", maxLength: 1000 },
+                  disableAccount: { type: "boolean" },
+                },
+                required: ["mediaFileIds"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Takedown result", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaTakedownResult" } } } },
+          "400": { description: "Validation or takedown error (id unknown, no report …)" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "Report not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/reports/{id}/counter-notice": {
+      post: {
+        tags: ["Admin"],
+        summary: "Record a counter-notice (admin: moderation.manage)",
+        description:
+          "The reported party disputes the takedown. The report becomes COUNTER_NOTICE, its active hash bans are lifted (unbannedById records the operator), and the owners' accounts stay disabled — re-activation is a separate deliberate operator action on the disabled-account queue.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: 2000 } }, required: ["text"] } } },
+        },
+        responses: {
+          "200": { description: "Counter-notice recorded and hash bans lifted" },
+          "400": { description: "No counter-notice text / invalid state" },
+          "403": { description: "Requires moderation.manage" },
+          "404": { description: "Report not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/media": {
+      get: {
+        tags: ["Admin"],
+        summary: "Search media files (admin: moderation.manage)",
+        description:
+          "Operator media search used to build a takedown: filter by sha256 hash, perceptual pHash hex, username, userId, profileId, kind or date. Every row reports copyOwners/copyCount — how many accounts already hold the same bytes, so the operator can preview what the automatic expansion touches — plus whether the sha256 is currently banned.",
+        parameters: [
+          { name: "sha256", in: "query", required: false, schema: { type: "string" } },
+          { name: "pHash", in: "query", required: false, schema: { type: "string" } },
+          { name: "username", in: "query", required: false, schema: { type: "string" } },
+          { name: "userId", in: "query", required: false, schema: { type: "string" } },
+          { name: "profileId", in: "query", required: false, schema: { type: "string" } },
+          { name: "kind", in: "query", required: false, schema: { type: "string", enum: ["AVATAR", "BANNER", "LINK_ICON", "BACKGROUND", "MUSIC", "SHOP_PREVIEW", "SHOP_PRODUCT"] } },
+          { name: "from", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+          { name: "to", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+          { name: "limit", in: "query", required: false, schema: { type: "integer", maximum: 100 } },
+          { name: "offset", in: "query", required: false, schema: { type: "integer" } },
+        ],
+        responses: {
+          "200": { description: "Media files + copy/banned info + pagination", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaMediaList" } } } },
+          "400": { description: "Unknown kind or invalid date filter" },
+          "403": { description: "Requires moderation.manage" },
+        },
+      },
+    },
+
+    "/admin/dmca/hashes": {
+      get: {
+        tags: ["Admin"],
+        summary: "List hash bans (admin: moderation.manage)",
+        description:
+          "Banned-hash history. Pass ?active=true for the live bans or ?active=false for previously un-banned sha256/pHash rows (the operator audit trail).",
+        parameters: [{ name: "active", in: "query", required: false, schema: { type: "string", enum: ["true", "false"] } }],
+        responses: {
+          "200": { description: "Hash rows + pagination", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaHashList" } } } },
+          "400": { description: "active must be true or false" },
+          "403": { description: "Requires moderation.manage" },
+        },
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Ban a hash directly (admin: moderation.manage)",
+        description:
+          "Creates a banned-hash row with no report (operator judgement or a pre-emptive block on bytes not uploaded yet). sha256 must be 64 hex characters; the optional pHash blocks near-twins and must be 16 hex characters. The optional note is stored as the ban reason. 409 when the hash already has a live ban. Blocked during an update lockdown.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  sha256: { type: "string" },
+                  pHashHex: { type: "string" },
+                  note: { type: "string", maxLength: 1000 },
+                },
+                required: ["sha256"],
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Hash banned", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, data: { type: "object", properties: { id: { type: "string" } } } } } } } },
+          "400": { description: "Missing or malformed hash" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "409": { description: "Hash already has an active ban" },
+        },
+      },
+    },
+
+    "/admin/dmca/hashes/{id}": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Manually un-ban a hash (admin: moderation.manage)",
+        description:
+          "Lifts a single hash ban (false positive / operator judgement), independent of any report, recording who lifted it. Blocked during an update lockdown.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Hash ban lifted" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "Hash ban not found" },
+          "409": { description: "Already unbanned" },
+        },
+      },
+    },
+
+    "/admin/dmca/disabled": {
+      get: {
+        tags: ["Admin"],
+        summary: "List disabled accounts (admin: moderation.manage)",
+        description:
+          "The disabled-account queue with the audit fields a reviewer needs: when/why disabled, appeal submission/review state and how many DMCA reports were filed against the account.",
+        responses: {
+          "200": { description: "Disabled accounts", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaDisabledList" } } } },
+          "403": { description: "Requires moderation.manage" },
+        },
+      },
+    },
+
+    "/admin/dmca/disabled/{id}/reactivate": {
+      post: {
+        tags: ["Admin"],
+        summary: "Re-activate a disabled account (admin: moderation.manage)",
+        description:
+          "Lifts the account disablement after operator review. Re-activation is never automatic — a counter-notice un-bans hashes but leaves the account down until this is called with a recorded decision note. Blocked during an update lockdown.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", properties: { decision: { type: "string", minLength: 1, maxLength: 1000 } }, required: ["decision"] } } },
+        },
+        responses: {
+          "200": { description: "Account re-activated" },
+          "400": { description: "Decision required or account not disabled" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "User not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/takedown": {
+      post: {
+        tags: ["Admin"],
+        summary: "Report-less takedown (admin: moderation.manage)",
+        description:
+          "Operator-initiated takedown with no DMCA report behind it. Same expansion as the report flow — every copy of the selected files' bytes across all accounts is removed and one hash per distinct sha256 is banned — but accounts are disabled only when disableAccount is explicitly true (default off). The note doubles as the recorded ban reason. Blocked during an update lockdown.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  mediaFileIds: { type: "array", minItems: 1, maxItems: 500, items: { type: "string" } },
+                  note: { type: "string", maxLength: 1000 },
+                  disableAccount: { type: "boolean" },
+                },
+                required: ["mediaFileIds"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Takedown result", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaTakedownResult" } } } },
+          "400": { description: "Validation error (no files selected, nothing actionable …)" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+        },
+      },
+    },
+
+    "/admin/dmca/media/{id}": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete a single media file (admin: moderation.manage)",
+        description:
+          "Removes one stored file (object + row + owner reference) without banning its hash, so only this copy is gone and the bytes are not blocked anywhere else. Blocked during an update lockdown.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Media file removed" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "Media file not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/profiles/{identifier}/takedown": {
+      post: {
+        tags: ["Admin"],
+        summary: "Take down a whole profile's media (admin: moderation.manage)",
+        description:
+          "Takes down every media file owned by a profile's owner. identifier is a profile id or slug. Expansion to other accounts' copies of the same bytes runs inside execTakedown; accounts are disabled only when disableAccount is explicitly true. Blocked during an update lockdown.",
+        parameters: [{ name: "identifier", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  note: { type: "string", maxLength: 1000 },
+                  disableAccount: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Takedown result", content: { "application/json": { schema: { $ref: "#/components/schemas/DmcaTakedownResult" } } } },
+          "400": { description: "Account has no uploaded media to take down" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "Profile not found" },
+        },
+      },
+    },
+
+    "/admin/dmca/users/{identifier}/disable": {
+      post: {
+        tags: ["Admin"],
+        summary: "Disable an account directly (admin: moderation.manage)",
+        description:
+          "Disables an account (id or username) with no takedown behind it, reusing the same disabled-account state as a DMCA takedown: sign-in blocked, visible in the disabled queue and appealable. A reason is required. 409 when the account is already disabled. Blocked during an update lockdown.",
+        parameters: [{ name: "identifier", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", properties: { reason: { type: "string", minLength: 1, maxLength: 1000 } }, required: ["reason"] } } },
+        },
+        responses: {
+          "200": { description: "Account disabled" },
+          "400": { description: "Reason required" },
+          "403": { description: "Requires moderation.manage or update lockdown" },
+          "404": { description: "User not found" },
+          "409": { description: "Account is already disabled" },
+        },
       },
     },
 
@@ -2756,6 +3711,66 @@ export const openapi = {
       bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
     },
     schemas: {
+      HealthReport: {
+        type: "object",
+        description:
+          "Truthful readiness report. `status` is `degraded` (HTTP 503) whenever the DB is unreachable or the schema drifted from what the running Prisma client expects — the same failure a production route would throw. `checks.schema.drift` lists precisely which column/table is missing; `issues` is the human-readable copy. The cache is reported but never degrades the status (it is best-effort by design).",
+        properties: {
+          status: { type: "string", enum: ["ok", "degraded"] },
+          timestamp: { type: "string", format: "date-time" },
+          checks: {
+            type: "object",
+            properties: {
+              database: {
+                type: "object",
+                description: "Connectivity ping through the real Prisma client.",
+                properties: {
+                  ok: { type: "boolean" },
+                  latencyMs: { type: ["integer", "null"] },
+                },
+              },
+              schema: {
+                type: "object",
+                description: "Drift probe: full-scalar read of every core model through Prisma (a missing column/table surfaces as P2021).",
+                properties: {
+                  ok: { type: "boolean" },
+                  probedModels: { type: "array", items: { type: "string" } },
+                  tables: { type: "array", items: { type: "string" } },
+                  drift: { type: "array", items: { $ref: "#/components/schemas/HealthDrift" } },
+                },
+              },
+              cache: {
+                type: "object",
+                description: "Cache driver state. Informational: the app falls back to upstream on cache failure and does not 503.",
+                properties: {
+                  driver: { type: "string" },
+                  ok: { type: "boolean" },
+                  detail: { type: "string" },
+                },
+              },
+              app: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  node: { type: "string" },
+                  uptimeSeconds: { type: "integer" },
+                },
+              },
+            },
+          },
+          issues: { type: "array", items: { type: "string" }, description: "Empty when healthy; otherwise one entry per failing check." },
+        },
+      },
+      HealthDrift: {
+        type: "object",
+        description: "A single schema-drift finding (missing column or table).",
+        properties: {
+          model: { type: "string" },
+          table: { type: ["string", "null"] },
+          column: { type: ["string", "null"] },
+          issue: { type: "string" },
+        },
+      },
       SelfUser: {
         type: "object",
         properties: {
@@ -3122,6 +4137,221 @@ presenceStatus: { type: ["string", "null"], enum: ["online", "idle", "offline"],
           recipientCount: { type: "integer" },
           successCount: { type: "integer" },
           sentAt: { type: "string", format: "date-time" },
+        },
+      },
+
+      DmcaReportStatus: {
+        type: "string",
+        enum: ["NEW", "TAKEN_DOWN", "DISMISSED", "COUNTER_NOTICE"],
+        description: "Lifecycle of a DMCA report. COUNTER_NOTICE means the reported party disputed the claim and the report's hash bans were lifted.",
+      },
+
+      DmcaReportIntake: {
+        type: "object",
+        description:
+          "Body of POST /dmca. `claimantName`, `claimantEmail`, `workUrl`, `description`, the two attestations and `signature` are required (17 U.S.C. § 512(c)(3)(A)); `infringingUrls` (max 20), `contactNote` and `captchaToken` are optional. Every string is sanitized server-side, and `goodFaith`/`accurate` must be exactly true or the whole request is rejected.",
+        properties: {
+          claimantName: { type: "string", maxLength: 200, description: "Name of the rights holder / reporting party" },
+          claimantEmail: { type: "string", format: "email", maxLength: 254, description: "Contact for outcome notifications" },
+          workUrl: { type: "string", maxLength: 2048, description: "The original work being infringed" },
+          description: { type: "string", maxLength: 4000 },
+          infringingUrls: { type: "array", maxItems: 20, items: { type: "string", maxLength: 2048 } },
+          contactNote: { type: "string", maxLength: 1000, description: "Optional context; set to the filer's username when signed in" },
+          goodFaith: { type: "boolean", description: "Attestation of good faith (must be true)" },
+          accurate: { type: "boolean", description: "Attestation that the information is accurate (must be true)" },
+          signature: { type: "string", maxLength: 200, description: "Electronic signature (physical or electronic)" },
+          captchaToken: { type: "string", maxLength: 4096, description: "Required only when a captcha provider is configured" },
+        },
+        required: ["claimantName", "claimantEmail", "workUrl", "description", "goodFaith", "accurate", "signature"],
+      },
+
+      DmcaReportReference: {
+        type: "object",
+        description: "Returned by POST /dmca: the new report.",
+        properties: {
+          id: { type: "string" },
+          status: { $ref: "#/components/schemas/DmcaReportStatus" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+
+      DmcaStatusResponse: {
+        type: "object",
+        description: "Returned by GET /dmca/status: the caller's disabled/appeal state plus their own filing history.",
+        properties: {
+          disabled: {
+            oneOf: [
+              { type: "object", description: "Account not DMCA-disabled", properties: { disabled: { type: "boolean", enum: [false] } } },
+              {
+                type: "object",
+                properties: {
+                  disabled: { type: "boolean", enum: [true] },
+                  disabledAt: { type: "string", format: "date-time" },
+                  disabledReason: { type: "string" },
+                  appealSubmittedAt: { type: ["string", "null"], format: "date-time" },
+                  appealText: { type: ["string", "null"] },
+                },
+              },
+            ],
+          },
+          reports: { type: "array", items: { $ref: "#/components/schemas/DmcaStandaloneReport" } },
+        },
+      },
+
+      DmcaStandaloneReport: {
+        type: "object",
+        description: "A report the caller filed, as shown on /api/dmca/status.",
+        properties: {
+          id: { type: "string" },
+          status: { $ref: "#/components/schemas/DmcaReportStatus" },
+          workUrl: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          handledAt: { type: ["string", "null"], format: "date-time" },
+          infringingUrls: { type: "array", items: { type: "string" } },
+        },
+      },
+
+      DmcaReportList: {
+        type: "object",
+        properties: {
+          reports: {
+            type: "array",
+            items: { $ref: "#/components/schemas/DmcaReportRow" },
+          },
+          counts: {
+            type: "object",
+            properties: {
+              NEW: { type: "integer" },
+              TAKEN_DOWN: { type: "integer" },
+              DISMISSED: { type: "integer" },
+              COUNTER_NOTICE: { type: "integer" },
+            },
+          },
+          pagination: { type: "object", properties: { total: { type: "integer" }, limit: { type: "integer" }, offset: { type: "integer" } } },
+        },
+      },
+
+      DmcaReportRow: {
+        type: "object",
+        description: "A single row on the admin report queue.",
+        properties: {
+          id: { type: "string" },
+          status: { $ref: "#/components/schemas/DmcaReportStatus" },
+          claimantName: { type: "string" },
+          claimantEmail: { type: "string", format: "email" },
+          workUrl: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          handledAt: { type: ["string", "null"], format: "date-time" },
+          counterNoticeAt: { type: ["string", "null"], format: "date-time" },
+          filedBy: { type: ["string", "null"], description: "Username of the account that filed it, or null for a guest filing" },
+          activeHashes: { type: "integer", description: "Live (un-un-banned) hash bans attached to this report" },
+        },
+      },
+
+      DmcaReportDetail: {
+        type: "object",
+        description: "Full operator record for a report.",
+        properties: {
+          id: { type: "string" },
+          status: { $ref: "#/components/schemas/DmcaReportStatus" },
+          claimantName: { type: "string" },
+          claimantEmail: { type: "string", format: "email" },
+          workUrl: { type: "string" },
+          description: { type: "string" },
+          infringingUrls: { type: "array", items: { type: "string" } },
+          contactNote: { type: ["string", "null"] },
+          createdAt: { type: "string", format: "date-time" },
+          handledAt: { type: ["string", "null"], format: "date-time" },
+          decisionNote: { type: ["string", "null"], description: "Operator note recorded on dismiss/takedown" },
+          counterNotice: { type: ["string", "null"] },
+          counterNoticeAt: { type: ["string", "null"], format: "date-time" },
+          filedByUser: { type: ["object", "null"], properties: { id: { type: "string" }, username: { type: "string" } }, description: "Nulls when the filing account is deleted and the record is kept" },
+          handledBy: { type: ["object", "null"], properties: { id: { type: "string" }, username: { type: "string" } } },
+          hashes: { type: "array", items: { $ref: "#/components/schemas/DmcaHashRow" } },
+        },
+      },
+
+      DmcaHashRow: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          sha256: { type: "string" },
+          pHashHex: { type: "string" },
+          reason: { type: ["string", "null"] },
+          bannedAt: { type: "string", format: "date-time" },
+          unbannedAt: { type: ["string", "null"], format: "date-time" },
+          dmcaReportId: { type: ["string", "null"] },
+          bannedBy: { type: ["object", "null"], properties: { username: { type: "string" } } },
+          unbannedBy: { type: ["object", "null"], properties: { username: { type: "string" } } },
+          active: { type: "boolean", description: "unbannedAt === null" },
+        },
+      },
+
+      DmcaHashList: {
+        type: "object",
+        properties: {
+          hashes: { type: "array", items: { $ref: "#/components/schemas/DmcaHashRow" } },
+          pagination: { type: "object", properties: { total: { type: "integer" }, limit: { type: "integer" }, offset: { type: "integer" } } },
+        },
+      },
+
+      DmcaTakedownResult: {
+        type: "object",
+        description: "Result of an executed takedown.",
+        properties: {
+          filesRemoved: { type: "integer", description: "Media files deleted across all accounts (CASCADE)" },
+          hashesBanned: { type: "integer", description: "Distinct sha256 hash bans inserted" },
+          accountsDisabled: { type: "array", items: { type: "string" }, description: "User ids of the owners disabled by the takedown" },
+        },
+      },
+
+      DmcaMediaList: {
+        type: "object",
+        properties: {
+          files: { type: "array", items: { $ref: "#/components/schemas/DmcaMediaFile" } },
+          pagination: { type: "object", properties: { total: { type: "integer" }, limit: { type: "integer" }, offset: { type: "integer" } } },
+        },
+      },
+
+      DmcaMediaFile: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          kind: { type: "string", enum: ["AVATAR", "BANNER", "LINK_ICON", "BACKGROUND", "MUSIC", "SHOP_PREVIEW", "SHOP_PRODUCT"] },
+          sha256: { type: "string" },
+          pHashHex: { type: "string" },
+          filePath: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          profileId: { type: ["string", "null"] },
+          profileSlug: { type: ["string", "null"] },
+          owner: { type: "object", properties: { userId: { type: "string" }, username: { type: "string" } } },
+          copyOwners: { type: "array", items: { type: "string" }, description: "Every account holding the same bytes (this one included)" },
+          copyCount: { type: "integer" },
+          banned: { type: "boolean", description: "Whether the sha256 currently has a live hash ban" },
+        },
+      },
+
+      DmcaDisabledList: {
+        type: "object",
+        properties: {
+          users: { type: "array", items: { $ref: "#/components/schemas/DmcaDisabledUser" } },
+          pagination: { type: "object", properties: { total: { type: "integer" }, limit: { type: "integer" }, offset: { type: "integer" } } },
+        },
+      },
+
+      DmcaDisabledUser: {
+        type: "object",
+        description: "A disabled account on the moderation queue.",
+        properties: {
+          id: { type: "string" },
+          username: { type: "string" },
+          email: { type: "string", format: "email" },
+          disabledAt: { type: "string", format: "date-time" },
+          disabledReason: { type: ["string", "null"] },
+          appealSubmittedAt: { type: ["string", "null"], format: "date-time" },
+          appealReviewedAt: { type: ["string", "null"], format: "date-time" },
+          appealDecision: { type: ["string", "null"] },
+          reportsFiled: { type: "integer", description: "DMCA reports filed against this account" },
         },
       },
     },

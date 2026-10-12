@@ -119,6 +119,9 @@ describe("A5: passkey primary login cannot bypass TOTP", () => {
   const plainAuth = makeAuthenticator();
   let nextPlainCounter = 1;
 
+  const disabledAuth = makeAuthenticator();
+  let nextDisabledCounter = 1;
+
   async function request(path: string, init: RequestInit = {}) {
     const res = await fetch(`${baseUrl}${path}`, init);
     const body = (await res.json().catch(() => null)) ?? {};
@@ -141,7 +144,7 @@ describe("A5: passkey primary login cannot bypass TOTP", () => {
 
   before(async () => {
     // Clean rows from a previous run, then scaffold users.
-    await prisma.passkey.deleteMany({ where: { name: { in: ["a5_totp_key", "a5_plain_key"] } } });
+    await prisma.passkey.deleteMany({ where: { name: { in: ["a5_totp_key", "a5_plain_key", "a5_disabled_key"] } } });
     await prisma.user.deleteMany({ where: { email: { endsWith: "@a5.test" } } });
     await prisma.role.deleteMany({ where: { slug: "a5_user" } });
 
@@ -185,6 +188,24 @@ describe("A5: passkey primary login cannot bypass TOTP", () => {
 
     await registerPasskey(totpUser.id, totpAuth, "a5_totp_key");
     await registerPasskey(plainUser.id, plainAuth, "a5_plain_key");
+    // A DMCA-disabled account with a passkey, to prove the primary path honours
+    // the disabled lock the same way /login does.
+    const disabledUser = await prisma.user.create({
+      data: {
+        acceptedTosVersion: POLICY_VERSIONS.tos,
+        acceptedPrivacyVersion: POLICY_VERSIONS.privacy,
+        acceptedPoliciesAt: new Date(),
+        username: "a5_disabled",
+        email: "a5_disabled@a5.test",
+        passwordHash: hash,
+        roleId,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        disabledAt: new Date(),
+        disabledReason: "dmca",
+      },
+    });
+    await registerPasskey(disabledUser.id, disabledAuth, "a5_disabled_key");
 
     server = app.listen(0);
     await once(server, "listening");
@@ -194,7 +215,7 @@ describe("A5: passkey primary login cannot bypass TOTP", () => {
   after(async () => {
     server.close();
     await once(server, "close");
-    await prisma.passkey.deleteMany({ where: { name: { in: ["a5_totp_key", "a5_plain_key"] } } });
+    await prisma.passkey.deleteMany({ where: { name: { in: ["a5_totp_key", "a5_plain_key", "a5_disabled_key"] } } });
     await prisma.user.deleteMany({ where: { roleId } });
     await prisma.role.deleteMany({ where: { slug: "a5_user" } });
   });
@@ -295,5 +316,44 @@ describe("A5: passkey primary login cannot bypass TOTP", () => {
     assert.equal(complete.status, 200, JSON.stringify(complete.body));
     const data = complete.body as { data?: { token?: string } };
     assert.ok(data.data?.token, "completing the second factor must mint the session token");
+  });
+
+  // A1 regression — a passkey-primary login for a DMCA-disabled account must be
+  // refused (423 account_disabled), exactly like the password /login path. This
+  // previously minted a full session because finishPasskeyLogin never checked
+  // `disabledAt`.
+  test("disabled account cannot obtain a session via identifier passkey login", async () => {
+    const opt = await request("/api/auth/login/passkey/options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "a5_disabled" }),
+    });
+    assert.equal(opt.status, 200, JSON.stringify(opt.body));
+    const challenge = (opt.body as { data?: { options?: { challenge?: string } } }).data?.options?.challenge;
+    assert.ok(challenge);
+
+    const verify = await request("/api/auth/login/passkey/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "a5_disabled", response: buildAssertion(disabledAuth, challenge, nextDisabledCounter++) }),
+    });
+    assert.equal(verify.status, 423, JSON.stringify(verify.body));
+    assert.equal((verify.body as { success?: boolean }).success, false);
+    assert.equal((verify.body as { code?: string }).code, "account_disabled");
+  });
+
+  test("disabled account cannot obtain a session via discoverable passkey login", async () => {
+    const opt = await request("/api/auth/login/passkey/discoverable/options", { method: "POST" });
+    assert.equal(opt.status, 200, JSON.stringify(opt.body));
+    const challenge = (opt.body as { data?: { options?: { challenge?: string } } }).data?.options?.challenge;
+    assert.ok(challenge);
+
+    const verify = await request("/api/auth/login/passkey/discoverable/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response: buildAssertion(disabledAuth, challenge, nextDisabledCounter++) }),
+    });
+    assert.equal(verify.status, 423, JSON.stringify(verify.body));
+    assert.equal((verify.body as { code?: string }).code, "account_disabled");
   });
 });

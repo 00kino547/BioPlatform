@@ -13,6 +13,7 @@ import { getEnv } from "../config/env.js";
 import { stripHtml } from "../lib/validation.js";
 import { profileScope } from "../lib/profile.js";
 import { materializeUpload, deleteUpload, writeUpload } from "../lib/mediaStore.js";
+import { guardUploadOrRespond } from "../lib/mediaFingerprint.js";
 import { stripeEnabled, createStripeCheckout } from "../lib/payments/stripe.js";
 import { paypalEnabled, createPayPalOrder } from "../lib/payments/paypal.js";
 import { cryptoEnabled, cryptoProviderIds, createCryptoInvoice } from "../lib/payments/crypto.js";
@@ -329,7 +330,18 @@ router.post("/products", requireAuth, handleProductUpload, async (req, res) => {
 
   const fileName = req.file?.filename ?? "";
   const filePath = req.file ? `/uploads/products/${fileName}` : "";
-  if (req.file) await publishProductUpload(fileName);
+  if (req.file) {
+    // Fingerprint + ban check before the delivery file is published.
+    const guard = await guardUploadOrRespond(res, {
+      absPath: req.file.path,
+      kind: "SHOP_PRODUCT",
+      userId: req.userId!,
+      profileId: profile.id,
+      filePath,
+    });
+    if (!guard) return;
+    await publishProductUpload(fileName);
+  }
 
   const product = await prisma.product.create({
     data: {
@@ -386,6 +398,16 @@ router.post("/products/:id/preview", requireAuth, handlePreviewUpload, async (re
   }
 
   const previewRel = `/uploads/${req.file.filename}`;
+
+  const guard = await guardUploadOrRespond(res, {
+    absPath: req.file.path,
+    kind: "SHOP_PREVIEW",
+    userId: req.userId!,
+    profileId: product.profileId,
+    filePath: previewRel,
+  });
+  if (!guard) return;
+
   await writeUpload(req.file.filename);
 
   const previous = product.previewImage;

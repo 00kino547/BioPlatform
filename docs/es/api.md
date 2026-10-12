@@ -26,7 +26,25 @@ Un **administrador puede anular el plan predeterminado** concediendo el permiso 
 
 ### `GET /api/health`
 
-Público. Devuelve `{ "status": "ok", "timestamp": "..." }`.
+Público. **Comprobación de preparación real** — no un stub. Hace ping a la base de datos a través del cliente Prisma real y ejecuta una lectura de todos los escalares de cada modelo principal (`profiles`, `users`, `seasonal_themes`, `invite_codes`, `newsletter_subscribers`, `orders`, `products`, `tips`) para que una columna o tabla ausente (deriva de esquema) salga a la superficie en lugar de un simple `ok`. También informa del estado del driver de caché (informativo — la caché degrada a la fuente original y nunca degrada el estado).
+
+Devuelve `200` con el informe completo cuando todo pasa y `503` con el mismo cuerpo cuando la BD no es alcanzable o el esquema se desvía de lo que espera el cliente en ejecución. Ejemplo:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-10-07T12:00:00.000Z",
+  "checks": {
+    "database": { "ok": true, "latencyMs": 2 },
+    "schema": { "ok": true, "probedModels": ["profile", "user", "seasonalTheme", "inviteCode", "newsletterSubscriber", "order", "product", "tip"], "tables": ["profiles", "users", "seasonal_themes", "invite_codes", "newsletter_subscribers", "orders", "products", "tips"], "drift": [] },
+    "cache": { "driver": "redis", "ok": true, "detail": "PONG" },
+    "app": { "name": "BioPlatform", "node": "v22.x.x", "uptimeSeconds": 123 }
+  },
+  "issues": []
+}
+```
+
+Cuando está degradado, `checks.schema.drift` enumera exactamente qué columna/tabla falta (p. ej. `{"model":"profile","table":"profiles","column":"hide_ads","issue":"Missing column profiles.hide_ads"}`) e `issues` incluye la copia legible — así un backend con el esquema desincronizado ya no puede informar de «healthy» mientras cada ruta real lanza un error.
 
 ## Versión
 
@@ -126,7 +144,7 @@ Cada cuenta tiene uno o más **perfiles**, cada uno con su propio slug, tema, en
 | `POST` | `/api/profiles/me` | Crear un perfil. Cuerpo: `slug` (en minúsculas) más los campos habituales del perfil. Devuelve el perfil creado. |
 | `PUT` | `/api/profiles/me` | Actualizar tu perfil **principal** (retrocompatible). |
 | `GET` | `/api/profiles/me/:profileId` | Obtener uno de tus perfiles. |
-| `PATCH` | `/api/profiles/me/:profileId` | Actualizar un perfil (`slug`, `displayName`, `bio`, `location`, `website`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, `isPublic`). Cambiar el slug del perfil principal se rechaza. `terminalCommands` (un array de `{ command, output, description?, url? }`, máx. 12) está restringido a PRO/Enterprise — las cuentas FREE reciben un `403`. `presenceStatus` es `"online"` \| `"idle"` \| `"offline"` (o `null` para ocultarlo) y `countdown` es `{ label?, targetDate }` (o `null` para ocultarlo). |
+| `PATCH` | `/api/profiles/me/:profileId` | Actualizar un perfil (`slug`, `displayName`, `bio`, `location`, `website`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, `isPublic`). Cambiar el slug del perfil principal se rechaza. `terminalCommands` (un array de `{ command, output, description?, url? }`, máx. 12) está restringido a PRO/Enterprise — las cuentas FREE reciben un `403`. `presenceStatus` es `"online"` \| `"idle"` \| `"offline"` (o `null` para ocultarlo) y `countdown` es `{ label?, targetDate }` (o `null` para ocultarlo). `hideAds` (ocultar los anuncios de la instancia) y `adblockDetectorEnabled` (mostrar el aviso de bloqueador de anuncios junto a los anuncios) son los campos de anuncios por perfil: PRO/Enterprise siempre pueden establecer `hideAds: true` y `adblockDetectorEnabled: false`; los perfiles FREE solo pueden ocultar anuncios cuando el operador concede `ADS_FREE_OPT_OUT_ALLOWED` y **no pueden** establecer `adblockDetectorEnabled: false` — el aviso de bloqueador de anuncios está siempre activo para FREE (`403` si se solicita). Cuando se muestran anuncios (`public.ads.enabled` con slots y `!hideAds`), el aviso se muestra a los visitantes con un bloqueador de anuncios activo y puede descartarse por sesión. |
 | `GET` | `/api/profiles/me/username/availability?username=` | Comprueba si un `@username` está disponible para reclamarse. Requiere iniciar sesión; limitado a 20 comprobaciones/min por IP. Devuelve `{ available, reason }`, donde `reason` es `reserved`, `taken`, `current` o `available`. Los identificadores reclamados por perfiles **privados** se reportan como `available` (el oráculo no debe revelar que existe una cuenta no listada) — reclamar uno sigue fallando con `409` al guardar. |
 | `PATCH` | `/api/profiles/me/username` | Cambiar tu `@username` (cuerpo: `username`). Mueve el identificador, la URL del perfil principal y el espacio de nombres de slugs atómicamente; el **slug antiguo se convierte en un alias automático** para que los enlaces existentes sigan funcionando. Limitado a 5/min por IP y con un máximo de un cambio cada **30 días** (`429` durante el período de espera). Devuelve `{ username, slug, lastUsernameChangeAt }`. |
 | `DELETE` | `/api/profiles/me/:profileId` | Eliminar un perfil. Si eliminas el perfil principal, el estado de principal pasa a tu perfil más antiguo restante; el último perfil no puede eliminarse. |
@@ -145,7 +163,7 @@ Cada cuenta tiene uno o más **perfiles**, cada uno con su propio slug, tema, en
 | `POST` | `/api/profiles/me/link-icon` | Subir la imagen de favicon de un enlace (multipart, máx. 5 MB, JPEG/PNG/GIF/WebP; validada por bytes mágicos). Devuelve `{ image }` — una ruta `/uploads/…` que puedes asignar al campo `image` de un elemento de `socialLinks`. Requiere autenticación. |
 | `GET` | `/api/profiles/me/export?format=xlsx\|ods` | Descargar tu perfil como hoja de cálculo. `?profileId=` opcional. |
 | `POST` | `/api/profiles/me/import` | Importar tu perfil desde una hoja de cálculo (multipart `file`). `?profileId=` opcional. |
-| `GET` | `/api/profiles/:identifier` | Obtener un perfil público por su **slug o alias**. La respuesta incluye `requestedSlug` (el solicitado) y el `slug` canónico, además de `badges`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown` y `musicTracks`. No incluye correo ni información personal identificable. `presenceStatus` es el estado estático del propietario (`"online"` \| `"idle"` \| `"offline"` o `null`) y `countdown` es `{ label?, targetDate }` o `null`. Incluye un objeto de presencia de Discord solo cuando el propietario conectó Discord y aceptó compartir su presencia. También incluye un objeto `seasonal` (`theme` + `source`) cuando hay un tema de temporada/festivo activo aplicado al perfil. Se sirve con un `ETag` basado en contenido y `Cache-Control: no-cache` —los clientes revalidan en cada petición y reciben un `304` cuando el perfil no ha cambiado (así las ediciones y la presencia en vivo nunca quedan desactualizadas y las vistas públicas siguen contándose). |
+| `GET` | `/api/profiles/:identifier` | Obtener un perfil público por su **slug o alias**. La respuesta incluye `requestedSlug` (el solicitado) y el `slug` canónico, además de `badges`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, `hideAds`, `adblockDetectorEnabled` y `musicTracks`. No incluye correo ni información personal identificable. `presenceStatus` es el estado estático del propietario (`"online"` \| `"idle"` \| `"offline"` o `null`) y `countdown` es `{ label?, targetDate }` o `null`. Incluye un objeto de presencia de Discord solo cuando el propietario conectó Discord y aceptó compartir su presencia. También incluye un objeto `seasonal` (`theme` + `source`) cuando hay un tema de temporada/festivo activo aplicado al perfil. Se sirve con un `ETag` basado en contenido y `Cache-Control: no-cache` —los clientes revalidan en cada petición y reciben un `304` cuando el perfil no ha cambiado (así las ediciones y la presencia en vivo nunca quedan desactualizadas y las vistas públicas siguen contándose). |
 | `GET` | `/api/theming/active` | Público. Devuelve el tema global activo de la plataforma (`{ success, data: { theme, source } }`), donde `theme` contiene la configuración resuelta (colores + un efecto de animación `effect` opcional: `none`, `snow`, `pumpkins`, `hearts`, `leaves`, `stars`, `confetti`, `sparkle`, más opcionalmente `layout` y `backgroundImage`) y `source` es `override`, `holiday`, `season` o `none`. `data.theme` es `null` cuando no hay ningún tema activo. Lo utilizan los perfiles y la página de inicio para mantenerse sincronizados con el tema global activo. |
 | `GET` | `/api/profiles/:identifier/presence` | Instantánea ligera de presencia en vivo (sin campos de perfil): `status`, `statusLabel`, `activities`, `line`, `customStatus`, `updatedAt`. Devuelve `data: null` cuando el propietario no tiene conexión con Discord o no aceptó compartir su presencia. Mismas reglas de visibilidad que `:identifier`. |
 | `GET` | `/api/profiles/:identifier/og.png` | Tarjeta PNG 1200×630 renderizada en el servidor (fondo de banner, avatar, nombre visible + `@username`, bio, **todas** las insignias, mosaicos de redes sociales, contadores de enlaces/pistas) utilizada como imagen OpenGraph al compartir enlaces de perfil. Contiene solo datos de perfil estables —la presencia en vivo se omite deliberadamente, ya que Discord almacena en caché las imágenes de embeds durante mucho tiempo. Se cachea en memoria (~5 min, indexada por contenido del perfil) y se envía con `ETag` + `Cache-Control: public, max-age=300`. La URL de `og:image` incluye una versión de contenido (`?v=…`) para que los rastreadores la vuelvan a obtener cuando el perfil cambie. |
@@ -513,6 +531,34 @@ Devuelve `{ featuredProfileUsername }` — el nombre de usuario al que el hero d
 
 Configuración pública de los indicadores de funciones (sin autenticación), cacheada durante 60 segundos. Devuelve `{ linksSections, linksCustomIcons, linksQr }` — valores booleanos que reflejan las variables de entorno `LINKS_*_ENABLED` del operador de la instancia. El frontend lo usa para mostrar u ocultar los controles de encabezados de sección, iconos personalizados, generación de QR y QR en el perfil. El backend siempre acepta y guarda los campos por enlace, así que activar un indicador más adelante nunca exige volver a introducir los datos.
 
+## Config
+
+### `GET /api/config`
+
+La parte **pública** del `config.yml` de la instancia, servida sin autenticación y cacheable durante 60 segundos. El endpoint es deliberadamente limitado: solo sale del servidor la información segura para enviarse a un navegador público. La sección `private` de config.yml (el buzón del operador, los secretos de anuncios) se parsea y valida en el servidor pero **nunca** se serializa aquí ni en ningún otro sitio. Recarga en caliente — la respuesta puede cambiar entre peticiones sin reiniciar.
+
+Devuelve `{ success: true, data: … }` donde `data` contiene:
+
+- `landing.tagline`, `landing.hero.heading`, `landing.hero.subheading`, `landing.footerAbout` — los textos de la página de inicio; cadenas vacías son el valor por defecto y el frontend recurre a sus valores de marca empaquetados.
+- `policy.operatorName`, `policy.operatorContact`, `policy.jurisdiction` — la identidad legal del operador mostrada en los bloques de contacto de Términos/Privacidad.
+- `operational.announcement.message` + `operational.announcement.href` — el texto de la barra de anuncios y su enlace opcional (mensaje vacío = sin barra; `href` se valida a http(s) al cargar).
+- `operational.hidePricing` — `true` oculta la sección de precios de la página de inicio.
+- `ads` — solo presente cuando el operador de la instancia ha activado anuncios de terceros: `{ enabled, verificationMeta, slots, freeOptOutAllowed }`.
+  - `verificationMeta` — etiquetas `<meta name="…" content="…">` que el frontend inyecta en las páginas públicas de perfil para la verificación de propiedad del sitio ante la red de anuncios.
+  - `slots` — una entrada por hueco de anuncio configurado: `{ network, placement, params }`. `network` es una de las 8 redes soportadas (`adsense`, `adsterra`, `aads`, `popads`, `propellerads`, `hilltopads`, `medianet`, `infolinks`) o `raw`. `params` lleva solo valores no secretos:
+    - `adsense: { client, slot, autoEnabled }` — el embed canónico de AdSense (unidad `<ins>` manual, o el cargador global de auto-anuncios cuando `autoEnabled`).
+    - `script: { src, token }` — la URL del cargador canónico de la red (`src` se valida al cargar contra la lista de hosts permitidos de esa red) más un token opcional. Todo `script.src` que el navegador vaya a ejecutar fue comprobado contra esos hosts.
+    - `raw` — el fragmento oficial pegado por el operador para `network: raw`. Como es contenido del operador, es la **única** parte de la configuración pública que no se sanitiza; el frontend lo renderiza solo dentro del hueco del anuncio, y aun así llega al navegador, así que nunca debe contener secretos.
+  - `freeOptOutAllowed` — valor booleano derivado en vivo de la variable de entorno `ADS_FREE_OPT_OUT_ALLOWED` (nunca de config.yml), que le dice al dashboard si un perfil FREE puede ocultar estos anuncios. PRO/Enterprise siempre pueden.
+
+## Contexto de políticas
+
+### `GET /api/policy/context`
+
+La instantánea de políticas que leen la ConsentGate del frontend y las páginas legales, servida sin autenticación (caché de 60 s; invalidada en cada escritura admin/política de configuración que la cambie). Junto a las claves de tienda de invitaciones, captcha, cumplimiento y SSO ahora incluye:
+
+- `operator: { name, contact, jurisdiction }` — la identidad legal del operador tomada de `public.policy` de `config.yml` (cadenas vacías si no se ha publicado nada, y **nunca** `private.operatorContactEmail`). Los bloques de contacto de Términos/Privacidad lo usan cuando está definido, con la `VITE_CONTACT_URL` empaquetada como respaldo.
+
 ## Dominios personalizados
 
 Los dominios personalizados son de autoservicio con aprobación del administrador, restringidos al plan PRO/Enterprise **y** al permiso `profiles.customDomain`.
@@ -554,6 +600,34 @@ Registros de consentimiento y señales de privacidad para el banner de cookies d
 | `POST` | `/api/privacy/consent/revoke` | Borra `bp_consent` y `bp_vid`, devolviendo el consentimiento a `unknown`. |
 
 Las analíticas no esenciales (vistas de página, clics en enlaces y cualquier rastreador de Matomo externo configurado) solo se registran cuando el consentimiento efectivo es `accept`; los visitantes que envían DNT/GPC nunca son rastreados.
+
+## DMCA y derechos de autor
+
+Recepción de retiros de contenido bajo la Digital Millennium Copyright Act y regímenes equivalentes. Cada cadena orientada al denunciante se sanitiza en el servidor antes de almacenarse, y ambas declaraciones juradas se **aplican** en el servidor (un `goodFaith` en `false` o un `accurate` sospechosamente incorrecto bloquea toda la petición, no solo las etiquetas).
+
+**Recepción pública** (limitada a 5/hora por IP; el operador puede desactivar la recepción por completo desde `config.yml` → `public.policy.dmca.intakeEnabled`, haciendo que toda llamada a la recepción devuelva `403 dmca_intake_disabled`):
+
+- `POST /api/dmca` — presentar un aviso de retiro. Cuerpo: `{ claimantName, claimantEmail, workUrl, description, infringingUrls[] (máx. 20), contactNote?, goodFaith (debe ser true), accurate (debe ser true), signature, captchaToken? }`. Las tres declaraciones del § 512 (buena fe, exactitud y firma) son obligatorias — un aviso que las omita no es válido — y `goodFaith`/`accurate` se aplican en el servidor (un `false` o un valor ausente rechaza toda la petición). Las confirmaciones se componen dentro de la `description` almacenada junto con la firma y la hora de presentación; cada cadena orientada al usuario se sanitiza. Cuando el denunciante inicia sesión se le atribuye por nombre de usuario en el registro del operador (`contactNote`); las presentaciones anónimas se marcan «Filed anonymously». `captchaToken` es obligatorio exactamente cuando la instancia tiene un proveedor de captcha configurado. Devuelve `201 { id, status: "NEW", createdAt }`.
+- `GET /api/dmca/status` — (requiere token bearer) la propia vista del denunciante: `{ disabled, reports }`. `disabled` es `{ disabled: false }` o `{ disabled: true, disabledAt, disabledReason, appealSubmittedAt, appealText }`. `reports` lista hasta 50 informes presentados por esta cuenta (`{ id, status, workUrl, createdAt, handledAt, infringingUrls }`) — el texto del operador o de la contraparte nunca se devuelve al denunciante.
+- `POST /api/dmca/appeal` — cuerpo `{ text }` (≤ 2000 caracteres). Permite que una cuenta deshabilitada por DMCA solicite una revisión humana; registra la apelación (visible en la cola de cuentas deshabilitadas del admin). Limitada a 5 cada 24 h por usuario. Devuelve `403` para cuentas que no están deshabilitadas por DMCA.
+
+**Ciclo de vida.** Un informe es `NEW` → `TAKEN_DOWN` | `DISMISSED` | `COUNTER_NOTICE`. Los retiros eliminan cada copia de los bytes denunciados en **todas** las cuentas (las filas de media se borran en cascada, las referencias del perfil se limpian), insertan un bloqueo de hash por cada sha256 distinto y deshabilitan las cuentas de los propietarios; volver a subir un hash todavía bloqueado se rechaza mientras el bloqueo esté activo. Un `COUNTER_NOTICE` levanta los bloqueos de hash del informe pero **nunca** reactiva cuentas automáticamente — la reactivación es una acción deliberada del operador en la cola.
+
+**Endpoints de admin** (`moderation.manage`):
+
+- `GET /api/admin/dmca/reports?status=&q=&from=&to=&limit=&offset=` — la cola de informes: filas con `{ id, status, claimantName, claimantEmail, workUrl, createdAt, handledAt, counterNoticeAt, filedBy, activeHashes }`, `counts` por estado y `pagination`.
+- `GET /api/admin/dmca/reports/:id` — el registro completo del operador (URLs denunciadas, nota de contacto, nota de decisión, contraaviso, operador, historial de bloqueos de hash).
+- `POST /api/admin/dmca/reports/:id/dismiss` — `{ note? }`; marcar que no se requiere acción y notificar al denunciante por correo. Se rechaza cuando el informe ya está `TAKEN_DOWN`.
+- `POST /api/admin/dmca/reports/:id/takedown` — cuerpo `{ mediaFileIds[], note?, disableAccount? }`. Ejecuta el retiro (ver Ciclo de vida) sobre los archivos elegidos por el operador. Devuelve `{ filesRemoved, hashesBanned, accountsDisabled }`.
+- `POST /api/admin/dmca/reports/:id/counter-notice` — `{ text }`; registrar la disputa del litigante y levantar los bloqueos de hash del informe.
+- `DELETE /api/admin/dmca/reports/:id` — borrado permanente del registro legal. Sus bloqueos de hash activos se levantan **primero** (borrar un informe nunca es una manera de mantener un bloqueo vivo) y las filas de hash se desvinculan, luego se elimina la fila del informe. Devuelve `{ success, data: { hashesUnbanned } }`.
+- `GET /api/admin/dmca/media?sha256=&pHash=&username=&userId=&profileId=&kind=&from=&to=&limit=&offset=` — búsqueda de media del operador que respalda el selector del retiro. Cada fila informa `copyOwners`/`copyCount` (las cuentas que ya tienen los mismos bytes) y si su sha256 está `banned`, para que el operador pueda previsualizar lo que tocará la expansión automática.
+- `GET /api/admin/dmca/hashes?active=` — historial de bloqueos de hash: `?active=true` para los bloqueos activos, `?active=false` para los prefijos previamente desbloqueados (el registro de auditoría).
+- `DELETE /api/admin/dmca/hashes/:id` — desbloquear manualmente un único hash (falso positivo / criterio del operador), registrando quién lo levantó.
+- `GET /api/admin/dmca/disabled` — la cola de cuentas deshabilitadas: `{ id, username, email, disabledAt, disabledReason, appealSubmittedAt, appealReviewedAt, appealDecision, reportsFiled }`.
+- `POST /api/admin/dmca/disabled/:id/reactivate` — `{ decision }` (≥ 1 carácter, ≤ 1000); vuelve a habilitar la cuenta tras la revisión. Nunca automático.
+
+Los endpoints de admin destructivos (retiro, contraaviso, borrado, desbloqueo, reactivación) se bloquean durante un bloqueo por actualización.
 
 ## Límites de peticiones
 

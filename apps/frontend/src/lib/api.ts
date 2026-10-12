@@ -10,6 +10,12 @@ interface ApiResponse<T = unknown, M = unknown> {
   success: boolean;
   data?: T;
   meta?: M;
+  // Paginated admin list endpoints (e.g. routes/adminDmca.ts) return the rows
+  // as `data`, with the page window and any status tallies as siblings of
+  // `data` rather than nested inside it. Mirror that shape here so callers can
+  // read `res.pagination.total` / `res.counts` directly.
+  pagination?: { total: number; limit: number; offset: number };
+  counts?: Record<string, number>;
   error?: string;
   fieldErrors?: Record<string, string>;
   unlockRequired?: boolean;
@@ -120,6 +126,64 @@ export interface PolicyContext {
     resaleMode: InviteResaleMode;
     resaleRestricted: boolean;
     resalePermitted: boolean;
+  };
+  /**
+   * Legal operator identity from config.yml `public.policy`. The private
+   * mailbox is never part of the snapshot, so the legal pages can only name
+   * the operator publicly.
+   */
+  operator: {
+    name: string;
+    contact: string;
+    jurisdiction: string;
+  };
+}
+
+/**
+ * The public part of the instance configuration (`GET /api/config`), from
+ * config.yml. Frontend twins of the backend schema — empty strings fall back
+ * to the branding/VITE defaults at render time.
+ */
+export interface InstanceAdSlot {
+  network: string;
+  placement: string;
+  params: {
+    adsense?: { client: string; slot: string; autoEnabled: boolean };
+    script?: { src: string; token: string };
+    raw?: string;
+  };
+}
+
+/** The public (non-secret) part of config.yml `public.ads`. */
+export interface InstanceAds {
+  enabled: boolean;
+  verificationMeta: { name: string; content: string }[];
+  slots: InstanceAdSlot[];
+  /** Env-derived; present only while ads are enabled. */
+  freeOptOutAllowed: boolean;
+}
+
+export interface InstanceConfigPublic {
+  landing: {
+    tagline: string;
+    hero: { heading: string; subheading: string };
+    footerAbout: string;
+  };
+  policy: {
+    operatorName: string;
+    operatorContact: string;
+    jurisdiction: string;
+  };
+  operational: {
+    announcement: { message: string; href: string };
+    hidePricing: boolean;
+  };
+  ads: InstanceAds;
+  i18n: {
+    enabled: boolean;
+    defaultLocale: string;
+    fallbackLocale: string;
+    locales: string[];
   };
 }
 
@@ -718,6 +782,8 @@ export interface Profile {
   tipsBtcAddress?: string | null;
   tipsLtcAddress?: string | null;
   shopDiscountPercent?: number | null;
+  hideAds?: boolean;
+  adblockDetectorEnabled?: boolean;
   theme: ProfileTheme | null;
   terminalCommands?: TerminalCommand[] | null;
   isPublic: boolean;
@@ -775,6 +841,8 @@ export interface PublicProfile {
   tipsBtcAddress?: string | null;
   tipsLtcAddress?: string | null;
   shopDiscountPercent?: number | null;
+  hideAds?: boolean;
+  adblockDetectorEnabled?: boolean;
   products?: ShopProductPublic[];
   theme: ProfileTheme | null;
   terminalCommands?: TerminalCommand[] | null;
@@ -973,6 +1041,8 @@ export interface ProfileUpdate {
   tipsBtcAddress?: string | null;
   tipsLtcAddress?: string | null;
   shopDiscountPercent?: number | null;
+  hideAds?: boolean;
+  adblockDetectorEnabled?: boolean;
   theme?: Profile["theme"];
   terminalCommands?: TerminalCommand[] | null;
   isPublic?: boolean;
@@ -2083,6 +2153,11 @@ export const api = {
   // instance actually does. Booleans and provider labels only — no secrets.
   fetchPolicyContext: () => request<PolicyContext>("/policy/context"),
 
+  // Instance config (config.yml → GET /api/config), public section only. The
+  // backend serves it cacheable; the SPA renders landing copy, the announcement
+  // bar and pricing visibility from it.
+  fetchInstanceConfig: () => request<InstanceConfigPublic>("/config"),
+
   getLandingConfig: () => request<{ featuredProfileUsername: string | null }>("/admin/landing-config"),
 
   setLandingConfig: (featuredProfileUsername: string) =>
@@ -2342,7 +2417,197 @@ export const api = {
     const fileName = match ? decodeURIComponent(match[1]) : "download";
     return { blob: await res.blob(), fileName };
   },
+
+  // --- DMCA / moderation (MODERATION_MANAGE) ---------------------------------
+  // Mirrors apps/backend/src/routes/adminDmca.ts. The report queue, media
+  // search, hash bans and disabled-account queue are gated server-side by the
+  // `moderation.manage` permission, so every call below returns 403 for anyone
+  // without it.
+
+  getAdminDmcaReports: (
+    opts: {
+      status?: "NEW" | "TAKEN_DOWN" | "DISMISSED" | "COUNTER_NOTICE";
+      q?: string;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.status) params.set("status", opts.status);
+    if (opts.q) params.set("q", opts.q);
+    if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    // The rows are `data` itself (an array); `counts` and `pagination` are
+    // siblings of `data`. See the ApiResponse note above.
+    return request<
+      Array<{
+        id: string;
+        status: DmcaStatus;
+        claimantName: string;
+        claimantEmail: string;
+        workUrl: string;
+        createdAt: string;
+        handledAt: string | null;
+        counterNoticeAt: string | null;
+        filedBy: string | null;
+        activeHashes: number;
+      }>
+    >(`/admin/dmca/reports${qs ? `?${qs}` : ""}`);
+  },
+
+  getAdminDmcaReport: (reportId: string) =>
+    request<{
+      id: string;
+      status: DmcaStatus;
+      claimantName: string;
+      claimantEmail: string;
+      workUrl: string;
+      description: string;
+      infringingUrls: string[];
+      contactNote: string | null;
+      createdAt: string;
+      handledAt: string | null;
+      decisionNote: string | null;
+      counterNotice: string | null;
+      counterNoticeAt: string | null;
+      filedByUser: { id: string; username: string } | null;
+      handledBy: { id: string; username: string } | null;
+      hashes: Array<{
+        id: string;
+        sha256: string;
+        reason: string | null;
+        bannedAt: string;
+        unbannedAt: string | null;
+        unbannedBy: { id: string; username: string } | null;
+      }>;
+    }>(`/admin/dmca/reports/${encodeURIComponent(reportId)}`),
+
+  dismissAdminDmcaReport: (reportId: string, note: string) =>
+    request<Record<string, never>>(`/admin/dmca/reports/${encodeURIComponent(reportId)}/dismiss`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+
+  runAdminDmcaTakedown: (
+    reportId: string,
+    body: { mediaFileIds: string[]; note?: string; disableAccount?: boolean }
+  ) =>
+    request<{ filesRemoved: number; hashesBanned: number; accountsDisabled: string[] }>(
+      `/admin/dmca/reports/${encodeURIComponent(reportId)}/takedown`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  recordAdminDmcaCounterNotice: (reportId: string, text: string) =>
+    request<Record<string, never>>(`/admin/dmca/reports/${encodeURIComponent(reportId)}/counter-notice`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
+  deleteAdminDmcaReport: (reportId: string) =>
+    request<{ hashesUnbanned: number }>(`/admin/dmca/reports/${encodeURIComponent(reportId)}`, { method: "DELETE" }),
+
+  searchAdminDmcaMedia: (
+    opts: { sha256?: string; username?: string; kind?: string; limit?: number; offset?: number } = {}
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.sha256) params.set("sha256", opts.sha256);
+    if (opts.username) params.set("username", opts.username);
+    if (opts.kind) params.set("kind", opts.kind);
+    if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    // Rows are `data`; `pagination` is a sibling (see ApiResponse).
+    return request<
+      Array<{
+        id: string;
+        kind: string;
+        sha256: string;
+        pHashHex: string;
+        filePath: string;
+        createdAt: string;
+        profileId: string | null;
+        profileSlug: string | null;
+        owner: { userId: string; username: string };
+        copyOwners: string[];
+        copyCount: number;
+        banned: boolean;
+      }>
+    >(`/admin/dmca/media${qs ? `?${qs}` : ""}`);
+  },
+
+  // Rows are `data`; `pagination` is a sibling (see ApiResponse).
+  getAdminDmcaHashes: (active: boolean) =>
+    request<
+      Array<{
+        id: string;
+        sha256: string;
+        pHashHex: string;
+        reason: string | null;
+        bannedAt: string;
+        unbannedAt: string | null;
+        dmcaReportId: string | null;
+        bannedBy: { username: string } | null;
+        unbannedBy: { username: string } | null;
+        active: boolean;
+      }>
+    >(`/admin/dmca/hashes?active=${active ? "true" : "false"}`),
+
+  liftAdminDmcaHashBan: (hashId: string) =>
+    request<Record<string, never>>(`/admin/dmca/hashes/${encodeURIComponent(hashId)}`, { method: "DELETE" }),
+
+  // Rows are `data`; `pagination` is a sibling (see ApiResponse).
+  getAdminDmcaDisabled: () =>
+    request<
+      Array<{
+        id: string;
+        username: string;
+        email: string;
+        disabledAt: string;
+        disabledReason: string | null;
+        appealSubmittedAt: string | null;
+        appealReviewedAt: string | null;
+        appealDecision: string | null;
+        reportsFiled: number;
+      }>
+    >("/admin/dmca/disabled"),
+
+  reactivateAdminDmcaUser: (userId: string, decision: string) =>
+    request<Record<string, never>>(`/admin/dmca/disabled/${encodeURIComponent(userId)}/reactivate`, {
+      method: "POST",
+      body: JSON.stringify({ decision }),
+    }),
+
+  // --- Manual (report-less) moderation ---------------------------------------
+  // Same lib/dmca.ts logic as the report flow, but no report row: accounts are
+  // disabled only when `disableAccount: true` is passed explicitly.
+
+  runAdminDmcaManualTakedown: (body: { mediaFileIds: string[]; note?: string; disableAccount?: boolean }) =>
+    request<{ filesRemoved: number; hashesBanned: number; accountsDisabled: string[] }>("/admin/dmca/takedown", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  banAdminDmcaHash: (body: { sha256: string; pHashHex?: string; note?: string }) =>
+    request<{ id: string }>("/admin/dmca/hashes", { method: "POST", body: JSON.stringify(body) }),
+
+  deleteAdminDmcaMedia: (mediaId: string) =>
+    request<Record<string, never>>(`/admin/dmca/media/${encodeURIComponent(mediaId)}`, { method: "DELETE" }),
+
+  takedownAdminDmcaProfile: (identifier: string, body: { note?: string; disableAccount?: boolean } = {}) =>
+    request<{ filesRemoved: number; hashesBanned: number; accountsDisabled: string[] }>(
+      `/admin/dmca/profiles/${encodeURIComponent(identifier)}/takedown`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  disableAdminDmcaUser: (identifier: string, reason: string) =>
+    request<Record<string, never>>(`/admin/dmca/users/${encodeURIComponent(identifier)}/disable`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 };
+
+export type DmcaStatus = "NEW" | "TAKEN_DOWN" | "DISMISSED" | "COUNTER_NOTICE";
 
 export interface InviteCodeInfo {
   id: string;

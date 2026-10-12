@@ -26,7 +26,25 @@ An **admin can override the tier default** by granting the `api.basic`, `api.adv
 
 ### `GET /api/health`
 
-Public. Returns `{ "status": "ok", "timestamp": "..." }`.
+Public. **Real readiness probe** — not a stub. Pings the database through the actual Prisma client and runs a full-scalar read of every core model (`profiles`, `users`, `seasonal_themes`, `invite_codes`, `newsletter_subscribers`, `orders`, `products`, `tips`) so a missing column or table (schema drift) is surfaced instead of a bare `ok`. The cache driver state is reported too (informational — the cache falls back to upstream and never degrades the status).
+
+Returns `200` with the full report when everything passes, and `503` with the same body when the DB is unreachable or the schema drifted from what the running client expects. Sample:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-10-07T12:00:00.000Z",
+  "checks": {
+    "database": { "ok": true, "latencyMs": 2 },
+    "schema": { "ok": true, "probedModels": ["profile", "user", "seasonalTheme", "inviteCode", "newsletterSubscriber", "order", "product", "tip"], "tables": ["profiles", "users", "seasonal_themes", "invite_codes", "newsletter_subscribers", "orders", "products", "tips"], "drift": [] },
+    "cache": { "driver": "redis", "ok": true, "detail": "PONG" },
+    "app": { "name": "BioPlatform", "node": "v22.x.x", "uptimeSeconds": 123 }
+  },
+  "issues": []
+}
+```
+
+When degraded, `checks.schema.drift` lists precisely which column/table is missing (e.g. `{"model":"profile","table":"profiles","column":"hide_ads","issue":"Missing column profiles.hide_ads"}`) and `issues` carries the human-readable copy — so a backend whose schema is out of sync can no longer report "healthy" while every real route throws.
 
 ## Version
 
@@ -126,7 +144,7 @@ Every account has one or more **profiles**, each with its own slug, theme, links
 | `POST` | `/api/profiles/me` | Create a profile. Body: `slug` (lowercase) plus the usual profile fields. Returns the created profile. |
 | `PUT` | `/api/profiles/me` | Update your **primary** profile (backward-compatible). |
 | `GET` | `/api/profiles/me/:profileId` | Get one of your profiles. |
-| `PATCH` | `/api/profiles/me/:profileId` | Update a profile (`slug`, `displayName`, `bio`, `location`, `website`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, `isPublic`). Changing the slug of the primary profile is rejected. `terminalCommands` (an array of `{ command, output, description?, url? }`, max 12) is gated to PRO/Enterprise — FREE accounts get a `403`. `presenceStatus` is `"online"` \| `"idle"` \| `"offline"` (or `null` to hide) and `countdown` is `{ label?, targetDate }` (or `null` to hide). |
+| `PATCH` | `/api/profiles/me/:profileId` | Update a profile (`slug`, `displayName`, `bio`, `location`, `website`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, `isPublic`). Changing the slug of the primary profile is rejected. `terminalCommands` (an array of `{ command, output, description?, url? }`, max 12) is gated to PRO/Enterprise — FREE accounts get a `403`. `presenceStatus` is `"online"` \| `"idle"` \| `"offline"` (or `null` to hide) and `countdown` is `{ label?, targetDate }` (or `null` to hide). `hideAds` (hide instance ads) and `adblockDetectorEnabled` (show the adblock notice beside the ads) are the per-profile ad fields: PRO/Enterprise may always set `hideAds: true` and `adblockDetectorEnabled: false`; FREE profiles may only hide ads when the operator grants `ADS_FREE_OPT_OUT_ALLOWED` and **cannot** set `adblockDetectorEnabled: false` — the adblock notice is always on for FREE (`403` if requested). When ads render (`public.ads.enabled` with slots and `!hideAds`), the notice shows to visitors with an active ad blocker and is dismissible per session. |
 | `GET` | `/api/profiles/me/username/availability?username=` | Check whether a `@username` is available to claim. Requires login; rate-limited to 20 checks/min per IP. Returns `{ available, reason }` where `reason` is `reserved`, `taken`, `current`, or `available`. Handles claimed by **private** profiles are reported `available` (the oracle must not reveal that an unlisted account exists) — claiming one still fails with `409` at save time. |
 | `PATCH` | `/api/profiles/me/username` | Rename your `@username` (body: `username`). Moves the handle, the primary profile's URL, and the shared slug namespace atomically; the **old slug becomes an automatic alias** so existing links keep working. Rate-limited to 5/min per IP and capped at one rename every **30 days** (`429` during the cooldown). Returns `{ username, slug, lastUsernameChangeAt }`. |
 | `DELETE` | `/api/profiles/me/:profileId` | Delete a profile. If you delete the primary profile, primary status moves to your oldest remaining profile; the last profile cannot be deleted. |
@@ -145,7 +163,7 @@ Every account has one or more **profiles**, each with its own slug, theme, links
 | `POST` | `/api/profiles/me/link-icon` | Upload a link favicon image (multipart, 5 MB max, JPEG/PNG/GIF/WebP; magic-byte validated). Returns `{ image }` — a `/uploads/…` path you can set on a `socialLinks` item's `image` field. Requires authentication. |
 | `GET` | `/api/profiles/me/export?format=xlsx\|ods` | Download your profile as a spreadsheet. Optional `?profileId=`. |
 | `POST` | `/api/profiles/me/import` | Import your profile from a spreadsheet (multipart `file`). Optional `?profileId=`. |
-| `GET` | `/api/profiles/:identifier` | Get a public profile by its **slug or alias**. Response includes `requestedSlug` (what you asked for) and the canonical `slug`, plus `badges`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, and `musicTracks`. No email or PII. `presenceStatus` is the owner's static status (`"online"` \| `"idle"` \| `"offline"` or `null`) and `countdown` is `{ label?, targetDate }` or `null`. Includes a `discord` presence object only when the owner connected Discord and opted in to sharing presence. Also includes a `seasonal` object (`theme` + `source`) when an active seasonal/holiday theme is applied to the profile. Served with a content-based `ETag` and `Cache-Control: no-cache` — clients revalidate on every fetch and get a `304` when the profile is unchanged (so edits and live presence are never stale, and public views are still counted). |
+| `GET` | `/api/profiles/:identifier` | Get a public profile by its **slug or alias**. Response includes `requestedSlug` (what you asked for) and the canonical `slug`, plus `badges`, `socialLinks`, `theme`, `terminalCommands`, `presenceStatus`, `countdown`, `hideAds`, `adblockDetectorEnabled`, and `musicTracks`. No email or PII. `presenceStatus` is the owner's static status (`"online"` \| `"idle"` \| `"offline"` or `null`) and `countdown` is `{ label?, targetDate }` or `null`. Includes a `discord` presence object only when the owner connected Discord and opted in to sharing presence. Also includes a `seasonal` object (`theme` + `source`) when an active seasonal/holiday theme is applied to the profile. Served with a content-based `ETag` and `Cache-Control: no-cache` — clients revalidate on every fetch and get a `304` when the profile is unchanged (so edits and live presence are never stale, and public views are still counted). |
 | `GET` | `/api/theming/active` | Public. Returns the currently active platform-wide theme (`{ success, data: { theme, source } }`), where `theme` carries the resolved config (colors + optional animated FX `effect`: `none`, `snow`, `pumpkins`, `hearts`, `leaves`, `stars`, `confetti`, `sparkle`, plus optional `layout` and `backgroundImage`) and `source` is `override`, `holiday`, `season`, or `none`. `data.theme` is `null` when no theme is active. Used by profiles and the landing page to stay in sync with the active global theme. |
 | `GET` | `/api/profiles/:identifier/presence` | Lightweight live presence snapshot (no profile fields): `status`, `statusLabel`, `activities`, `line`, `customStatus`, `updatedAt`. Returns `data: null` when the owner has no Discord connection or opted out of sharing presence. Same visibility rules as `:identifier`. |
 | `GET` | `/api/profiles/:identifier/og.png` | Server-rendered 1200×630 PNG card (banner backdrop, avatar, display name + `@username`, bio, **all** badges, social tiles, link/track counts) used as the OpenGraph image for shared profile links. Contains only stable profile data — live presence is intentionally **not** baked in, since Discord caches embed images for a long time. Cached in memory (~5 min, keyed by profile content) and sent with an `ETag` + `Cache-Control: public, max-age=300`. The `og:image` URL carries a content version (`?v=…`) so crawlers refetch when the profile changes. |
@@ -513,6 +531,34 @@ Returns `{ featuredProfileUsername }` — the username that the landing hero and
 
 Public feature-flag configuration (no auth required), cached for 60 seconds. Returns `{ linksSections, linksCustomIcons, linksQr }` — booleans mirroring the instance operator's `LINKS_*_ENABLED` environment variables. The frontend uses this to show or hide the section-heading, custom-icon, QR-generate, and on-profile-QR controls. The backend always accepts and stores the per-link fields, so toggling a flag on later never needs data re-entry.
 
+## Config
+
+### `GET /api/config`
+
+The **public** part of the instance's `config.yml`, served without authentication and cacheable for 60 seconds. The endpoint is intentionally narrow: only data safe to ship to a public browser ever leaves the server. The `private` section of config.yml (the operator mailbox, ad secrets) is parsed and validated server-side but is **never** serialized here or anywhere else. Hot-reloads in place — the response can change between requests without a restart.
+
+Returns `{ success: true, data: … }` where `data` holds:
+
+- `landing.tagline`, `landing.hero.heading`, `landing.hero.subheading`, `landing.footerAbout` — instance landing copy; empty strings are the zero-config default and the frontend falls back to its bundled branding values.
+- `policy.operatorName`, `policy.operatorContact`, `policy.jurisdiction` — the legal operator identity surfaced on the Terms/Privacy contact blocks.
+- `operational.announcement.message` + `operational.announcement.href` — the announcement bar text and optional link (empty message = no bar; `href` is validated to http(s) at load).
+- `operational.hidePricing` — `true` hides the landing pricing section.
+- `ads` — present only when the instance operator has enabled third-party ads: `{ enabled, verificationMeta, slots, freeOptOutAllowed }`.
+  - `verificationMeta` — `<meta name="…" content="…">` tags the frontend injects on public profile pages for ad-network site verification.
+  - `slots` — one entry per configured ad slot: `{ network, placement, params }`. `network` is one of the 8 supported networks (`adsense`, `adsterra`, `aads`, `popads`, `propellerads`, `hilltopads`, `medianet`, `infolinks`) or `raw`. `params` carries only non-secret values:
+    - `adsense: { client, slot, autoEnabled }` — the canonical AdSense embed (manual `<ins>` unit, or the page-level auto-ads loader when `autoEnabled`).
+    - `script: { src, token }` — the network's canonical loader URL (`src` is validated at load against that network's registry allowlist) plus an optional token. Every `script.src` the browser will execute was checked against those hosts.
+    - `raw` — the operator-pasted official snippet for `network: raw`. Because it is operator-authored it is the **one** part of the public config that is not sanitized; the frontend renders it inside the ad slot only, and it still reaches the browser, so it must never contain secrets.
+  - `freeOptOutAllowed` — a boolean derived live from the `ADS_FREE_OPT_OUT_ALLOWED` env var (never from config.yml), telling the dashboard whether a FREE-tier profile may hide these ads. PRO/Enterprise always may.
+
+## Policy context
+
+### `GET /api/policy/context`
+
+The policy snapshot the frontend ConsentGate and legal pages read, served without authentication (cached 60 s; invalidated on each admin policy/config write that changes it). Alongside the invite-store, captcha, compliance and SSO keys it now includes:
+
+- `operator: { name, contact, jurisdiction }` — the legal operator identity taken from `config.yml` `public.policy` (empty strings when not published, and **never** `private.operatorContactEmail`). The Terms/Privacy contact blocks use this when set, falling back to the bundled `VITE_CONTACT_URL`.
+
 ## Custom Domains
 
 Custom domains are self-serve with admin approval, gated on the PRO/Enterprise tier **and** the `profiles.customDomain` permission.
@@ -554,6 +600,34 @@ Consent records and privacy signals for the frontend cookie banner.
 | `POST` | `/api/privacy/consent/revoke` | Clears `bp_consent` and `bp_vid`, returning consent to `unknown`. |
 
 Non-essential analytics (page views, link clicks, and any configured external Matomo tracker) are recorded only when the effective consent is `accept`; visitors sending DNT/GPC are never tracked.
+
+## DMCA & Copyright
+
+Content-takedown intake handled under the Digital Millennium Copyright Act and equivalent regimes. Every reporter-facing string is sanitized server-side before storage, and both attestations are **enforced** server-side (a `false` `goodFaith` or suspected-incorrect `accurate` blocks the whole request, not just tags).
+
+**Public intake** (rate-limited to 5/hour per IP; the operator can turn intake off entirely from `config.yml` → `public.policy.dmca.intakeEnabled`, making every intake call return `403 dmca_intake_disabled`):
+
+- `POST /api/dmca` — file a takedown notice. Body: `{ claimantName, claimantEmail, workUrl, description, infringingUrls[] (max 20), contactNote?, goodFaith (must be true), accurate (must be true), signature, captchaToken? }`. The three § 512 statements (good faith, accuracy, signature) are required — a notice missing them is not valid — and `goodFaith`/`accurate` are enforced server-side (a `false` or missing value rejects the whole request). The confirmations are composed into the stored `description` together with the signature and filing time; every user-facing string is sanitized. A signed-in filer is attributed by username in the operator record (`contactNote`); anonymous filings are marked "Filed anonymously". `captchaToken` is required exactly when the instance has a captcha provider configured. Returns `201 { id, status: "NEW", createdAt }`.
+- `GET /api/dmca/status` — (bearer token required) the caller's own picture: `{ disabled, reports }`. `disabled` is `{ disabled: false }` or `{ disabled: true, disabledAt, disabledReason, appealSubmittedAt, appealText }`. `reports` lists up to 50 reports this account filed (`{ id, status, workUrl, createdAt, handledAt, infringingUrls }`) — operator/counter-party text is never returned to the claimant.
+- `POST /api/dmca/appeal` — body `{ text }` (≤ 2000 chars). Lets a DMCA-disabled account request a human review; records the appeal (visible on the admin Disabled-accounts queue). Rate-limited to 5 per 24 h per user. Returns `403` for accounts that are not DMCA-disabled.
+
+**Lifecycle.** A report is `NEW` → `TAKEN_DOWN` | `DISMISSED` | `COUNTER_NOTICE`. Takedowns remove every copy of the reported bytes across **all** accounts (media rows CASCADE, profile references cleared), insert one hash ban per distinct sha256, and disable the owners' accounts; re-uploading a still-banned hash is refused while the ban is live. A `COUNTER_NOTICE` lifts the report's hash bans but **never** auto-reactivates accounts — re-activation is a deliberate operator action on the queue.
+
+**Admin endpoints** (`moderation.manage`):
+
+- `GET /api/admin/dmca/reports?status=&q=&from=&to=&limit=&offset=` — the report queue: rows with `{ id, status, claimantName, claimantEmail, workUrl, createdAt, handledAt, counterNoticeAt, filedBy, activeHashes }`, per-status `counts` and `pagination`.
+- `GET /api/admin/dmca/reports/:id` — the full operator record (infringing URLs, contact note, decision note, counter-notice, handler, hash-ban history).
+- `POST /api/admin/dmca/reports/:id/dismiss` — `{ note? }`; mark no action needed and email the claimant. Refused when the report is already `TAKEN_DOWN`.
+- `POST /api/admin/dmca/reports/:id/takedown` — body `{ mediaFileIds[], note?, disableAccount? }`. Executes the takedown (see Lifecycle) on the operator-picked files. Returns `{ filesRemoved, hashesBanned, accountsDisabled }`.
+- `POST /api/admin/dmca/reports/:id/counter-notice` — `{ text }`; record the litigant's dispute and lift the report's hash bans.
+- `DELETE /api/admin/dmca/reports/:id` — permanent erasure of the legal record. Its live hash bans are lifted **first** (deleting a report is never a way to keep a ban alive) and the hash rows are detached, then the report row is removed. Returns `{ success, data: { hashesUnbanned } }`.
+- `GET /api/admin/dmca/media?sha256=&pHash=&username=&userId=&profileId=&kind=&from=&to=&limit=&offset=` — operator media search backing the takedown picker. Each row reports `copyOwners`/`copyCount` (the accounts that already hold the same bytes) and whether its sha256 is `banned`, so the operator can preview what automatic expansion will touch.
+- `GET /api/admin/dmca/hashes?active=` — hash-ban history: `?active=true` for live bans, `?active=false` for previously un-banned prefixes (the audit trail).
+- `DELETE /api/admin/dmca/hashes/:id` — manually un-ban a single hash (false positive / operator judgement), recording who lifted it.
+- `GET /api/admin/dmca/disabled` — the disabled-account queue: `{ id, username, email, disabledAt, disabledReason, appealSubmittedAt, appealReviewedAt, appealDecision, reportsFiled }`.
+- `POST /api/admin/dmca/disabled/:id/reactivate` — `{ decision }` (≥ 1 char, ≤ 1000); re-enables the account after review. Never automatic.
+
+Destructive admin endpoints (takedown, counter-notice, delete, un-ban, reactivate) are blocked during an update lockdown.
 
 ## Rate limits
 

@@ -188,6 +188,7 @@ The **Roles** tab manages access. Every user has exactly one role; every role ca
 - `newsletter.manage` — manage the Newsletter tab (tier limits + consent search) and lets users send newsletters to their own subscribers.
 - `logs.view` — view the auth log.
 - `invites.generate` — lets the role generate its **own** invite codes (subject to the global switch, the role's invite config below, and invite bans).
+- `moderation.manage` — grants the **Moderation** tab: the DMCA report queue, media search (takedown picker), hash-ban history, and the disabled-account queue (dismiss / takedown / counter-notice / delete / un-ban / re-activate).
 
 ### Per-role invite configuration
 
@@ -289,6 +290,30 @@ The **Newsletter** tab (requires the `newsletter.manage` permission) covers the 
 - **Platform announcements** — compose a one-off **broadcast** email delivered through the instance SMTP/Resend sender to every user who **opted in to platform news** at registration (`newsletterOptIn` on the user record, `acceptedPoliciesAt` / policy versions record their Terms + Privacy consent). The composer shows the current opted-in audience, then sends with a 5000-recipient safety cap and records each broadcast in `admin_newsletter_sends`. Every recipient gets a signed, one-click **account-level** unsubscribe link (`GET /api/newsletter/unsubscribe/broadcast?token=`), which flips their opt-in off and stores `broadcastUnsubscribedAt`; opting back in is managed by the user in **Account settings**. Endpoints: `GET /api/admin/newsletter/broadcast-audience`, `GET /api/admin/newsletter/broadcasts`, `POST /api/admin/newsletter/broadcast`.
 
 The send limits only gate the **creator's** newsletter. The profile still captures subscribers while a limit is hit or the profile is paused; mail just won't be sent. Admins (`newsletter.manage`) always keep the fixed 5000-recipient platform cap and bypass the per-tier window — the platform announcement broadcast is a separate, opt-in–only audience and is not counted against tier windows.
+
+## DMCA Moderation
+
+The **Moderation** tab (requires the `moderation.manage` permission — included in the built-in **Admin** role) is the operator surface for the copyright-takedown pipeline. It has four sub-views:
+
+**Reports** — the intake queue. Each row shows the claimant (name/email), the work URL, when it arrived, who filed it (username, or the record persists with `filedBy: null` when that account is later deleted), how many of its hash bans are still live, and its status (`NEW` / `TAKEN_DOWN` / `DISMISSED` / `COUNTER_NOTICE`), with per-status counters and free-text search. Opening a report shows the full record — description, reported URLs, contact note, the counter-notice text, the handler and decision note, the timestamp history, and the report's hash bans. From there you can:
+
+- **Dismiss** (`{ note? }`) — record that no action is needed; the claimant is emailed the outcome. Refused once a report is already `TAKEN_DOWN`.
+- **Takedown** — build the takedown from the **media search**: filter by sha256, perceptual pHash, username, user id, profile, media kind or date. Every result shows `copyOwners`/`copyCount` — how many accounts already hold the same bytes — and whether the sha256 is banned, so you can preview what the automatic expansion will touch. Select the files (or select-all-shown), optionally note the decision, toggle whether the owners' accounts are disabled too, confirm (the dialog lists the affected accounts), and the takedown removes **every** copy of those bytes across all accounts, inserts one hash ban per distinct sha256 and disables the owners. Re-uploading a still-banned hash is refused while the ban is live.
+- **Counter-notice** (`{ text }`) — a litigated dispute. The report becomes `COUNTER_NOTICE` and its live hash bans are lifted (recorded with who). The owners' accounts stay **disabled** — re-activation is never automatic; use the Disabled view.
+- **Delete** — permanently erase the legal record. Live hash bans are lifted **first** (deleting a report is never a way to keep a ban alive), hash rows are detached, then the report is removed.
+
+**Media** — the read-only operator media search behind the takedown picker (same filters, every row with copy/banned info).
+
+**Hashes** — the hash-ban ledger. Toggle **Active** (live bans) / **History** (previously un-banned prefixes, the audit trail) and **un-ban** a single hash (false positive / operator judgement), recording who lifted it.
+
+**Disabled** — the disabled-account queue: usernames, email, when/why disabled, appeal state (`appealSubmittedAt` / `appealReviewedAt` / `appealDecision`) and how many reports were filed against each account. Click **Re-activate** (recording a decision) to lift the disablement after review.
+
+Notes:
+
+- Intake can be switched off instance-wide from `config.yml` (`public.policy.dmca.intakeEnabled`); the public endpoints then return `403 dmca_intake_disabled`.
+- Disabled accounts can file an appeal on their end (seen here as `appealSubmittedAt`); the appeal is a request for human review, never an automatic unlock.
+- Every destructive moderation action (takedown, counter-notice, delete, un-ban, re-activate) is blocked during an update lockdown.
+- Outcome **emails** to the claimant use the instance mailer and are sent on dismiss, takedown and counter-notice (see [Environment Variables](./environment-variables.md#email-smtp)).
 
 ## Tips
 

@@ -14,6 +14,8 @@ export const PERMISSIONS = {
   LOGS_VIEW: "logs.view",
   SETTINGS_MANAGE: "settings.manage",
   NEWSLETTER_MANAGE: "newsletter.manage",
+  /** DMCA report intake, hash takedowns, account disable/appeal review. */
+  MODERATION_MANAGE: "moderation.manage",
   API_BASIC: "api.basic",
   API_ADVANCED: "api.advanced",
   API_ENTERPRISE: "api.enterprise",
@@ -37,6 +39,7 @@ export const ADMIN_GATE_PERMISSIONS: ReadonlySet<Permission> = new Set([
   PERMISSIONS.LOGS_VIEW,
   PERMISSIONS.SETTINGS_MANAGE,
   PERMISSIONS.NEWSLETTER_MANAGE,
+  PERMISSIONS.MODERATION_MANAGE,
 ]);
 
 export const SYSTEM_ROLE_SLUGS = {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { gzipSync } from "node:zlib";
 import { LocalStorageProvider } from "../src/lib/storage/local.js";
 import { looksGzipped, maybeCompress, decompressIfNeeded, withCompression } from "../src/lib/storage/compression.js";
 import type { StoredObject } from "../src/lib/storage/types.js";
@@ -109,6 +110,50 @@ describe("compression utilities", () => {
   test("decompressIfNeeded handles uncompressed buffers gracefully", () => {
     const raw = Buffer.from("plain text, not gzip");
     assert.deepEqual(decompressIfNeeded(raw), raw);
+  });
+
+  test("withCompression decompresses legacy gzip objects that lack a marker", async () => {
+    // Simulates objects written by an older deploy that compressed bytes but
+    // never persisted a `.bio-compressed` marker: read must still decompress.
+    const dir = makeTmpDir();
+    const raw = new LocalStorageProvider(dir);
+    const original = Buffer.alloc(4096, 0xdd);
+    await raw.writeObject("legacy.bin", gzipSync(original));
+    const provider = withCompression(raw);
+    const read = await provider.readObject("legacy.bin");
+    assert.deepEqual(read, original);
+  });
+
+  test("withCompression round-trips an already-gzipped upload without unwrapping it", async () => {
+    // Regression: an operator uploads a genuine .gz (e.g. a product archive).
+    // Its bytes carry gzip magic. Before the fix, write stored them with no
+    // marker and read applied the legacy magic-byte fallback, silently returning
+    // the decompressed inner payload instead of the file that was uploaded.
+    const dir = makeTmpDir();
+    const raw = new LocalStorageProvider(dir);
+    const provider = withCompression(raw);
+    const inner = Buffer.alloc(2048, 0xee);
+    const uploadedGz = gzipSync(inner);
+
+    await provider.writeObject("archive.gz", uploadedGz);
+    const read = await provider.readObject("archive.gz");
+    assert.deepEqual(read, uploadedGz, "the uploaded .gz must round-trip verbatim");
+    assert.notDeepEqual(read, inner, "it must not be transparently decompressed");
+
+    // The passthrough marker is what tells future reads to leave the bytes alone.
+    const marker = await raw.readObject("archive.gz.bio-compressed");
+    assert.ok(marker, "a passthrough marker records that the bytes were stored as-is");
+  });
+
+  test("withCompression leaves marker-less uncompressed objects untouched", async () => {
+    // Plain bytes without a marker must round-trip unchanged (no gzip magic).
+    const dir = makeTmpDir();
+    const raw = new LocalStorageProvider(dir);
+    const payload = Buffer.from("plain marker-less object");
+    await raw.writeObject("plain.bin", payload);
+    const provider = withCompression(raw);
+    const read = await provider.readObject("plain.bin");
+    assert.deepEqual(read, payload);
   });
 });
 

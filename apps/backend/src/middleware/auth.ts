@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { getEnv } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { requireCurrentConsent } from "./consent.js";
+import { dmcaAppealUrl } from "../lib/dmca.js";
 
 export interface AuthPayload {
   userId: string;
@@ -17,6 +18,58 @@ declare global {
       userId?: string;
     }
   }
+}
+
+/**
+ * Authenticated paths a copyright-disabled account keeps access to.
+ *
+ * Everything else returns 423. These are FULL paths (`baseUrl` + `path`), for
+ * the same reason consent.ts spells that out: matching on `req.path` alone
+ * would match `/me` on six different routers and hand a disabled account every
+ * one of them.
+ *
+ * The list is deliberately narrow — an escape hatch, not a second session:
+ *
+ *   - `/api/auth/me`          so the SPA can learn it is disabled and render the
+ *                             appeal screen instead of a generic error.
+ *   - `/api/auth/accept-policies`
+ *                             without this the account loops: the policy bump
+ *                             that shipped with this feature makes it consent-
+ *                             outdated, the SPA shows the consent gate, and the
+ *                             accept call would bounce off this gate with 423.
+ *   - `/api/auth/passkeys*`, `/totp/*`, `/change-password`
+ *                             the account holder must still be able to secure
+ *                             their own credentials while the claim is reviewed.
+ *   - `/api/dmca/status`, `/api/dmca/appeal`
+ *                             the appeal itself. Blocking these would make the
+ *                             423 a dead end with no way out.
+ *
+ * Profile edits, uploads, shop, music, analytics, admin: 423.
+ */
+const DISABLED_EXEMPT_PATHS: ReadonlySet<string> = new Set([
+  "/api/auth/me",
+  "/api/auth/accept-policies",
+  "/api/auth/totp/setup",
+  "/api/auth/totp/enable",
+  "/api/auth/totp/disable",
+  "/api/auth/change-password",
+  "/api/dmca/status",
+  "/api/dmca/appeal",
+]);
+
+/**
+ * Prefixes exempt because one of them carries a path parameter
+ * (`DELETE /api/auth/passkeys/:id`), which an exact-match set cannot express.
+ * Only passkeys live under this prefix, and the boundary check keeps
+ * `/api/auth/passkeysomething` from sliding through.
+ */
+const DISABLED_EXEMPT_PREFIXES: readonly string[] = ["/api/auth/passkeys"];
+
+/** True when this request path survives the disabled-account gate. */
+function isDisabledExempt(req: Request): boolean {
+  const path = `${req.baseUrl}${req.path}`;
+  if (DISABLED_EXEMPT_PATHS.has(path)) return true;
+  return DISABLED_EXEMPT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 /**
@@ -42,7 +95,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, authVersion: true },
+      select: { id: true, authVersion: true, disabledAt: true, disabledReason: true },
     });
     if (!user) {
       return res.status(401).json({ success: false, error: "Invalid token" });
@@ -60,6 +113,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     req.userId = user.id;
+
+    // Copyright-takedown lock. Runs BEFORE the consent gate on purpose: a
+    // disabled account is normally also consent-outdated (the policy bump ships
+    // with this feature), and a `policies_outdated` 403 would mask the one code
+    // the SPA needs to route the user to the appeal screen. 423 + the reason is
+    // the more specific state, so it is reported first.
+    if (user.disabledAt && !isDisabledExempt(req)) {
+      return res.status(423).json({
+        success: false,
+        code: "account_disabled",
+        error: "This account is disabled pending a copyright review.",
+        appealUrl: dmcaAppealUrl(),
+        disabledAt: user.disabledAt,
+        disabledReason: user.disabledReason ?? "dmca",
+      });
+    }
 
     // Deemed-acceptance gate: an account that has not accepted the current
     // Terms of Service / Privacy Policy cannot use the platform. Runs here so

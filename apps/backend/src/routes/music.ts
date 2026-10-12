@@ -11,6 +11,7 @@ import { ALLOWED_PROVIDERS, getTrackLimit, parseMusicUrl, parseFullUrl } from ".
 import { stripHtml } from "../lib/validation.js";
 import { profileScope } from "../lib/profile.js";
 import { writeUpload, deleteUpload } from "../lib/mediaStore.js";
+import { guardUploadOrRespond } from "../lib/mediaFingerprint.js";
 import type { UserTier } from "@prisma/client";
 
 const router = Router();
@@ -231,6 +232,17 @@ router.post("/me/upload", requireAuth, handleAudioUpload, async (req, res) => {
     }
     fullUrlValue = parsedFull.embedUrl;
   }
+
+  // Fingerprint + ban check before the track is stored/registered (see
+  // lib/mediaFingerprint.ts). On a match the temp file is already unlinked.
+  const guard = await guardUploadOrRespond(res, {
+    absPath: req.file.path,
+    kind: "MUSIC",
+    userId: req.userId!,
+    profileId: profile.id,
+    filePath,
+  });
+  if (!guard) return;
 
   await writeUpload(req.file.filename);
 
