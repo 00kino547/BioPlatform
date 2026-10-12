@@ -9,12 +9,23 @@ export interface CacheDriver {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ttlMs: number): Promise<void>;
   del(key: string): Promise<void>;
+  /**
+   * Liveness probe used by the /api/health endpoint. Drivers without a remote
+   * endpoint (memory/file/db) always come back healthy; the redis driver does a
+   * real PING. Never results in a degraded health status — the cache is
+   * best-effort by design and the app falls back to the upstream source.
+   */
+  ping(): Promise<{ ok: boolean; detail: string }>;
 }
 
 const MEMORY_CAP = 5000;
 
 class MemoryDriver implements CacheDriver {
   readonly kind = "memory" as const;
+
+  async ping(): Promise<{ ok: boolean; detail: string }> {
+    return { ok: true, detail: "in-process memory driver, nothing to ping" };
+  }
   private store = new Map<string, { value: string; expiresAt: number }>();
   private timer: NodeJS.Timeout | null = null;
 
@@ -139,6 +150,17 @@ class RedisDriver implements CacheDriver {
       // best-effort
     }
   }
+
+  async ping(): Promise<{ ok: boolean; detail: string }> {
+    const client = await this.clientOrNull();
+    if (!client) return { ok: false, detail: "REDIS unreachable or CACHE_REDIS_URL not configured" };
+    try {
+      const reply = await client.ping();
+      return { ok: reply === "PONG", detail: reply === "PONG" ? "PONG" : `unexpected reply: ${reply}` };
+    } catch {
+      return { ok: false, detail: "ioredis PING failed" };
+    }
+  }
 }
 
 class FileDriver implements CacheDriver {
@@ -212,6 +234,10 @@ class FileDriver implements CacheDriver {
       // already gone
     }
   }
+
+  async ping(): Promise<{ ok: boolean; detail: string }> {
+    return { ok: true, detail: "on-disk file driver, nothing to ping" };
+  }
 }
 
 class DbDriver implements CacheDriver {
@@ -249,6 +275,12 @@ class DbDriver implements CacheDriver {
     } catch {
       // best-effort
     }
+  }
+
+  async ping(): Promise<{ ok: boolean; detail: string }> {
+    // The DB-backed driver reuses the database connection the health check
+    // already probes, so this never reports a failure of its own.
+    return { ok: true, detail: "db-backed driver (database probed separately)" };
   }
 }
 
