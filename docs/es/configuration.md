@@ -41,6 +41,145 @@ cp .env.example .env
 | `PORT` | Puerto del servidor backend | `3000` |
 | `API_PREFIX` | Prefijo de rutas de la API | `/api` |
 | `NODE_ENV` | Modo del entorno | `development` |
+| `CONFIG_FILE` | Ruta al archivo de configuración de la instancia (config.yml) | `config.yml` |
+| `CONFIG_AUTO_RELOAD` | Política de recarga en caliente: `true` = automática al guardar, `false` = solo `config reload` explícito | `true` |
+| `ADS_FREE_OPT_OUT_ALLOWED` | Concede a los perfiles del plan FREE el derecho a ocultar los anuncios de la instancia (`hideAds: true`). PRO/Enterprise siempre pueden. | `false` |
+
+### Configuración de instancia (config.yml)
+
+Las partes públicas e impulsadas por datos de una instancia (textos de la
+página de inicio, identidad legal del operador, barra de anuncio, visibilidad
+de precios) viven en **un único archivo YAML editable** en lugar de variables
+de compilación. Si el archivo no existe no pasa nada: la instancia se ejecuta
+con los valores predeterminados del esquema. Añade el tuyo con:
+
+```bash
+cp config.yml.example config.yml
+```
+
+Móntalo **en lectura-escritura** dentro del contenedor backend (el montaje debe
+ser escribible para que las señales de recarga puedan tocar su mtime):
+
+```yaml
+backend:
+  volumes:
+    - ./config.yml:/app/config.yml   # NO con :ro
+```
+
+Estructura (consulta `config.yml.example` para el archivo completo comentado):
+
+```yaml
+public:
+  landing:      # tagline, titular/subtítulo del hero, footerAbout
+  policy:       # operatorName, operatorContact, jurisdiction (Términos/Privacidad)
+  operational:  # announcement { message, href }, hidePricing
+  ads:          # enabled, verificationMeta, slots (ver «Anuncios de instancia» abajo)
+private:
+  operatorContactEmail:   # solo en el servidor, nunca se sirve al navegador
+  ads:                    # secretos de las redes de anuncios, solo en el servidor
+```
+
+- **`public`** se sirve tal cual por `GET /api/config` y la SPA lo renderiza.
+- **`private`** se valida en memoria pero **nunca** se serializa a ningún
+  endpoint ni página (defensa contra spam).
+- Todas las cadenas se sanean al cargar (se eliminan caracteres tipo HTML
+  `< > { }`); el `href` del anuncio solo acepta `http(s)`.
+
+**Recarga en caliente:** el servidor vuelve a leer el archivo cada ~5 segundos.
+`CONFIG_AUTO_RELOAD=true` (predeterminado) aplica cualquier guardado de forma
+automática; `=false` ignora las ediciones manuales. Un cambio inválido NUNCA
+sustituye a la configuración en ejecución: la última configuración válida sigue
+sirviéndose, el error se registra y la corrección se aplica en el siguiente
+sondeo. Un archivo roto al **arrancar** se niega a iniciar el servidor a
+propósito.
+
+**CLI (dentro del contenedor backend):**
+
+```bash
+pnpm --filter @bioplatform/backend cli config validate   # comprobación sin conexión, salida 0/1
+pnpm --filter @bioplatform/backend cli config reload     # aplica al servidor EN EJECUCIÓN
+```
+
+`reload` valida primero (nunca señala un archivo roto), luego toca el mtime del
+archivo y crea `config.yml.reload`; el servidor en ejecución lo detecta en su
+siguiente sondeo, incluso con `CONFIG_AUTO_RELOAD=false`.
+
+### Anuncios de instancia
+
+Los operadores de instancia pueden servir anuncios de terceros en la parte
+inferior de cada página pública de perfil (debajo de los enlaces, encima del
+pie) sin tocar código: todo es config.yml más una variable de entorno.
+Activarlo expone las redes Google AdSense, Adsterra, AADS (solo BTC), PopAds,
+PropellerAds, HilltopAds, Media.net e Infolinks desde el registro de
+`apps/backend/src/lib/ads.ts`.
+
+```yaml
+public:
+  ads:
+    enabled: true
+    verificationMeta:            # etiquetas meta para comprobaciones de propiedad
+      - name: "google-site-verification"
+        content: "AbCdEfGhIjKl..."
+    slots:
+      - network: "adsense"       # unidad <ins> + cargador
+        placement: "below-links"
+        params:
+          adsense: { client: "ca-pub-…", slot: "…", autoEnabled: false }
+      - network: "adsterra"      # o aads/popads/propellerads/hilltopads/medianet/infolinks
+        placement: "below-links"
+        params:
+          script: { src: "https://a.magsrv.com/ad.js", token: "1234567" }
+      - network: "raw"           # fragmento oficial pegado por el operador
+        placement: "below-links"
+        params:
+          raw: "<div class='ad'>…</div>"
+private:
+  ads:                           # secretos de redes — validados, NUNCA serializados
+    adsenseOauthToken: "..."
+```
+
+Comportamiento y garantías:
+
+- **Dos estrategias de inserción.** Las redes `adsense`/basadas en script usan
+  los montajes canónicos de `apps/frontend/src/components/ads/adEmbeds.ts`: el
+  frontend construye el cargador/unidad él mismo. `network: raw` es un pegado
+  literal del fragmento oficial de la red, renderizado dentro del hueco del
+  anuncio **solamente**.
+- **Lista de permitidos en el momento de la carga.** Todo `script.src` que un
+  hueco pueda producir se verifica contra los hosts del registro de esa red
+  (`resolveAdScriptSrc`); una URL `javascript:` o un host fuera de la lista
+  invalida todo el archivo al arrancar/recargar.
+- **El campo raw es el único canal sin sanear.** `public.ads.slots[].params.raw`
+  se salta el saneamiento de cadenas `< > { }` a propósito (HTML escrito por el
+  operador; por diseño llega al navegador) — nunca debe contener secretos y solo
+  debe proceder del panel de la propia red de anuncios.
+- **Pop-unders** (PopAds, PropellerAds) se disparan como mucho una vez por
+  visita con un bloqueo de sessionStorage en el cliente, conservando el script
+  original de la red.
+- **Privacidad.** Los clics de anuncios reutilizan el pipeline de clics
+  existente (`POST /api/profiles/click` con `platform: ad:<red>`) — la misma
+  deduplicación por hash de visitante, el mismo respeto a DNT/GPC, visibles en
+  las analíticas del Dashboard.
+- **Renuncia (opt-out).** `Profile.hideAds` se muestra en el Dashboard siempre
+  que los anuncios estén activos. PRO/Enterprise siempre pueden ocultarlos; los
+  planes FREE solo si lo concedes vía la variable `ADS_FREE_OPT_OUT_ALLOWED=true`
+  (predeterminado `false`).
+- **Aviso de bloqueador de anuncios.** Cuando un perfil muestra anuncios, los
+  visitantes cuyo navegador bloquea anuncios ven un aviso pequeño y descartable
+  (tras 10 segundos, una vez por sesión). Está controlado por perfil vía
+  `Profile.adblockDetectorEnabled` en el Dashboard: los perfiles FREE **siempre**
+  lo muestran (la API rechaza desactivarlo para FREE), mientras que PRO/Enterprise
+  pueden desactivarlo conservando los anuncios.
+- **CSP.** `nginx/site.conf` lleva el súper-conjunto estático de los hosts de
+  script/imagen/frame/connect de todas las redes del registro. Si el cargador
+  real de una red carga desde un host no listado, añádelo **tanto** al registro
+  como a la cabecera.
+- **Los secretos se quedan en el servidor.** `private.ads` se valida al cargar
+  pero nunca se serializa; `GET /api/config` solo lleva `public.ads`.
+
+Un hueco se valida al cargar: AdSense necesita `client` (+ `slot`, salvo
+`autoEnabled`), las redes de script necesitan su `src` en un host permitido de
+la lista de la red, y `raw` necesita un fragmento real.
 
 ## Base de datos
 

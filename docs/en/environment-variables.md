@@ -1,12 +1,20 @@
 # Environment Variables
 
+> **Branding moved to `config.yml`.** `APP_NAME`, `APP_TAGLINE`, `APP_DESCRIPTION`,
+> `VITE_APP_NAME`, `VITE_APP_TAGLINE`, `VITE_APP_DESCRIPTION` and `VITE_CONTACT_URL`
+> are **no longer part of `.env.example`**. The operator-facing way to change the
+> landing copy and legal operator identity is `config.yml` (= `CONFIG_FILE`), see
+> [Configuration](configuration.md) and `config.yml.example`. The variables below
+> are still read as fallbacks if an existing `.env` keeps setting them — they are
+> documented here only for that reference.
+
 ## Application
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `APP_NAME` | Application name | `BioPlatform` |
-| `APP_TAGLINE` | Short tagline | `Your digital identity, beautifully crafted.` |
-| `APP_DESCRIPTION` | Full description | `Create a stunning profile page...` |
+| `APP_NAME` | Application name — **moved to `public.policy`/`public.landing` in `config.yml`; env kept only as a fallback** | `BioPlatform` |
+| `APP_TAGLINE` | Short tagline — **moved to `public.landing` in `config.yml`; env fallback only** | `Your digital identity, beautifully crafted.` |
+| `APP_DESCRIPTION` | Full description — **moved to `public.landing` in `config.yml`; env fallback only** | `Create a stunning profile page...` |
 | `APP_URL` | Public URL | `http://localhost:80` |
 | `APP_URL_HOST` | Bare hostname of the app's own domain (e.g. `example.com`). Nginx uses it to detect app-host requests and only route social-crawler root requests from **custom** domains to the backend for server-rendered OG. | _(empty → only $host matching is skipped, app host never detected)_ |
 | `APP_GITHUB_URL` | GitHub repository URL | `https://github.com/00kino547/BioPlatform` |
@@ -16,13 +24,13 @@
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VITE_API_URL` | Backend API URL (use `/api` for Nginx proxy) | `/api` |
-| `VITE_APP_NAME` | Frontend app name | `BioPlatform` |
-| `VITE_APP_TAGLINE` | Frontend tagline | `Your digital identity, beautifully crafted.` |
-| `VITE_APP_DESCRIPTION` | Frontend description | `Create a stunning profile page...` |
+| `VITE_APP_NAME` | Frontend app name — **moved to `config.yml`; kept only as a fallback, not in `.env.example`** | `BioPlatform` |
+| `VITE_APP_TAGLINE` | Frontend tagline — **moved to `public.landing` in `config.yml`; env fallback only** | `Your digital identity, beautifully crafted.` |
+| `VITE_APP_DESCRIPTION` | Frontend description — **moved to `public.landing` in `config.yml`; env fallback only** | `Create a stunning profile page...` |
 | `VITE_APP_URL` | Frontend public URL | `http://localhost:80` |
 | `VITE_APP_GITHUB_URL` | Frontend GitHub URL | `https://github.com/00kino547/BioPlatform` |
 | `VITE_APP_OG_IMAGE` | Default Open Graph/Discord embed image | `<VITE_APP_URL>/og.png` |
-| `VITE_CONTACT_URL` | Contact/support URL | `https://github.com/00kino547/BioPlatform/issues` |
+| `VITE_CONTACT_URL` | Contact/support URL — **moved to `public.policy.operatorContact` in `config.yml`; env fallback only** | `https://github.com/00kino547/BioPlatform/issues` |
 | `VITE_STATUS_URL` | Status page URL | _(empty)_ |
 | `VITE_DOCS_URL` | Documentation URL | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 
@@ -34,6 +42,13 @@
 |----------|-------------|---------|
 | `PORT` | Backend server port | `3000` |
 | `NODE_ENV` | Environment mode | `development` |
+| `CONFIG_FILE` | Path to the instance configuration file (config.yml) | `config.yml` |
+| `CONFIG_AUTO_RELOAD` | Hot-reload policy: `true` = auto on save, `false` = explicit `config reload` only | `true` |
+| `ADS_FREE_OPT_OUT_ALLOWED` | When `true`, FREE-tier profiles may hide instance ads (`hideAds: true`). PRO/Enterprise always may. Whether ads are on at all comes from `public.ads.enabled` in config.yml. | `false` |
+
+> `CONFIG_FILE` and `CONFIG_AUTO_RELOAD` drive the `config.yml` instance
+> configuration — see [Configuration](configuration.md) for the file format,
+> validation and reload flow.
 
 ## Database
 

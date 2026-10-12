@@ -12,6 +12,7 @@
 git clone https://github.com/00kino547/BioPlatform.git
 cd bio
 cp .env.example .env
+cp config.yml.example config.yml   # optional — instance copy/branding/ads (hot-reloads)
 corepack enable
 pnpm install
 pnpm db:generate

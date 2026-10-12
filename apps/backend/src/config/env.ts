@@ -101,6 +101,39 @@ const envSchema = z.object({
   APP_NAME: z.string().default("BioPlatform"),
   APP_TAGLINE: z.string().default("Your digital identity, beautifully crafted."),
   APP_GITHUB_URL: z.string().url().default("https://github.com/00kino547/BioPlatform"),
+  /**
+   * Path to the human-editable instance configuration file (config.yml).
+   *
+   * Loaded at boot and then hot-reloaded in place (see CONFIG_AUTO_RELOAD). A
+   * missing file is NOT an error — the instance runs on the schema defaults and
+   * every field remains empty/off until the operator provides the file (e.g. by
+   * bind-mounting `./config.yml:/app/config.yml` into the container). The mount
+   * must be READ-WRITE: hot reload signals changes by bumping the file's mtime.
+   * An unparseable file, or one that violates the schema, fails a BOOT loudly so
+   * a typo never ships silently as an empty landing page or a missing legal
+   * contact; on a RELOAD the failure is logged and the last-good config keeps
+   * serving. See docs/en/configuration.md.
+   */
+  CONFIG_FILE: z.string().default("config.yml"),
+  /**
+   * Hot-reload policy. true (default) polls config.yml a few times a second and
+   * applies changes automatically. false makes reload explicit-only: a manual
+   * file save is ignored until the operator runs `pnpm cli config reload`
+   * (which always works, and is the recommended flow for scripts/CI).
+   */
+  CONFIG_AUTO_RELOAD: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  /**
+   * Grants FREE-tier profile owners the right to hide instance ads on their own
+   * profile (`hideAds: true`). PRO/ENTERPRISE owners can always hide ads. When
+   * false (default), free-tier owners see the toggle disabled in the dashboard.
+   */
+  ADS_FREE_OPT_OUT_ALLOWED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   CACHE_DRIVER: z.enum(["memory", "redis", "file", "db"]).default("redis"),
   CACHE_REDIS_URL: z.string().default("redis://localhost:6379"),
   CACHE_FILE_DIR: z.string().default(""),

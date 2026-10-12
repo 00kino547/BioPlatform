@@ -79,6 +79,7 @@ En el primer arranque, establece `SEED_ON_START=true` en `.env` para crear el ad
 git clone https://github.com/00kino547/BioPlatform.git
 cd BioPlatform
 cp .env.example .env
+cp config.yml.example config.yml   # opcional — textos de marca/instancia, anuncios (recarga en caliente)
 corepack enable
 pnpm install
 pnpm db:generate

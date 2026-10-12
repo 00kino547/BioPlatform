@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { die, printJson, parseArgs, flagBool } from "./shared.js";
 import { runUsers } from "./users.js";
 import { runProfiles } from "./profiles.js";
+import { runConfig } from "./config.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../../package.json") as { version: string };
@@ -33,6 +34,9 @@ commands:
   profiles edit <identifier> [--profile-id <uuid>] [--display-name X|none]
       [--bio X|none] [--location X|none] [--website <url>|none]
       [--public] [--private]
+
+  config validate [<path>]  Check config.yml offline (never prints its content)
+  config reload [<path>]    Validate, then tell the RUNNING server to re-read it
 
 identifier: @username, user@example.com, profile slug/alias or UUID.
 "none" clears an optional field. --json prints raw JSON.
@@ -65,6 +69,11 @@ function main(): void {
     runProfiles(argv.slice(1))
       .then(finish)
       .catch(fail);
+    return;
+  }
+  if (command === "config") {
+    // Synchronous, no I/O beyond the config file; keeps the console output in order.
+    runConfig(argv.slice(1));
     return;
   }
   const parsed = parseArgs(argv);

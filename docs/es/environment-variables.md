@@ -1,12 +1,20 @@
 # Variables de Entorno
 
+> **La marca se ha movido a `config.yml`.** `APP_NAME`, `APP_TAGLINE`, `APP_DESCRIPTION`,
+> `VITE_APP_NAME`, `VITE_APP_TAGLINE`, `VITE_APP_DESCRIPTION` y `VITE_CONTACT_URL`
+> **ya no forman parte de `.env.example`**. La forma operativa de cambiar los textos
+> de la página de inicio y la identidad legal del operador es `config.yml` (= `CONFIG_FILE`),
+> ver [Configuration](configuration.md) y `config.yml.example`. Las variables de abajo
+> siguen leídas como respaldo si un `.env` existente las mantiene — se documentan aquí
+> solo con ese propósito de referencia.
+
 ## Aplicación
 
 | Variable | Descripción | Predeterminado |
 |----------|-------------|---------|
-| `APP_NAME` | Nombre de la aplicación | `BioPlatform` |
-| `APP_TAGLINE` | Lema corto | `Your digital identity, beautifully crafted.` |
-| `APP_DESCRIPTION` | Descripción completa | `Create a stunning profile page...` |
+| `APP_NAME` | Nombre de la aplicación — **movido a `public.policy`/`public.landing` en `config.yml`; el env solo queda como respaldo** | `BioPlatform` |
+| `APP_TAGLINE` | Lema corto — **movido a `public.landing` en `config.yml`; solo respaldo de env** | `Your digital identity, beautifully crafted.` |
+| `APP_DESCRIPTION` | Descripción completa — **movido a `public.landing` en `config.yml`; solo respaldo de env** | `Create a stunning profile page...` |
 | `APP_URL` | URL pública | `http://localhost:80` |
 | `APP_URL_HOST` | Hostname sin el esquema del propio dominio de la app (p. ej. `example.com`). Nginx lo usa para detectar las peticiones dirigidas al dominio de la app y solo enrutar al backend las peticiones a la **raíz** de los dominios **personalizados** procedentes de crawlers sociales, con el fin de servir el Open Graph renderizado en el servidor. | _(vacío → no se detecta el dominio de la app)_ |
 | `APP_GITHUB_URL` | URL del repositorio de GitHub | `https://github.com/00kino547/BioPlatform` |
@@ -16,13 +24,13 @@
 | Variable | Descripción | Predeterminado |
 |----------|-------------|---------|
 | `VITE_API_URL` | URL del API del backend (usa `/api` para el proxy Nginx) | `/api` |
-| `VITE_APP_NAME` | Nombre de la app en el frontend | `BioPlatform` |
-| `VITE_APP_TAGLINE` | Lema del frontend | `Your digital identity, beautifully crafted.` |
-| `VITE_APP_DESCRIPTION` | Descripción del frontend | `Create a stunning profile page...` |
+| `VITE_APP_NAME` | Nombre de la app en el frontend — **movido a `config.yml`; solo respaldo, no está en `.env.example`** | `BioPlatform` |
+| `VITE_APP_TAGLINE` | Lema del frontend — **movido a `public.landing` en `config.yml`; solo respaldo de env** | `Your digital identity, beautifully crafted.` |
+| `VITE_APP_DESCRIPTION` | Descripción del frontend — **movido a `public.landing` en `config.yml`; solo respaldo de env** | `Create a stunning profile page...` |
 | `VITE_APP_URL` | URL pública del frontend | `http://localhost:80` |
 | `VITE_APP_GITHUB_URL` | URL de GitHub en el frontend | `https://github.com/00kino547/BioPlatform` |
 | `VITE_APP_OG_IMAGE` | Imagen predeterminada de Open Graph/embed de Discord | `<VITE_APP_URL>/og.png` |
-| `VITE_CONTACT_URL` | URL de contacto/soporte | `https://github.com/00kino547/BioPlatform/issues` |
+| `VITE_CONTACT_URL` | URL de contacto/soporte — **movido a `public.policy.operatorContact` en `config.yml`; solo respaldo de env** | `https://github.com/00kino547/BioPlatform/issues` |
 | `VITE_STATUS_URL` | URL de la página de estado | _(vacío)_ |
 | `VITE_DOCS_URL` | URL de la documentación | `https://github.com/00kino547/BioPlatform/tree/main/docs` |
 
@@ -34,6 +42,13 @@
 |----------|-------------|---------|
 | `PORT` | Puerto del servidor backend | `3000` |
 | `NODE_ENV` | Modo de entorno | `development` |
+| `CONFIG_FILE` | Ruta al archivo de configuración de la instancia (config.yml) | `config.yml` |
+| `CONFIG_AUTO_RELOAD` | Política de recarga en caliente: `true` = automática al guardar, `false` = solo `config reload` explícito | `true` |
+| `ADS_FREE_OPT_OUT_ALLOWED` | Cuando es `true`, los perfiles del plan FREE pueden ocultar los anuncios de la instancia (`hideAds: true`). PRO/Enterprise siempre pueden. Que los anuncios estén o no activos viene de `public.ads.enabled` en config.yml. | `false` |
+
+> `CONFIG_FILE` y `CONFIG_AUTO_RELOAD` gestionan la configuración de instancia
+> `config.yml` — consulta [Configuración](configuration.md) para el formato del
+> archivo, la validación y el flujo de recarga.
 
 ## Base de Datos
 

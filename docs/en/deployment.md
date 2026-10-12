@@ -81,6 +81,7 @@ overwrites an existing admin password. Remove `SEED_ON_START=true` after the fir
 git clone https://github.com/00kino547/BioPlatform.git
 cd BioPlatform
 cp .env.example .env
+cp config.yml.example config.yml   # optional — instance copy/branding/ads (hot-reloads)
 corepack enable
 pnpm install
 pnpm db:generate

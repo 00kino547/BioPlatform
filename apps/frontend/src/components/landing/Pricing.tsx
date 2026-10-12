@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, type OrderConfig } from "@/lib/api";
+import { useInstanceConfig } from "@/lib/useInstanceConfig";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { branding } from "@/config/branding";
@@ -102,6 +103,7 @@ function PricingButton({ plan }: { plan: (typeof plans)[number] }) {
 
 export function Pricing() {
   const [config, setConfig] = useState<OrderConfig | null>(null);
+  const instance = useInstanceConfig();
 
   const loadConfig = useCallback(async () => {
     try {
@@ -115,6 +117,12 @@ export function Pricing() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // An instance operator can hide the whole pricing section via config.yml
+  // (public.operational.hidePricing) — e.g. when the store isn't ready or plans
+  // are deliberately unpublished. Zero fields (absent file) keep it visible.
+  // Kept after every hook so the Rules of Hooks stay satisfied.
+  if (instance?.operational.hidePricing) return null;
 
   const priced = plans.map((plan) => {
     const envPlan = config?.plans.find((p) => p.plan === plan.key);

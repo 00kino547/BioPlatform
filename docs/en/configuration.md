@@ -41,6 +41,134 @@ cp .env.example .env
 | `PORT` | Backend server port | `3000` |
 | `API_PREFIX` | API route prefix | `/api` |
 | `NODE_ENV` | Environment mode | `development` |
+| `CONFIG_FILE` | Path to the instance configuration file (config.yml) | `config.yml` |
+| `CONFIG_AUTO_RELOAD` | Hot-reload policy: `true` = auto on save, `false` = explicit `config reload` only | `true` |
+| `ADS_FREE_OPT_OUT_ALLOWED` | Grants FREE-tier profiles the right to hide instance ads (`hideAds: true`). PRO/Enterprise always may. | `false` |
+
+### Instance configuration (config.yml)
+
+The public-facing, data-driven parts of an instance (landing copy, legal
+operator identity, announcement bar, pricing visibility) live in **one human
+editable YAML file** instead of build-time env vars. A missing file is fine —
+the instance runs on schema defaults. Add yours with:
+
+```bash
+cp config.yml.example config.yml
+```
+
+Bind-mount it **read-write** into the backend container (the mount must be
+writable so reload signals can bump its mtime):
+
+```yaml
+backend:
+  volumes:
+    - ./config.yml:/app/config.yml   # NOT :ro
+```
+
+Structure (see `config.yml.example` for the full commented file):
+
+```yaml
+public:
+  landing:      # tagline, hero heading/subheading, footerAbout
+  policy:       # operatorName, operatorContact, jurisdiction (Terms/Privacy)
+  operational:  # announcement { message, href }, hidePricing
+  ads:          # enabled, verificationMeta, slots (see "Instance ads" below)
+private:
+  operatorContactEmail:   # server-side only, never served to browsers
+  ads:                    # ad-network secrets, server-side only
+```
+
+- **`public`** is served verbatim by `GET /api/config` and rendered by the SPA.
+- **`private`** is validated in memory but **never** serialized to any endpoint
+  or page (spambot defense).
+- Every string is sanitized on load (HTML-like `< > { }` stripped); the
+  announcement `href` accepts `http(s)` only.
+
+**Hot reload:** the server re-reads the file every ~5 seconds.
+`CONFIG_AUTO_RELOAD=true` (default) applies any save automatically; `=false`
+ignores manual edits. An invalid change NEVER replaces the running config —
+the last-good snapshot keeps serving, the error is logged, and the fix applies
+on the next poll. A broken file at **boot** refuses to start on purpose.
+
+**CLI (inside the backend container):**
+
+```bash
+pnpm --filter @bioplatform/backend cli config validate   # offline check, exit 0/1
+pnpm --filter @bioplatform/backend cli config reload     # apply to the RUNNING server
+```
+
+`reload` validates first (never signals a broken file), then bumps the file's
+mtime and touches `config.yml.reload`; the running server picks the new state
+up on its next poll — even with `CONFIG_AUTO_RELOAD=false`.
+
+### Instance ads
+
+Instance owners can serve third-party ads at the bottom of every public profile
+page (below the links, above the footer) with zero code — everything is
+config.yml + one env var. Enabling projects the Google AdSense, Adsterra,
+AADS (BTC-only), PopAds, PropellerAds, HilltopAds, Media.net and Infolinks
+networks from the registry in `apps/backend/src/lib/ads.ts`.
+
+```yaml
+public:
+  ads:
+    enabled: true
+    verificationMeta:            # meta tags for network site-ownership checks
+      - name: "google-site-verification"
+        content: "AbCdEfGhIjKl..."
+    slots:
+      - network: "adsense"       # <ins> unit + loader
+        placement: "below-links"
+        params:
+          adsense: { client: "ca-pub-…", slot: "…", autoEnabled: false }
+      - network: "adsterra"      # or aads/popads/propellerads/hilltopads/medianet/infolinks
+        placement: "below-links"
+        params:
+          script: { src: "https://a.magsrv.com/ad.js", token: "1234567" }
+      - network: "raw"           # operator-pasted official snippet
+        placement: "below-links"
+        params:
+          raw: "<div class='ad'>…</div>"
+private:
+  ads:                           # network secrets — validated, NEVER serialized
+    adsenseOauthToken: "..."
+```
+
+Behaviour and guarantees:
+
+- **Two embed strategies.** `adsense`/script-based networks use the canonical
+  mounts in `apps/frontend/src/components/ads/adEmbeds.ts`: the frontend builds
+  the loader/unit itself. `network: raw` is a verbatim paste of the network's
+  official snippet, rendered inside the ad slot **only**.
+- **Allowlist at load time.** Every `script.src` a slot can produce is verified
+  against that network's registry hosts (`resolveAdScriptSrc`); a `javascript:`
+  URL or an off-list host fails the whole file at boot/reload.
+- **Raw field is the one unsanitized channel.** `public.ads.slots[].params.raw`
+  bypasses the `< > { }` string sanitizer on purpose (operator-authored HTML,
+  by design it reaches the browser) — it must never carry secrets and should
+  only come from the ad network's own panel.
+- **Pop-unders** (PopAds, PropellerAds) fire at most once per visit from a
+  client-side sessionStorage guard, keeping the network's original script.
+- **Privacy.** Ad clicks reuse the existing click pipeline (`POST
+  /api/profiles/click` with `platform: ad:<network>`) — same visitor-hash
+  dedupe, same DNT/GPC-honouring gate, visible in the Dashboard analytics.
+- **Opt-out.** `Profile.hideAds` is shown in the Dashboard whenever ads are on.
+  PRO/Enterprise can always hide them; FREE plans only when you grant that via
+  the `ADS_FREE_OPT_OUT_ALLOWED=true` env var (default `false`).
+- **Adblock notice.** When a profile renders ads, a slim, dismissible notice is
+  shown to visitors whose browser blocks ads (after a 10-second grace period,
+  once per session). It is gated per profile via `Profile.adblockDetectorEnabled`
+  in the Dashboard: FREE profiles **always** show it (the API rejects disabling
+  it for FREE), while PRO/Enterprise may turn it off while keeping the ads.
+- **CSP.** `nginx/site.conf` carries the static super-set of every registry
+  network's script/image/frame/connect hosts. If a network's real loader loads
+  from a host not listed there, add it to **both** the registry and the header.
+- **Secrets stay server-side.** `private.ads` is validated at load but never
+  serialized; `GET /api/config` only ever carries `public.ads`.
+
+A slot is validated at load: AdSense needs `client` (+ `slot`, unless
+`autoEnabled`), script networks need their loader `src` on an allowlisted host,
+and `raw` needs an actual snippet.
 
 ## Database
 

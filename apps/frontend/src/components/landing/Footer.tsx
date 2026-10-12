@@ -2,6 +2,7 @@ import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { VersionBadge } from "@/components/updates/VersionBadge";
 import { branding } from "@/config/branding";
+import { useInstanceConfig } from "@/lib/useInstanceConfig";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -32,6 +33,9 @@ const footerLinks = {
 
 export function Footer() {
   const onCookiePrefs = () => window.dispatchEvent(new CustomEvent("bio:open-cookie-settings"));
+  const instance = useInstanceConfig();
+  // config.yml landing copy wins; branding.* is the zero-config fallback.
+  const blurb = instance?.landing.footerAbout.trim() || instance?.landing.tagline.trim() || branding.tagline;
   return (
     <footer className="relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
@@ -50,7 +54,7 @@ export function Footer() {
                   </span>
                 </a>
                 <p className="text-sm text-zinc-500 leading-relaxed max-w-[240px]">
-                  {branding.tagline}
+                  {blurb}
                 </p>
                 <div className="mt-5 flex items-center gap-3">
                   <a

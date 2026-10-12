@@ -15,6 +15,7 @@ import { AnalyticsLoader } from "@/components/AnalyticsLoader";
 import { Pricing } from "@/components/landing/Pricing";
 import { FAQ } from "@/components/landing/FAQ";
 import { Footer } from "@/components/landing/Footer";
+import { AnnouncementBanner } from "@/components/landing/AnnouncementBanner";
 
 const Login = lazy(() => import("@/pages/Login").then((m) => ({ default: m.Login })));
 const Register = lazy(() => import("@/pages/Register").then((m) => ({ default: m.Register })));
@@ -70,6 +71,7 @@ function Landing() {
   useJsonLd("website", websiteJsonLd);
   return (
     <>
+      <AnnouncementBanner />
       <Navbar />
       <main>
         <GlobalThemeOverlay />

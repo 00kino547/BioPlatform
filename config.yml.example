@@ -1,0 +1,158 @@
+# =============================================================================
+# BioPlatform — instance configuration (config.yml)
+# =============================================================================
+#
+# One file drives the PUBLIC, data-driven parts of your instance: the landing
+# page copy, the legal operator identity on /terms and /privacy, an
+# announcement bar, and whether the pricing section is shown at all.
+#
+# Place this file at the repo root and bind-mount it READ-WRITE into the
+# backend container (the default CONFIG_FILE=config.yml resolves against the
+# container WORKDIR /app):
+#
+#   docker-compose.yml:
+#     backend:
+#       volumes:
+#         - ./config.yml:/app/config.yml
+#
+# The mount must be WRITABLE: hot reload (and `config reload`) signal changes
+# by bumping the file's mtime. A missing file is fine — the instance silently
+# runs on the schema defaults (every field empty/off) until you add one.
+#
+# COPY the file (never edit it in place): `cp config.yml.example config.yml`.
+#
+# VALIDATE / RELOAD:
+#   pnpm --filter @bioplatform/backend cli config validate          # offline check
+#   pnpm --filter @bioplatform/backend cli config reload            # apply to the running server
+#
+# HOT RELOAD:
+#   CONFIG_AUTO_RELOAD=true  (default) — every save is detected within ~5s and
+#                              applied in place, no restart.
+#   CONFIG_AUTO_RELOAD=false — a manual edit is ignored; run `config reload`.
+# In both cases a file that becomes INVALID never replaces the running config:
+# the last-good snapshot keeps serving, the error is logged, and the fix is
+# applied on the next poll. The only exceptions are a JSON/YAML parse problem
+# at BOOT, which refuses to start on purpose.
+
+# SECURITY NOTES:
+#  * Every string is sanitized (HTML-like chars < > { } stripped) before it is
+#    served or rendered.
+#  * `announcement.href` accepts http/https only.
+#  * `private` is NEVER serialized to any endpoint or page — anything the
+#    browser must see belongs under `public`.
+# =============================================================================
+
+public:
+  # Landing page copy. Empty strings fall back to the frontend's own
+  # branding/VITE defaults at render time.
+  landing:
+    tagline: "BioPlatform — your digital identity."
+    hero:
+      heading: "Your digital identity, beautifully crafted."
+      subheading: "Links, themes, music and analytics in one place."
+    footerAbout: "Self-hostable and open source. Your data, your rules."
+
+  # Legal operator identity shown on /terms and /privacy. `operatorContact`
+  # is what visitors see (a support URL or display handle); the direct legal
+  # mailbox goes in private.operatorContactEmail below.
+  policy:
+    operatorName: "ACME Cloud S.L."
+    operatorContact: "https://support.example.com"
+    jurisdiction: "Spain"
+    # Content takedowns (DMCA + file fingerprinting). Every uploaded file is
+    # fingerprinted (SHA-256 + perceptual image hash) and banned hashes are
+    # permanent; these knobs only control the INTAKE, not the registry.
+    dmca:
+      # Accept new reports through the public /dmca form + POST /api/dmca.
+      intakeEnabled: true
+      # Days a DMCA-disabled account may stay disabled before it is deleted
+      # completely (provided no appeal is pending). Default 30.
+      disabledAccountGraceDays: 30
+
+  operational:
+    # Optional announcement bar at the top of the landing page.
+    # Empty `message` disables the bar entirely.
+    announcement:
+      message: "Scheduled maintenance Saturday 22:00 CET."
+      href: "https://status.example.com"
+    # true hides the pricing section from visitors.
+    hidePricing: false
+
+  # Multi-language UI (i18n). STRUCTURE ONLY — the endpoints respond 503 and the
+  # frontend does not switch languages yet. This block already wins because it
+  # is served by GET /api/config; flipping `enabled` true is what the frontend
+  # will eventually honour. Translation files ship in the frontend bundle
+  # (apps/frontend/src/locales/{lng}/*.json); the backend never serves them.
+  i18n:
+    # Master switch — the whole multi-language UI is inert while false.
+    enabled: false
+    # Locale served to visitors with no stored preference.
+    defaultLocale: "en"
+    # Locale shown when a requested translation is missing a key.
+    fallbackLocale: "en"
+    # Installed locales (files shipped in the frontend bundle).
+    locales:
+      - "en"
+      - "es"
+
+  # Third-party ads rendered at the bottom of every public profile page
+  # (below the links, above the footer line). FOLLOW-UP 3 — read
+  # docs/en/configuration.md → "Instance ads" before enabling.
+  #
+  # Master switch. Everything else under ads is inert while false.
+  ads:
+    enabled: false
+    # <meta name="..." content="..."> tags rendered on public profile pages for
+    # ad-network site verification (AdSense Search Console, Adsterra/AADS owner
+    # checks, …). Exactly what your network's domain-verification tool prints.
+    verificationMeta:
+      # - name: "google-site-verification"
+      #   content: "AbCdEfGhIjKl..."
+    # One entry per ad slot. Multiple slots are supported; single-slot is the
+    # tested path and most networks have a page-ownership check anyway.
+    slots:
+      # --- AdSense (banner) ------------------------------------------------
+      # - network: "adsense"
+      #   placement: "below-links"
+      #   params:
+      #     adsense:
+      #       client: "ca-pub-1234567890123456"
+      #       slot: "1234567890"
+      #       # true = Google Auto Ads only (no manual <ins> unit below).
+      #       autoEnabled: false
+      # --- Direct script networks (Adsterra, AADS, PopAds, PropellerAds,  ----
+      # --- HilltopAds, Media.net, Infolinks: paste your official loader  ------
+      # --- URL + token. `src` must live on the network's allowlisted host, -----
+      # --- verified at config load; token is appended to the signed-on URL. ----
+      # - network: "adsterra"
+      #   placement: "below-links"
+      #   params:
+      #     script:
+      #       src: "https://a.magsrv.com/ad.js"
+      #       token: "1234567"
+      # - network: "popads"
+      #   placement: "below-links"
+      #   params:
+      #     script:
+      #       src: "https://www.popads.net/pop.js"
+      #       token: "ABC123"
+      # --- Raw snippet mode ------------------------------------------------
+      # Your network's official full code block, pasted verbatim. This is the
+      # ONE field config.yml deliberately does NOT sanitize — the snippet is
+      # rendered exactly as written (compare: pasting into your own nginx). It
+      # must never carry secrets, it reaches the browser on every public profile.
+      # - network: "raw"
+      #   placement: "below-links"
+      #   params:
+      #     raw: "<div class='ad'>…</div><script src='https://cdn.example.com/ad.js'></script>"
+
+# Server-side only. Parsed and validated at load, never exposed via
+# GET /api/config or the policy pages (spambot defense: the bare mailbox must
+# not end up in public HTML).
+private:
+  operatorContactEmail: "legal@example.com"
+  # Ad-network secrets (API keys, payout-call tokens) live here. Validated at
+  # load but NEVER serialized — public.ads only carries what the browser needs
+  # to render the slot.
+  # ads:
+  #   adsenseOauthToken: "..."
