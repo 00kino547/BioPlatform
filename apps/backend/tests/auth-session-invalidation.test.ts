@@ -176,4 +176,64 @@ describe("A4: session invalidation on credential changes", () => {
     const adminToken = (adminLogin.body as { data: { token: string } }).data.token;
     assert.equal((await me(adminToken)).status, 200);
   });
+
+  test("admin 'sign out all' invalidates every session and resets stored credentials", async () => {
+    // This endpoint is deliberately global (incident response), so it bumps
+    // authVersion for every row, deletes every passkey and every enterprise-SSO
+    // identity in the shared test DB. Restore the common `av = 0` baseline in
+    // `finally` so later test files (which sign no-`av` tokens) are unaffected.
+    const hash = await bcrypt.hash("signoutpw1", 12);
+    const a = await mkUser("a4_signout_a", hash, roleId);
+    const b = await mkUser("a4_signout_b", hash, roleId);
+    try {
+      await prisma.passkey.create({
+        data: { userId: b.id, credentialId: `cred-${b.id}`, publicKey: "pk", name: "Test Key" },
+      });
+      await prisma.user.update({
+        where: { id: b.id },
+        data: { totpEnabled: true, totpSecret: "totp-secret" },
+      });
+      const sso = await prisma.enterpriseSso.create({
+        data: { userId: a.id, issuerUrl: "https://idp.test", clientId: "c", clientSecret: "s", displayName: "IdP" },
+      });
+      await prisma.enterpriseSsoIdentity.create({
+        data: { ssoId: sso.id, providerAccountId: "sub-1", email: b.email, userId: b.id },
+      });
+
+      const loginA = await login("a4_signout_a", "signoutpw1");
+      assert.equal(loginA.status, 200, JSON.stringify(loginA.body));
+      const tokenA = (loginA.body as { data: { token: string } }).data.token;
+      assert.equal((await me(tokenA)).status, 200);
+
+      const adminLogin = await login("a4_admin", "supersecure1");
+      const adminToken = (adminLogin.body as { data: { token: string } }).data.token;
+      const auth = { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` };
+
+      // Refuses without the explicit confirmation and changes nothing.
+      const unconfirmed = await request("/api/admin/auth/sign-out-all", {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({}),
+      });
+      assert.equal(unconfirmed.status, 400);
+      assert.equal((await me(tokenA)).status, 200);
+
+      const res = await request("/api/admin/auth/sign-out-all", {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ confirm: true }),
+      });
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+
+      assert.equal((await me(tokenA)).status, 401, "every live session must be invalidated");
+      assert.equal(await prisma.passkey.count({ where: { userId: b.id } }), 0);
+      const bAfter = await prisma.user.findUnique({ where: { id: b.id } });
+      assert.equal(bAfter!.totpEnabled, false);
+      assert.equal(bAfter!.totpSecret, null);
+      assert.equal(await prisma.enterpriseSsoIdentity.count(), 0);
+    } finally {
+      await prisma.user.deleteMany({ where: { username: { in: ["a4_signout_a", "a4_signout_b"] } } });
+      await prisma.user.updateMany({ data: { authVersion: 0 } });
+    }
+  });
 });

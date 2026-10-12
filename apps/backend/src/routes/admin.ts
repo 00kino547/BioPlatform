@@ -28,7 +28,7 @@ import {
   hasPermission,
   permissionsFor,
 } from "../lib/permissions.js";
-import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "../lib/webhook.js";
+import { dispatchWebhookEvent } from "../lib/webhook.js";
 import {
   DAY_MS,
   getInviteGenerationEnabled,
@@ -70,11 +70,15 @@ import { isEmailEnabled } from "../lib/email.js";
 import { getContactConfig, setContactConfig, CONTACT_METHODS } from "../lib/contactConfig.js";
 import { clearPolicyContextCache } from "../lib/policyContextCache.js";
 import { deleteUpload } from "../lib/mediaStore.js";
+import { deleteUserCompletely, SelfDeletionError } from "../lib/accountDeletion.js";
 import {
   loadAbuseWhitelist,
   addAbuseWhitelistEntry,
   removeAbuseWhitelistEntry,
 } from "../lib/antiAbuseWhitelist.js";
+// DMCA moderation surface. Kept in its own module so this file stays navigable;
+// mounted below, after `requireAuth, requireAdmin`, which it inherits.
+import dmcaAdminRouter from "./adminDmca.js";
 
 const router = Router();
 
@@ -264,6 +268,11 @@ function serializeUser(u: {
 }
 
 router.use(requireAuth, requireAdmin);
+
+// DMCA moderation. Declared after the auth+admin gate so every request to
+// /api/admin/dmca/* is authenticated and admin-gated before reaching the
+// sub-router, which adds its own `moderation.manage` requirement.
+router.use("/dmca", dmcaAdminRouter);
 
 router.get("/users", requirePermission(PERMISSIONS.USERS_VIEW), async (req, res) => {
   const { take, skip, limit, offset } = paginationParams(req.query);
@@ -507,53 +516,25 @@ router.delete("/users/:id", requirePermission(PERMISSIONS.USERS_MANAGE), require
     return res.status(400).json({ success: false, error: "You cannot delete your own account" });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      username: true,
-      profiles: {
-        select: {
-          avatar: true,
-          banner: true,
-          musicTracks: { select: { filePath: true } },
-        },
-      },
-    },
-  });
+  // 404 parity with the pre-refactor route: deleteUserCompletely is a silent
+  // no-op for a missing user (the disabled-account purge job relies on that),
+  // but a tracked-down hand delete should still report the id as gone.
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true } });
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
   }
 
-  await dispatchWebhookEventAsync(id, "user.deleted", {
-    username: user.username,
-    deletedAt: new Date().toISOString(),
-  });
-
-  await prisma.$transaction([
-    prisma.authBan.deleteMany({ where: { kind: "ACCOUNT", value: id } }),
-    prisma.authLog.deleteMany({ where: { OR: [{ accountId: id }, { username: user.username }] } }),
-    prisma.inviteCode.deleteMany({ where: { createdById: id } }),
-    prisma.user.delete({ where: { id } }),
-  ]);
-
-  for (const profile of user.profiles) {
-    for (const filePath of [profile.avatar, profile.banner]) {
-      if (filePath) {
-        void deleteUpload(path.basename(filePath)).catch(() => undefined);
-      }
+  // One deletion path for a hand delete and the purge job (see
+  // lib/accountDeletion.ts). The explicit self-delete 400 above stays, and
+  // SelfDeletionError is caught as a second layer of defence.
+  try {
+    await deleteUserCompletely(id, { callerUserId: req.userId });
+  } catch (err) {
+    if (err instanceof SelfDeletionError) {
+      return res.status(400).json({ success: false, error: err.message });
     }
-    for (const track of profile.musicTracks) {
-      if (track.filePath) {
-        void deleteUpload(path.basename(track.filePath)).catch(() => undefined);
-      }
-    }
+    throw err;
   }
-
-  dispatchWebhookEvent(id, "user.deleted", {
-    username: user.username,
-    deletedAt: new Date().toISOString(),
-  });
 
   res.json({ success: true, message: "User deleted" });
 });
@@ -650,6 +631,56 @@ router.post("/users/:id/reset-password", requirePermission(PERMISSIONS.USERS_MAN
   await bumpAuthVersion(id);
 
   res.json({ success: true, message: "Password reset successfully" });
+});
+
+/**
+ * Emergency "sign out everyone" — incident response.
+ *
+ * Performs a FULL credential reset for every account so that no session or
+ * stored credential issued before this call can be used again:
+ *   - bumps `authVersion` on every user, so every previously issued session JWT
+ *     is rejected by `requireAuth` (it compares the token's `av` claim);
+ *   - removes every passkey (a passkey is a complete sign-in credential);
+ *   - disables TOTP and clears its secret, so the second factor must be
+ *     re-enrolled;
+ *   - deletes every enterprise-SSO identity link, because an identity created by
+ *     the `/auth/sso/exchange` email-match takeover would otherwise keep
+ *     granting a session even after the code fix (the fix stops NEW links, it
+ *     cannot distinguish old malicious ones). Users re-link from Security.
+ *
+ * Passwords and linked OAuth accounts are intentionally left untouched: users
+ * can still sign in with a password or an OAuth provider, and we never remove
+ * every recovery path at once. Admin-gated and requires an explicit
+ * `{ confirm: true }` body so it cannot fire by accident.
+ */
+router.post("/auth/sign-out-all", requirePermission(PERMISSIONS.USERS_MANAGE), requireNoUpdateLockdown, async (req, res) => {
+  if (req.body?.confirm !== true) {
+    return res.status(400).json({
+      success: false,
+      error: "This signs out every account and resets its credentials. Send { confirm: true } to proceed.",
+    });
+  }
+
+  const [users, passkeys, totp, ssoIdentities] = await prisma.$transaction([
+    prisma.user.updateMany({ data: { authVersion: { increment: 1 } } }),
+    prisma.passkey.deleteMany({}),
+    prisma.user.updateMany({
+      where: { OR: [{ totpEnabled: true }, { totpSecret: { not: null } }] },
+      data: { totpEnabled: false, totpSecret: null },
+    }),
+    prisma.enterpriseSsoIdentity.deleteMany({}),
+  ]);
+
+  res.json({
+    success: true,
+    message: "All sessions invalidated and credentials reset",
+    data: {
+      usersSignedOut: users.count,
+      passkeysRemoved: passkeys.count,
+      totpDisabled: totp.count,
+      ssoIdentitiesRemoved: ssoIdentities.count,
+    },
+  });
 });
 
 router.get("/users/:id/profile", requirePermission(PERMISSIONS.PROFILES_MANAGE), async (req: Request<{ id: string }>, res) => {
@@ -1419,12 +1450,12 @@ router.get("/newsletter/sender-whitelist", requirePermission(PERMISSIONS.NEWSLET
   });
 });
 
-router.put("/newsletter/sender-whitelist/:id", requirePermission(PERMISSIONS.NEWSLETTER_MANAGE), async (req: Request<{ id: string }>, res: Response) => {
+router.put("/newsletter/sender-whitelist/:userId", requirePermission(PERMISSIONS.NEWSLETTER_MANAGE), async (req: Request<{ userId: string }>, res: Response) => {
   const parsed = z.object({ whitelisted: z.boolean() }).safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
   }
-  const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true, email: true } });
+  const user = await prisma.user.findUnique({ where: { id: req.params.userId }, select: { id: true, username: true, email: true } });
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
   }

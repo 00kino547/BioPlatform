@@ -259,7 +259,7 @@ test("enforced SSO blocks password login and social login for the owner", async 
   assert.match(String(social.body.error), /enterprise SSO/i);
 });
 
-test("full OIDC login links a matching verified email to the existing account", async () => {
+test("OIDC exchange refuses to auto-link a matching verified email (account-takeover fix)", async () => {
   await ensureJwks();
   await cleanSso();
   installOidcMock();
@@ -320,17 +320,104 @@ test("full OIDC login links a matching verified email to the existing account", 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
-  assert.equal(exchange.status, 200);
-  const exchangeData = exchange.body.data as Record<string, unknown>;
-  const exchangeUser = exchangeData.user as Record<string, unknown>;
-  assert.equal(exchangeData.status, "logged_in");
-  assert.equal(exchangeUser.id, existing.id);
+  // The provider asserts a verified email matching an existing account, but the
+  // caller has not proven ownership of that local account. The exchange must
+  // refuse, issue no session, and mutate nothing.
+  assert.equal(exchange.status, 409);
+  assert.match(String(exchange.body.error), /already belongs to an account/i);
+  assert.equal(exchange.body.data, undefined);
 
   const identity = await prisma.enterpriseSsoIdentity.findUnique({
     where: { ssoId_providerAccountId: { ssoId: publicListData[0].id, providerAccountId: "oidc-sub-1" } },
   });
+  assert.equal(identity, null);
+
+  const after = await prisma.user.findUnique({ where: { id: existing.id } });
+  assert.equal(after!.emailVerified, false);
+});
+
+test("any signed-in user can link their own verified SSO identity, then sign in with it", async () => {
+  await ensureJwks();
+  await cleanSso();
+  installOidcMock();
+  const owner = await mkUser("sso_link_owner", { tier: "ENTERPRISE" });
+  const linker = await mkUser("sso_link_user");
+  const ownerAuth = { Authorization: `Bearer ${signAuth(owner.id)}` };
+  const linkerAuth = { Authorization: `Bearer ${signAuth(linker.id)}` };
+
+  await request("/api/auth/sso/config", {
+    method: "PUT",
+    headers: { ...ownerAuth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      issuerUrl: "https://idp.test",
+      clientId: "sso-client",
+      clientSecret: "super-secret-value",
+      displayName: "Acme IdP",
+      enabled: true,
+    }),
+  });
+  const configId = (await request("/api/auth/sso/configs")).body.data as unknown as Record<string, unknown>[];
+  const ssoId = configId[0].id as string;
+
+  // A non-owner signs in normally and starts LINK mode.
+  const start = await request("/api/auth/sso/start", {
+    method: "POST",
+    headers: { ...linkerAuth, "Content-Type": "application/json" },
+    body: JSON.stringify({ configId: ssoId, mode: "link" }),
+  });
+  assert.equal(start.status, 200);
+  const state = new URL((start.body.data as Record<string, unknown>).redirectUrl as string).searchParams.get("state")!;
+
+  latestIdToken = await mintIdToken({
+    sub: "oidc-sub-link",
+    email: "sso_link_user@test.local",
+    email_verified: true,
+    name: "Linker",
+  });
+  const cb = await request(
+    `/api/auth/sso/callback?code=pc&state=${encodeURIComponent(state)}`,
+    { headers: { Cookie: `sso_state=${encodeURIComponent(state)}` }, redirect: "manual" }
+  );
+  assert.equal(cb.status, 302);
+  const linkedLoc = new URL(cb.headers.get("location")!);
+  assert.equal(linkedLoc.searchParams.get("status"), "linked");
+
+  const identity = await prisma.enterpriseSsoIdentity.findUnique({
+    where: { ssoId_providerAccountId: { ssoId, providerAccountId: "oidc-sub-link" } },
+  });
   assert.ok(identity);
-  assert.equal(identity.userId, existing.id);
+  assert.equal(identity.userId, linker.id);
+
+  // A later login-mode exchange finds the linked identity and issues a session.
+  const startLogin = await request("/api/auth/sso/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ configId: ssoId }),
+  });
+  const loginState = new URL((startLogin.body.data as Record<string, unknown>).redirectUrl as string).searchParams.get("state")!;
+
+  latestIdToken = await mintIdToken({
+    sub: "oidc-sub-link",
+    email: "sso_link_user@test.local",
+    email_verified: true,
+    name: "Linker",
+  });
+  const cbLogin = await request(
+    `/api/auth/sso/callback?code=pc&state=${encodeURIComponent(loginState)}`,
+    { headers: { Cookie: `sso_state=${encodeURIComponent(loginState)}` }, redirect: "manual" }
+  );
+  assert.equal(cbLogin.status, 302);
+  const code = new URL(cbLogin.headers.get("location")!).searchParams.get("code")!;
+
+  const exchange = await request("/api/auth/sso/exchange", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  assert.equal(exchange.status, 200);
+  const exchangeData = exchange.body.data as Record<string, unknown>;
+  assert.equal(exchangeData.status, "logged_in");
+  assert.equal((exchangeData.user as Record<string, unknown>).id, linker.id);
 });
 
 test("domain-restricted SSO rejects emails outside allowedDomains", async () => {

@@ -272,12 +272,16 @@ router.post("/start", async (req, res) => {
 
   let linkUserId: string | undefined;
   if (parsed.data.mode === "link") {
+    // SECURITY: linking only ever binds the *caller's own* account to the
+    // provider's verified identity. Any signed-in user may link an enabled
+    // provider they can see — the caller must be authenticated, but does not
+    // need to own the provider. Access is still proven by the IdP: the callback
+    // requires a verified email, enforces `allowedDomains`, and refuses an
+    // identity already linked to a different account. This is the only path
+    // that creates an identity; `/exchange` can no longer auto-link by email.
     const userId = bearerUserId(req);
     if (!userId) {
       return res.status(401).json({ success: false, error: "Login required to link an account" });
-    }
-    if (userId !== config.userId) {
-      return res.status(403).json({ success: false, error: "Only the account that owns this SSO provider can link it" });
     }
     linkUserId = userId;
   }
@@ -455,34 +459,27 @@ router.post("/exchange", async (req, res) => {
     return res.status(403).json({ success: false, error: `Sign-in with ${payload.email} is not allowed on this SSO provider` });
   }
 
+  // SECURITY (account-takeover fix): an SSO sign-in must NEVER claim a local
+  // account by email match alone. Previously this branch auto-linked the SSO
+  // identity to any existing account sharing the address (and even flipped that
+  // account to email-verified), so anyone who controlled an enabled provider
+  // whose IdP asserts the victim's email could obtain a full session as that
+  // account — including an admin's. Identities are now created only when an
+  // authenticated user links their own verified identity (`/start?mode=link`).
+  // If the email already backs a local account, tell the user to sign in to it
+  // and link the provider instead.
   const existingUser = await prisma.user.findUnique({ where: { email: payload.email.toLowerCase() } });
-  if (!existingUser) {
-    return res.status(404).json({
+  if (existingUser) {
+    return res.status(409).json({
       success: false,
-      error: "No account uses this email yet. Enterprise SSO signs in existing accounts — ask the account owner to invite you first.",
+      error: "This email already belongs to an account. Sign in to that account and link this SSO provider from Settings → Security before using it to sign in.",
     });
   }
 
-  // The IdP proves mailbox control with a verified identity, so SSO sign-in is
-  // also a valid email-verification path for an unverified local account (A3b).
-  if (!existingUser.emailVerified) {
-    await prisma.user.update({
-      where: { id: existingUser.id },
-      data: { emailVerified: true, emailVerifiedAt: new Date() },
-    });
-  }
-
-  await prisma.enterpriseSsoIdentity.create({
-    data: {
-      ssoId: config.id,
-      providerAccountId: payload.providerAccountId,
-      email: payload.email.toLowerCase(),
-      emailVerified: true,
-      userId: existingUser.id,
-    },
+  return res.status(404).json({
+    success: false,
+    error: "No account uses this email yet. Create an account, then link this SSO provider from Settings → Security.",
   });
-
-  return issueLoginResponse(res, existingUser);
 });
 
 router.get("/identities", requireAuth, async (req, res) => {
