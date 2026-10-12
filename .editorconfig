@@ -1,0 +1,41 @@
+# EditorConfig — mirrors .gitattributes so editors on ALL OSes (Windows, macOS,
+# Linux) produce the same line endings the repo enforces: LF everywhere.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Markdown: trailing spaces are significant (hard line breaks), keep them.
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require tabs.
+[Makefile]
+indent_style = tab
+indent_size = 8
+
+# YAML files need Tabs-free indentation; keep 2 spaces (already the default).
+[*.yaml]
+indent_size = 2
+[*.yml]
+indent_size = 2
+
+# Dockerfiles read better at 4 spaces.
+[Dockerfile]
+indent_size = 4
+
+# Shell: align with the coding style used in scripts/lib/.
+[*.sh]
+indent_size = 2
+
+# Batch/cmd/ps1 stay LF-to-writer too; let git handle CRLF conversion via
+# .gitattributes if a Windows tool insists on native endings.
+[*.bat]
+end_of_line = crlf
+[*.cmd]
+end_of_line = crlf

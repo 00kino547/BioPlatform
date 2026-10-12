@@ -30,6 +30,7 @@ Client → Nginx (optional) → Frontend (React SPA)
 - All env vars validated via Zod (`apps/backend/src/config/env.ts`)
 - No hardcoded ports, domains, secrets
 - `@/` path alias maps to `src/`
+- **Every new user-visible string must go into the translation files — even while i18n is unfinished.** When adding text to the frontend (buttons, labels, headings, placeholders, aria-labels, empty states, toasts, tabs, confirm text, etc.), mirror the exact English wording into both `apps/frontend/src/locales/en/<namespace>.json` AND `apps/frontend/src/locales/es/<namespace>.json` (Spanish ships as an English placeholder until community translation). The namespace files are extracted so that i18n can be activated later without re-hunting strings. If no existing namespace fits the surface, create a sensible one. The frontend code itself may keep the hardcoded string until i18n is live — the locale-files entries are the contract, extracted so the migration is purely additive.
 
 ## Security Rules
 
@@ -102,6 +103,8 @@ When asked to commit a specific fix:
 6. Never force-push or rewrite main unless explicitly instructed.
 
 **ASK, NEVER GUESS.** When the user's request is ambiguous or a design decision could go multiple ways, stop and ask a clarifying question (the `question` tool) instead of assuming. The user explicitly prefers being asked — asking many questions is better than guessing wrong. Do not start broad feature work without first confirming the intended behaviour.
+
+**Permanent standing rule (explicitly stated by the project owner): asking is NEVER annoying; the annoying thing is acting without asking when the owner has told you to always ask and never guess. Treat the previous paragraph as a hard rule, not a preference — if there is any fork, decision, scope question or unchecked assumption, ask the `question` tool and wait for an answer. Whenever the owner reminds you to ask, take it as a directive that applies forever, not just to the current task.
 
 ## Memory
 

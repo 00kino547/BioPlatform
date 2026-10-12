@@ -76,6 +76,8 @@ apps/backend/src/
     ├── paymentWebhooks.ts # Public provider webhooks (stripe/paypal/crypto/:provider) — signature-verified, dispatch via lib/payments/handleGatewayEvent
     ├── webhook.ts        # Webhook CRUD (list, create, patch, rotate-secret, test, deliveries, delete) — create/update/rotate/delete gated by update lockdown
     ├── version.ts        # Public GET /api/version (installed/latest/severity, ?force=1 bypasses cache)
+    ├── config.ts         # Public GET /api/config — the config.yml `public` section (landing/policy/operational/ads/i18n)
+    ├── i18n.ts           # i18n STRUCTURE ONLY: GET /api/i18n/config + /api/i18n/locales answer 503 `i18n_not_implemented` until wired
     ├── domain.ts         # Custom domains: public GET /api/domain (host/active/root), user self-serve request/verify/root/remove
     └── discord.ts        # Discord: status, OAuth connect/callback, disconnect, settings, post-to-webhook, session restore on boot — ?profileId scoped
 apps/backend/prisma/
@@ -103,7 +105,10 @@ apps/frontend/src/
 ├── App.tsx               # Root component + React Router (/, /login, /register, /unlock, /dashboard, /admin, /privacy, /terms, /:username) — wraps in DomainProvider, CustomDomainRoot resolves the custom-domain root (redirect to root-target profile slug, else Landing)
 ├── index.css             # TailwindCSS + animations + scroll-reveal
 ├── config/branding.ts    # Branding env vars (VITE_*)
-├── config/env.ts           # Env accessor: window.__APP_CONFIG__ (runtime, injected by the container) over import.meta.env (build time)
+    ├── config/env.ts           # Env accessor: window.__APP_CONFIG__ (runtime, injected by the container) over import.meta.env (build time)
+    ├── i18n/index.ts           # i18n STRUCTURE ONLY: locale constants + resolveLocale + initI18n placeholder — NOT wired, no i18next dep yet
+    ├── locales/en/             # English translation namespace files (common/auth/landing/profile/invite/dashboard/admin/legal/shared)
+    ├── locales/es/             # Spanish translation namespace files — byte-identical English placeholders until community translation
 ├── contexts/
 │   ├── AuthContext.tsx    # Auth state (login, register, logout)
 │   └── DomainContext.tsx  # Custom-domain info for the current host (active, host, root slug, canonical) via GET /api/domain

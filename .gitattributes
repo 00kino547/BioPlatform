@@ -1,0 +1,75 @@
+# Git attributes for cross-platform (Windows / macOS / Linux) correctness.
+#
+# The repository itself is normalized to LF: every text file is stored with LF
+# in git. On checkout, git converts to the platform's native endings unless a
+# rule below pins them. This lets Windows users work with CRLF locally while
+# everything the tools (pnpm, Prisma, shell, Docker, node) actually read stays LF.
+
+# Default: autodetect text vs binary; store text as LF, check out natively.
+* text=auto
+
+# ---------------------------------------------------------------------------
+# MUST ALWAYS BE LF — Windows, macOS and Linux alike. These break or get
+# rejected by tooling if they ever carry CRLF:
+#   - shell scripts: bash/dash refuse CRLF (interpreter exec format errors)
+#   - pnpm files: the workspace + lockfile are parsed with strict LF readers
+#   - Prisma schema / SQL: CRLF can leak into generated SQL strings
+#   - env files: Docker/Node parse LF-only values
+#   - Dockerfiles: $ in Dockerfile is case-sensitive to \r
+#   - helper configs (.gitignore, .npmrc, .dockerignore)
+*.sh text eol=lf
+*.env text eol=lf
+*.env.example text eol=lf
+*.npmrc text eol=lf
+pnpm-workspace.yaml text eol=lf
+pnpm-lock.yaml text eol=lf
+schema.prisma text eol=lf
+*.prisma text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+*.dockerignore text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Windows script ecosystem MUST be CRLF or cmd.exe / batch misbehaves.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Source / docs: pinned to LF on EVERY platform, Windows included. This repo is
+# tooling-heavy (pnpm, Prisma, Docker, node) and those tools behave identically
+# with LF, so forcing LF everywhere removes the CRLF bug class entirely instead
+# of relying on each platform's native conversion. Editors that matter
+# (VS Code, etc.) handle LF on Windows without issue.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sql text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.toml text eol=lf
+
+# Binary assets: never line-ending normalize, never text-diff (future-proofing
+# for uploads/media; none are tracked today).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary

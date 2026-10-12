@@ -450,9 +450,9 @@ router.get("/resellable", requireAuth, async (req, res) => {
  * is revealed — including whether the order exists, so this endpoint cannot be
  * used to probe for order ids.
  */
-router.get("/status/:id", readRateLimit, async (req, res) => {
+router.get("/status/:orderId", readRateLimit, async (req: Request<{ orderId: string }>, res) => {
   const token = typeof req.query.token === "string" ? req.query.token : "";
-  const orderId = req.params.id;
+  const orderId = req.params.orderId;
 
   const verified = verifyInviteClaimToken(token);
   if (!verified || verified !== orderId) {

@@ -13,6 +13,11 @@ coverage
 .eslintcache
 *.tsbuildinfo
 
+# Instance configuration (config.yml is operator content, keep .example tracked)
+/config.yml
+/config.yml.reload
+*.reload
+
 # Environment
 .env
 .env.local

@@ -23,3 +23,9 @@ postgres_data
 *.sqlite3
 *.dump
 *.bak
+
+# Instance configuration (operator content; example stays in the image)
+config.yml
+config.yml.example
+.config.yml.reload
+*.reload
