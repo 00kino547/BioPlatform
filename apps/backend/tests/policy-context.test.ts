@@ -20,17 +20,24 @@ describe("policy context", () => {
   test("exposes the expected top-level shape", () => {
     const ctx = buildPolicyContext();
     assert.deepEqual(Object.keys(ctx).sort(), [
+      "ads",
       "analytics",
       "auth",
       "captcha",
       "commerce",
+      "dmca",
       "domains",
       "email",
       "integrations",
+      "operator",
       "payments",
       "storage",
       "versions",
     ]);
+    // The legal operator identity mirrors config.yml public.policy.
+    assert.equal(typeof ctx.operator.name, "string");
+    assert.equal(typeof ctx.operator.contact, "string");
+    assert.equal(typeof ctx.operator.jurisdiction, "string");
   });
 
   test("mirrors the policy versions recorded on the consent record", () => {
@@ -46,6 +53,19 @@ describe("policy context", () => {
     const ctx = buildPolicyContext();
     assert.equal(ctx.auth.localSignIn, true);
     assert.equal(ctx.domains.customDomains, true);
+  });
+
+  test("advertising is only reported with the networks actually configured", () => {
+    const ctx = buildPolicyContext();
+    assert.equal(typeof ctx.ads.enabled, "boolean");
+    assert.ok(Array.isArray(ctx.ads.networks));
+    if (!ctx.ads.enabled) {
+      // Ads off: no network may be named, or the legal pages would disclose a
+      // capability this instance does not have.
+      assert.deepEqual(ctx.ads.networks, []);
+    } else {
+      assert.ok(ctx.ads.networks.length > 0, "an enabled ad instance must name at least one network");
+    }
   });
 
   test("PocketBase is reported as a sign-in provider, never as analytics or storage", () => {

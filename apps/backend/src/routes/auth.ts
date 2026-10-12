@@ -35,6 +35,7 @@ import {
 } from "../lib/affiliateService.js";
 import { adoptGuestPurchase, guestPurchaseOrderId } from "../lib/inviteOrders.js";
 import type { InviteDb } from "../lib/inviteService.js";
+import { dmcaAppealUrl, disabledStateFor } from "../lib/dmca.js";
 
 const router = Router();
 
@@ -199,7 +200,7 @@ export function signTwoFactorToken(userId: string) {
  */
 async function finishPasskeyLogin(
   res: Response,
-  user: Parameters<typeof userPublic>[0] & { emailVerified: boolean }
+  user: Parameters<typeof userPublic>[0] & { emailVerified: boolean; disabledAt: Date | null; disabledReason?: string | null }
 ) {
   // A3b — an unverified account cannot complete a primary login through any
   // path (passkeys cannot be registered before the first verified sign-in, so
@@ -210,6 +211,12 @@ async function finishPasskeyLogin(
       error: "Please verify your email before signing in. Check your inbox for the verification link.",
       verifyEmailRequired: true,
     });
+  }
+  // A DMCA-disabled account must not receive a session token through the
+  // passkey primary path either. `/login` and the 2FA verifiers already gate on
+  // `disabledAt`; without this check a passkey silently bypassed that lock.
+  if (user.disabledAt) {
+    return respondAccountDisabled(res, user);
   }
   if (user.totpEnabled) {
     const passkeyCount = await prisma.passkey.count({ where: { userId: user.id } });
@@ -281,6 +288,39 @@ async function findUserByIdentifier(identifier: string) {
   const lower = identifier.toLowerCase();
   return prisma.user.findFirst({
     where: { OR: [{ email: lower }, { username: lower }] },
+  });
+}
+
+/**
+ * Copyright-takedown response for an account holder who just proved their
+ * credentials but is disabled.
+ *
+ * Returns HTTP 423 + `code: "account_disabled"` WITH a working session token,
+ * not a bare 401. Two reasons, in this order:
+ *
+ *   1. Filing an appeal is an authenticated call (`/api/dmca/appeal`). A
+ *      tokenless rejection would point the claimant at `/account/disabled` and
+ *      then refuse them the very token needed to reach it — a dead end.
+ *   2. `requireAuth` still answers 423 to this token on every route outside the
+ *      narrow exempt list, so the token grants appeal + credential security and
+ *      nothing else. Refusing it here would buy no security at all.
+ *
+ * The token is only ever issued AFTER the 2FA branch has been satisfied (see
+ * `/login` and `/2fa/*`), so this never becomes a second-factor bypass.
+ */
+async function respondAccountDisabled(
+  res: Response,
+  user: Parameters<typeof userPublic>[0] & { disabledAt: Date | null; disabledReason?: string | null }
+) {
+  const token = await signToken(user.id, getEnv().JWT_EXPIRES_IN);
+  return res.status(423).json({
+    success: false,
+    code: "account_disabled",
+    error: "This account is disabled pending a copyright review.",
+    appealUrl: dmcaAppealUrl(),
+    disabledAt: user.disabledAt,
+    disabledReason: user.disabledReason ?? "dmca",
+    data: { token, user: await userPublic(user) },
   });
 }
 
@@ -534,6 +574,20 @@ router.post("/login", async (req, res) => {
     });
   }
 
+  // Copyright takedown. Checked only AFTER the password, SSO and e-mail
+  // verification checks (so a wrong password still answers "Invalid
+  // credentials" and the response cannot be used to enumerate disabled
+  // accounts) and only AFTER the 2FA branch above — a disabled account must
+  // still satisfy its second factor, otherwise this gate would hand an
+  // attacker with a stolen password a session into an account whose security
+  // settings are on the exempt list.
+  //
+  // Accounts with 2FA get the normal challenge first and meet this response at
+  // /2fa/totp or /2fa/passkey/verify instead.
+  if (user.disabledAt) {
+    return respondAccountDisabled(res, user);
+  }
+
   const env = getEnv();
   const token = await signToken(user.id, env.JWT_EXPIRES_IN);
 
@@ -661,6 +715,12 @@ router.post("/2fa/totp", async (req, res) => {
     return res.status(401).json({ success: false, error: "Invalid verification code" });
   }
 
+  // Copyright takedown: the second factor is now satisfied, so this is the
+  // point at which /login would have answered 423 for a disabled account.
+  if (user.disabledAt) {
+    return respondAccountDisabled(res, user);
+  }
+
   const env = getEnv();
   const token = await signToken(user.id, env.JWT_EXPIRES_IN);
 
@@ -720,13 +780,20 @@ router.post("/2fa/passkey/verify", async (req, res) => {
     return res.status(401).json({ success: false, error: "Passkey authentication failed" });
   }
 
-  const env = getEnv();
-  const token = await signToken(userId, env.JWT_EXPIRES_IN);
-
+  // The user row must be read before the token is signed: a disabled account
+  // gets 423 + the appeal hint here instead of a plain 200 session, matching
+  // what /login does once the second factor is out of the way.
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     return res.status(401).json({ success: false, error: "Invalid credentials" });
   }
+
+  if (user.disabledAt) {
+    return respondAccountDisabled(res, user);
+  }
+
+  const env = getEnv();
+  const token = await signToken(user.id, env.JWT_EXPIRES_IN);
 
   res.json({ success: true, data: { token, user: await userPublic(user) } });
 });
@@ -951,6 +1018,11 @@ router.get("/me", requireAuth, async (req, res) => {
         autoAccepted: consent.autoAccepted,
         versions: POLICY_VERSIONS,
       },
+      // Copyright-takedown state. `/api/auth/me` sits in the disabled-gate
+      // exempt list for exactly this reason: without it the SPA could only see
+      // a bare 423 on every request and would have no way to render the appeal
+      // screen, show the reason, or tell an already-submitted appeal from none.
+      disabled: await disabledStateFor(user.id),
     },
   });
 });

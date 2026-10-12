@@ -19,10 +19,12 @@
 // public and must render for logged-out visitors, and the payload describes
 // capabilities, not data.
 
+import { AD_NETWORK_BY_ID } from "./ads.js";
 import { getEnv } from "../config/env.js";
 import { captchaEnabled, type CaptchaProvider } from "./captcha.js";
 import { isDiscordConfigured } from "./discord.js";
 import { buildExternalAnalyticsConfig, type ExternalAnalyticsProvider } from "./externalAnalytics.js";
+import { getPublicInstanceConfig } from "./instanceConfig.js";
 import { POLICY_VERSIONS, isNewsletterSendEnabled } from "./newsletter.js";
 import { ssoProvidersEnabled, type OAuthProvider } from "./oauth.js";
 import { cryptoEnabled } from "./payments/crypto.js";
@@ -115,6 +117,36 @@ export interface PolicyContext {
     /** Background "is there a newer release" check against the public repo. */
     updateCheck: boolean;
   };
+  /**
+   * Operator identity for the legal pages, from `public.policy` in config.yml.
+   * Empty strings when the operator has not published any. Never contains
+   * `private.operatorContactEmail` — see instanceConfig.ts for why.
+   */
+  operator: {
+    name: string;
+    contact: string;
+    jurisdiction: string;
+  };
+  /** Content takedowns (DMCA). Always present; intake can be toggled off. */
+  dmca: {
+    /** True when the public report form + endpoint accept new filings. */
+    intakeEnabled: boolean;
+    /** Days a DMCA-disabled account has to be re-activated before deletion. */
+    disabledAccountGraceDays: number;
+  };
+  /**
+   * Instance-owner advertising from config.yml `public.ads`. `enabled` is the
+   * master switch; `networks` are the human labels of the ad networks whose
+   * scripts the browser loads, deduplicated. Both are inert (empty) when ads are
+   * off. The legal pages disclose third-party ad-delivery cookies only when this
+   * is on, so the policy can never promise "no advertising" on an instance that
+   * actually serves ads. Never contains ad secrets — those live in the private
+   * section of config.yml and are never serialized.
+   */
+  ads: {
+    enabled: boolean;
+    networks: string[];
+  };
 }
 
 /**
@@ -126,6 +158,7 @@ export function buildPolicyContext(): PolicyContext {
   const env = getEnv();
   const analytics = buildExternalAnalyticsConfig(env);
   const pocketbase = getPocketbaseConfig();
+  const publicConfig = getPublicInstanceConfig();
 
   return {
     versions: { tos: POLICY_VERSIONS.tos, privacy: POLICY_VERSIONS.privacy },
@@ -187,6 +220,33 @@ export function buildPolicyContext(): PolicyContext {
     integrations: {
       discord: isDiscordConfigured(),
       updateCheck: env.UPDATE_CHECK_ENABLED,
+    },
+    // Legal-page operator identity (public.policy). Sanitized on load by the
+    // config loader, so a stray `<` or `{` in config.yml can never reach the
+    // policy HTML.
+    operator: {
+      name: publicConfig.policy.operatorName,
+      contact: publicConfig.policy.operatorContact,
+      jurisdiction: publicConfig.policy.jurisdiction,
+    },
+    dmca: {
+      intakeEnabled: publicConfig.policy.dmca.intakeEnabled,
+      disabledAccountGraceDays: publicConfig.policy.dmca.disabledAccountGraceDays,
+    },
+    ads: {
+      enabled: publicConfig.ads.enabled,
+      // Human labels, not ids: the legal pages name the networks the reader's
+      // browser will talk to. `raw` slots have no registry entry, so fall back
+      // to the raw id; several slots may reuse one network, so dedupe.
+      networks: publicConfig.ads.enabled
+        ? Array.from(
+            new Set(
+              publicConfig.ads.slots.map((slot) =>
+                slot.network === "raw" ? "raw" : (AD_NETWORK_BY_ID.get(slot.network)?.label ?? slot.network)
+              )
+            )
+          )
+        : [],
     },
   };
 }

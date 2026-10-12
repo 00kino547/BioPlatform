@@ -115,6 +115,13 @@ export interface PolicyContext {
   domains: { customDomains: true; automaticTls: boolean };
   integrations: { discord: boolean; updateCheck: boolean };
   /**
+   * Instance advertising from config.yml `public.ads`. When `enabled` is false
+   * the legal pages say nothing about advertising; when true they name the
+   * networks whose scripts a visitor's browser loads. The backend never exposes
+   * the ad secrets that live in the private section of config.yml.
+   */
+  ads: { enabled: boolean; networks: string[] };
+  /**
    * Invite system, supplied by the API on top of the env-derived context
    * (`PolicyContextResponse` in the backend). Only present in responses from
    * `/api/policy/context`, which is why the legal pages treat it as optional and

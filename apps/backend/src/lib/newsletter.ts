@@ -9,10 +9,12 @@ type Db = Prisma.TransactionClient | PrismaClient;
 export const NEWSLETTER_TIER_CONFIG_KEY = "newsletter.tierConfig";
 
 // Policy versions recorded on the consent record (must match the frontend
-// /privacy + /terms "Last updated" dates).
+// /privacy + /terms "Last updated" dates). Bumped on 2026-10-12 for the
+// report-less moderation clause in the ToS and the instance advertising +
+// operator identity clauses in the Terms and Privacy Policy.
 export const POLICY_VERSIONS = {
-  tos: "2026-10-04",
-  privacy: "2026-10-04",
+  tos: "2026-10-12",
+  privacy: "2026-10-12",
 } as const;
 
 // Deemed acceptance: a user who keeps using the platform more than 30 days

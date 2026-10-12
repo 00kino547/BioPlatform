@@ -21,7 +21,7 @@
     "metaTitle": "Terms of Service",
     "metaDescription": "Read the terms of service governing use of {{app}}.",
     "shellTitle": "Terms of Service",
-    "fallbackVersion": "September 30, 2026",
+    "fallbackVersion": "October 12, 2026",
     "contactPrefix": "For questions about these Terms, please ",
     "contactNamed": "contact {{name}}",
     "contactUs": "contact us",
@@ -55,6 +55,11 @@
       "acceptableUse": {
         "title": "Acceptable Use",
         "body": "You agree not to use {{app}} to: post content that is illegal, harmful, threatening, abusive, harassing, defamatory, or otherwise objectionable; impersonate any person or entity; distribute malware or spam; attempt to gain unauthorized access to other accounts or systems; or violate any applicable laws or regulations."
+      },
+      "moderation": {
+        "title": "Moderation and Content Removal",
+        "p1": "The instance operator and authorized staff may review, restrict, remove or disable any profile, link, media file or account, and may suspend or terminate access, with or without prior notice, where content or activity appears to violate these Terms, is the subject of a legal or copyright complaint, or could expose {{app}} or its operator to legal risk. This includes acting on reports of infringing, unlawful or abusive content without a complaint from the affected party, and taking action against accounts that repeatedly infringe.",
+        "p2": "We aim to give notice of an action and a way to respond where we can. Some actions — for example a statutory takedown or a security-driven suspension — are taken first and explained afterwards. A disabled account may be given a grace period to re-activate before its content is deleted; if it is not restored within that period, the account and its content may be permanently deleted without further notice."
       },
       "ownership": {
         "title": "Content Ownership",
@@ -122,6 +127,16 @@
         "railFallback": " directly to the profile owner’s wallet",
         "owner": "A profile shows a tipping block only when its owner enables tips and publishes a wallet address, and the owner may switch it off at any time, which also hides those addresses. If you enable tips you are responsible for the wallet addresses you publish and for complying with any applicable tax, financial-services or anti-money-laundering law in your jurisdiction. You may delete any tip record from your dashboard at any time."
       },
+      "advertising": {
+        "title": "Advertising",
+        "p1": "Public profiles on this instance may display advertising{{via}}. Ads are selected and served by the ad networks, not by {{app}}; we do not control the individual ads shown and do not endorse the advertised products or services. The ad networks may set their own cookies to deliver and measure ads, as described in the Privacy Policy.",
+        "p2": "You must not generate artificial impressions or clicks, tamper with ad code, or use the platform in any way intended to defraud an advertiser or an ad network. Doing so may result in suspension and may be reported to the network.",
+        "via": " through {{networks}}"
+      },
+      "operator": {
+        "title": "Who Operates This Service",
+        "body": "{{who}}{{place}}. By using {{app}} you are entering into these Terms with that operator, who is responsible for this deployment and for the choices described in these Terms."
+      },
       "api": {
         "title": "Access to the API",
         "intro": "{{app}} exposes a documented HTTP API (see the API documentation and OpenAPI specification) that supports integration with your account and profile. Use of the API is subject to these Terms, including the Acceptable Use provisions. You are responsible for requests you make and for any application or service you build on top of the API.",
@@ -155,7 +170,7 @@
     "metaTitle": "Privacy Policy",
     "metaDescription": "Read how {{app}} collects, uses, and protects your data.",
     "shellTitle": "Privacy Policy",
-    "fallbackVersion": "September 30, 2026",
+    "fallbackVersion": "October 12, 2026",
     "contactPrefix": "If you have questions about this Privacy Policy, please ",
     "contactNamed": "contact {{name}}",
     "contactUs": "contact us",
@@ -189,7 +204,11 @@
         "categories": "{{app}} uses two categories of cookies:",
         "banner": "When you first visit, a consent banner lets you choose “Accept all” (enables the analytics cookie) or “Essential only”. When the banner first appears, the “Essential only” option becomes selectable after a short countdown, so accepting non-essential cookies cannot happen accidentally. You can change your choice at any time through the “Cookie settings” link on the site or by clearing cookies.",
         "signals": "We honor browser-level privacy signals: if your browser sends the Do Not Track header (DNT: 1) or Global Privacy Control (Sec-GPC: 1), no analytics cookies are set and no non-essential analytics run at all — even if you previously accepted. This preference always takes precedence over any stored choice.",
-        "noThirdParty": "We do not use third-party advertising cookies or analytics services that track you across websites.",
+        "advertisingInstance": "Public profiles on this instance may display advertising{{via}}. Those ad networks may set their own cookies or device identifiers to deliver and measure the ads shown; these are ad-delivery cookies and are not used by us to build a cross-site profile of you. Like the other cookies needed to render the page, they load without a separate consent step, and choosing “Essential only” disables only our analytics cookie rather than the ads. Where a network offers its own tracking controls, that network’s privacy policy governs them.",
+        "advertisingFallback": "Some public profiles may display advertising served by third-party ad networks. Those networks may set their own cookies or device identifiers to deliver and measure the ads they serve, under their own privacy policies. Ad delivery does not depend on your analytics choice: choosing “Essential only” disables our analytics cookie but does not remove advertising where a profile carries it.",
+        "advertisingVia": ", served through {{networks}}",
+        "advertisingBullet": "Advertising cookies",
+        "advertisingBulletBody": " (set by the third-party ad networks on profiles that carry ads): ad-delivery cookies used to show and measure the ads served on that profile. They are not used by {{app}} to build a cross-site profile of you, load without a separate consent step, and are not removed by choosing “Essential only”.",
         "essentialLabel": "Essential cookies",
         "essentialBody": " (always active, no consent needed): the authentication session cookie and a browser fingerprint cookie used to protect against brute-force attacks and rate-limit abuse. These are required for the service to function securely and are set automatically.",
         "analyticsLabel": "Non-essential analytics cookie",
@@ -210,6 +229,10 @@
         "p1": "We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the “Last updated” date.",
         "p2": "Taking effect on {{date}}, if we publish a revised version of this Privacy Policy (or the Terms of Service) and you continue to use {{app}} without checking or reading the updated version for more than thirty (30) days after that version’s effective date, you will be deemed to have accepted the updated version. Your original, pinned acceptance remains on record and is never overwritten; continued use for more than 30 days after the new version’s effective date is treated as acceptance of the updated policy for consent-status purposes, based on your last login being at least 30 days after that effective date.",
         "operator": "Automatic acceptance for operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. For those accounts we may record the accepted Terms and Privacy Policy versions automatically, but only after the same thirty (30) day period described above and only once the account is used again afterwards — never on the day the update is published. The recorded acceptance stores which versions were accepted, when, and a flag marking that the platform recorded it rather than an individual doing so, so an automatic acceptance is never recorded as, or reported as, a personal click-through. Accepting the terms yourself clears that flag. The roles covered are chosen by the instance operator and by default consist only of the built-in administrator role."
+      },
+      "operator": {
+        "title": "Who Operates This Service",
+        "body": "{{who}}{{place}}. The operator is the controller of the personal information described in this policy and decides how and why it is processed; the operator is responsible for this deployment and for responding to privacy and data-protection requests made through the contact details below."
       },
       "contact": {
         "title": "Contact"

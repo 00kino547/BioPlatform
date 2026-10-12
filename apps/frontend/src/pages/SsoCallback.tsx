@@ -31,14 +31,15 @@ export function SsoCallback() {
       return;
     }
 
-    api.ssoEnterpriseExchange(code).then((res) => {
+    api.ssoEnterpriseExchange(code).then(async (res) => {
       if (!res.success || !res.data) {
         setError(res.error ?? "Sign-in failed");
         return;
       }
 
       if (res.data.status === "logged_in") {
-        setAuth(res.data.token, res.data.user);
+        // Await so `consent` is hydrated before the dashboard mounts (ConsentGate).
+        await setAuth(res.data.token, res.data.user);
         navigate("/dashboard", { replace: true });
         return;
       }

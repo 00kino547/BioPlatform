@@ -31,7 +31,7 @@ import {
 // numbers strictly sequentially, so that ordering can no longer occur.
 
 /** FALLBACK_VERSION matches POLICY_VERSIONS.tos in the backend. */
-const FALLBACK_VERSION = "September 30, 2026";
+const FALLBACK_VERSION = "October 12, 2026";
 
 function captchaPolicy(ctx: PolicyContext | null, captcha: string | null): Maybe<string> {
   if (captcha) {
@@ -292,6 +292,46 @@ function buildTipsSection(ctx: PolicyContext | null): PolicySection {
   };
 }
 
+/**
+ * Operator identity as a contracting party, from config.yml `public.policy`.
+ * Positive-only: dropped entirely when no operator detail is published, so the
+ * Terms never announce the absence of a named operator.
+ */
+function buildOperatorSection(ctx: PolicyContext | null): Maybe<PolicySection> {
+  const name = (ctx?.operator.name ?? "").trim();
+  const jurisdiction = (ctx?.operator.jurisdiction ?? "").trim();
+  if (!ctx || (!name && !jurisdiction)) return null;
+  const who = name
+    ? `${branding.name} is operated by ${name}`
+    : `${branding.name} is operated by the instance’s administrator`;
+  const place = jurisdiction ? `, established in ${jurisdiction}` : "";
+  return {
+    id: "operator",
+    title: "Who Operates This Service",
+    paragraphs: [
+      `${who}${place}. By using ${branding.name} you are entering into these Terms with that operator, who is responsible for this deployment and for the choices described in these Terms.`,
+    ],
+  };
+}
+
+/**
+ * Advertising only when this instance actually serves ads, so the Terms never
+ * claim ad revenue on an instance without them.
+ */
+function buildAdvertisingSection(ctx: PolicyContext | null): Maybe<PolicySection> {
+  if (!ctx || !ctx.ads.enabled) return null;
+  const networks = proseList(ctx.ads.networks);
+  const via = networks ? ` through ${networks}` : "";
+  return {
+    id: "advertising",
+    title: "Advertising",
+    paragraphs: [
+      `Public profiles on this instance may display advertising${via}. Ads are selected and served by the ad networks, not by ${branding.name}; we do not control the individual ads shown and do not endorse the advertised products or services. The ad networks may set their own cookies to deliver and measure ads, as described in the Privacy Policy.`,
+      "You must not generate artificial impressions or clicks, tamper with ad code, or use the platform in any way intended to defraud an advertiser or an ad network. Doing so may result in suspension and may be reported to the network.",
+    ],
+  };
+}
+
 export function Terms() {
   usePageMeta({
     title: "Terms of Service",
@@ -304,6 +344,13 @@ export function Terms() {
   const versionDate = ctx ? formatPolicyDate(ctx.versions.tos) : FALLBACK_VERSION;
   const sso = ctx ? ssoProviderList(ctx) : "";
   const captcha = ctx ? captchaLabel(ctx) : null;
+
+  // Legal operator identity from config.yml public.policy. A named operator makes
+  // the Contact section concrete; contact is only used as a link when it is a
+  // real http(s)/mailto href (the config allows display handles too).
+  const legalName = (ctx?.operator.name ?? "").trim();
+  const operatorContact = (ctx?.operator.contact ?? "").trim();
+  const contactHref = /^(https?:\/\/|mailto:)/i.test(operatorContact) ? operatorContact : "";
 
   const sections: Maybe<PolicySection>[] = [
     {
@@ -333,6 +380,14 @@ export function Terms() {
       title: "Acceptable Use",
       paragraphs: [
         `You agree not to use ${branding.name} to: post content that is illegal, harmful, threatening, abusive, harassing, defamatory, or otherwise objectionable; impersonate any person or entity; distribute malware or spam; attempt to gain unauthorized access to other accounts or systems; or violate any applicable laws or regulations.`,
+      ],
+    },
+    {
+      id: "moderation",
+      title: "Moderation and Content Removal",
+      paragraphs: [
+        `The instance operator and authorized staff may review, restrict, remove or disable any profile, link, media file or account, and may suspend or terminate access, with or without prior notice, where content or activity appears to violate these Terms, is the subject of a legal or copyright complaint, or could expose ${branding.name} or its operator to legal risk. This includes acting on reports of infringing, unlawful or abusive content without a complaint from the affected party, and taking action against accounts that repeatedly infringe.`,
+        "We aim to give notice of an action and a way to respond where we can. Some actions — for example a statutory takedown or a security-driven suspension — are taken first and explained afterwards. A disabled account may be given a grace period to re-activate before its content is deleted; if it is not restored within that period, the account and its content may be permanently deleted without further notice.",
       ],
     },
     {
@@ -366,6 +421,7 @@ export function Terms() {
     buildInvitePurchaseSection(ctx),
     buildShopSection(ctx),
     buildTipsSection(ctx),
+    buildAdvertisingSection(ctx),
     {
       id: "api",
       title: "Access to the API",
@@ -405,6 +461,7 @@ export function Terms() {
         `Operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. When a new version becomes effective, those accounts are recorded as having accepted it automatically — but only after the same thirty (30) day review period described above, never on the day the update is published, and only once the account is actually used again after that period. The automatic acceptance is written to your account with a timestamp and a record that the platform recorded it rather than an individual accepting it, so it is never presented as a personal click-through. Until that period has elapsed, operator accounts must accept the new version themselves, exactly like any other account. The roles covered are configurable by the instance operator and, by default, consist only of the built-in administrator role; if you are an operator account and do not wish to be covered, accept the terms yourself.`,
       ],
     },
+    buildOperatorSection(ctx),
     {
       id: "contact",
       title: "Contact",
@@ -412,14 +469,27 @@ export function Terms() {
       node: (
         <p className="text-zinc-400">
           For questions about these Terms, please{" "}
-          <a
-            href={branding.contactUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-violet-400 hover:text-violet-300 transition-colors"
-          >
-            contact us
-          </a>
+          {contactHref ? (
+            <a
+              href={contactHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              {legalName ? `contact ${legalName}` : "contact us"}
+            </a>
+          ) : legalName ? (
+            <>{`contact ${legalName}`}</>
+          ) : (
+            <a
+              href={branding.contactUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              contact us
+            </a>
+          )}
           .
         </p>
       ),

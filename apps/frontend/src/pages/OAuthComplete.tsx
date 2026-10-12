@@ -23,16 +23,22 @@ export function OAuthComplete() {
   const { setAuth } = useAuth();
   const navigate = useNavigate();
 
-  const raw = sessionStorage.getItem(OAUTH_SETUP_KEY);
-  let setup: OAuthSetupInfo | null = null;
-  if (raw) {
+  // Snapshot the setup payload ONCE. It lives in sessionStorage only so the
+  // OAuth callback can hand it over across the redirect, but the success path
+  // below removes the key before switching to the "check your email" screen.
+  // Reading it on every render (as before) meant that removal nulled `setup`
+  // and the verification screen was replaced by the "session expired" panel.
+  const [setup] = useState<OAuthSetupInfo | null>(() => {
+    const raw = sessionStorage.getItem(OAUTH_SETUP_KEY);
+    if (!raw) return null;
     try {
       const parsed = JSON.parse(raw) as OAuthSetupInfo;
-      if (parsed?.status === "needs_setup" && parsed.signupToken) setup = parsed;
+      if (parsed?.status === "needs_setup" && parsed.signupToken) return parsed;
     } catch {
-      setup = null;
+      return null;
     }
-  }
+    return null;
+  });
 
   usePageMeta({ title: "Complete Sign-Up", description: `Finish creating your ${branding.name} account.` });
 
@@ -109,7 +115,7 @@ export function OAuthComplete() {
         setVerificationEmailSent(res.data.emailSent ?? false);
         return;
       }
-      setAuth(res.data.token, res.data.user);
+      await setAuth(res.data.token, res.data.user);
       navigate("/dashboard");
       return;
     }

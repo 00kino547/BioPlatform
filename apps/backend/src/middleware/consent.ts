@@ -45,6 +45,14 @@ const CONSENT_EXEMPT_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/me",
   // The endpoint that records acceptance.
   "/api/auth/accept-policies",
+  // The DMCA appeal surface. A disabled account is normally consent-outdated
+  // too (the policy re-consent bump and this feature shipped together), so
+  // gating these would put a legal escape hatch behind a wording version: the
+  // claimant could neither read their status nor file an appeal. Both endpoints
+  // are scoped to the caller and neither changes account state other than
+  // recording an appeal, so they are safe to keep reachable.
+  "/api/dmca/status",
+  "/api/dmca/appeal",
 ]);
 
 /**

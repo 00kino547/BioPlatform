@@ -76,7 +76,8 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
           return;
         }
         if (res.data.status === "logged_in") {
-          setAuth(res.data.token, res.data.user);
+          // Await so `consent` is hydrated before the dashboard mounts (ConsentGate).
+          await setAuth(res.data.token, res.data.user);
           navigate("/dashboard");
           return;
         }

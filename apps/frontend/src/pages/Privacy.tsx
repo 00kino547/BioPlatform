@@ -29,7 +29,7 @@ import {
 // (’ “ ”) rather than &rsquo; / &quot;.
 
 /** FALLBACK_VERSION matches POLICY_VERSIONS.privacy in the backend. */
-const FALLBACK_VERSION = "September 30, 2026";
+const FALLBACK_VERSION = "October 12, 2026";
 
 function storageParagraph(ctx: PolicyContext | null): string {
   if (!ctx) {
@@ -67,6 +67,49 @@ function matomoParagraph(ctx: PolicyContext | null): Maybe<string> {
   // No external analytics configured: say nothing at all rather than telling
   // visitors which trackers are absent.
   return null;
+}
+
+/**
+ * Advertising disclosure. Ads produce their own third-party cookies, so this
+ * paragraph REPLACES the old blanket "we do not use third-party advertising
+ * cookies" line: that claim would be false on an instance that serves ads.
+ *
+ * Positive-only rule: when ads are off (or the snapshot is loaded and reports
+ * them off) nothing is said — the page never announces an absent capability.
+ * The neutral branch is only for a missing snapshot.
+ */
+function adCookiesParagraph(ctx: PolicyContext | null): Maybe<string> {
+  if (ctx && !ctx.ads.enabled) return null;
+  if (!ctx) {
+    return "Some public profiles may display advertising served by third-party ad networks. Those networks may set their own cookies or device identifiers to deliver and measure the ads they serve, under their own privacy policies. Ad delivery does not depend on your analytics choice: choosing “Essential only” disables our analytics cookie but does not remove advertising where a profile carries it.";
+  }
+  const networks = proseList(ctx.ads.networks);
+  const via = networks ? `, served through ${networks}` : "";
+  return `Public profiles on this instance may display advertising${via}. Those ad networks may set their own cookies or device identifiers to deliver and measure the ads shown; these are ad-delivery cookies and are not used by us to build a cross-site profile of you. Like the other cookies needed to render the page, they load without a separate consent step, and choosing “Essential only” disables only our analytics cookie rather than the ads. Where a network offers its own tracking controls, that network’s privacy policy governs them.`;
+}
+
+/**
+ * Operator identity as data controller, from config.yml `public.policy`.
+ * Positive-only: when no operator detail is published the section is dropped
+ * rather than announcing that the instance has no named operator.
+ */
+function operatorSections(ctx: PolicyContext | null): PolicySection[] {
+  const name = (ctx?.operator.name ?? "").trim();
+  const jurisdiction = (ctx?.operator.jurisdiction ?? "").trim();
+  if (!ctx || (!name && !jurisdiction)) return [];
+  const who = name
+    ? `${branding.name} is operated by ${name}`
+    : `${branding.name} is operated by the instance’s administrator`;
+  const place = jurisdiction ? `, established in ${jurisdiction}` : "";
+  return [
+    {
+      id: "operator",
+      title: "Who Operates This Service",
+      paragraphs: [
+        `${who}${place}. The operator is the controller of the personal information described in this policy and decides how and why it is processed; the operator is responsible for this deployment and for responding to privacy and data-protection requests made through the contact details below.`,
+      ],
+    },
+  ];
 }
 
 function signInParagraphs(ctx: PolicyContext | null, sso: string): string[] {
@@ -311,6 +354,12 @@ export function Privacy() {
   const versionDate = ctx ? formatPolicyDate(ctx.versions.privacy) : FALLBACK_VERSION;
   const sso = ctx ? ssoProviderList(ctx) : "";
 
+  // Legal operator identity from config.yml public.policy (same contact rules as
+  // the Terms page: name always wins; contact links only when it is http(s)/mailto).
+  const legalName = (ctx?.operator.name ?? "").trim();
+  const operatorContact = (ctx?.operator.contact ?? "").trim();
+  const contactHref = /^(https?:\/\/|mailto:)/i.test(operatorContact) ? operatorContact : "";
+
   const sections: PolicySection[] = [
     {
       id: "collect",
@@ -347,8 +396,8 @@ export function Privacy() {
         `${branding.name} uses two categories of cookies:`,
         "When you first visit, a consent banner lets you choose “Accept all” (enables the analytics cookie) or “Essential only”. When the banner first appears, the “Essential only” option becomes selectable after a short countdown, so accepting non-essential cookies cannot happen accidentally. You can change your choice at any time through the “Cookie settings” link on the site or by clearing cookies.",
         "We honor browser-level privacy signals: if your browser sends the Do Not Track header (DNT: 1) or Global Privacy Control (Sec-GPC: 1), no analytics cookies are set and no non-essential analytics run at all — even if you previously accepted. This preference always takes precedence over any stored choice.",
-        "We do not use third-party advertising cookies or analytics services that track you across websites.",
-      ],
+        adCookiesParagraph(ctx),
+      ].filter((p): p is string => p !== null),
       extra: (
         <ul className="mt-2 list-inside list-disc space-y-1.5 text-zinc-400">
           <li>
@@ -363,6 +412,14 @@ export function Privacy() {
             personal information. This cookie is set only after you explicitly accept non-essential cookies via the
             consent banner.
           </li>
+          {ctx?.ads.enabled && (
+            <li>
+              <span className="font-medium text-zinc-300">Advertising cookies</span> (set by the third-party ad networks
+              on profiles that carry ads): ad-delivery cookies used to show and measure the ads served on that profile.
+              They are not used by {branding.name} to build a cross-site profile of you, load without a separate consent
+              step, and are not removed by choosing “Essential only”.
+            </li>
+          )}
         </ul>
       ),
     },
@@ -389,6 +446,7 @@ export function Privacy() {
         `Automatic acceptance for operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. For those accounts we may record the accepted Terms and Privacy Policy versions automatically, but only after the same thirty (30) day period described above and only once the account is used again afterwards — never on the day the update is published. The recorded acceptance stores which versions were accepted, when, and a flag marking that the platform recorded it rather than an individual doing so, so an automatic acceptance is never recorded as, or reported as, a personal click-through. Accepting the terms yourself clears that flag. The roles covered are chosen by the instance operator and by default consist only of the built-in administrator role.`,
       ],
     },
+    ...operatorSections(ctx),
     {
       id: "contact",
       title: "Contact",
@@ -396,14 +454,27 @@ export function Privacy() {
       node: (
         <p className="text-zinc-400">
           If you have questions about this Privacy Policy, please{" "}
-          <a
-            href={branding.contactUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-violet-400 hover:text-violet-300 transition-colors"
-          >
-            contact us
-          </a>
+          {contactHref ? (
+            <a
+              href={contactHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              {legalName ? `contact ${legalName}` : "contact us"}
+            </a>
+          ) : legalName ? (
+            <>{`contact ${legalName}`}</>
+          ) : (
+            <a
+              href={branding.contactUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              contact us
+            </a>
+          )}
           .
         </p>
       ),

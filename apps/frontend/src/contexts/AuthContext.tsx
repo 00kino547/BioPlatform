@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, setToken, getToken, type AuthUser, type TwoFactorRequired } from "@/lib/api";
 
 interface PasskeyLoginResult {
@@ -9,7 +9,7 @@ interface PasskeyLoginResult {
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  setAuth: (token: string, u: AuthUser) => void;
+  setAuth: (token: string, u: AuthUser) => Promise<void>;
   loginWithPasskey: (identifier: string) => Promise<PasskeyLoginResult>;
   loginWithPasskeyDiscoverable: () => Promise<PasskeyLoginResult>;
   login: (identifier: string, password: string, captchaToken?: string) => Promise<{
@@ -39,10 +39,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const completeAuth = (token: string, u: AuthUser) => {
+  // Re-read the full account. Login/2FA/passkey/register/OAuth responses carry
+  // the slim `userPublic` shape, which has no `consent` field, so a freshly
+  // signed-in account would slip past ConsentGate (`undefined !== false`) into a
+  // dashboard whose every request the backend answers `403 policies_outdated`.
+  // Hydrating from `GET /auth/me` keeps the gate honest without a page reload.
+  // Both callbacks are memoized so `setAuth` keeps a stable identity. The OAuth
+  // / SSO callback pages list it in their effect dependency arrays; an unstable
+  // identity made the effect re-run after `setUser`, redeeming the one-time
+  // exchange code a second time.
+  const refreshUser = useCallback(async () => {
+    const res = await api.me();
+    if (res.success && res.data) {
+      setUser(res.data);
+    }
+  }, []);
+
+  // Establish the session and THEN hydrate consent, so every caller (in-app login
+  // flows and the OAuth/SSO/PocketBase callbacks alike) can await a user object
+  // that already carries `consent` before it navigates anywhere.
+  const completeAuth = useCallback(async (token: string, u: AuthUser) => {
     setToken(token);
     setUser(u);
-  };
+    await refreshUser();
+  }, [refreshUser]);
 
   useEffect(() => {
     const token = getToken();
@@ -72,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!("requiresTwoFactor" in res.data)) {
-      completeAuth(res.data.token, res.data.user);
+      await completeAuth(res.data.token, res.data.user);
       return {};
     }
 
@@ -100,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { twoFactor: verifyRes.data };
     }
 
-    completeAuth(verifyRes.data.token, verifyRes.data.user);
+    await completeAuth(verifyRes.data.token, verifyRes.data.user);
     return {};
   };
 
@@ -128,14 +148,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { twoFactor: verifyRes.data };
     }
 
-    completeAuth(verifyRes.data.token, verifyRes.data.user);
+    await completeAuth(verifyRes.data.token, verifyRes.data.user);
     return {};
   };
 
   const verifyTotp = async (token: string, code: string) => {
     const res = await api.verifyTotp(token, code);
     if (!res.success || !res.data) return res.error ?? "Verification failed";
-    completeAuth(res.data.token, res.data.user);
+    await completeAuth(res.data.token, res.data.user);
     return null;
   };
 
@@ -156,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const verifyRes = await api.twoFactorPasskeyVerify(token, response);
     if (!verifyRes.success || !verifyRes.data) return verifyRes.error ?? "Passkey verification failed";
 
-    completeAuth(verifyRes.data.token, verifyRes.data.user);
+    await completeAuth(verifyRes.data.token, verifyRes.data.user);
     return null;
   };
 
@@ -188,15 +208,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    completeAuth(res.data.token, res.data.user);
+    await completeAuth(res.data.token, res.data.user);
     return {};
-  };
-
-  const refreshUser = async () => {
-    const res = await api.me();
-    if (res.success && res.data) {
-      setUser(res.data);
-    }
   };
 
   const logout = () => {
