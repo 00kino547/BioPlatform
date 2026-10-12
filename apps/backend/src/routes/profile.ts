@@ -22,8 +22,10 @@ import { getProfileLimit, getAliasLimit } from "../lib/limits.js";
 import { dispatchWebhookEvent } from "../lib/webhook.js";
 import { orderBadges } from "../lib/badges.js";
 import { writeUpload, deleteUpload } from "../lib/mediaStore.js";
+import { guardUploadOrRespond } from "../lib/mediaFingerprint.js";
 import { deleteProductUpload } from "../lib/shop.js";
 import { analyticsAllowed, parseCookies } from "../lib/privacy.js";
+import { AD_NETWORKS } from "../lib/ads.js";
 import {
   buildExportBuffer,
   EXPORT_CONTENT_TYPES,
@@ -150,6 +152,40 @@ function profileClickRateLimited(profileId: string): boolean {
   hits.push(now);
   profileClickHits.set(profileId, hits);
   return false;
+}
+
+/**
+ * Tier gate for the per-profile ad opt-out (`hideAds`). Paid tiers may always
+ * hide instance ads; FREE tiers may only if the operator granted it via the
+ * ADS_FREE_OPT_OUT_ALLOWED env var. Returns an error message when denied,
+ * null when allowed.
+ */
+async function assertCanHideAds(userId: string): Promise<string | null> {
+  const owner = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tier: true },
+  });
+  if (!owner) return "User not found";
+  if (owner.tier !== "FREE") return null;
+  if (getEnv().ADS_FREE_OPT_OUT_ALLOWED) return null;
+  return "Your plan does not include hiding instance ads. Upgrade to PRO/Enterprise, or ask the operator to allow it.";
+}
+
+/**
+ * Tier gate for the adblock-notice toggle (`adblockDetectorEnabled`). FREE
+ * profiles always show the notice — the setting is effectively locked to true
+ * for them — so only PRO/Enterprise may disable it. Returns an error message
+ * when denied, null when allowed.
+ */
+async function assertCanToggleAdblockDetector(userId: string, value: boolean): Promise<string | null> {
+  if (value !== false) return null;
+  const owner = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tier: true },
+  });
+  if (!owner) return "User not found";
+  if (owner.tier !== "FREE") return null;
+  return "Your plan keeps the adblock notice enabled. Upgrade to PRO/Enterprise to disable it.";
 }
 
 setInterval(() => {
@@ -348,6 +384,19 @@ router.post("/me", requireAuth, async (req, res) => {
     return res.status(403).json({ success: false, error: "Custom terminal commands are a PRO feature. Upgrade to add them." });
   }
 
+  // Enforce the same ad-related tier gates as the update handlers. Without these
+  // a FREE account could create a profile straight from `hideAds`/adblock fields
+  // in the request body and skip the paid opt-out checks entirely.
+  if (parsed.data.hideAds === true) {
+    const error = await assertCanHideAds(req.userId!);
+    if (error) return res.status(403).json({ success: false, error });
+  }
+
+  if (parsed.data.adblockDetectorEnabled !== undefined) {
+    const error = await assertCanToggleAdblockDetector(req.userId!, parsed.data.adblockDetectorEnabled);
+    if (error) return res.status(403).json({ success: false, error });
+  }
+
   const { slug, socialLinks, theme, terminalCommands, countdown, ...rest } = parsed.data;
 
   try {
@@ -419,6 +468,16 @@ router.put("/me", requireAuth, async (req, res) => {
     if (owner.tier === "FREE") {
       return res.status(403).json({ success: false, error: "Custom terminal commands are a PRO feature. Upgrade to add them." });
     }
+  }
+
+  if (parsed.data.hideAds === true) {
+    const error = await assertCanHideAds(req.userId!);
+    if (error) return res.status(403).json({ success: false, error });
+  }
+
+  if (parsed.data.adblockDetectorEnabled !== undefined) {
+    const error = await assertCanToggleAdblockDetector(req.userId!, parsed.data.adblockDetectorEnabled);
+    if (error) return res.status(403).json({ success: false, error });
   }
 
   const { socialLinks: rawLinks, theme, countdown, terminalCommands, ...rest } = parsed.data;
@@ -498,6 +557,14 @@ router.post("/me/import", requireAuth, requireApiLevel("advanced"), (req, res) =
       if (!parsed.success) {
         const message = parsed.error.issues[0]?.message ?? "Invalid profile data.";
         return res.status(400).json({ success: false, error: message, warnings });
+      }
+      if (parsed.data.hideAds === true) {
+        const error = await assertCanHideAds(req.userId!);
+        if (error) return res.status(403).json({ success: false, error, warnings });
+      }
+      if (parsed.data.adblockDetectorEnabled !== undefined) {
+        const error = await assertCanToggleAdblockDetector(req.userId!, parsed.data.adblockDetectorEnabled);
+        if (error) return res.status(403).json({ success: false, error, warnings });
       }
 
       const { socialLinks, theme, terminalCommands, countdown, ...rest } = parsed.data;
@@ -740,6 +807,16 @@ router.patch("/me/:profileId", requireAuth, async (req: Request<{ profileId: str
     if (owner.tier === "FREE") {
       return res.status(403).json({ success: false, error: "Custom terminal commands are a PRO feature. Upgrade to add them." });
     }
+  }
+
+  if (parsed.data.hideAds === true) {
+    const error = await assertCanHideAds(req.userId!);
+    if (error) return res.status(403).json({ success: false, error });
+  }
+
+  if (parsed.data.adblockDetectorEnabled !== undefined) {
+    const error = await assertCanToggleAdblockDetector(req.userId!, parsed.data.adblockDetectorEnabled);
+    if (error) return res.status(403).json({ success: false, error });
   }
 
   const profile = await prisma.profile.findFirst({
@@ -1115,9 +1192,21 @@ router.post("/me/avatar", requireAuth, handleUpload("avatar"), async (req, res) 
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 
+  const filePath = `/uploads/${req.file.filename}`;
+
+  // Fingerprint + ban check BEFORE the file is pushed to any storage provider
+  // (see lib/mediaFingerprint.ts). A match unlinks the temp file and 409s here.
+  const guard = await guardUploadOrRespond(res, {
+    absPath: req.file.path,
+    kind: "AVATAR",
+    userId: req.userId!,
+    profileId: profile.id,
+    filePath,
+  });
+  if (!guard) return;
+
   await writeUpload(req.file.filename, { contentType: req.file.mimetype });
 
-  const filePath = `/uploads/${req.file.filename}`;
   await prisma.profile.update({ where: { id: profile.id }, data: { avatar: filePath } });
   void refreshDiscordPostForProfile(profile.id);
 
@@ -1141,9 +1230,19 @@ router.post("/me/banner", requireAuth, handleUpload("banner"), async (req, res) 
     return res.status(404).json({ success: false, error: "Profile not found" });
   }
 
+  const filePath = `/uploads/${req.file.filename}`;
+
+  const guard = await guardUploadOrRespond(res, {
+    absPath: req.file.path,
+    kind: "BANNER",
+    userId: req.userId!,
+    profileId: profile.id,
+    filePath,
+  });
+  if (!guard) return;
+
   await writeUpload(req.file.filename, { contentType: req.file.mimetype });
 
-  const filePath = `/uploads/${req.file.filename}`;
   await prisma.profile.update({ where: { id: profile.id }, data: { banner: filePath } });
   void refreshDiscordPostForProfile(profile.id);
 
@@ -1161,9 +1260,29 @@ router.post("/me/link-icon", requireAuth, handleUpload("linkIcon"), async (req, 
     return res.status(400).json({ success: false, error: "Invalid file type. Use JPEG, PNG, GIF, or WebP." });
   }
 
-  await writeUpload(req.file.filename, { contentType: req.file.mimetype });
+  // Resolve the owning profile (honouring `?profileId=`) exactly like the
+  // banner/background uploads. Previously this was hardcoded to `null`, so the
+  // media row had no profile and a later takedown (`removeMediaFile`) could not
+  // strip the stale `socialLinks[].image` reference.
+  const profile = await prisma.profile.findFirst({ where: profileScope(req.userId!, req.query.profileId) });
+  if (!profile) {
+    await fs.promises.unlink(req.file.path).catch(() => undefined);
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  }
 
   const filePath = `/uploads/${req.file.filename}`;
+
+  const guard = await guardUploadOrRespond(res, {
+    absPath: req.file.path,
+    kind: "LINK_ICON",
+    userId: req.userId!,
+    profileId: profile.id,
+    filePath,
+  });
+  if (!guard) return;
+
+  await writeUpload(req.file.filename, { contentType: req.file.mimetype });
+
   res.json({ success: true, data: { image: filePath } });
 });
 
@@ -1187,9 +1306,19 @@ router.post("/me/background", requireAuth, handleBackgroundUpload("background"),
   const theme = (profile.theme && typeof profile.theme === "object" ? profile.theme : {}) as Record<string, unknown>;
   const oldBg = typeof theme.backgroundImage === "string" ? theme.backgroundImage : null;
 
+  const filePath = `/uploads/${req.file.filename}`;
+
+  const guard = await guardUploadOrRespond(res, {
+    absPath: req.file.path,
+    kind: "BACKGROUND",
+    userId: req.userId!,
+    profileId: profile.id,
+    filePath,
+  });
+  if (!guard) return;
+
   await writeUpload(req.file.filename, { contentType: req.file.mimetype });
 
-  const filePath = `/uploads/${req.file.filename}`;
   await prisma.profile.update({
     where: { id: profile.id },
     data: { theme: { ...theme, backgroundImage: filePath } },
@@ -1218,8 +1347,8 @@ const importUpload = multer({
   },
 });
 
-router.get("/:username/og.png", publicRateLimit, async (req: Request<{ username: string }>, res) => {
-  const result = await renderProfileOgCached(req.params.username);
+router.get("/:identifier/og.png", publicRateLimit, async (req: Request<{ identifier: string }>, res) => {
+  const result = await renderProfileOgCached(req.params.identifier);
   if (!result) {
     return res.status(404).end();
   }
@@ -1428,6 +1557,8 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
       tipsBtcAddress: profile.tipsEnabled ? profile.tipsBtcAddress : null,
       tipsLtcAddress: profile.tipsEnabled ? profile.tipsLtcAddress : null,
       shopDiscountPercent: profile.shopDiscountPercent,
+      hideAds: profile.hideAds,
+      adblockDetectorEnabled: profile.adblockDetectorEnabled,
       products: profile.products,
       theme: profile.theme,
       terminalCommands: profile.terminalCommands,
@@ -1461,8 +1592,15 @@ router.post("/click", publicRateLimit, async (req, res) => {
   }
   const { profileId, platform, slug } = parsed.data;
   const platformLower = platform.toLowerCase();
-  if (!ALLOWED_PLATFORMS.has(platformLower)) {
+  // `ad:<network>` is a synthetic platform used for instance-ad click tracking
+  // (`slug` = "ad:<network>"). It is NOT a real social platform, so it bypasses
+  // the ALLOWED_PLATFORMS + socialLinks existence checks below.
+  const isAdClick = platformLower.startsWith("ad:");
+  if (!isAdClick && !ALLOWED_PLATFORMS.has(platformLower)) {
     return res.status(400).json({ success: false, error: "Unsupported platform" });
+  }
+  if (isAdClick && !(AD_NETWORKS as readonly string[]).includes(platformLower.slice(3))) {
+    return res.status(400).json({ success: false, error: "Unknown ad network" });
   }
 
   const viewerId = getViewerId(req);
@@ -1483,7 +1621,7 @@ router.post("/click", publicRateLimit, async (req, res) => {
   const socialLinks = Array.isArray(profile.socialLinks)
     ? (profile.socialLinks as { platform: string; url: string }[])
     : [];
-  if (!socialLinks.some((l) => String(l.platform).toLowerCase() === platformLower)) {
+  if (!isAdClick && !socialLinks.some((l) => String(l.platform).toLowerCase() === platformLower)) {
     return res.status(400).json({ success: false, error: "Platform not found on this profile" });
   }
 

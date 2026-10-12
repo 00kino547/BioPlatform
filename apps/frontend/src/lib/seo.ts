@@ -28,6 +28,34 @@ export function useJsonLd(id: string, data: object | null) {
   }, [id, data]);
 }
 
+/**
+ * Renders ad-network site-verification `<meta name content>` tags into <head>
+ * (e.g. AdSense `google-site-verification`). Tags are keyed by a data attribute
+ * so re-renders/route changes update rather than duplicate. No tags = no-op.
+ */
+export function useMetaTags(items: { name: string; content: string }[] | null | undefined) {
+  useEffect(() => {
+    const list = items ?? [];
+    if (list.length === 0) return;
+    const els: HTMLMetaElement[] = [];
+    for (const { name, content } of list) {
+      if (!name || !content) continue;
+      let el = document.head.querySelector<HTMLMetaElement>(`meta[data-ad-meta="${name}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("data-ad-meta", name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("name", name);
+      el.setAttribute("content", content);
+      els.push(el);
+    }
+    return () => {
+      for (const el of els) el.remove();
+    };
+  }, [items]);
+}
+
 export interface PageMetaOptions {
   title: string;
   description?: string;

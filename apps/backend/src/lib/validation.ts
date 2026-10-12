@@ -257,4 +257,12 @@ export const updateProfileSchema = z.object({
   tipsBtcAddress: tipAddressField("Bitcoin", BTC_ADDRESS_RE).optional(),
   tipsLtcAddress: tipAddressField("Litecoin", LTC_ADDRESS_RE).optional(),
   shopDiscountPercent: z.number().int().min(0).max(100).nullable().optional(),
+  /** Owner opt-out of instance ads on this profile. Gated by tier server-side. */
+  hideAds: z.boolean().optional(),
+  /**
+   * Owner opt-in for the adblock notice on this profile. Paid tiers may set it
+   * to false; FREE tiers always show the notice (the gate is server-side and
+   * rejects the value when the plan cannot disable it).
+   */
+  adblockDetectorEnabled: z.boolean().optional(),
 });

@@ -19,6 +19,7 @@ import { TipsTab } from "@/components/tips/TipsTab";
 import { ShopTab } from "@/components/shop/ShopTab";
 import { PurchasesTab } from "@/components/shop/PurchasesTab";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { useInstanceConfig } from "@/lib/useInstanceConfig";
 import { api, FX_EFFECTS, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge, type SocialLink, type TerminalCommand, type LayoutName, type FeatureFlags } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
@@ -366,6 +367,10 @@ export function Dashboard() {
   const [countdownLabel, setCountdownLabel] = useState("");
   const [countdownDate, setCountdownDate] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  const [hideAds, setHideAds] = useState(false);
+  // Adblock-notice gate. FREE profiles always show the notice (server keeps the
+  // flag at true), so the toggle only appears for PRO/Enterprise.
+  const [adblockDetectorEnabled, setAdblockDetectorEnabled] = useState(true);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
   const [seasonalDecorations, setSeasonalDecorations] = useState(false);
@@ -375,6 +380,28 @@ export function Dashboard() {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [layout, setLayout] = useState<LayoutName>("default");
   const [terminalCommands, setTerminalCommands] = useState<TerminalCommand[]>([]);
+
+  // Instance ads are opt-out per profile. The toggle only appears while the
+  // operator enabled ads; FREE plans can only switch it on when the operator
+  // granted that (freeOptOutAllowed) — and can always switch it back off.
+  const instance = useInstanceConfig();
+  const adsEnabled = Boolean(instance?.ads?.enabled && instance.ads.slots.length > 0);
+  const adsOptOutLocked =
+    adsEnabled && user?.tier === "FREE" && !(instance?.ads?.freeOptOutAllowed ?? false) && !hideAds;
+  const adsOptOutHint = adsOptOutLocked
+    ? "Hiding instance ads requires PRO or Enterprise on this instance."
+    : user?.tier === "FREE"
+      ? "Free plan: hiding ads is allowed by the instance operator."
+      : "Ads are hidden on this profile's public page.";
+
+  // The adblock notice accompanies rendered ads. FREE always shows it; paid
+  // plans may turn it off while keeping the ads themselves.
+  const adblockNoticeHint =
+    user?.tier === "FREE"
+      ? "Free plan always shows the adblock notice. Upgrade to PRO/Enterprise to disable it."
+      : adblockDetectorEnabled
+        ? "Visitors blocking ads on this profile see an adblock notice."
+        : "No adblock notice is shown on this profile.";
 
   const [newPlatform, setNewPlatform] = useState("Twitter");
   const [newUrl, setNewUrl] = useState("");
@@ -554,6 +581,8 @@ export function Dashboard() {
     setCountdownLabel(profile.countdown?.label ?? "");
     setCountdownDate(profile.countdown?.targetDate ? new Date(profile.countdown.targetDate).toISOString().slice(0, 16) : "");
     setIsPublic(profile.isPublic);
+    setHideAds(profile.hideAds ?? false);
+    setAdblockDetectorEnabled(profile.adblockDetectorEnabled ?? true);
     setSocialLinks(profile.socialLinks ?? []);
     setSelectedTheme(
       profile.theme
@@ -691,6 +720,8 @@ export function Dashboard() {
         : {}),
       theme: themeData,
       isPublic,
+      hideAds,
+      adblockDetectorEnabled,
     }, profile.id);
     setSaving(false);
 
@@ -1783,6 +1814,42 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               />
               <p className="text-xs text-zinc-500 mt-1">Leave empty to hide the countdown. Shown on your public profile with a live ticking timer.</p>
             </div>
+
+            {adsEnabled && (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+                <label className="flex cursor-pointer items-center justify-between gap-3">
+                  <span>
+                    <span className="block text-[13px] font-medium text-zinc-200">
+                      Hide instance ads on this profile
+                    </span>
+                    <span className="block text-xs text-zinc-500 mt-0.5">{adsOptOutHint}</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={hideAds}
+                    disabled={adsOptOutLocked}
+                    onChange={(e) => setHideAds(e.target.checked)}
+                    className="h-4 w-4 accent-violet-500 disabled:opacity-40"
+                  />
+                </label>
+                {user?.tier !== "FREE" && (
+                  <label className="flex cursor-pointer items-center justify-between gap-3 mt-4 pt-4 border-t border-zinc-800/70">
+                    <span>
+                      <span className="block text-[13px] font-medium text-zinc-200">
+                        Show the adblock notice on this profile
+                      </span>
+                      <span className="block text-xs text-zinc-500 mt-0.5">{adblockNoticeHint}</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={adblockDetectorEnabled}
+                      onChange={(e) => setAdblockDetectorEnabled(e.target.checked)}
+                      className="h-4 w-4 accent-violet-500"
+                    />
+                  </label>
+                )}
+              </div>
+            )}
 
             <input
               ref={bannerInput}

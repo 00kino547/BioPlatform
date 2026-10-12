@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { api, type PublicProfile, type Badge, type DiscordPresence, type SocialLink, type FeatureFlags } from "@/lib/api";
 import { branding } from "@/config/branding";
-import { usePageMeta, useJsonLd } from "@/lib/seo";
+import { usePageMeta, useJsonLd, useMetaTags } from "@/lib/seo";
 import { useDomain } from "@/contexts/DomainContext";
 import { bannerSrcSet, avatarSrcSet, toBackgroundImage } from "@/lib/media";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
@@ -19,6 +19,9 @@ import { InteractiveTerminal } from "@/components/terminal/InteractiveTerminal";
 import { NewsletterSubscribeForm } from "@/components/newsletter/NewsletterSubscribeForm";
 import { TipBlock } from "@/components/tips/TipBlock";
 import { ShopBlock } from "@/components/shop/ShopBlock";
+import { AdSlots } from "@/components/ads/AdSlots";
+import { AdblockNotice } from "@/components/ads/AdblockNotice";
+import { useInstanceConfig } from "@/lib/useInstanceConfig";
 import { MapPin, Globe, ExternalLink } from "lucide-react";
 
 const GITHUB_URL = "https://github.com/00kino547/BioPlatform";
@@ -66,6 +69,8 @@ export function PublicProfilePage() {
 
   const customBase = domainInfo?.active && domainInfo.canonical ? domainInfo.canonical : null;
 
+  const instance = useInstanceConfig();
+
   usePageMeta({
     title: profile ? `${profile.displayName || profile.username} (@${profile.username})` : "Profile",
     description: profile?.bio || branding.description,
@@ -73,6 +78,10 @@ export function PublicProfilePage() {
     image: profile ? `${customBase ?? branding.url}/api/profiles/${profile.username}/og.png` : branding.ogImage,
     baseUrl: customBase ?? undefined,
   });
+
+  // Ad-network site-verification <meta name="…"> tags from config.yml
+  // (public.ads.verificationMeta), injected on public profile pages.
+  useMetaTags(instance?.ads?.verificationMeta);
 
   const profileJsonLd = useMemo(() => {
     if (!profile) return null;
@@ -106,6 +115,11 @@ export function PublicProfilePage() {
 
   useEffect(() => {
     if (!username) return;
+    // Reset per-navigation state. The route does not remount when only the
+    // `:username` param changes, so without this a previous 404 keeps `error`
+    // true and the next (valid) profile still renders "Profile not found".
+    setError(false);
+    setProfile(null);
     setLoading(true);
     setEntered(false);
     api.getPublicProfile(username).then((res) => {
@@ -982,6 +996,16 @@ export function PublicProfilePage() {
           </>
         )}
       </div>
+
+      {profile && !profile.hideAds && (
+        <ErrorBoundary fallback={null}>
+          <AdSlots ads={instance?.ads} profileId={profile.id} />
+          {profile.adblockDetectorEnabled !== false &&
+            Boolean(instance?.ads?.enabled && instance.ads.slots.length > 0) && (
+              <AdblockNotice accent={accent} textColor={textColor} />
+            )}
+        </ErrorBoundary>
+      )}
 
       <div className="mt-8 flex items-center gap-3">
         <VersionBadge />
