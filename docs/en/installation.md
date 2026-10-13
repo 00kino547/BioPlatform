@@ -10,7 +10,7 @@ so whatever works for one works for all three — see
 ## install.sh — from an empty server to a running stack
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/00kino547/BioPlatform/2.0.0-canary.2/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/00kino547/BioPlatform/2.0.0-canary.3/install.sh | bash
 # or, from a checkout of the repository:
 sh install.sh
 ```

@@ -28,7 +28,7 @@
 
 set -eu
 
-INSTALL_SH_VERSION="2.0.0-canary.2-hotfix.1"
+INSTALL_SH_VERSION="2.0.0-canary.3"
 
 # ------------------------------------------------------------- usage ---------
 

@@ -87,6 +87,16 @@ services:
       APP_TAGLINE: ${APP_TAGLINE:-Your digital identity, beautifully crafted.}
       APP_DESCRIPTION: ${APP_DESCRIPTION:-Create a stunning profile page that showcases who you are. Links, music, themes, and more — all in one place.}
       APP_GITHUB_URL: ${APP_GITHUB_URL:-https://github.com/00kino547/BioPlatform}
+      # Human-editable instance config. Default "config.yml" resolves against the
+      # container WORKDIR (/app); the repo-root ./config.yml is bind-mounted READ-
+      # WRITE below (auto-reload + `config reload` signal changes by bumping mtime).
+      # Create it BEFORE first boot: `cp config.yml.example config.yml` (see
+      # docs/en/configuration.md). If the host file is absent, Docker would create
+      # an empty DIRECTORY at ./config.yml — the loader then treats it as "absent"
+      # and runs on defaults, so always copy the example first.
+      CONFIG_FILE: ${CONFIG_FILE:-config.yml}
+      # true = auto hot-reload on save; false = explicit `pnpm cli config reload` only.
+      CONFIG_AUTO_RELOAD: ${CONFIG_AUTO_RELOAD:-true}
       SEED_ON_START: ${SEED_ON_START:-false}
       UPDATE_CHECK_ENABLED: ${UPDATE_CHECK_ENABLED:-true}
       UPDATE_CHECK_INTERVAL_MINUTES: ${UPDATE_CHECK_INTERVAL_MINUTES:-720}
@@ -256,6 +266,9 @@ services:
       # overwrite) one certificate directory. Relative default keeps the
       # documented single-instance layout exactly as it was.
       - ${CERTS_DIR:-./certs}:/app/certs
+      # Operator-editable instance config (copy config.yml.example first; the
+      # mount must be writable so hot reload can bump the file's mtime).
+      - ./config.yml:/app/config.yml
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000"
       - "[::1]:${BACKEND_HOST_PORT:-3000}:3000"

@@ -11,7 +11,7 @@ funciona para uno funciona para los tres — ver
 ## install.sh — de servidor vacío a stack en marcha
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/00kino547/BioPlatform/2.0.0-canary.2/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/00kino547/BioPlatform/2.0.0-canary.3/install.sh | bash
 # o, desde un checkout del repositorio:
 sh install.sh
 ```

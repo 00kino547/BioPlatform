@@ -1,7 +1,7 @@
 {
   "name": "bioplatform",
   "private": true,
-  "version": "2.0.0-canary.1-hotfix",
+  "version": "2.0.0-canary.3",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @bioplatform/backend dev\" \"pnpm --filter @bioplatform/frontend dev\"",
     "dev:backend": "pnpm --filter @bioplatform/backend dev",
