@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **Known (low/medium) — enterprise-SSO account linking (`POST /api/auth/sso/start?mode=link`) skips the session-hardening checks `requireAuth` applies** — the caller is resolved with a bare `jwt.verify` helper (`bearerUserId`, `routes/enterpriseSso.ts:101`) instead of the `requireAuth` middleware, so `authVersion`, the disabled-account gate and the consent gate are not enforced on this one route. A session token that a password change or `POST /api/admin/auth/sign-out-all` was meant to kill could still link an attacker-controlled SSO identity to the account, and SSO identities are intentionally not cleared by a password change, so the link would outlive the invalidation. It is not an unauthenticated takeover (a signed token is still required). Deferred: swap the helper for `requireAuth` in a follow-up patch (`oauth.ts` linking already uses it).
+  This build (`2.0.0-canary.3`) ships with the gap documented here and an empty exception list otherwise.
+
 ## [2.0.0-canary.3] - 2026-10-13
 
 ### Added
