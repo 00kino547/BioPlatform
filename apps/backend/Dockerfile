@@ -25,6 +25,15 @@ RUN pnpm --filter @bioplatform/backend db:generate
 RUN pnpm --filter @bioplatform/shared build
 RUN pnpm --filter @bioplatform/backend build
 
+# Strip frontend-only build tooling. pnpm materialises every workspace importer's
+# dependencies, so this backend image would otherwise ship the frontend's vite and
+# vitest and, nested under vite, its pinned esbuild 0.25.12 binary — which embeds a
+# Go stdlib (1.23.12) flagged CRITICAL (CVE-2025-68121, plus ~24 HIGHs). None of it
+# has a runtime role here (the server runs compiled dist, the CLI/migrations use the
+# prisma binary and tsx's own esbuild), so removing it slips the vulnerable Go
+# toolchain out of the image. Same rationale as the npm/npx removal below.
+RUN rm -rf node_modules/vite node_modules/vitest
+
 # Expose the administration CLI on PATH
 RUN printf '#!/bin/sh\nexec node /app/apps/backend/dist/cli/index.js "$@"\n' > /usr/local/bin/bioplatform \
   && chmod +x /usr/local/bin/bioplatform
