@@ -28,7 +28,7 @@
 
 set -eu
 
-INSTALL_SH_VERSION="2.0.0-canary.2"
+INSTALL_SH_VERSION="2.0.0-canary.2-hotfix.1"
 
 # ------------------------------------------------------------- usage ---------
 
@@ -388,7 +388,7 @@ case "$BP_INSTALL_TYPE" in
     # Files needed: compose (prebuilt) + the nginx config the compose mounts +
     # .env.example as the schema. Everything comes from this script's own
     # raw base or the operator's checkout, nothing else.
-    for _rel in docker-compose.prebuilt.yml nginx/nginx.conf nginx/site.conf nginx/entrypoint.sh; do
+    for _rel in docker-compose.prebuilt.yml nginx/nginx.conf nginx/site.conf nginx/entrypoint.sh config.yml.example; do
       _dest=$BP_DEPLOY_DIR/$_rel
       if [ "$BP_ORIGIN" = "checkout" ]; then
         if [ -f "$SCRIPT_DIR/$_rel" ]; then
@@ -470,6 +470,33 @@ if [ "$BP_INSTALL_TYPE" = "docker" ]; then
       fi
     fi
   done
+fi
+
+# ------------------------------------------------- instance config (config.yml) -
+
+# config.yml is operator content (git-ignored). Ship the annotated example with
+# the deployment and seed a working config.yml on the FIRST install — but never
+# overwrite one that already exists: re-installs and --force keep operator edits.
+# A missing config.yml is a silent "all defaults" run, and a bind mount of a
+# missing host path would be created by docker as an EMPTY DIRECTORY (the loader
+# treats that as "absent" too), so seeding the example is strictly better.
+bp_step "Instance configuration"
+
+if [ -f "$BP_DEPLOY_DIR/config.yml" ]; then
+  bp_ok "config.yml already present — keeping it (operator edits are never overwritten)"
+elif [ -f "$BP_DEPLOY_DIR/config.yml.example" ]; then
+  if bp_dry "cp config.yml.example -> $BP_DEPLOY_DIR/config.yml"; then
+    bp_info "  [dry-run] config.yml would be seeded from config.yml.example"
+  else
+    cp "$BP_DEPLOY_DIR/config.yml.example" "$BP_DEPLOY_DIR/config.yml"
+    bp_ok "config.yml created from config.yml.example — edit it to customise the instance copy/branding/ads"
+  fi
+else
+  if [ "$BP_DRY_RUN" = "true" ]; then
+    bp_info "  [dry-run] config.yml would be seeded from the staged config.yml.example"
+  else
+    bp_warn "config.yml.example not found in the deployment — the instance runs on built-in defaults until you create config.yml"
+  fi
 fi
 
 # ----------------------------------------------------------- .env build -----
