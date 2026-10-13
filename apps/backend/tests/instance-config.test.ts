@@ -358,13 +358,17 @@ describe("hot reload of config.yml", () => {
     assert.equal(getPublicInstanceConfig().landing.tagline, "v2 lazily edited");
   });
 
-  test("a content-identical save is acked without touching the snapshot", () => {
+  test("a content-identical save is acked without touching the snapshot", async () => {
     resetInstanceConfigForTests();
     const file = join(dir, "same.yml");
     writeFileSync(file, "public:\n  landing:\n    tagline: same\n", "utf8");
     loadInstanceConfig(file);
 
     // Simulate an editor/spurious write that preserves content but bumps mtime.
+    // Wait past the 1ms mtime granularity first: on a fast filesystem an
+    // immediate utimes can share the floor(mtimeMs) of the boot read and be
+    // skipped as a no-op (reloaded:false) — the race documented below.
+    await sleep(5);
     const now = new Date();
     utimesSync(file, now, now);
     const before = JSON.stringify(getPublicInstanceConfig());
