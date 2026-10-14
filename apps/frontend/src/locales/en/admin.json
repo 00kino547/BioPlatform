@@ -640,7 +640,20 @@
       "notAlwaysOn": "Not always-on",
       "livePreview": "Live preview",
       "noThemes": "No seasonal themes yet.",
-      "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+      "months": {
+        "jan": "Jan",
+        "feb": "Feb",
+        "mar": "Mar",
+        "apr": "Apr",
+        "may": "May",
+        "jun": "Jun",
+        "jul": "Jul",
+        "aug": "Aug",
+        "sep": "Sep",
+        "oct": "Oct",
+        "nov": "Nov",
+        "dec": "Dec"
+      }
     },
     "toasts": {
       "enterIpOrCidr": "Enter an IP address or CIDR network.",
@@ -672,9 +685,9 @@
       "deleteBadgeFailed": "Failed to delete badge"
     },
     "formats": {
-      "currency": "Intl.NumberFormat(undefined, { style: \"currency\", currency }).format(cents / 100)",
-      "dateMedium": "new Date(value).toLocaleDateString(\"en-GB\", { day: \"numeric\", month: \"short\", year: \"numeric\" })",
-      "dateTime": "new Date(value).toLocaleString()"
+      "currency": "formatCurrency(cents, currency)",
+      "dateMedium": "formatDate(value, { day: \"numeric\", month: \"short\", year: \"numeric\" })",
+      "dateTime": "formatDateTime(value)"
     }
   }
 }

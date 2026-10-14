@@ -692,13 +692,13 @@
     "badgeVersionTitle": "Software version"
   },
   "formats": {
-    "currency": "Intl.NumberFormat(undefined, { style: \"currency\", currency }).format(cents / 100)",
+    "currency": "formatCurrency(cents, currency)",
     "currencyFallback": "{{amount}} {{currency}}",
-    "number": "value.toLocaleString()",
-    "date": "new Date(value).toLocaleDateString()",
-    "dateShort": "new Date(value).toLocaleDateString(\"en-US\", { month: \"short\", day: \"numeric\" })",
-    "dateMedium": "new Date(value).toLocaleDateString(\"en-GB\", { day: \"numeric\", month: \"short\", year: \"numeric\" })",
-    "time": "new Date(value).toLocaleTimeString(\"en-US\", { hour: \"numeric\", hour12: false })",
-    "dateTime": "new Date(value).toLocaleString()"
+    "number": "formatNumber(value)",
+    "date": "formatDate(value)",
+    "dateShort": "formatDate(value, { month: \"short\", day: \"numeric\" })",
+    "dateMedium": "formatDate(value, { day: \"numeric\", month: \"short\", year: \"numeric\" })",
+    "time": "formatTime(value, { hour: \"numeric\", hour12: false })",
+    "dateTime": "formatDateTime(value)"
   }
 }

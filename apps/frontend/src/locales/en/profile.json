@@ -102,14 +102,6 @@
     "coinLitecoin": "Litecoin",
     "coinBtc": "BTC",
     "coinLtc": "LTC",
-    "amounts": [
-      "0.001",
-      "0.005",
-      "0.01",
-      "0.05",
-      "0.1",
-      "0.5"
-    ],
     "genericError": "Something went wrong. Please try again.",
     "defaultHeading": "Send a tip",
     "custom": "Custom",

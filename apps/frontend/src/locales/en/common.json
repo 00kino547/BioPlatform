@@ -1,135 +1,142 @@
 {
-  "nav": {
-    "features": "Features",
-    "showcase": "Showcase",
-    "pricing": "Pricing",
-    "faq": "FAQ",
-    "apiDocs": "API Docs",
-    "dashboard": "Dashboard",
-    "signIn": "Sign In",
-    "getStarted": "Get Started",
-    "toggleMenu": "Toggle menu"
+  "backgroundSelector": {
+    "customUrl": "Custom URL",
+    "customUrlPlaceholder": "https://… or /uploads/…",
+    "presets": {
+      "aurora": "Aurora",
+      "candy": "Candy",
+      "ember": "Ember",
+      "forest": "Forest",
+      "ice": "Ice",
+      "midnight": "Midnight",
+      "mint": "Mint",
+      "none": "None",
+      "ocean": "Ocean",
+      "royal": "Royal",
+      "sunset": "Sunset"
+    },
+    "removeCustom": "Remove custom",
+    "seasonal": {
+      "autumnLeaves": "Autumn Leaves",
+      "christmas": "Christmas",
+      "halloween": "Halloween",
+      "newYear": "New Year",
+      "springBlossom": "Spring Blossom",
+      "stPatrick": "St. Patrick",
+      "valentine": "Valentine",
+      "winterSnow": "Winter Snow"
+    },
+    "seasonalTitle": "Seasonal & Holiday",
+    "upload": "Upload image / GIF",
+    "uploading": "Uploading {{name}}…"
   },
-  "footer": {
-    "copyright": "© {{year}} {{name}}. All rights reserved.",
-    "privacy": "Privacy",
-    "terms": "Terms",
-    "cookiePreferences": "Cookie preferences",
-    "api": "API",
-    "github": "GitHub"
+  "cookieConsent": {
+    "acceptAll": "Accept all",
+    "ariaLabel": "Cookie consent",
+    "close": "Close",
+    "description": "{{name}} uses essential cookies (authentication, security) that are always active, and optional anonymous analytics cookies that only load when you accept.",
+    "dntNotice": "Your browser sends Do Not Track, so analytics cookies are off. Accept all below to turn them on for this site.",
+    "error": "Your choice could not be saved. Please try again.",
+    "essentialOnly": "Essential only",
+    "essentialOnlyCountdown": "Essential only ({{seconds}}s)",
+    "learnMore": "Learn more in the Privacy Policy",
+    "titleNew": "We value your privacy",
+    "titlePreferences": "Cookie preferences"
   },
   "dialog": {
     "close": "Close"
   },
+  "errorBoundary": {
+    "heading": "Something went wrong loading this page.",
+    "tryAgain": "Try again",
+    "unexpected": "Unexpected error"
+  },
+  "footer": {
+    "api": "API",
+    "cookiePreferences": "Cookie preferences",
+    "copyright": "© {{year}} {{name}}. All rights reserved.",
+    "github": "GitHub",
+    "privacy": "Privacy",
+    "terms": "Terms"
+  },
   "imageCropper": {
-    "title": "Position your image",
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "hint": "Drag to move and scroll to zoom. Pick the part you want to show.",
-    "previewAlt": "Crop preview",
     "loading": "Loading...",
-    "confirm": "Confirm"
+    "previewAlt": "Crop preview",
+    "title": "Position your image"
+  },
+  "language": {
+    "label": "Language"
   },
   "layoutSelector": {
-    "default": {
-      "label": "Default",
-      "hint": "Simple centered card"
-    },
-    "grid": {
-      "label": "Grid",
-      "hint": "2-column icon tiles"
+    "bento": {
+      "hint": "Mixed-size tiles",
+      "label": "Bento"
     },
     "compact": {
-      "label": "Compact",
-      "hint": "Tight single-column"
+      "hint": "Tight single-column",
+      "label": "Compact"
     },
-    "wide": {
-      "label": "Wide",
-      "hint": "Full-width 3 columns"
-    },
-    "glassmorphism": {
-      "label": "Glass",
-      "hint": "Frosted glass card"
-    },
-    "minimal": {
-      "label": "Minimal",
-      "hint": "Clean, borderless"
-    },
-    "sidebar": {
-      "label": "Sidebar",
-      "hint": "Avatar beside content"
+    "default": {
+      "hint": "Simple centered card",
+      "label": "Default"
     },
     "editorial": {
-      "label": "Editorial",
-      "hint": "Masthead + hairlines"
+      "hint": "Masthead + hairlines",
+      "label": "Editorial"
+    },
+    "glassmorphism": {
+      "hint": "Frosted glass card",
+      "label": "Glass"
+    },
+    "grid": {
+      "hint": "2-column icon tiles",
+      "label": "Grid"
     },
     "hero": {
-      "label": "Hero",
-      "hint": "Big centered hero"
+      "hint": "Big centered hero",
+      "label": "Hero"
     },
-    "bento": {
-      "label": "Bento",
-      "hint": "Mixed-size tiles"
-    },
-    "terminal": {
-      "label": "Terminal",
-      "hint": "Hacker monospace card"
+    "minimal": {
+      "hint": "Clean, borderless",
+      "label": "Minimal"
     },
     "polaroid": {
-      "label": "Polaroid",
-      "hint": "Tilted photo frame"
+      "hint": "Tilted photo frame",
+      "label": "Polaroid"
+    },
+    "sidebar": {
+      "hint": "Avatar beside content",
+      "label": "Sidebar"
+    },
+    "terminal": {
+      "hint": "Hacker monospace card",
+      "label": "Terminal"
     },
     "topbar": {
-      "label": "Topbar",
-      "hint": "Horizontal nav header"
+      "hint": "Horizontal nav header",
+      "label": "Topbar"
+    },
+    "wide": {
+      "hint": "Full-width 3 columns",
+      "label": "Wide"
     }
   },
-  "backgroundSelector": {
-    "presets": {
-      "none": "None",
-      "midnight": "Midnight",
-      "ocean": "Ocean",
-      "sunset": "Sunset",
-      "forest": "Forest",
-      "aurora": "Aurora",
-      "royal": "Royal",
-      "mint": "Mint",
-      "candy": "Candy",
-      "ember": "Ember",
-      "ice": "Ice"
-    },
-    "seasonalTitle": "Seasonal & Holiday",
-    "seasonal": {
-      "springBlossom": "Spring Blossom",
-      "autumnLeaves": "Autumn Leaves",
-      "winterSnow": "Winter Snow",
-      "halloween": "Halloween",
-      "christmas": "Christmas",
-      "newYear": "New Year",
-      "valentine": "Valentine",
-      "stPatrick": "St. Patrick"
-    },
-    "upload": "Upload image / GIF",
-    "uploading": "Uploading {{name}}…",
-    "removeCustom": "Remove custom",
-    "customUrl": "Custom URL",
-    "customUrlPlaceholder": "https://… or /uploads/…"
+  "nav": {
+    "apiDocs": "API Docs",
+    "dashboard": "Dashboard",
+    "faq": "FAQ",
+    "features": "Features",
+    "getStarted": "Get Started",
+    "pricing": "Pricing",
+    "showcase": "Showcase",
+    "signIn": "Sign In",
+    "toggleMenu": "Toggle menu"
   },
-  "cookieConsent": {
-    "error": "Your choice could not be saved. Please try again.",
-    "ariaLabel": "Cookie consent",
-    "titleNew": "We value your privacy",
-    "titlePreferences": "Cookie preferences",
-    "description": "{{name}} uses essential cookies (authentication, security) that are always active, and optional anonymous analytics cookies that only load when you accept.",
-    "learnMore": "Learn more in the Privacy Policy",
-    "dntNotice": "Your browser sends Do Not Track, so analytics cookies are off. Accept all below to turn them on for this site.",
-    "acceptAll": "Accept all",
-    "essentialOnly": "Essential only",
-    "essentialOnlyCountdown": "Essential only ({{seconds}}s)",
-    "close": "Close"
-  },
-  "errorBoundary": {
-    "unexpected": "Unexpected error",
-    "heading": "Something went wrong loading this page.",
-    "tryAgain": "Try again"
+  "untranslatedNotice": {
+    "dismiss": "Dismiss",
+    "message": "This page is not fully translated yet, so some text is shown in English."
   }
 }
