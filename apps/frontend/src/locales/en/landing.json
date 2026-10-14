@@ -1,0 +1,254 @@
+{
+  "announcementBanner": {},
+  "faq": {
+    "eyebrow": "FAQ",
+    "heading": "Frequently asked questions.",
+    "items": {
+      "a0": "{{name}} is a modern link-in-bio platform that lets you create a stunning profile page. Showcase your links, music, and social profiles in one beautifully designed page. It's built for creators, developers, and anyone who wants a polished digital presence.",
+      "a1": "Yes. {{name}} is fully open source and can be self-hosted on any Linux server with Docker. Our Docker Compose setup gets you running in minutes. You get full control over your data, storage, and deployment.",
+      "a2Default": "{{name}} is an invite-only platform. Accounts cannot be created freely. You can join by either receiving a handpicked invitation from our staff, or by being requested by an existing member and then manually approved before an invite is issued. This exclusivity ensures a high-quality community and prevents spam and abuse.",
+      "a2StoreOpen": "{{name}} is an invite-only platform. Accounts cannot be created freely. You can join by receiving a handpicked invitation from our staff, by being requested by an existing member and then manually approved, or by buying an invite yourself — a purchase gives you a code to register with straight away, and a bulk purchase puts any remaining codes on your new account.",
+      "a3": "Premium users can connect a custom domain to their profile page. We provide step-by-step instructions for DNS configuration, and SSL certificates are automatically provisioned via Let's Encrypt.",
+      "a4": "{{name}} supports local storage out of the box, with Cloudflare R2, Backblaze B2, and S3-compatible storage available as upgrade options. Choose the provider that fits your needs and budget.",
+      "a5": "Yes. We use industry-standard encryption for all data at rest and in transit. Passwords are hashed with bcrypt, JWT tokens are used for authentication, and all file uploads are validated and sanitized.",
+      "q0": "What is {{name}}?",
+      "q1": "Is it self-hostable?",
+      "q2": "How does the invite system work?",
+      "q3": "Can I use a custom domain?",
+      "q4": "What storage options are available?",
+      "q5": "Is my data secure?"
+    },
+    "subtitle": "Everything you need to know about {{name}}."
+  },
+  "features": {
+    "eyebrow": "Features",
+    "headingLine1": "Everything you need,",
+    "headingLine2": "nothing you don't.",
+    "items": {
+      "analytics": {
+        "description": "Track views, clicks, and engagement with a built-in analytics dashboard.",
+        "title": "Analytics"
+      },
+      "customProfiles": {
+        "description": "Personalize your profile with avatars, banners, bios, and custom usernames that represent you.",
+        "title": "Custom Profiles"
+      },
+      "fastPerformance": {
+        "description": "Lightning-fast loading with optimized assets, CDN support, and edge deployment.",
+        "title": "Fast Performance"
+      },
+      "inviteOnly": {
+        "description": "Exclusive access ensures quality and prevents spam across the platform.",
+        "title": "Invite-Only"
+      },
+      "modernDesign": {
+        "description": "Clean, modern interfaces built with the latest design trends and attention to detail.",
+        "title": "Modern Design"
+      },
+      "multipleProfiles": {
+        "description": "Run several link pages from one account, each with its own slug, theme, links, and music. Alias slugs give every page extra short URLs.",
+        "title": "Multiple Profiles"
+      },
+      "musicPlayer": {
+        "description": "Embed your favorite tracks and let visitors listen directly from your profile.",
+        "title": "Music Player"
+      },
+      "secureUploads": {
+        "description": "Upload avatars, banners, and files with S3-compatible storage. Your files, your control.",
+        "title": "Secure Uploads"
+      },
+      "selfHostable": {
+        "description": "Deploy on your own server with Docker in minutes. Full control over your data and infrastructure.",
+        "title": "Self-Hostable"
+      },
+      "socialLinks": {
+        "description": "Connect all your social platforms in one beautiful link page. Instagram, Twitter, GitHub, and more.",
+        "title": "Social Links"
+      },
+      "themes": {
+        "description": "Choose from stunning pre-built themes or create your own unique style with the theme editor.",
+        "title": "Themes"
+      }
+    },
+    "subtitle": "A complete toolkit for your online presence, designed for creators who care about quality."
+  },
+  "footer": {
+    "categories": {
+      "legal": "Legal",
+      "preferences": "Preferences",
+      "product": "Product",
+      "resources": "Resources"
+    },
+    "copyright": "© {{year}} {{name}}. All rights reserved.",
+    "githubAria": "GitHub",
+    "links": {
+      "changelog": "Changelog",
+      "contact": "Contact",
+      "cookiePreferences": "Cookie Preferences",
+      "documentation": "Documentation",
+      "features": "Features",
+      "pricing": "Pricing",
+      "privacyPolicy": "Privacy Policy",
+      "showcase": "Showcase",
+      "status": "Status",
+      "termsOfService": "Terms of Service"
+    },
+    "poweredBy": "Powered by {{name}}"
+  },
+  "globalThemeOverlay": {},
+  "hero": {
+    "badge": "Now in Early Access",
+    "badges": {
+      "lightningFast": "Lightning Fast",
+      "openSource": "Open Source",
+      "selfHostable": "Self-Hostable"
+    },
+    "cta": {
+      "buyInvite": "Buy an invite",
+      "dashboard": "Go to Dashboard",
+      "earlyAccess": "Get Early Access",
+      "viewLiveProfile": "View live profile",
+      "viewShowcase": "View Showcase"
+    },
+    "stats": {
+      "earlyAccessUsers": {
+        "label": "Early Access Users",
+        "value": "2,400+"
+      },
+      "loadTime": {
+        "label": "Load Time",
+        "value": "<50ms"
+      },
+      "pageViews": {
+        "label": "Page Views",
+        "value": "50k+"
+      }
+    },
+    "subheadingSuffix": "Links, themes, and analytics — all in one beautifully designed page."
+  },
+  "pricing": {
+    "contactUs": "Contact us",
+    "currencyFallback": "${{amount}}",
+    "currencyStyle": "currency",
+    "currentPlan": "Current plan",
+    "enterpriseNote": "Higher limits negotiable for Enterprise.",
+    "eyebrow": "Pricing",
+    "forCustomPlans": "for custom plans.",
+    "heading": "Simple, transparent pricing.",
+    "modeBilledMonthly": "Billed monthly, cancel anytime",
+    "modeBilledPerTerm": "Billed per term",
+    "modePayOnce": "Pay once, keep the plan",
+    "periodMonth": "/month",
+    "periodOneTime": "one-time",
+    "periodPerTerm": "per term",
+    "plans": {
+      "enterprise": {
+        "cta": "Contact Sales",
+        "description": "For teams and organizations at scale.",
+        "features": {
+          "item1": "10 profiles & 25 aliases",
+          "item2": "Up to 10 music tracks",
+          "item3": "Badges",
+          "item4": "Team management",
+          "item5": "API access",
+          "item6": "Business SSO (OIDC)",
+          "item7": "Dedicated support",
+          "item8": "Custom limits on request"
+        },
+        "inherits": "Everything in Premium, plus:",
+        "name": "Enterprise",
+        "period": "/month",
+        "price": "$29"
+      },
+      "free": {
+        "cta": "Get Started",
+        "description": "Perfect for getting started with your first profile.",
+        "features": {
+          "item1": "1 profile page",
+          "item2": "Basic themes",
+          "item3": "Up to 2 music tracks",
+          "item4": "Social sign-in (Google, GitHub, Discord)",
+          "item5": "Community support"
+        },
+        "name": "Free",
+        "period": "forever",
+        "price": "$0"
+      },
+      "premium": {
+        "badge": "Most Popular",
+        "cta": "Upgrade to Premium",
+        "description": "For creators who want the full experience.",
+        "features": {
+          "item1": "3 profiles & 5 aliases",
+          "item2": "Up to 5 music tracks",
+          "item3": "Premium themes",
+          "item4": "Analytics",
+          "item5": "Discord presence",
+          "item6": "Priority support"
+        },
+        "inherits": "Everything in Free, plus:",
+        "name": "Premium",
+        "period": "/month",
+        "price": "$5"
+      }
+    },
+    "subtitle": "No hidden fees. No surprises. Start free, upgrade when you're ready."
+  },
+  "sampleProfilePreview": {
+    "add": "+ Add",
+    "addConfirm": "Add",
+    "appearance": "Appearance",
+    "backgroundImagePlaceholder": "https://… optional",
+    "backgroundImageUrl": "Background image URL",
+    "colorAccent": "Accent",
+    "colorBackground": "Background",
+    "colorCard": "Card",
+    "colorText": "Text",
+    "defaultBio": "Designer & developer building the future of digital identity.",
+    "defaultHandle": "alexmorgan",
+    "defaultName": "Alex Morgan",
+    "editorBio": "Bio",
+    "editorHandle": "Handle",
+    "editorName": "Name",
+    "editorSampleProfile": "Sample profile",
+    "layout": "Layout",
+    "links": "Links",
+    "linkUrlPlaceholder": "https://… or @username",
+    "remove": "Remove",
+    "removeLink": "Remove link",
+    "terminalBio": "# {{bio}}",
+    "terminalHost": "{{username}}@bioplatform ~ zsh",
+    "terminalWhoami": "$ cat whoami.txt",
+    "themes": {
+      "aurora": "Aurora",
+      "forest": "Forest",
+      "midnight": "Midnight",
+      "ocean": "Ocean",
+      "pearl": "Pearl",
+      "sunset": "Sunset"
+    }
+  },
+  "showcase": {
+    "eyebrow": "Showcase",
+    "heading": "See it in action.",
+    "layout": "Layout",
+    "poweredBy": "Powered by {{name}}",
+    "subtitle": "Beautiful profiles, powerful customization. This is what your page could look like.",
+    "themeCustomization": "Theme Customization",
+    "themes": {
+      "aurora": "Aurora",
+      "forest": "Forest",
+      "golden": "Golden",
+      "midnight": "Midnight",
+      "nebula": "Nebula",
+      "obsidian": "Obsidian",
+      "ocean": "Ocean",
+      "pearl": "Pearl",
+      "royal": "Royal",
+      "sunset": "Sunset"
+    },
+    "tierEnterprise": "ENT",
+    "tierPro": "PRO",
+    "viewProfile": "View <0>/{{username}}</0>"
+  }
+}
