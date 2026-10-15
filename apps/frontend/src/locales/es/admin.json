@@ -1,8 +1,8 @@
 {
     "admin": {
         "header": {
-            "myDashboard": "Mi Panel",
-            "prereleaseAvailable": "Pre-lanzamiento v{{version}} disponible",
+            "myDashboard": "Mi Panel de control",
+            "prereleaseAvailable": "Version de pre-lanzamiento v{{version}} disponible",
             "prereleaseNotice": "Pre-release v{{version}} is available. It is shown here only and does not count as a required update.",
             "updates": "Updates",
             "signOut": "Sign out",
