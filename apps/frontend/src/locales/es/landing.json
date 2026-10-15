@@ -29,7 +29,7 @@
                 "title": "Analíticas"
             },
             "customProfiles": {
-                "description": "Personalize your profile with avatars, banners, bios, and custom usernames that represent you.",
+                "description": "Personaliza tu perfil con avatares, banners, biografias y nombre de usuarios personalizados que te representan.",
                 "title": "Perfiles Personalizados"
             },
             "fastPerformance": {
@@ -38,7 +38,7 @@
             },
             "inviteOnly": {
                 "description": "Exclusive access ensures quality and prevents spam across the platform.",
-                "title": "Invite-Only"
+                "title": "Solo con Invitacion"
             },
             "modernDesign": {
                 "description": "Clean, modern interfaces built with the latest design trends and attention to detail.",
