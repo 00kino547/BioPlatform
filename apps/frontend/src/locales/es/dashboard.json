@@ -1,8 +1,8 @@
 {
     "dashboard": {
         "meta": {
-            "title": "Panel",
-            "description": "Controla tus  {{name}} perfiles, enlaces, apariencia, y configuracion."
+            "title": "Panel de control",
+            "description": "Controla tus {{name}} perfiles, enlaces, apariencia, y configuracion."
         },
         "header": {
             "viewProfile": "View Profile",
