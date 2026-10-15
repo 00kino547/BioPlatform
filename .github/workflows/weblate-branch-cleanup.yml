@@ -1,0 +1,77 @@
+name: Reset merged Weblate branch
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  reset-branch:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (startsWith(github.event.pull_request.head.ref, 'weblate_canary_') ||
+      startsWith(github.event.pull_request.head.ref, 'weblate_main_'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reset merged Weblate branch to its target
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullRequest = context.payload.pull_request;
+            const branch = pullRequest.head.ref;
+            const target = pullRequest.base.ref;
+            const expectedTarget = branch.startsWith('weblate_canary_')
+              ? 'public-canary'
+              : 'main';
+
+            // Restrict reset scope to the two documented Weblate workflows.
+            if (target !== expectedTarget) {
+              core.setFailed(`Refusing branch reset: ${branch} targets ${target}`);
+              return;
+            }
+
+            const openPullRequests = await github.paginate(
+              github.rest.pulls.list,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${branch}`,
+              },
+            );
+
+            // Never reset a branch while another PR still uses it.
+            if (openPullRequests.length > 0) {
+              core.setFailed(`Refusing branch reset: ${branch} has another open PR`);
+              return;
+            }
+
+            const targetBranch = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: target,
+            });
+
+            try {
+              await github.rest.git.updateRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+                sha: targetBranch.data.commit.sha,
+                force: true,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `refs/heads/${branch}`,
+                sha: targetBranch.data.commit.sha,
+              });
+            }
+
+            core.info(`Reset ${branch} to ${target} at ${targetBranch.data.commit.sha}`);
