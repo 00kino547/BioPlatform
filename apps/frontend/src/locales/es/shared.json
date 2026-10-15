@@ -1,5 +1,5 @@
 {
-  "app": {
-    "landingTitle": "{{name}} — {{tagline}}"
-  }
+    "app": {
+        "landingTitle": "{{name}} — {{tagline}}"
+    }
 }
