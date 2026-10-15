@@ -72,7 +72,7 @@
     },
     "layoutSelector": {
         "bento": {
-            "hint": "Títulos de tamaños mezclados",
+            "hint": "Casillas de tamaños mezclados",
             "label": "Bento"
         },
         "compact": {
@@ -117,7 +117,7 @@
         },
         "topbar": {
             "hint": "Horizontal nav header",
-            "label": "Barra de arriba"
+            "label": "Barra superior"
         },
         "wide": {
             "hint": "Full-width 3 columns",
@@ -133,7 +133,7 @@
         "pricing": "Precio",
         "showcase": "Showcase",
         "signIn": "Iniciar Sesión",
-        "toggleMenu": "Alternar menu"
+        "toggleMenu": "Alternar menú"
     },
     "untranslatedNotice": {
         "dismiss": "Rechazar",
