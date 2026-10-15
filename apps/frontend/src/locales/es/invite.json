@@ -1,65 +1,65 @@
 {
-  "buyInviteModal": {
-    "triggerLabel": "Buy an invite",
-    "dialogLabel": "Buy an invite",
-    "heading": "Get an invite",
-    "description": "Buy an invite credit, then use one of the codes to register.",
-    "close": "Close",
-    "deliveringTo": "Delivering to {{email}}. Change it below if that is not the address you want the codes at.",
-    "preferBrowse": "Prefer to browse first?",
-    "openFullPage": "Open the full invite page"
-  },
-  "enterGate": {
-    "pressToEnter": "Press to enter",
-    "orPressKey": "or press any key"
-  },
-  "invite": {
-    "metaTitle": "Join {{name}}",
-    "metaDescription": "You've been invited to join {{name}}. Create your profile and start sharing your links.",
-    "durationPermanent": "permanent",
-    "durationFirstYear": "your first year",
-    "durationDays": "{{days}} days",
-    "notFoundTitle": "This page doesn't exist",
-    "notFoundDescription": "The invite link is invalid or has already been used.",
-    "backHome": "Back to {{name}}",
-    "invitationBadge": "Invitation",
-    "invitedToJoin": "You've been invited to join {{name}}",
-    "percentOff": "{{percent}}% off",
-    "onEveryPlan": "on every plan, for {{duration}}",
-    "createAccount": "Create your account with this invite",
-    "singleUseNote": "Invite codes are single-use. Registration is invite-only."
-  },
-  "inviteStore": {
-    "metaTitle": "Get an invite — {{name}}",
-    "metaDescription": "Buy an invite for {{name}}. Use your code to register; the rest come with your account.",
-    "heading": "Get an invite",
-    "description": "{{name}} is invite-only. Buy an invite credit below, then use one of the codes to register — anything you bought beyond the code you register with is added to your new account automatically.",
-    "alreadyHaveCode": "Already have a code?",
-    "registerWithIt": "Register with it",
-    "or": "or",
-    "signIn": "sign in"
-  },
-  "invitePurchaseStatus": {
-    "currencyStyle": "currency",
-    "currencyFallback": "{{amount}} {{currency}}",
-    "metaTitle": "Your invite codes — {{name}}",
-    "metaDescription": "View the invite codes from your purchase.",
-    "errorDefault": "This purchase link is not valid.",
-    "loading": "Loading your codes…",
-    "invalidTitle": "This link is not valid",
-    "invalidHint": "The link expires. If it has expired, check your inbox for the original email, or contact the operator.",
-    "heading": "Your invite codes",
-    "summary": "{{count}} credit{{plural}} · {{price}} · {{status}}",
-    "paid": "paid",
-    "orderNotPaid": "This order is {{status}}. Codes are issued once it is paid. Refresh this page in a moment, or check your inbox for the confirmation.",
-    "used": "used",
-    "revoked": "revoked",
-    "available": "available",
-    "copyAria": "Copy {{code}}",
-    "useOneCode": "Use one code to",
-    "register": "register",
-    "remainingCodes": "Once you have an account the remaining {{count}} code(s) move to it automatically, so you do not need to hand them out yourself.",
-    "resendSent": "Link sent — check your inbox",
-    "resend": "Email me this link again"
-  }
+    "buyInviteModal": {
+        "triggerLabel": "Comprar una invitación",
+        "dialogLabel": "Comprar una invitación",
+        "heading": "Consigue una invitacion",
+        "description": "Buy an invite credit, then use one of the codes to register.",
+        "close": "Close",
+        "deliveringTo": "Delivering to {{email}}. Change it below if that is not the address you want the codes at.",
+        "preferBrowse": "Prefer to browse first?",
+        "openFullPage": "Open the full invite page"
+    },
+    "enterGate": {
+        "pressToEnter": "Press to enter",
+        "orPressKey": "or press any key"
+    },
+    "invite": {
+        "metaTitle": "Join {{name}}",
+        "metaDescription": "You've been invited to join {{name}}. Create your profile and start sharing your links.",
+        "durationPermanent": "permanente",
+        "durationFirstYear": "tu primer año",
+        "durationDays": "{{days}} días",
+        "notFoundTitle": "Esta página no existe",
+        "notFoundDescription": "Este enlace de una invitación es invalido o ya se ha usado.",
+        "backHome": "Volver a {{name}}",
+        "invitationBadge": "Invitación",
+        "invitedToJoin": "Tu has sido invitado para unirte a {{name}}",
+        "percentOff": "{{percent}}% descuento",
+        "onEveryPlan": "en cada plan, por {{duration}}",
+        "createAccount": "Crea tu cuenta con esta invitación",
+        "singleUseNote": "Los códigos de invitación son solo de un uso. El registro es de solo invitación."
+    },
+    "inviteStore": {
+        "metaTitle": "Consigue una invitación — {{name}}",
+        "metaDescription": "Compra una invitación para {{name}}. Usa tu código para registrarte, el resto viene con tu cuenta.",
+        "heading": "Consigue una invitación",
+        "description": "{{name}} es solo invitación. Compra un crédito para una invitación abajo, después usa uno de los códigos para registrarte — lo demás que has comprado con el código que te registrastes será agregado con tu cuenta automáticamente.",
+        "alreadyHaveCode": "¿Ya tienes un código?",
+        "registerWithIt": "Registrate con",
+        "or": "o",
+        "signIn": "inicia sesión"
+    },
+    "invitePurchaseStatus": {
+        "currencyStyle": "dinero",
+        "currencyFallback": "{{amount}} {{currency}}",
+        "metaTitle": "Tus códigos de invitación — {{name}}",
+        "metaDescription": "Consulta los códigos de invitación de tu compra.",
+        "errorDefault": "Este enlacé de compra no es válido.",
+        "loading": "Cargando tus códigos…",
+        "invalidTitle": "Este enlace no es válido",
+        "invalidHint": "Este enlace expira. Si ha expirado, mira tu bandeja de entrada de tu correo electrónico original, o contacta con el operador.",
+        "heading": "Tus códigos de invitación",
+        "summary": "{{count}} credito{{plural}} · {{price}} · {{status}}",
+        "paid": "pagado",
+        "orderNotPaid": "Este pedido está {{status}}. Los códigos se emiten una vez realizado el pago. Actualiza esta página en un momento o revisa tu bandeja de entrada para ver la confirmación.",
+        "used": "usado",
+        "revoked": "removido",
+        "available": "disponible",
+        "copyAria": "Copiar {{code}}",
+        "useOneCode": "Usa un codigo para",
+        "register": "registrarse",
+        "remainingCodes": "Una vez que tengas una cuenta, los {{count}} código(s) restantes se transferirán a ella automáticamente, por lo que no tendrás que distribuirlos tú mismo.",
+        "resendSent": "Enlace enviado — revisa tu bandeja de entrada",
+        "resend": "Envíame este código de nuevo"
+    }
 }
