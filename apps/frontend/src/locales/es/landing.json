@@ -1,40 +1,40 @@
 {
     "faq": {
-        "eyebrow": "FAQ",
-        "heading": "Frequently asked questions.",
+        "eyebrow": "Preguntas Frecuentes",
+        "heading": "Preguntas frecuentes.",
         "items": {
-            "a0": "{{name}} is a modern link-in-bio platform that lets you create a stunning profile page. Showcase your links, music, and social profiles in one beautifully designed page. It's built for creators, developers, and anyone who wants a polished digital presence.",
-            "a1": "Yes. {{name}} is fully open source and can be self-hosted on any Linux server with Docker. Our Docker Compose setup gets you running in minutes. You get full control over your data, storage, and deployment.",
-            "a2Default": "{{name}} is an invite-only platform. Accounts cannot be created freely. You can join by either receiving a handpicked invitation from our staff, or by being requested by an existing member and then manually approved before an invite is issued. This exclusivity ensures a high-quality community and prevents spam and abuse.",
-            "a2StoreOpen": "{{name}} is an invite-only platform. Accounts cannot be created freely. You can join by receiving a handpicked invitation from our staff, by being requested by an existing member and then manually approved, or by buying an invite yourself — a purchase gives you a code to register with straight away, and a bulk purchase puts any remaining codes on your new account.",
+            "a0": "{{name}} es un moderno enlace-a-bio plataforma que te deja crear paginas de perfil. Enseña tus enlaces, musica, y perfiles de RR.SS en una pagina diseñadamente bonita. Esta creado para creadores, programadores, y cualquiera que quiera una perfil digital pulido.",
+            "a1": "Si. {{name}} es totalmente codigo abierto y puede ser auto-hosteado en cualquier servidor de Linux con Docker. Nuestra configuracion de Docker Compose te deja correrlo en minutos. Obtienes total acceso a tus datos, archivos y despliegue.",
+            "a2Default": "{{name}} es una plataforma de solo invitacion. Las cuentas no pueden ser creadas libremente. Puedes unirte a ella con una invitacion seleccionada personalmente de nuestro staff, o pidiendo una a un miembro existente y despues aprobandola manualmente antes que se emite la invitacion. Esta esclusivida garantiza una comunidad de alta calidad y previene el spam y el abuso.",
+            "a2StoreOpen": "{{name}} es una plataforma de solo invitacion. Las cuentas no pueden ser creadas libremente. Puedes unirte a ella con una invitacion seleccionada personalmente de nuestro staff, o pidiendo una a un miembro existente y despues aprobandola manualmente, o comprandote una invitacion para ti — la compra te da un codigo para registrarte de inmediato, y una compra por paquete, te añade los codigos restantes a tu nueva cuenta.",
             "a3": "Premium users can connect a custom domain to their profile page. We provide step-by-step instructions for DNS configuration, and SSL certificates are automatically provisioned via Let's Encrypt.",
-            "a4": "{{name}} supports local storage out of the box, with Cloudflare R2, Backblaze B2, and S3-compatible storage available as upgrade options. Choose the provider that fits your needs and budget.",
+            "a4": "{{name}} admite almazenamiento local de forma nativa, con Cloudflare R2, Backblaze B2, y cualquier almazenamiento S3 compatible compo opciones de actualizacion. Elije el provedor que mejor adapte tus necesidades y tu presupuesto.",
             "a5": "Yes. We use industry-standard encryption for all data at rest and in transit. Passwords are hashed with bcrypt, JWT tokens are used for authentication, and all file uploads are validated and sanitized.",
-            "q0": "What is {{name}}?",
-            "q1": "Is it self-hostable?",
-            "q2": "How does the invite system work?",
-            "q3": "Can I use a custom domain?",
-            "q4": "What storage options are available?",
-            "q5": "Is my data secure?"
+            "q0": "¿Que es {{name}}?",
+            "q1": "¿Es auto hosteable?",
+            "q2": "¿Como funciona el sistema de invitaciones?",
+            "q3": "¿Puedo usar un dominio personalizado?",
+            "q4": "¿Que tipos de almazenamientos hay disponible?",
+            "q5": "¿Esta mi datos seguros?"
         },
-        "subtitle": "Everything you need to know about {{name}}."
+        "subtitle": "Todo los que necesitas conocer de {{name}}."
     },
     "features": {
-        "eyebrow": "Features",
-        "headingLine1": "Everything you need,",
-        "headingLine2": "nothing you don't.",
+        "eyebrow": "Funciones",
+        "headingLine1": "Todo lo que necesitas,",
+        "headingLine2": "nada de lo que no.",
         "items": {
             "analytics": {
                 "description": "Track views, clicks, and engagement with a built-in analytics dashboard.",
-                "title": "Analytics"
+                "title": "Analiticas"
             },
             "customProfiles": {
                 "description": "Personalize your profile with avatars, banners, bios, and custom usernames that represent you.",
-                "title": "Custom Profiles"
+                "title": "Perfiles Personalizados"
             },
             "fastPerformance": {
                 "description": "Lightning-fast loading with optimized assets, CDN support, and edge deployment.",
-                "title": "Fast Performance"
+                "title": "Rendimiento rapido"
             },
             "inviteOnly": {
                 "description": "Exclusive access ensures quality and prevents spam across the platform.",
