@@ -5,27 +5,27 @@
             "description": "Controla tus {{name}} perfiles, enlaces, apariencia, y configuracion."
         },
         "header": {
-            "viewProfile": "View Profile",
-            "adminPanel": "Admin Panel",
-            "signOut": "Sign out"
+            "viewProfile": "Ver Perfil",
+            "adminPanel": "Panel de Administrador",
+            "signOut": "Cerrar Sesion"
         },
         "page": {
-            "title": "Edit Profile",
-            "profilesUsed": "{{used}}/{{limit}} profiles used",
-            "primary": "Primary: {{slug}}",
-            "noPrimary": "No primary",
-            "public": "Public",
-            "private": "Private",
-            "saving": "Saving...",
-            "saved": "Saved!",
-            "save": "Save"
+            "title": "Editar Perfil",
+            "profilesUsed": "{{used}}/{{limit}} perfiles usados",
+            "primary": "Primario: {{slug}}",
+            "noPrimary": "No primario",
+            "public": "Publico",
+            "private": "Privado",
+            "saving": "Guardando...",
+            "saved": "¡Guardado!",
+            "save": "Guardar"
         },
         "tabs": {
-            "profiles": "Profiles",
-            "profile": "Profile",
-            "links": "Links",
-            "appearance": "Appearance",
-            "analytics": "Analytics",
+            "profiles": "Perfiles",
+            "profile": "Perfil",
+            "links": "Enlaces",
+            "appearance": "Apariencia",
+            "analytics": "Analíticas",
             "email": "Email",
             "tips": "Tips",
             "shop": "Shop",
