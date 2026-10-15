@@ -5,7 +5,7 @@
         "heading": "Consigue una invitacion",
         "description": "Compra un crédito de invitación, entonces usa uno de los codigos para registrarte.",
         "close": "Cerrar",
-        "deliveringTo": "Delivering to {{email}}. Change it below if that is not the address you want the codes at.",
+        "deliveringTo": "Enviando a {{email}}. Cámbialo debajo si esa no es la dirección en la que quieres los correos.",
         "preferBrowse": "Prefer to browse first?",
         "openFullPage": "Open the full invite page"
     },
