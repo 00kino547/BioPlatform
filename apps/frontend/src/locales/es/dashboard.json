@@ -14,7 +14,7 @@
             "profilesUsed": "{{used}}/{{limit}} perfiles usados",
             "primary": "Primario: {{slug}}",
             "noPrimary": "No primario",
-            "public": "Publico",
+            "public": "Público",
             "private": "Privado",
             "saving": "Guardando...",
             "saved": "¡Guardado!",
