@@ -3,8 +3,8 @@
         "triggerLabel": "Comprar una invitación",
         "dialogLabel": "Comprar una invitación",
         "heading": "Consigue una invitacion",
-        "description": "Buy an invite credit, then use one of the codes to register.",
-        "close": "Close",
+        "description": "Compra un crédito de invitación, entonces usa uno de los codigos para registrarte.",
+        "close": "Cerrar",
         "deliveringTo": "Delivering to {{email}}. Change it below if that is not the address you want the codes at.",
         "preferBrowse": "Prefer to browse first?",
         "openFullPage": "Open the full invite page"
