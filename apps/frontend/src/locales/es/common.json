@@ -72,7 +72,7 @@
     },
     "layoutSelector": {
         "bento": {
-            "hint": "Mixed-size tiles",
+            "hint": "Títulos de tamaños mezclados",
             "label": "Bento"
         },
         "compact": {
@@ -117,7 +117,7 @@
         },
         "topbar": {
             "hint": "Horizontal nav header",
-            "label": "Topbar"
+            "label": "Barra de arriba"
         },
         "wide": {
             "hint": "Full-width 3 columns",
@@ -133,10 +133,10 @@
         "pricing": "Precio",
         "showcase": "Showcase",
         "signIn": "Iniciar Sesión",
-        "toggleMenu": "Toggle menu"
+        "toggleMenu": "Alternar menu"
     },
     "untranslatedNotice": {
-        "dismiss": "Dismiss",
+        "dismiss": "Rechazar",
         "message": "Esta página no está completamente traducida aún, con lo que aun texto es mostrado en Inglés."
     }
 }
