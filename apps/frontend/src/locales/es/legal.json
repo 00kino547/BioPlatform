@@ -75,7 +75,7 @@
             },
             "domains": {
                 "title": "Custom Domains",
-                "dnsTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. This instance issues and manages TLS certificates for you through Let’s Encrypt — you acknowledge this and agree to the {{link}}.",
+                "dnsTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. This instance issues and manages TLS certificates for you through Let’s Encrypt — you acknowledge this and agree to the <0>{{link}}</0>.",
                 "operatorRemoval": "The instance operator may remove or disable custom domains at any time, for example if DNS verification fails, the domain expires, or the associated account is terminated.",
                 "noTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly, and domain ownership must be verified before the domain becomes active. You provide and maintain a valid HTTPS certificate for your domain yourself; {{app}} does not obtain certificates on your behalf.",
                 "fallback": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. When automatic TLS is enabled by the instance operator, {{app}} will obtain and manage Let’s Encrypt certificates on your behalf."
@@ -135,7 +135,10 @@
             },
             "operator": {
                 "title": "Who Operates This Service",
-                "body": "{{who}}{{place}}. By using {{app}} you are entering into these Terms with that operator, who is responsible for this deployment and for the choices described in these Terms."
+                "body": "{{who}}{{place}}. By using {{app}} you are entering into these Terms with that operator, who is responsible for this deployment and for the choices described in these Terms.",
+                "whoNamed": "{{app}} is operated by {{name}}",
+                "whoAdmin": "{{app}} is operated by the instance’s administrator",
+                "place": ", established in {{jurisdiction}}"
             },
             "api": {
                 "title": "Access to the API",
@@ -232,7 +235,10 @@
             },
             "operator": {
                 "title": "Who Operates This Service",
-                "body": "{{who}}{{place}}. The operator is the controller of the personal information described in this policy and decides how and why it is processed; the operator is responsible for this deployment and for responding to privacy and data-protection requests made through the contact details below."
+                "body": "{{who}}{{place}}. The operator is the controller of the personal information described in this policy and decides how and why it is processed; the operator is responsible for this deployment and for responding to privacy and data-protection requests made through the contact details below.",
+                "whoNamed": "{{app}} is operated by {{name}}",
+                "whoAdmin": "{{app}} is operated by the instance’s administrator",
+                "place": ", established in {{jurisdiction}}"
             },
             "contact": {
                 "title": "Contact"

@@ -7,11 +7,14 @@
     "close": "Close",
     "deliveringTo": "Delivering to {{email}}. Change it below if that is not the address you want the codes at.",
     "preferBrowse": "Prefer to browse first?",
-    "openFullPage": "Open the full invite page"
+    "openFullPage": "Open the full invite page",
+    "button": "Buy an invite",
+    "changeBelow": "Change it below if that is not the address you want the codes at."
   },
   "enterGate": {
     "pressToEnter": "Press to enter",
-    "orPressKey": "or press any key"
+    "orPressKey": "or press any key",
+    "pressStart": "Press to enter"
   },
   "invite": {
     "metaTitle": "Join {{name}}",
@@ -23,7 +26,7 @@
     "notFoundDescription": "The invite link is invalid or has already been used.",
     "backHome": "Back to {{name}}",
     "invitationBadge": "Invitation",
-    "invitedToJoin": "You've been invited to join {{name}}",
+    "invitedToJoin": "You've been invited to join <0>{{name}}</0>",
     "percentOff": "{{percent}}% off",
     "onEveryPlan": "on every plan, for {{duration}}",
     "createAccount": "Create your account with this invite",

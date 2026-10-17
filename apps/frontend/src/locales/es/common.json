@@ -138,5 +138,25 @@
     "untranslatedNotice": {
         "dismiss": "Rechazar",
         "message": "Esta página no está completamente traducida aún, con lo que aun texto es mostrado en Inglés."
+    },
+    "countdown": {
+        "days": "days",
+        "hrs": "hrs",
+        "min": "min",
+        "sec": "sec",
+        "done": "Done"
+    },
+    "lockedFeature": {
+        "upgradeTo": "Upgrade to {{tier}}",
+        "downgradeTo": "Downgrade to {{tier}}",
+        "moveTo": "Move to {{tier}}",
+        "featureIsTierFeature": "{{feature}} is a {{tier}} feature",
+        "overriddenHelp": "Your role already unlocks this — ask an admin to grant your role the {{permission}} permission.",
+        "tierDescription": "Your account is on the {{tier}} tier. {{verb}} to unlock {{feature}}.",
+        "requires": "Requires {{tier}} · API level “{{level}}”"
+    },
+    "adblock": {
+        "notice": "Your ad blocker is on — {{name}} profiles stay free thanks to their ads. Consider whitelisting this page to keep supporting it.",
+        "dismissAria": "Dismiss adblock notice"
     }
 }

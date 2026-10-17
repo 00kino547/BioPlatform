@@ -7,11 +7,14 @@
         "close": "Cerrar",
         "deliveringTo": "Enviando a {{email}}. Cámbialo debajo si esa no es la dirección en la que quieres los correos.",
         "preferBrowse": "Prefer to browse first?",
-        "openFullPage": "Open the full invite page"
+        "openFullPage": "Open the full invite page",
+        "button": "Buy an invite",
+        "changeBelow": "Change it below if that is not the address you want the codes at."
     },
     "enterGate": {
         "pressToEnter": "Press to enter",
-        "orPressKey": "or press any key"
+        "orPressKey": "or press any key",
+        "pressStart": "Press to enter"
     },
     "invite": {
         "metaTitle": "Join {{name}}",
@@ -23,7 +26,7 @@
         "notFoundDescription": "Este enlace de una invitación es invalido o ya se ha usado.",
         "backHome": "Volver a {{name}}",
         "invitationBadge": "Invitación",
-        "invitedToJoin": "Has sido invitado para unirte a {{name}}",
+        "invitedToJoin": "Has sido invitado para unirte a <0>{{name}}</0>",
         "percentOff": "{{percent}}% de descuento",
         "onEveryPlan": "en cada plan, por {{duration}}",
         "createAccount": "Crea tu cuenta con esta invitación",
