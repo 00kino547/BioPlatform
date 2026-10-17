@@ -7,9 +7,9 @@
             "a1": "Si. {{name}} es totalmente de codigo abierto y puede ser auto-hosteado en cualquier servidor de Linux con Docker. Nuestra configuracion de Docker Compose te deja correrlo en minutos. Obtienes total acceso a tus datos, archivos y despliegue.",
             "a2Default": "{{name}} es una plataforma de solo invitación. Las cuentas no pueden ser creadas libremente. Puedes unirte a ella con una invitación seleccionada personalmente de nuestro staff, o pidiendo una a un miembro existente y despues aprobandola manualmente antes que se emite la invitacion. Esta exclusividad garantiza una comunidad de alta calidad y previene el spam y el abuso.",
             "a2StoreOpen": "{{name}} es una plataforma de solo invitación. Las cuentas no pueden ser creadas libremente. Puedes unirte a ella con una invitación seleccionada personalmente de nuestro staff, o pidiendo una a un miembro existente y después aprobándola manualmente, o comprándote una invitación para ti — la compra te da un código para registrarte de inmediato, y una compra por paquete, te añade los códigos restantes a tu nueva cuenta.",
-            "a3": "Premium users can connect a custom domain to their profile page. We provide step-by-step instructions for DNS configuration, and SSL certificates are automatically provisioned via Let's Encrypt.",
+            "a3": "Los usuarios premium pueden conectar un dominio personalizado a su perfil. Proporcionamos instrucciones paso a paso para configuración DNS, y los certificados SSL son provisionados automáticamente via Let's Encrypt.",
             "a4": "{{name}} admite almacenamiento local de forma nativa, con Cloudflare R2, Backblaze B2, y cualquier almacenamiento S3 compatible compo opciones de actualización. Elije el proovedor que mejor adapte tus necesidades y tu presupuesto.",
-            "a5": "Yes. We use industry-standard encryption for all data at rest and in transit. Passwords are hashed with bcrypt, JWT tokens are used for authentication, and all file uploads are validated and sanitized.",
+            "a5": "Si. Usamos el estándar de la industria en encriptación para toda la información en transito. Las contraseñas están hasheadas con bcrypt, tokens JWT son utilizados para autentificación, y todas las subidas de archivos son validadas y sanitizadas.",
             "q0": "¿Que es {{name}}?",
             "q1": "¿Es auto hosteable?",
             "q2": "¿Como funciona el sistema de invitaciones?",
@@ -25,7 +25,7 @@
         "headingLine2": "nada de lo que no.",
         "items": {
             "analytics": {
-                "description": "Track views, clicks, and engagement with a built-in analytics dashboard.",
+                "description": "Rastrea visitas, clics, y participación con un panel de analíticas integrado.",
                 "title": "Analíticas"
             },
             "customProfiles": {
@@ -37,183 +37,183 @@
                 "title": "Rendimiento rápido"
             },
             "inviteOnly": {
-                "description": "Exclusive access ensures quality and prevents spam across the platform.",
+                "description": "Acceso exclusivo garantiza calidad y previene spam a través de la plataforma.",
                 "title": "Solo con Invitación"
             },
             "modernDesign": {
-                "description": "Clean, modern interfaces built with the latest design trends and attention to detail.",
-                "title": "Modern Design"
+                "description": "Limpio, interfaces modernas construidas con los últimos trends de diseño y atención al detalle.",
+                "title": "Diseño Moderno"
             },
             "multipleProfiles": {
-                "description": "Run several link pages from one account, each with its own slug, theme, links, and music. Alias slugs give every page extra short URLs.",
-                "title": "Multiple Profiles"
+                "description": "Ejecuta varios links desde una cuenta, cada una con su propia página, tema, links y música. Los alias le dan a cada pagina URLs cortas extra.",
+                "title": "Perfiles Múltiples"
             },
             "musicPlayer": {
-                "description": "Embed your favorite tracks and let visitors listen directly from your profile.",
-                "title": "Music Player"
+                "description": "Añade tus canciones favoritas y deja a los vistantes escuchar música directamente desde tu perfil.",
+                "title": "Reproductor Musical"
             },
             "secureUploads": {
-                "description": "Upload avatars, banners, and files with S3-compatible storage. Your files, your control.",
-                "title": "Secure Uploads"
+                "description": "Sube avatares, banners y archivos con almacenamiento compatible con S3. Tus archivos, tu control.",
+                "title": "Subidas Seguras"
             },
             "selfHostable": {
-                "description": "Deploy on your own server with Docker in minutes. Full control over your data and infrastructure.",
-                "title": "Self-Hostable"
+                "description": "Despliega en tu propio servidor con docker en minutos. Control competo sobre tu información y infraestructura.",
+                "title": "Auto-Desplegable"
             },
             "socialLinks": {
-                "description": "Connect all your social platforms in one beautiful link page. Instagram, Twitter, GitHub, and more.",
-                "title": "Social Links"
+                "description": "Conecta todas tus redes sociales en una página de link preciosa. Instagram, Twitter, GitHub, y mas.",
+                "title": "Links Sociales"
             },
             "themes": {
-                "description": "Choose from stunning pre-built themes or create your own unique style with the theme editor.",
-                "title": "Themes"
+                "description": "Elije desde una lista alucinante de temas integrados o crea tu propio único estilo con el editor de temas.",
+                "title": "Temas"
             }
         },
-        "subtitle": "A complete toolkit for your online presence, designed for creators who care about quality."
+        "subtitle": "Una caja de herramientas completa para tu presencia online, diseñado para creadores que les importa la calidad."
     },
     "footer": {
         "categories": {
             "legal": "Legal",
-            "preferences": "Preferences",
-            "product": "Product",
-            "resources": "Resources"
+            "preferences": "Preferencias",
+            "product": "Producto",
+            "resources": "Recursos"
         },
         "copyright": "© {{year}} {{name}}. Todos los derechos reservados.",
         "githubAria": "GitHub",
         "links": {
-            "changelog": "Changelog",
-            "contact": "Contact",
-            "cookiePreferences": "Cookie Preferences",
-            "documentation": "Documentation",
-            "features": "Features",
-            "pricing": "Pricing",
-            "privacyPolicy": "Privacy Policy",
+            "changelog": "Registro de cambios",
+            "contact": "Contacto",
+            "cookiePreferences": "Preferencia de Cookies",
+            "documentation": "Documentación",
+            "features": "Funciones",
+            "pricing": "Precio",
+            "privacyPolicy": "Política de Privacidad",
             "showcase": "Showcase",
-            "status": "Status",
-            "termsOfService": "Terms of Service"
+            "status": "Estado",
+            "termsOfService": "Terminos de Servicio"
         },
-        "poweredBy": "Powered by {{name}}"
+        "poweredBy": "Potenciado por {{name}}"
     },
     "hero": {
-        "badge": "Now in Early Access",
+        "badge": "Ahora en Acceso Temprano",
         "badges": {
-            "lightningFast": "Lightning Fast",
-            "openSource": "Open Source",
-            "selfHostable": "Self-Hostable"
+            "lightningFast": "Rapidísimo",
+            "openSource": "Código Abierto",
+            "selfHostable": "Auto-Desplegable"
         },
         "cta": {
-            "buyInvite": "Buy an invite",
-            "dashboard": "Go to Dashboard",
-            "earlyAccess": "Get Early Access",
-            "viewLiveProfile": "View live profile",
-            "viewShowcase": "View Showcase"
+            "buyInvite": "Comprar una invitación",
+            "dashboard": "Ir al Panel De Control",
+            "earlyAccess": "Conseguir Acceso Temprano",
+            "viewLiveProfile": "Ver Perfil En Vivo",
+            "viewShowcase": "Ver Showcase"
         },
         "stats": {
             "earlyAccessUsers": {
-                "label": "Early Access Users",
+                "label": "Usuarios en Acceso Temprano",
                 "value": "2,400+"
             },
             "loadTime": {
-                "label": "Load Time",
+                "label": "Tiempo De Carga",
                 "value": "<50ms"
             },
             "pageViews": {
-                "label": "Page Views",
+                "label": "Visitas de Página",
                 "value": "50k+"
             }
         },
-        "subheadingSuffix": "Links, themes, and analytics — all in one beautifully designed page."
+        "subheadingSuffix": "Links, temas, y analíticas — todo en una página perfectamente diseñada."
     },
     "pricing": {
-        "contactUs": "Contact us",
+        "contactUs": "Contáctanos",
         "currencyFallback": "${{amount}}",
-        "currencyStyle": "currency",
-        "currentPlan": "Current plan",
-        "enterpriseNote": "Higher limits negotiable for Enterprise.",
-        "eyebrow": "Pricing",
-        "forCustomPlans": "for custom plans.",
-        "heading": "Simple, transparent pricing.",
-        "modeBilledMonthly": "Billed monthly, cancel anytime",
-        "modeBilledPerTerm": "Billed per term",
-        "modePayOnce": "Pay once, keep the plan",
-        "periodMonth": "/month",
-        "periodOneTime": "one-time",
-        "periodPerTerm": "per term",
+        "currencyStyle": "moneda",
+        "currentPlan": "Plan actual",
+        "enterpriseNote": "Limites mas altos para Empresarial.",
+        "eyebrow": "Precio",
+        "forCustomPlans": "para planes personalizados.",
+        "heading": "Simple, precios transparentes.",
+        "modeBilledMonthly": "Cobrado mensualmente, cancela en cualquier momento",
+        "modeBilledPerTerm": "Facturado por términos",
+        "modePayOnce": "Paga una vez, quédate el plan",
+        "periodMonth": "/mes",
+        "periodOneTime": "una vez",
+        "periodPerTerm": "por términos",
         "plans": {
             "enterprise": {
-                "cta": "Contact Sales",
-                "description": "For teams and organizations at scale.",
+                "cta": "Contactar a Ventas",
+                "description": "Para equipos y organizaciones a escala.",
                 "features": {
-                    "item1": "10 profiles & 25 aliases",
-                    "item2": "Up to 10 music tracks",
-                    "item3": "Badges",
-                    "item4": "Team management",
-                    "item5": "API access",
-                    "item6": "Business SSO (OIDC)",
-                    "item7": "Dedicated support",
-                    "item8": "Custom limits on request"
+                    "item1": "10 perfiles & 25 alias",
+                    "item2": "Hasta 10 canciones",
+                    "item3": "Insignias",
+                    "item4": "Gestión de equipos",
+                    "item5": "Acceso a la API",
+                    "item6": "SSO empresarial (OIDC)",
+                    "item7": "Soporte dedicado",
+                    "item8": "Limites personalizados a petición"
                 },
-                "inherits": "Everything in Premium, plus:",
-                "name": "Enterprise",
-                "period": "/month",
+                "inherits": "Todo en premium, y:",
+                "name": "Empresarial",
+                "period": "/mes",
                 "price": "$29"
             },
             "free": {
-                "cta": "Get Started",
-                "description": "Perfect for getting started with your first profile.",
+                "cta": "Empieza",
+                "description": "Perfecto para empezar con tu primer perfil.",
                 "features": {
-                    "item1": "1 profile page",
-                    "item2": "Basic themes",
-                    "item3": "Up to 2 music tracks",
-                    "item4": "Social sign-in (Google, GitHub, Discord)",
-                    "item5": "Community support"
+                    "item1": "1 página de perfil",
+                    "item2": "Temas básicos",
+                    "item3": "Hasta 2 canciones",
+                    "item4": "Inicio social (Google, GitHub, Discord)",
+                    "item5": "Soporte comunitario"
                 },
-                "name": "Free",
-                "period": "forever",
+                "name": "Gratuito",
+                "period": "para siempre",
                 "price": "$0"
             },
             "premium": {
-                "badge": "Most Popular",
-                "cta": "Upgrade to Premium",
-                "description": "For creators who want the full experience.",
+                "badge": "Mas Popular",
+                "cta": "Mejora a Premium",
+                "description": "Para creadores que quieren la experiencia completa.",
                 "features": {
-                    "item1": "3 profiles & 5 aliases",
-                    "item2": "Up to 5 music tracks",
-                    "item3": "Premium themes",
-                    "item4": "Analytics",
-                    "item5": "Discord presence",
-                    "item6": "Priority support"
+                    "item1": "3 perfiles & 5 alias",
+                    "item2": "Hasta 5 canciones",
+                    "item3": "Temas premium",
+                    "item4": "Analíticas",
+                    "item5": "Presencia de discord",
+                    "item6": "Soporte prioritario"
                 },
-                "inherits": "Everything in Free, plus:",
+                "inherits": "Todo en Gratuito, y:",
                 "name": "Premium",
-                "period": "/month",
+                "period": "/mes",
                 "price": "$5"
             }
         },
-        "subtitle": "No hidden fees. No surprises. Start free, upgrade when you're ready."
+        "subtitle": "No hay tarifas ocultas. No hay sorpresas. Empieza gratuitamente, mejora cuando te sientas listo."
     },
     "sampleProfilePreview": {
-        "add": "+ Add",
-        "addConfirm": "Add",
-        "appearance": "Appearance",
-        "backgroundImagePlaceholder": "https://… optional",
-        "backgroundImageUrl": "Background image URL",
+        "add": "+ Añadir",
+        "addConfirm": "Añadir",
+        "appearance": "Apariencia",
+        "backgroundImagePlaceholder": "https://… opcional",
+        "backgroundImageUrl": "URL de imagen de fondo",
         "colorAccent": "Accent",
-        "colorBackground": "Background",
-        "colorCard": "Card",
-        "colorText": "Text",
-        "defaultBio": "Designer & developer building the future of digital identity.",
+        "colorBackground": "Fondo",
+        "colorCard": "Tarjeta",
+        "colorText": "Texto",
+        "defaultBio": "Diseñador & desarrollador construyendo el futuro de la identidad digital.",
         "defaultHandle": "alexmorgan",
         "defaultName": "Alex Morgan",
         "editorBio": "Bio",
         "editorHandle": "Handle",
-        "editorName": "Name",
-        "editorSampleProfile": "Sample profile",
-        "layout": "Layout",
+        "editorName": "Nombre",
+        "editorSampleProfile": "Perfil de ejemplo",
+        "layout": "Distribución",
         "links": "Links",
-        "linkUrlPlaceholder": "https://… or @username",
-        "remove": "Remove",
-        "removeLink": "Remove link",
+        "linkUrlPlaceholder": "https://… o @usuario",
+        "remove": "Eliminar",
+        "removeLink": "Eliminar link",
         "terminalBio": "# {{bio}}",
         "terminalHost": "{{username}}@bioplatform ~ zsh",
         "terminalWhoami": "$ cat whoami.txt",
@@ -228,11 +228,11 @@
     },
     "showcase": {
         "eyebrow": "Showcase",
-        "heading": "See it in action.",
-        "layout": "Layout",
-        "poweredBy": "Powered by {{name}}",
-        "subtitle": "Beautiful profiles, powerful customization. This is what your page could look like.",
-        "themeCustomization": "Theme Customization",
+        "heading": "Míralo en acción.",
+        "layout": "Distribución",
+        "poweredBy": "Potenciado por {{name}}",
+        "subtitle": "Perfiles bonitos, personalización poderosa. Así es como tu página se podría ver.",
+        "themeCustomization": "Personalización de Tema",
         "themes": {
             "aurora": "Aurora",
             "forest": "Forest",
@@ -245,8 +245,8 @@
             "royal": "Royal",
             "sunset": "Sunset"
         },
-        "tierEnterprise": "ENT",
+        "tierEnterprise": "EMP",
         "tierPro": "PRO",
-        "viewProfile": "View <0>/{{username}}</0>"
+        "viewProfile": "Ver <0>/{{username}}</0>"
     }
 }
