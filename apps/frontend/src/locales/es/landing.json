@@ -88,7 +88,6 @@
             "features": "Funciones",
             "pricing": "Precio",
             "privacyPolicy": "Política de Privacidad",
-            "showcase": "Showcase",
             "status": "Estado",
             "termsOfService": "Terminos de Servicio"
         },
@@ -154,7 +153,6 @@
                     "item8": "Limites personalizados a petición"
                 },
                 "inherits": "Todo en premium, y:",
-                "name": "Empresarial",
                 "period": "/mes",
                 "price": "$29"
             },
@@ -168,7 +166,6 @@
                     "item4": "Inicio social (Google, GitHub, Discord)",
                     "item5": "Soporte comunitario"
                 },
-                "name": "Gratuito",
                 "period": "para siempre",
                 "price": "$0"
             },
@@ -185,7 +182,6 @@
                     "item6": "Soporte prioritario"
                 },
                 "inherits": "Todo en Gratuito, y:",
-                "name": "Premium",
                 "period": "/mes",
                 "price": "$5"
             }
@@ -216,35 +212,14 @@
         "removeLink": "Eliminar link",
         "terminalBio": "# {{bio}}",
         "terminalHost": "{{username}}@bioplatform ~ zsh",
-        "terminalWhoami": "$ cat whoami.txt",
-        "themes": {
-            "aurora": "Aurora",
-            "forest": "Forest",
-            "midnight": "Midnight",
-            "ocean": "Ocean",
-            "pearl": "Pearl",
-            "sunset": "Sunset"
-        }
+        "terminalWhoami": "$ cat whoami.txt"
     },
     "showcase": {
-        "eyebrow": "Showcase",
         "heading": "Míralo en acción.",
         "layout": "Distribución",
         "poweredBy": "Potenciado por {{name}}",
         "subtitle": "Perfiles bonitos, personalización poderosa. Así es como tu página se podría ver.",
         "themeCustomization": "Personalización de Tema",
-        "themes": {
-            "aurora": "Aurora",
-            "forest": "Forest",
-            "golden": "Golden",
-            "midnight": "Midnight",
-            "nebula": "Nebula",
-            "obsidian": "Obsidian",
-            "ocean": "Ocean",
-            "pearl": "Pearl",
-            "royal": "Royal",
-            "sunset": "Sunset"
-        },
         "tierEnterprise": "EMP",
         "tierPro": "PRO",
         "viewProfile": "Ver <0>/{{username}}</0>"

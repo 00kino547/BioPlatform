@@ -158,5 +158,33 @@
     "adblock": {
         "notice": "Your ad blocker is on — {{name}} profiles stay free thanks to their ads. Consider whitelisting this page to keep supporting it.",
         "dismissAria": "Dismiss adblock notice"
+    },
+    "themes": {
+        "arctic": "Arctic",
+        "aurora": "Aurora",
+        "forest": "Forest",
+        "golden": "Golden",
+        "lavender": "Lavender",
+        "midnight": "Midnight",
+        "minimal": "Minimal",
+        "nebula": "Nebula",
+        "obsidian": "Obsidian",
+        "ocean": "Ocean",
+        "pearl": "Pearl",
+        "rose": "Rose",
+        "royal": "Royal",
+        "sunset": "Sunset"
+    },
+    "tiers": {
+        "free": "Gratuito",
+        "pro": "Pro",
+        "premium": "Premium",
+        "enterprise": "Empresarial"
+    },
+    "status": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded"
     }
 }
