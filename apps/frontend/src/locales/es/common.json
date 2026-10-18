@@ -140,24 +140,24 @@
         "message": "Esta página no está completamente traducida aún, con lo que aun texto es mostrado en Inglés."
     },
     "countdown": {
-        "days": "days",
+        "days": "días",
         "hrs": "hrs",
         "min": "min",
-        "sec": "sec",
-        "done": "Done"
+        "sec": "seg",
+        "done": "Listo"
     },
     "lockedFeature": {
-        "upgradeTo": "Upgrade to {{tier}}",
-        "downgradeTo": "Downgrade to {{tier}}",
-        "moveTo": "Move to {{tier}}",
-        "featureIsTierFeature": "{{feature}} is a {{tier}} feature",
-        "overriddenHelp": "Your role already unlocks this — ask an admin to grant your role the {{permission}} permission.",
-        "tierDescription": "Your account is on the {{tier}} tier. {{verb}} to unlock {{feature}}.",
-        "requires": "Requires {{tier}} · API level “{{level}}”"
+        "upgradeTo": "Mejorar a {{tier}}",
+        "downgradeTo": "Bajar a {{tier}}",
+        "moveTo": "Mover a {{tier}}",
+        "featureIsTierFeature": "{{feature}} es una función de {{tier}}",
+        "overriddenHelp": "Tu rol ya desbloquea esto — pidele a un admin que te dé el permiso {{permission}}.",
+        "tierDescription": "Tu cuenta está en el tier {{tier}}. {{verb}} para desbloquear {{feature}}.",
+        "requires": "Requiere {{tier}} · Nivel de API “{{level}}”"
     },
     "adblock": {
-        "notice": "Your ad blocker is on — {{name}} profiles stay free thanks to their ads. Consider whitelisting this page to keep supporting it.",
-        "dismissAria": "Dismiss adblock notice"
+        "notice": "Tu bloqueador de anuncios está puesto — Los perfiles de {{name}} se mantienen gratis gracias a sus anuncios. Considera desactivar tu bloqueador de anuncios para seguir soportándolo.",
+        "dismissAria": "Saltar mensaje de adblock"
     },
     "themes": {
         "arctic": "Arctic",
