@@ -163,25 +163,7 @@
     "appearance": {
       "themesTitle": "Themes",
       "themesDescription": "Choose a theme for your public profile page.",
-      "premium": "Premium",
-      "enterprise": "Enterprise",
       "selected": "Selected: {{theme}} — click Save to apply",
-      "themes": {
-        "midnight": "Midnight",
-        "ocean": "Ocean",
-        "sunset": "Sunset",
-        "forest": "Forest",
-        "lavender": "Lavender",
-        "rose": "Rose",
-        "arctic": "Arctic",
-        "minimal": "Minimal",
-        "aurora": "Aurora",
-        "royal": "Royal",
-        "golden": "Golden",
-        "obsidian": "Obsidian",
-        "nebula": "Nebula",
-        "pearl": "Pearl"
-      },
       "seasonalTitle": "Seasonal Decorations",
       "seasonalDescription": "Decorate your profile with the platform's active seasonal theme.",
       "enableSeasonal": "Enable seasonal decorations",
@@ -384,8 +366,7 @@
     },
     "status": {
       "success": "Success",
-      "failed": "Failed",
-      "pending": "Pending"
+      "failed": "Failed"
     },
     "lockdownWarning": "A critical or security update is required (v{{version}} available).",
     "lockdownDescription": "Creating, editing, pausing, rotating secrets or deleting webhooks is locked until the app is updated. Test deliveries still work.",
@@ -766,17 +747,6 @@
     "downgradeNote": "Nothing is deleted, and you can upgrade again at any time. Any pending order is cancelled.",
     "cancel": "Cancel",
     "downgrading": "Downgrading…",
-    "tiers": {
-      "free": "Free",
-      "premium": "Premium",
-      "enterprise": "Enterprise"
-    },
-    "status": {
-      "pending": "Pending",
-      "paid": "Paid",
-      "cancelled": "Cancelled",
-      "refunded": "Refunded"
-    },
     "methods": {
       "manual": "Contact owner",
       "stripe": "Card",
@@ -870,9 +840,6 @@
     "noSends": "No sends yet.",
     "delivered": "{{delivered}}/{{total}} delivered",
     "selectProfile": "Select a profile to manage its newsletter.",
-    "tierFree": "Free",
-    "tierPro": "Pro",
-    "tierEnterprise": "Enterprise",
     "toasts": {
       "settingsFailed": "Could not save newsletter settings.",
       "removeSubscriberFailed": "Could not remove subscriber.",

@@ -89,7 +89,6 @@
       "features": "Features",
       "pricing": "Pricing",
       "privacyPolicy": "Privacy Policy",
-      "showcase": "Showcase",
       "status": "Status",
       "termsOfService": "Terms of Service"
     },
@@ -156,7 +155,6 @@
           "item8": "Custom limits on request"
         },
         "inherits": "Everything in Premium, plus:",
-        "name": "Enterprise",
         "period": "/month",
         "price": "$29"
       },
@@ -170,7 +168,6 @@
           "item4": "Social sign-in (Google, GitHub, Discord)",
           "item5": "Community support"
         },
-        "name": "Free",
         "period": "forever",
         "price": "$0"
       },
@@ -187,7 +184,6 @@
           "item6": "Priority support"
         },
         "inherits": "Everything in Free, plus:",
-        "name": "Premium",
         "period": "/month",
         "price": "$5"
       }
@@ -218,35 +214,14 @@
     "removeLink": "Remove link",
     "terminalBio": "# {{bio}}",
     "terminalHost": "{{username}}@bioplatform ~ zsh",
-    "terminalWhoami": "$ cat whoami.txt",
-    "themes": {
-      "aurora": "Aurora",
-      "forest": "Forest",
-      "midnight": "Midnight",
-      "ocean": "Ocean",
-      "pearl": "Pearl",
-      "sunset": "Sunset"
-    }
+    "terminalWhoami": "$ cat whoami.txt"
   },
   "showcase": {
-    "eyebrow": "Showcase",
     "heading": "See it in action.",
     "layout": "Layout",
     "poweredBy": "Powered by {{name}}",
     "subtitle": "Beautiful profiles, powerful customization. This is what your page could look like.",
     "themeCustomization": "Theme Customization",
-    "themes": {
-      "aurora": "Aurora",
-      "forest": "Forest",
-      "golden": "Golden",
-      "midnight": "Midnight",
-      "nebula": "Nebula",
-      "obsidian": "Obsidian",
-      "ocean": "Ocean",
-      "pearl": "Pearl",
-      "royal": "Royal",
-      "sunset": "Sunset"
-    },
     "tierEnterprise": "ENT",
     "tierPro": "PRO",
     "viewProfile": "View <0>/{{username}}</0>"
