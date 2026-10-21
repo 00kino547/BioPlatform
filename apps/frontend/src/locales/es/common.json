@@ -1,142 +1,190 @@
 {
-  "backgroundSelector": {
-    "customUrl": "Custom URL",
-    "customUrlPlaceholder": "https://… or /uploads/…",
-    "presets": {
-      "aurora": "Aurora",
-      "candy": "Candy",
-      "ember": "Ember",
-      "forest": "Forest",
-      "ice": "Ice",
-      "midnight": "Midnight",
-      "mint": "Mint",
-      "none": "None",
-      "ocean": "Ocean",
-      "royal": "Royal",
-      "sunset": "Sunset"
+    "backgroundSelector": {
+        "customUrl": "URL Personalizada",
+        "customUrlPlaceholder": "https://… or /uploads/…",
+        "presets": {
+            "aurora": "Aurora",
+            "candy": "Dulce",
+            "ember": "Ember",
+            "forest": "Bosque",
+            "ice": "Hielo",
+            "midnight": "Media Noche",
+            "mint": "Menta",
+            "none": "Ninguno",
+            "ocean": "Océano",
+            "royal": "Royal",
+            "sunset": "Puesta del sol"
+        },
+        "removeCustom": "Eliminar personalizado",
+        "seasonal": {
+            "autumnLeaves": "Hojas de otoño",
+            "christmas": "Navidad",
+            "halloween": "Halloween",
+            "newYear": "Nuevo Año",
+            "springBlossom": "Flor de primavera",
+            "stPatrick": "St. Patrick",
+            "valentine": "San Valentín",
+            "winterSnow": "Nieve de Invierno"
+        },
+        "seasonalTitle": "Estacional Y Festivo",
+        "upload": "Subir imagen / GIF",
+        "uploading": "Subiendo {{name}}…"
     },
-    "removeCustom": "Remove custom",
-    "seasonal": {
-      "autumnLeaves": "Autumn Leaves",
-      "christmas": "Christmas",
-      "halloween": "Halloween",
-      "newYear": "New Year",
-      "springBlossom": "Spring Blossom",
-      "stPatrick": "St. Patrick",
-      "valentine": "Valentine",
-      "winterSnow": "Winter Snow"
+    "cookieConsent": {
+        "acceptAll": "Aceptar todo",
+        "ariaLabel": "Consentimiento para Cookies",
+        "close": "Cerrar",
+        "description": "{{name}} utiliza cookies esenciales (autenticación, seguridad) que siempre están activas, y cookies opcionales para analíticas anonimas que solo son cargadas cuando aceptas.",
+        "dntNotice": "Tu navegador envia la solicitud dnt (Do Not Track / No rastrear), con lo que, las cookies para analíticas están apagadas. Acepta todo debajo para encenderlas para esta web.",
+        "error": "Tu elección no se pudo guardar. Por favor intenta de nuevo.",
+        "essentialOnly": "Solo esenciales",
+        "essentialOnlyCountdown": "Solo esenciales ({{seconds}}s)",
+        "learnMore": "Aprende mas en la Politica de Privacidad",
+        "titleNew": "Valoramos tu privacidad",
+        "titlePreferences": "Preferencias para cookies"
     },
-    "seasonalTitle": "Seasonal & Holiday",
-    "upload": "Upload image / GIF",
-    "uploading": "Uploading {{name}}…"
-  },
-  "cookieConsent": {
-    "acceptAll": "Accept all",
-    "ariaLabel": "Cookie consent",
-    "close": "Close",
-    "description": "{{name}} uses essential cookies (authentication, security) that are always active, and optional anonymous analytics cookies that only load when you accept.",
-    "dntNotice": "Your browser sends Do Not Track, so analytics cookies are off. Accept all below to turn them on for this site.",
-    "error": "Your choice could not be saved. Please try again.",
-    "essentialOnly": "Essential only",
-    "essentialOnlyCountdown": "Essential only ({{seconds}}s)",
-    "learnMore": "Learn more in the Privacy Policy",
-    "titleNew": "We value your privacy",
-    "titlePreferences": "Cookie preferences"
-  },
-  "dialog": {
-    "close": "Close"
-  },
-  "errorBoundary": {
-    "heading": "Something went wrong loading this page.",
-    "tryAgain": "Try again",
-    "unexpected": "Unexpected error"
-  },
-  "footer": {
-    "api": "API",
-    "cookiePreferences": "Cookie preferences",
-    "copyright": "© {{year}} {{name}}. All rights reserved.",
-    "github": "GitHub",
-    "privacy": "Privacy",
-    "terms": "Terms"
-  },
-  "imageCropper": {
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "hint": "Drag to move and scroll to zoom. Pick the part you want to show.",
-    "loading": "Loading...",
-    "previewAlt": "Crop preview",
-    "title": "Position your image"
-  },
-  "language": {
-    "label": "Language"
-  },
-  "layoutSelector": {
-    "bento": {
-      "hint": "Mixed-size tiles",
-      "label": "Bento"
+    "dialog": {
+        "close": "Cerrar"
     },
-    "compact": {
-      "hint": "Tight single-column",
-      "label": "Compact"
+    "errorBoundary": {
+        "heading": "Algo fué mal cargando esta página.",
+        "tryAgain": "Intentar de nuevo",
+        "unexpected": "Error inesperado"
     },
-    "default": {
-      "hint": "Simple centered card",
-      "label": "Default"
+    "footer": {
+        "api": "API",
+        "cookiePreferences": "Preferencias de cookies",
+        "copyright": "© {{year}} {{name}}. Todos los derechos reservados.",
+        "github": "GitHub",
+        "privacy": "Privacidad",
+        "terms": "Terminos"
     },
-    "editorial": {
-      "hint": "Masthead + hairlines",
-      "label": "Editorial"
+    "imageCropper": {
+        "cancel": "Cancelar",
+        "confirm": "Confirmar",
+        "hint": "Arrastra para mover y scrollea para zoom. Elije la parte que quieres mostrar.",
+        "loading": "Cargando...",
+        "previewAlt": "Muestra previa del recortado",
+        "title": "Posiciona tu imagen"
     },
-    "glassmorphism": {
-      "hint": "Frosted glass card",
-      "label": "Glass"
+    "language": {
+        "label": "Idioma"
     },
-    "grid": {
-      "hint": "2-column icon tiles",
-      "label": "Grid"
+    "layoutSelector": {
+        "bento": {
+            "hint": "Casillas de tamaños mezclados",
+            "label": "Bento"
+        },
+        "compact": {
+            "hint": "Solo una columna apretada",
+            "label": "Compacto"
+        },
+        "default": {
+            "hint": "Carta simple y centrada",
+            "label": "Default"
+        },
+        "editorial": {
+            "hint": "Masthead + hairlines",
+            "label": "Editorial"
+        },
+        "glassmorphism": {
+            "hint": "Tarjeta de cristal opaco",
+            "label": "Cristal"
+        },
+        "grid": {
+            "hint": "2-column icon tiles",
+            "label": "Tabla"
+        },
+        "hero": {
+            "hint": "Big centered hero",
+            "label": "Hero"
+        },
+        "minimal": {
+            "hint": "Limpio, sin bordes",
+            "label": "Minimalista"
+        },
+        "polaroid": {
+            "hint": "Tilted photo frame",
+            "label": "Polaroid"
+        },
+        "sidebar": {
+            "hint": "Avatar junto al contenido",
+            "label": "Barra lateral"
+        },
+        "terminal": {
+            "hint": "Hacker monospace card",
+            "label": "Terminal"
+        },
+        "topbar": {
+            "hint": "Horizontal nav header",
+            "label": "Barra superior"
+        },
+        "wide": {
+            "hint": "Full-width 3 columns",
+            "label": "Ancho"
+        }
     },
-    "hero": {
-      "hint": "Big centered hero",
-      "label": "Hero"
+    "nav": {
+        "apiDocs": "Documentación de la API",
+        "dashboard": "Panel de control",
+        "faq": "FAQ",
+        "features": "Funciones",
+        "getStarted": "Comienza",
+        "pricing": "Precio",
+        "showcase": "Showcase",
+        "signIn": "Iniciar Sesión",
+        "toggleMenu": "Alternar menú"
     },
-    "minimal": {
-      "hint": "Clean, borderless",
-      "label": "Minimal"
+    "untranslatedNotice": {
+        "dismiss": "Rechazar",
+        "message": "Esta página no está completamente traducida aún, con lo que aun texto es mostrado en Inglés."
     },
-    "polaroid": {
-      "hint": "Tilted photo frame",
-      "label": "Polaroid"
+    "countdown": {
+        "days": "days",
+        "hrs": "hrs",
+        "min": "min",
+        "sec": "sec",
+        "done": "Done"
     },
-    "sidebar": {
-      "hint": "Avatar beside content",
-      "label": "Sidebar"
+    "lockedFeature": {
+        "upgradeTo": "Upgrade to {{tier}}",
+        "downgradeTo": "Downgrade to {{tier}}",
+        "moveTo": "Move to {{tier}}",
+        "featureIsTierFeature": "{{feature}} is a {{tier}} feature",
+        "overriddenHelp": "Your role already unlocks this — ask an admin to grant your role the {{permission}} permission.",
+        "tierDescription": "Your account is on the {{tier}} tier. {{verb}} to unlock {{feature}}.",
+        "requires": "Requires {{tier}} · API level “{{level}}”"
     },
-    "terminal": {
-      "hint": "Hacker monospace card",
-      "label": "Terminal"
+    "adblock": {
+        "notice": "Your ad blocker is on — {{name}} profiles stay free thanks to their ads. Consider whitelisting this page to keep supporting it.",
+        "dismissAria": "Dismiss adblock notice"
     },
-    "topbar": {
-      "hint": "Horizontal nav header",
-      "label": "Topbar"
+    "themes": {
+        "arctic": "Arctic",
+        "aurora": "Aurora",
+        "forest": "Forest",
+        "golden": "Golden",
+        "lavender": "Lavender",
+        "midnight": "Midnight",
+        "minimal": "Minimal",
+        "nebula": "Nebula",
+        "obsidian": "Obsidian",
+        "ocean": "Ocean",
+        "pearl": "Pearl",
+        "rose": "Rose",
+        "royal": "Royal",
+        "sunset": "Sunset"
     },
-    "wide": {
-      "hint": "Full-width 3 columns",
-      "label": "Wide"
+    "tiers": {
+        "free": "Gratuito",
+        "pro": "Pro",
+        "premium": "Premium",
+        "enterprise": "Empresarial"
+    },
+    "status": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded"
     }
-  },
-  "nav": {
-    "apiDocs": "API Docs",
-    "dashboard": "Dashboard",
-    "faq": "FAQ",
-    "features": "Features",
-    "getStarted": "Get Started",
-    "pricing": "Pricing",
-    "showcase": "Showcase",
-    "signIn": "Sign In",
-    "toggleMenu": "Toggle menu"
-  },
-  "untranslatedNotice": {
-    "dismiss": "Dismiss",
-    "message": "This page is not fully translated yet, so some text is shown in English."
-  }
 }

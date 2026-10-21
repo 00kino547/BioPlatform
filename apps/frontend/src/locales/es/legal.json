@@ -1,405 +1,411 @@
 {
-  "consentGate": {
-    "title": "Our legal documents have changed",
-    "intro": "To keep using {{app}}, please review and accept the updated {count, plural, one {document} other {documents}}. Nothing about your account, profile or content changes.",
-    "readUpdated": "Read the updated {{label}}",
-    "termsLabel": "Terms of Service",
-    "privacyLabel": "Privacy Policy",
-    "acceptError": "Could not record your acceptance",
-    "saving": "Saving…",
-    "accept": "I accept",
-    "signOut": "Sign out",
-    "version": "Version {{version}} · {{date}}"
-  },
-  "policyShell": {
-    "backToHome": "Back to home",
-    "lastUpdated": "Last updated: {{date}}",
-    "sectionHeading": "{{number}}. {{title}}",
-    "subsectionHeading": "5.{{number}}. {{title}}"
-  },
-  "terms": {
-    "metaTitle": "Terms of Service",
-    "metaDescription": "Read the terms of service governing use of {{app}}.",
-    "shellTitle": "Terms of Service",
-    "fallbackVersion": "October 12, 2026",
-    "contactPrefix": "For questions about these Terms, please ",
-    "contactNamed": "contact {{name}}",
-    "contactUs": "contact us",
-    "letsEncryptTerms": "Let’s Encrypt Terms of Service",
-    "sections": {
-      "acceptance": {
-        "title": "Acceptance of Terms",
-        "body": "By accessing or using {{app}}, you agree to be bound by these Terms of Service. If you do not agree to these terms, do not use the service."
-      },
-      "registration": {
-        "title": "Account Registration",
-        "inviteOnly": "{{app}} is an invite-only platform. Accounts may only be created using a valid invite code. The instance operator reserves the right to revoke invite codes, restrict new account creation, or temporarily disable registration at any time.",
-        "lockout": "Repeated failed login attempts may result in a temporary IP-based lockout to prevent brute-force attacks. Users who attempt to bypass account security protections may have their access permanently restricted.",
-        "credentials": "You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. Enabling two-factor authentication and registering passkeys are recommended to protect your account.",
-        "captcha": "Registration and login on this instance are protected with a {{captcha}} human-verification challenge. The challenge token is validated by the provider’s service; the provider operates under its own privacy policy, and by completing a challenge you accept that provider’s terms for the verification itself. We receive the verification result and nothing else from the challenge.",
-        "captchaFallback": "Registration and login may include a human-verification challenge (captcha) provided by a third party such as Cloudflare Turnstile, Google reCAPTCHA, or hCaptcha. The challenge token is validated by the provider’s service; each provider operates under its own privacy policy. The instance operator does not receive any personal data from the challenge beyond the verification result."
-      },
-      "signIn": {
-        "title": "Sign-In Methods",
-        "fallback": "If you sign in with a third-party or self-hosted identity provider, only the information that provider returns to us is received (typically an identifier, an email address, a display name and an avatar image), and your credentials are submitted to that provider rather than to this backend. Each provider operates under its own terms and privacy policies, which we do not control.",
-        "pocketbaseLeadWithSso": ", with {{sso}}, or",
-        "pocketbaseLeadWithoutSso": " or",
-        "pocketbase": "You can sign in with the email address and password on your account{{lead}} through a PocketBase instance operated by the instance operator. When you use the PocketBase sign-in button, your credentials are submitted to that operator-controlled PocketBase deployment through this site’s same-origin proxy, so your password never reaches this backend; PocketBase stores the credentials it needs to authenticate you.",
-        "pocketbaseSso": "When you sign in with {{sso}}, those providers operate under their own terms and privacy policies, which we do not control, and {{app}} is not responsible for their practices.",
-        "pocketbaseOnly": "PocketBase is used for authentication and nothing else. It is not used to store your profile content, your uploaded files, or any visitor analytics.",
-        "passwordLeadWithSso": ", or with {{sso}}",
-        "passwordTail": " Those providers operate under their own terms and privacy policies, which we do not control.",
-        "password": "You can sign in with the email address and password on your account{{lead}}. Your credentials are sent only to {{app}}.{{tail}}",
-        "sso": "When you sign in with {{sso}}, those providers operate under their own terms and privacy policies, which we do not control."
-      },
-      "acceptableUse": {
-        "title": "Acceptable Use",
-        "body": "You agree not to use {{app}} to: post content that is illegal, harmful, threatening, abusive, harassing, defamatory, or otherwise objectionable; impersonate any person or entity; distribute malware or spam; attempt to gain unauthorized access to other accounts or systems; or violate any applicable laws or regulations."
-      },
-      "moderation": {
-        "title": "Moderation and Content Removal",
-        "p1": "The instance operator and authorized staff may review, restrict, remove or disable any profile, link, media file or account, and may suspend or terminate access, with or without prior notice, where content or activity appears to violate these Terms, is the subject of a legal or copyright complaint, or could expose {{app}} or its operator to legal risk. This includes acting on reports of infringing, unlawful or abusive content without a complaint from the affected party, and taking action against accounts that repeatedly infringe.",
-        "p2": "We aim to give notice of an action and a way to respond where we can. Some actions — for example a statutory takedown or a security-driven suspension — are taken first and explained afterwards. A disabled account may be given a grace period to re-activate before its content is deleted; if it is not restored within that period, the account and its content may be permanently deleted without further notice."
-      },
-      "ownership": {
-        "title": "Content Ownership",
-        "body": "You retain ownership of any content you post on {{app}}. By posting content, you grant us a non-exclusive license to display, store, and serve your content as part of the service. We will never claim ownership of your content."
-      },
-      "music": {
-        "title": "Music, Embeds and Third-Party Sources",
-        "intro": "{{app}} allows you to link or embed music from third-party services such as Spotify and YouTube, upload your own audio files, and optionally provide an additional “full version” streaming source for your tracks.{{storage}} You are solely responsible for any content you link, upload, or stream, including ensuring you have the right to share it.",
-        "storageThirdParty": " Files you upload are stored in {{provider}}, a third-party object store that processes them at our instruction under its own terms.",
-        "storageLocal": " Files you upload are stored in {{provider}}.",
-        "spotify": "Some services (for example Spotify) restrict playback of full tracks unless the listener has an account with them. Any “full version” source you provide — including streams that may rely on your own account, credentials, or session — is done at your own risk. You acknowledge that such use may violate the terms of service of the third-party platform, and you agree to comply with those terms yourself and to assume full responsibility for them.",
-        "disclaimer": "{{app}} does not host, authorize, or endorse the “full version” sources you provide, and we are not liable for any claims, losses, or actions arising from your use of third-party services, including any violation of their terms."
-      },
-      "domains": {
-        "title": "Custom Domains",
-        "dnsTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. This instance issues and manages TLS certificates for you through Let’s Encrypt — you acknowledge this and agree to the {{link}}.",
-        "operatorRemoval": "The instance operator may remove or disable custom domains at any time, for example if DNS verification fails, the domain expires, or the associated account is terminated.",
-        "noTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly, and domain ownership must be verified before the domain becomes active. You provide and maintain a valid HTTPS certificate for your domain yourself; {{app}} does not obtain certificates on your behalf.",
-        "fallback": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. When automatic TLS is enabled by the instance operator, {{app}} will obtain and manage Let’s Encrypt certificates on your behalf."
-      },
-      "webhooks": {
-        "title": "Webhooks, Integrations and Discord",
-        "intro": "You may configure outgoing webhooks to receive notifications about activity on your profile (views, link clicks, etc.) on endpoints you control. You are solely responsible for the availability, security, and privacy practices of the webhook endpoints you configure. {{app}} will send data to the URLs you provide and does not control how that data is handled after delivery.",
-        "revoke": "You may revoke or rotate webhook secrets at any time through your dashboard. The instance operator may remove webhook configurations that are being abused or that violate these terms.",
-        "discord": "You may optionally connect a Discord account and share your live presence (online status and activity) on your public profile, and use the “Post to Discord” feature to push a profile embed to a webhook URL you provide. Presence is shared only with your explicit opt-in; you can disconnect your Discord account or disable presence sharing at any time, which stops the display of that data. You are responsible for how you present and share your own presence data. Discord operates under its own terms, which we do not control.",
-        "discordFallback": "You may optionally connect a Discord account and share your live presence (online status and activity) on your public profile, and use the “Post to Discord” feature to push a profile embed to a webhook URL you provide. Presence is shared only with your explicit opt-in; you can disconnect your Discord account or disable presence sharing at any time."
-      },
-      "email": {
-        "title": "Email Notifications",
-        "optIn": "With your opt-in, {{app}} may send email notifications to the address on your account when your profile receives views or link clicks. Notifications are sent only if you have enabled them for the relevant profile, and only while they remain enabled. You can disable these notifications at any time from your settings. To reduce noise, notifications are rate-limited so multiple events within a short window trigger a single email.",
-        "security": "We may also email you about important account or security matters, such as account recovery or security incidents; these notices are not optional and are sent regardless of your notification preferences."
-      },
-      "newsletter": {
-        "title": "Newsletter",
-        "p1": "Public profiles on this instance may offer a newsletter to visitors. Subscribing is an explicit, single opt-in: a subscriber enters their email address and checks a box agreeing to these Terms and the Privacy Policy. A subscription is never created without that agreement, and each profile runs its own independent newsletter list.",
-        "p2": "If you run a newsletter on your profile, you are a sender and agree to comply with all applicable marketing and anti-spam law, including the US CAN-SPAM Act and Canada’s Anti-Spam Legislation (CASL). In particular, you agree to: only send to subscribers who genuinely opted in, keep accurate records of that consent, include identifying sender information and a mailing address (or a link to our website) in every email, and honor unsubscribe requests immediately and in all cases within 10 business days. Every newsletter we deliver on your behalf automatically includes a one-click unsubscribe link; you must not remove it or otherwise prevent subscribers from opting out.",
-        "p3": "You must not add email addresses to your list without consent, buy or rent lists, harvest addresses, or misrepresent the identity of a sender. Distributing unsolicited commercial email is a violation of these Terms and may result in suspension or termination of your account. Sending is subject to per-tier volume limits and may be paused or disabled by the instance operator; a disabled or paused profile never sends mail.",
-        "p4": "Subscriber data belongs to your subscribers. You may use it only to run your newsletter and must honor erasure requests (right to be forgotten) and any applicable data-protection rights. If you erase a subscriber, we remove the subscription so no further mail is sent.",
-        "selfSmtp": "You may optionally send through your own SMTP relay instead of {{app}}’s mail stack. If you do, you are responsible for the relay and credentials you configure and for all mail sent through it: you must only use a relay you are authorized to use, keep your credentials secure, and comply with that provider’s terms. Your SMTP password is encrypted at rest and used solely to deliver your newsletter. The instance operator may require manual approval before your own relay may send."
-      },
-      "invitePurchases": {
-        "title": "Purchased Invites",
-        "p1": "Invites may be purchased on {{app}} in fixed bundles of invite credits. Credits bought by an existing member are added to that account as a permanent balance; they do not expire and can be exchanged for invite codes at any time. Credits bought without an account are issued as time-limited invite codes by email, and redeeming one of those codes to register transfers any remaining codes from the same purchase to the new account.",
-        "p2": "Prices are shown in the configured currency and are charged at checkout through the payment providers the instance operator has enabled; we do not store card details. A purchase becomes final when the payment provider confirms it. If a purchase is refunded, any invite credits or codes from that purchase that have not been used are revoked. Credits you already redeemed and the access they granted are not affected, because revoking them cannot un-create an account.",
-        "resaleRestricted": "Invite codes purchased on this instance may not be resold, re-listed, shared for payment, or otherwise transferred for money. A code bought here is for your own registration or for the accounts you invite. Codes obtained by other means carry the same restriction where the instance operator has published it, and resale is grounds for suspension and for revoking the remaining codes of the offending purchase.",
-        "resalePermitted": "You may resell, re-list or otherwise transfer invite codes you hold on {{app}}, including codes you bought, for money or for free. A buyer of a code becomes responsible for registering with it, and the instance operator may still suspend an account that uses a code to abuse the service, and any such suspension can include revoking the codes of the offending purchase. Reselling a code does not transfer membership, subscription, billing history or any right to the account it was issued against.",
-        "resalePermittedRefund": "Credits you bought are refunded on request under the refunds paragraph above, so reselling a code does not remove your right to a refund for a purchase you have not redeemed."
-      },
-      "shop": {
-        "title": "Product Shop",
-        "seller": "Public profiles may offer digital products for sale. If you list products, you are the seller: you are responsible for the product, its description, its price, the rights to distribute any file or preview image you upload, and for complying with all applicable consumer-protection, tax and intellectual-property law. Prices are shown in the configured currency and any profile-wide discount is applied by the platform at checkout.",
-        "sellerInstance": "Public profiles on this instance may offer digital products for sale. If you list products, you are the seller: you are responsible for the product, its description, its price, the rights to distribute any file or preview image you upload, and for complying with all applicable consumer-protection, tax and intellectual-property law. Prices are shown in the configured currency and any profile-wide discount is applied by the platform at checkout.",
-        "paidProviders": "Paid products on this instance are purchased through {{providers}}; we do not store card details.",
-        "freeProduct": "A product listed with no price is claimed by the buyer without a payment step, and you deliver it directly.",
-        "final": "Purchases are final except where a refund is granted, in which case the buyer’s download access is revoked. You must not use the shop to sell unlawful content or to circumvent the platform’s acceptable-use rules.",
-        "fallback": "Payments are processed by the payment providers the instance operator has enabled; we do not store card details. Purchases are final except where a refund is granted, in which case the buyer’s download access is revoked. You must not use the shop to sell unlawful content or to circumvent the platform’s acceptable-use rules."
-      },
-      "tips": {
-        "title": "Tips",
-        "coinFallback": "cryptocurrency",
-        "instance": "Public profiles on this instance may let visitors send cryptocurrency tips ({{coins}}). Tips are voluntary: the visitor chooses the amount and may include an optional name and message, which are shown to the profile owner. Payments are made{{rail}}; we do not act as an intermediary or escrow for tips.",
-        "fallback": "Public profiles may offer the ability for visitors to send cryptocurrency tips. Tips are voluntary: the visitor chooses the amount and may include an optional name and message, which are shown to the profile owner. Payments are made directly to the profile owner’s wallet; we do not act as an intermediary or escrow for tips.",
-        "railBtcpay": " through the cryptocurrency payment gateway the instance operator has configured",
-        "railWallet": " straight to the profile owner’s published wallet address, without any payment provider acting as intermediary",
-        "railFallback": " directly to the profile owner’s wallet",
-        "owner": "A profile shows a tipping block only when its owner enables tips and publishes a wallet address, and the owner may switch it off at any time, which also hides those addresses. If you enable tips you are responsible for the wallet addresses you publish and for complying with any applicable tax, financial-services or anti-money-laundering law in your jurisdiction. You may delete any tip record from your dashboard at any time."
-      },
-      "advertising": {
-        "title": "Advertising",
-        "p1": "Public profiles on this instance may display advertising{{via}}. Ads are selected and served by the ad networks, not by {{app}}; we do not control the individual ads shown and do not endorse the advertised products or services. The ad networks may set their own cookies to deliver and measure ads, as described in the Privacy Policy.",
-        "p2": "You must not generate artificial impressions or clicks, tamper with ad code, or use the platform in any way intended to defraud an advertiser or an ad network. Doing so may result in suspension and may be reported to the network.",
-        "via": " through {{networks}}"
-      },
-      "operator": {
-        "title": "Who Operates This Service",
-        "body": "{{who}}{{place}}. By using {{app}} you are entering into these Terms with that operator, who is responsible for this deployment and for the choices described in these Terms."
-      },
-      "api": {
-        "title": "Access to the API",
-        "intro": "{{app}} exposes a documented HTTP API (see the API documentation and OpenAPI specification) that supports integration with your account and profile. Use of the API is subject to these Terms, including the Acceptable Use provisions. You are responsible for requests you make and for any application or service you build on top of the API.",
-        "limits": "We may impose rate limits or restrict access to protect the service from abuse or degradation. Repeatedly exceeding these limits, placing an unreasonable load on the service, or using the API to circumvent any security measure may result in temporary or permanent suspension of API access or your account."
-      },
-      "availability": {
-        "title": "Service Availability and Security Updates",
-        "downtime": "We strive to keep {{app}} available at all times, but we do not guarantee uninterrupted access. We may perform maintenance, updates, or experience downtime without prior notice.",
-        "security": "When a critical security update is available, certain account security operations (such as changing your password, managing passkeys, or configuring two-factor authentication) may be temporarily restricted until the instance is updated. This is a safety measure to protect all users of the platform. Similarly, administrative operations that could affect system security may be restricted during this window. The instance operator is responsible for applying updates promptly."
-      },
-      "termination": {
-        "title": "Termination",
-        "body": "We reserve the right to suspend or terminate your account at our discretion, with or without cause, including for violations of these Terms. Upon termination, your right to use the service ceases immediately."
-      },
-      "liability": {
-        "title": "Limitation of Liability",
-        "body": "{{app}} is provided “as is” without warranties of any kind. We shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service."
-      },
-      "changes": {
-        "title": "Changes to Terms (Deemed Acceptance)",
-        "p1": "We may update these Terms from time to time. Each update is published on this page with a new version number and an effective date, and we will notify you of material changes through the service or by email. The version of these Terms you accepted (including the original version you agreed to when you first used {{app}}) is retained in your consent history and remains visible to you whenever you review your account’s consent records.",
-        "p2": "The current version takes effect on {{date}}. If you do not review the update, you will be deemed to have accepted it if you continue to use {{app}} for more than thirty (30) days after that version’s effective date. Continued use of the platform for more than 30 days after an update is published constitutes your acceptance of the updated version, even if you did not open or check the update. If you do not wish to accept an updated version, you must stop using the platform before the end of that 30-day period.",
-        "operator": "Operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. When a new version becomes effective, those accounts are recorded as having accepted it automatically — but only after the same thirty (30) day review period described above, never on the day the update is published, and only once the account is actually used again after that period. The automatic acceptance is written to your account with a timestamp and a record that the platform recorded it rather than an individual accepting it, so it is never presented as a personal click-through. Until that period has elapsed, operator accounts must accept the new version themselves, exactly like any other account. The roles covered are configurable by the instance operator and, by default, consist only of the built-in administrator role; if you are an operator account and do not wish to be covered, accept the terms yourself."
-      },
-      "contact": {
-        "title": "Contact"
-      }
+    "consentGate": {
+        "title": "Nuestros documentos legales han cambiado",
+        "intro": "To keep using {{app}}, please review and accept the updated {count, plural, one {document} other {documents}}. Nothing about your account, profile or content changes.",
+        "readUpdated": "Read the updated {{label}}",
+        "termsLabel": "Terms of Service",
+        "privacyLabel": "Privacy Policy",
+        "acceptError": "Could not record your acceptance",
+        "saving": "Saving…",
+        "accept": "I accept",
+        "signOut": "Sign out",
+        "version": "Version {{version}} · {{date}}"
+    },
+    "policyShell": {
+        "backToHome": "Back to home",
+        "lastUpdated": "Last updated: {{date}}",
+        "sectionHeading": "{{number}}. {{title}}",
+        "subsectionHeading": "5.{{number}}. {{title}}"
+    },
+    "terms": {
+        "metaTitle": "Terms of Service",
+        "metaDescription": "Read the terms of service governing use of {{app}}.",
+        "shellTitle": "Terms of Service",
+        "fallbackVersion": "October 12, 2026",
+        "contactPrefix": "For questions about these Terms, please ",
+        "contactNamed": "contact {{name}}",
+        "contactUs": "contact us",
+        "letsEncryptTerms": "Let’s Encrypt Terms of Service",
+        "sections": {
+            "acceptance": {
+                "title": "Acceptance of Terms",
+                "body": "By accessing or using {{app}}, you agree to be bound by these Terms of Service. If you do not agree to these terms, do not use the service."
+            },
+            "registration": {
+                "title": "Account Registration",
+                "inviteOnly": "{{app}} is an invite-only platform. Accounts may only be created using a valid invite code. The instance operator reserves the right to revoke invite codes, restrict new account creation, or temporarily disable registration at any time.",
+                "lockout": "Repeated failed login attempts may result in a temporary IP-based lockout to prevent brute-force attacks. Users who attempt to bypass account security protections may have their access permanently restricted.",
+                "credentials": "You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. Enabling two-factor authentication and registering passkeys are recommended to protect your account.",
+                "captcha": "Registration and login on this instance are protected with a {{captcha}} human-verification challenge. The challenge token is validated by the provider’s service; the provider operates under its own privacy policy, and by completing a challenge you accept that provider’s terms for the verification itself. We receive the verification result and nothing else from the challenge.",
+                "captchaFallback": "Registration and login may include a human-verification challenge (captcha) provided by a third party such as Cloudflare Turnstile, Google reCAPTCHA, or hCaptcha. The challenge token is validated by the provider’s service; each provider operates under its own privacy policy. The instance operator does not receive any personal data from the challenge beyond the verification result."
+            },
+            "signIn": {
+                "title": "Sign-In Methods",
+                "fallback": "If you sign in with a third-party or self-hosted identity provider, only the information that provider returns to us is received (typically an identifier, an email address, a display name and an avatar image), and your credentials are submitted to that provider rather than to this backend. Each provider operates under its own terms and privacy policies, which we do not control.",
+                "pocketbaseLeadWithSso": ", with {{sso}}, or",
+                "pocketbaseLeadWithoutSso": " or",
+                "pocketbase": "You can sign in with the email address and password on your account{{lead}} through a PocketBase instance operated by the instance operator. When you use the PocketBase sign-in button, your credentials are submitted to that operator-controlled PocketBase deployment through this site’s same-origin proxy, so your password never reaches this backend; PocketBase stores the credentials it needs to authenticate you.",
+                "pocketbaseSso": "When you sign in with {{sso}}, those providers operate under their own terms and privacy policies, which we do not control, and {{app}} is not responsible for their practices.",
+                "pocketbaseOnly": "PocketBase is used for authentication and nothing else. It is not used to store your profile content, your uploaded files, or any visitor analytics.",
+                "passwordLeadWithSso": ", or with {{sso}}",
+                "passwordTail": " Those providers operate under their own terms and privacy policies, which we do not control.",
+                "password": "You can sign in with the email address and password on your account{{lead}}. Your credentials are sent only to {{app}}.{{tail}}",
+                "sso": "When you sign in with {{sso}}, those providers operate under their own terms and privacy policies, which we do not control."
+            },
+            "acceptableUse": {
+                "title": "Acceptable Use",
+                "body": "You agree not to use {{app}} to: post content that is illegal, harmful, threatening, abusive, harassing, defamatory, or otherwise objectionable; impersonate any person or entity; distribute malware or spam; attempt to gain unauthorized access to other accounts or systems; or violate any applicable laws or regulations."
+            },
+            "moderation": {
+                "title": "Moderation and Content Removal",
+                "p1": "The instance operator and authorized staff may review, restrict, remove or disable any profile, link, media file or account, and may suspend or terminate access, with or without prior notice, where content or activity appears to violate these Terms, is the subject of a legal or copyright complaint, or could expose {{app}} or its operator to legal risk. This includes acting on reports of infringing, unlawful or abusive content without a complaint from the affected party, and taking action against accounts that repeatedly infringe.",
+                "p2": "We aim to give notice of an action and a way to respond where we can. Some actions — for example a statutory takedown or a security-driven suspension — are taken first and explained afterwards. A disabled account may be given a grace period to re-activate before its content is deleted; if it is not restored within that period, the account and its content may be permanently deleted without further notice."
+            },
+            "ownership": {
+                "title": "Content Ownership",
+                "body": "You retain ownership of any content you post on {{app}}. By posting content, you grant us a non-exclusive license to display, store, and serve your content as part of the service. We will never claim ownership of your content."
+            },
+            "music": {
+                "title": "Music, Embeds and Third-Party Sources",
+                "intro": "{{app}} allows you to link or embed music from third-party services such as Spotify and YouTube, upload your own audio files, and optionally provide an additional “full version” streaming source for your tracks.{{storage}} You are solely responsible for any content you link, upload, or stream, including ensuring you have the right to share it.",
+                "storageThirdParty": " Files you upload are stored in {{provider}}, a third-party object store that processes them at our instruction under its own terms.",
+                "storageLocal": " Files you upload are stored in {{provider}}.",
+                "spotify": "Some services (for example Spotify) restrict playback of full tracks unless the listener has an account with them. Any “full version” source you provide — including streams that may rely on your own account, credentials, or session — is done at your own risk. You acknowledge that such use may violate the terms of service of the third-party platform, and you agree to comply with those terms yourself and to assume full responsibility for them.",
+                "disclaimer": "{{app}} does not host, authorize, or endorse the “full version” sources you provide, and we are not liable for any claims, losses, or actions arising from your use of third-party services, including any violation of their terms."
+            },
+            "domains": {
+                "title": "Custom Domains",
+                "dnsTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. This instance issues and manages TLS certificates for you through Let’s Encrypt — you acknowledge this and agree to the <0>{{link}}</0>.",
+                "operatorRemoval": "The instance operator may remove or disable custom domains at any time, for example if DNS verification fails, the domain expires, or the associated account is terminated.",
+                "noTls": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly, and domain ownership must be verified before the domain becomes active. You provide and maintain a valid HTTPS certificate for your domain yourself; {{app}} does not obtain certificates on your behalf.",
+                "fallback": "You may associate a custom domain with your profile. You are responsible for configuring your domain’s DNS settings correctly. Domain ownership must be verified before the domain becomes active. When automatic TLS is enabled by the instance operator, {{app}} will obtain and manage Let’s Encrypt certificates on your behalf."
+            },
+            "webhooks": {
+                "title": "Webhooks, Integrations and Discord",
+                "intro": "You may configure outgoing webhooks to receive notifications about activity on your profile (views, link clicks, etc.) on endpoints you control. You are solely responsible for the availability, security, and privacy practices of the webhook endpoints you configure. {{app}} will send data to the URLs you provide and does not control how that data is handled after delivery.",
+                "revoke": "You may revoke or rotate webhook secrets at any time through your dashboard. The instance operator may remove webhook configurations that are being abused or that violate these terms.",
+                "discord": "You may optionally connect a Discord account and share your live presence (online status and activity) on your public profile, and use the “Post to Discord” feature to push a profile embed to a webhook URL you provide. Presence is shared only with your explicit opt-in; you can disconnect your Discord account or disable presence sharing at any time, which stops the display of that data. You are responsible for how you present and share your own presence data. Discord operates under its own terms, which we do not control.",
+                "discordFallback": "You may optionally connect a Discord account and share your live presence (online status and activity) on your public profile, and use the “Post to Discord” feature to push a profile embed to a webhook URL you provide. Presence is shared only with your explicit opt-in; you can disconnect your Discord account or disable presence sharing at any time."
+            },
+            "email": {
+                "title": "Email Notifications",
+                "optIn": "With your opt-in, {{app}} may send email notifications to the address on your account when your profile receives views or link clicks. Notifications are sent only if you have enabled them for the relevant profile, and only while they remain enabled. You can disable these notifications at any time from your settings. To reduce noise, notifications are rate-limited so multiple events within a short window trigger a single email.",
+                "security": "We may also email you about important account or security matters, such as account recovery or security incidents; these notices are not optional and are sent regardless of your notification preferences."
+            },
+            "newsletter": {
+                "title": "Newsletter",
+                "p1": "Public profiles on this instance may offer a newsletter to visitors. Subscribing is an explicit, single opt-in: a subscriber enters their email address and checks a box agreeing to these Terms and the Privacy Policy. A subscription is never created without that agreement, and each profile runs its own independent newsletter list.",
+                "p2": "If you run a newsletter on your profile, you are a sender and agree to comply with all applicable marketing and anti-spam law, including the US CAN-SPAM Act and Canada’s Anti-Spam Legislation (CASL). In particular, you agree to: only send to subscribers who genuinely opted in, keep accurate records of that consent, include identifying sender information and a mailing address (or a link to our website) in every email, and honor unsubscribe requests immediately and in all cases within 10 business days. Every newsletter we deliver on your behalf automatically includes a one-click unsubscribe link; you must not remove it or otherwise prevent subscribers from opting out.",
+                "p3": "You must not add email addresses to your list without consent, buy or rent lists, harvest addresses, or misrepresent the identity of a sender. Distributing unsolicited commercial email is a violation of these Terms and may result in suspension or termination of your account. Sending is subject to per-tier volume limits and may be paused or disabled by the instance operator; a disabled or paused profile never sends mail.",
+                "p4": "Subscriber data belongs to your subscribers. You may use it only to run your newsletter and must honor erasure requests (right to be forgotten) and any applicable data-protection rights. If you erase a subscriber, we remove the subscription so no further mail is sent.",
+                "selfSmtp": "You may optionally send through your own SMTP relay instead of {{app}}’s mail stack. If you do, you are responsible for the relay and credentials you configure and for all mail sent through it: you must only use a relay you are authorized to use, keep your credentials secure, and comply with that provider’s terms. Your SMTP password is encrypted at rest and used solely to deliver your newsletter. The instance operator may require manual approval before your own relay may send."
+            },
+            "invitePurchases": {
+                "title": "Purchased Invites",
+                "p1": "Invites may be purchased on {{app}} in fixed bundles of invite credits. Credits bought by an existing member are added to that account as a permanent balance; they do not expire and can be exchanged for invite codes at any time. Credits bought without an account are issued as time-limited invite codes by email, and redeeming one of those codes to register transfers any remaining codes from the same purchase to the new account.",
+                "p2": "Prices are shown in the configured currency and are charged at checkout through the payment providers the instance operator has enabled; we do not store card details. A purchase becomes final when the payment provider confirms it. If a purchase is refunded, any invite credits or codes from that purchase that have not been used are revoked. Credits you already redeemed and the access they granted are not affected, because revoking them cannot un-create an account.",
+                "resaleRestricted": "Invite codes purchased on this instance may not be resold, re-listed, shared for payment, or otherwise transferred for money. A code bought here is for your own registration or for the accounts you invite. Codes obtained by other means carry the same restriction where the instance operator has published it, and resale is grounds for suspension and for revoking the remaining codes of the offending purchase.",
+                "resalePermitted": "You may resell, re-list or otherwise transfer invite codes you hold on {{app}}, including codes you bought, for money or for free. A buyer of a code becomes responsible for registering with it, and the instance operator may still suspend an account that uses a code to abuse the service, and any such suspension can include revoking the codes of the offending purchase. Reselling a code does not transfer membership, subscription, billing history or any right to the account it was issued against.",
+                "resalePermittedRefund": "Credits you bought are refunded on request under the refunds paragraph above, so reselling a code does not remove your right to a refund for a purchase you have not redeemed."
+            },
+            "shop": {
+                "title": "Product Shop",
+                "seller": "Public profiles may offer digital products for sale. If you list products, you are the seller: you are responsible for the product, its description, its price, the rights to distribute any file or preview image you upload, and for complying with all applicable consumer-protection, tax and intellectual-property law. Prices are shown in the configured currency and any profile-wide discount is applied by the platform at checkout.",
+                "sellerInstance": "Public profiles on this instance may offer digital products for sale. If you list products, you are the seller: you are responsible for the product, its description, its price, the rights to distribute any file or preview image you upload, and for complying with all applicable consumer-protection, tax and intellectual-property law. Prices are shown in the configured currency and any profile-wide discount is applied by the platform at checkout.",
+                "paidProviders": "Paid products on this instance are purchased through {{providers}}; we do not store card details.",
+                "freeProduct": "A product listed with no price is claimed by the buyer without a payment step, and you deliver it directly.",
+                "final": "Purchases are final except where a refund is granted, in which case the buyer’s download access is revoked. You must not use the shop to sell unlawful content or to circumvent the platform’s acceptable-use rules.",
+                "fallback": "Payments are processed by the payment providers the instance operator has enabled; we do not store card details. Purchases are final except where a refund is granted, in which case the buyer’s download access is revoked. You must not use the shop to sell unlawful content or to circumvent the platform’s acceptable-use rules."
+            },
+            "tips": {
+                "title": "Tips",
+                "coinFallback": "cryptocurrency",
+                "instance": "Public profiles on this instance may let visitors send cryptocurrency tips ({{coins}}). Tips are voluntary: the visitor chooses the amount and may include an optional name and message, which are shown to the profile owner. Payments are made{{rail}}; we do not act as an intermediary or escrow for tips.",
+                "fallback": "Public profiles may offer the ability for visitors to send cryptocurrency tips. Tips are voluntary: the visitor chooses the amount and may include an optional name and message, which are shown to the profile owner. Payments are made directly to the profile owner’s wallet; we do not act as an intermediary or escrow for tips.",
+                "railBtcpay": " through the cryptocurrency payment gateway the instance operator has configured",
+                "railWallet": " straight to the profile owner’s published wallet address, without any payment provider acting as intermediary",
+                "railFallback": " directly to the profile owner’s wallet",
+                "owner": "A profile shows a tipping block only when its owner enables tips and publishes a wallet address, and the owner may switch it off at any time, which also hides those addresses. If you enable tips you are responsible for the wallet addresses you publish and for complying with any applicable tax, financial-services or anti-money-laundering law in your jurisdiction. You may delete any tip record from your dashboard at any time."
+            },
+            "advertising": {
+                "title": "Advertising",
+                "p1": "Public profiles on this instance may display advertising{{via}}. Ads are selected and served by the ad networks, not by {{app}}; we do not control the individual ads shown and do not endorse the advertised products or services. The ad networks may set their own cookies to deliver and measure ads, as described in the Privacy Policy.",
+                "p2": "You must not generate artificial impressions or clicks, tamper with ad code, or use the platform in any way intended to defraud an advertiser or an ad network. Doing so may result in suspension and may be reported to the network.",
+                "via": " through {{networks}}"
+            },
+            "operator": {
+                "title": "Who Operates This Service",
+                "body": "{{who}}{{place}}. By using {{app}} you are entering into these Terms with that operator, who is responsible for this deployment and for the choices described in these Terms.",
+                "whoNamed": "{{app}} is operated by {{name}}",
+                "whoAdmin": "{{app}} is operated by the instance’s administrator",
+                "place": ", established in {{jurisdiction}}"
+            },
+            "api": {
+                "title": "Access to the API",
+                "intro": "{{app}} exposes a documented HTTP API (see the API documentation and OpenAPI specification) that supports integration with your account and profile. Use of the API is subject to these Terms, including the Acceptable Use provisions. You are responsible for requests you make and for any application or service you build on top of the API.",
+                "limits": "We may impose rate limits or restrict access to protect the service from abuse or degradation. Repeatedly exceeding these limits, placing an unreasonable load on the service, or using the API to circumvent any security measure may result in temporary or permanent suspension of API access or your account."
+            },
+            "availability": {
+                "title": "Service Availability and Security Updates",
+                "downtime": "We strive to keep {{app}} available at all times, but we do not guarantee uninterrupted access. We may perform maintenance, updates, or experience downtime without prior notice.",
+                "security": "When a critical security update is available, certain account security operations (such as changing your password, managing passkeys, or configuring two-factor authentication) may be temporarily restricted until the instance is updated. This is a safety measure to protect all users of the platform. Similarly, administrative operations that could affect system security may be restricted during this window. The instance operator is responsible for applying updates promptly."
+            },
+            "termination": {
+                "title": "Termination",
+                "body": "We reserve the right to suspend or terminate your account at our discretion, with or without cause, including for violations of these Terms. Upon termination, your right to use the service ceases immediately."
+            },
+            "liability": {
+                "title": "Limitation of Liability",
+                "body": "{{app}} is provided “as is” without warranties of any kind. We shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service."
+            },
+            "changes": {
+                "title": "Changes to Terms (Deemed Acceptance)",
+                "p1": "We may update these Terms from time to time. Each update is published on this page with a new version number and an effective date, and we will notify you of material changes through the service or by email. The version of these Terms you accepted (including the original version you agreed to when you first used {{app}}) is retained in your consent history and remains visible to you whenever you review your account’s consent records.",
+                "p2": "The current version takes effect on {{date}}. If you do not review the update, you will be deemed to have accepted it if you continue to use {{app}} for more than thirty (30) days after that version’s effective date. Continued use of the platform for more than 30 days after an update is published constitutes your acceptance of the updated version, even if you did not open or check the update. If you do not wish to accept an updated version, you must stop using the platform before the end of that 30-day period.",
+                "operator": "Operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. When a new version becomes effective, those accounts are recorded as having accepted it automatically — but only after the same thirty (30) day review period described above, never on the day the update is published, and only once the account is actually used again after that period. The automatic acceptance is written to your account with a timestamp and a record that the platform recorded it rather than an individual accepting it, so it is never presented as a personal click-through. Until that period has elapsed, operator accounts must accept the new version themselves, exactly like any other account. The roles covered are configurable by the instance operator and, by default, consist only of the built-in administrator role; if you are an operator account and do not wish to be covered, accept the terms yourself."
+            },
+            "contact": {
+                "title": "Contact"
+            }
+        }
+    },
+    "privacy": {
+        "metaTitle": "Privacy Policy",
+        "metaDescription": "Read how {{app}} collects, uses, and protects your data.",
+        "shellTitle": "Privacy Policy",
+        "fallbackVersion": "October 12, 2026",
+        "contactPrefix": "If you have questions about this Privacy Policy, please ",
+        "contactNamed": "contact {{name}}",
+        "contactUs": "contact us",
+        "sections": {
+            "collect": {
+                "title": "Information We Collect",
+                "p1": "When you create an account on {{app}}, we collect your email address, username, and password (stored as a bcrypt hash). We also store any profile information you choose to provide, including display name, bio, avatar, banner, location, website, social links, theme preferences, and profile badges.",
+                "p2": "For security and abuse prevention, we record your IP address at registration and your most recent login IP address. Failed authentication attempts are logged with your IP address, a hash of your browser user-agent string, and an anonymous browser fingerprint cookie. These logs are retained for up to 30 days and then automatically deleted.",
+                "p3": "If you enable passkey (WebAuthn) login, we store the public key and credential identifier for each registered passkey. If you enable two-factor authentication using an authenticator app, we store your TOTP secret encrypted at rest. Neither passkey private keys nor TOTP secrets are ever stored.",
+                "p4": "To verify that a registered passkey is genuinely discoverable (resident), we store the timestamp of its most recent successful discoverable sign-in. This verification mark is refreshed only by an actual passkey sign-in and expires after a fixed number of days (14 by default) without one; it is used exclusively by account administrators to review account security and is never shown on your public profile."
+            },
+            "use": {
+                "title": "How We Use Your Information",
+                "p1": "We use your information to provide and maintain the {{app}} service, to personalize your experience, and to communicate with you about your account. We do not sell, trade, or otherwise transfer your personal information to third parties.",
+                "p2": "IP addresses and authentication logs are used solely for security purposes: to detect and prevent brute-force attacks, to evaluate login trust, and to enforce temporary account lockouts when repeated failures are detected."
+            },
+            "storage": {
+                "title": "Data Storage and Security",
+                "fallback": "Your data is stored on servers operated by us or our hosting providers. We implement industry-standard security measures including bcrypt password hashing, JWT authentication, encrypted storage of sensitive credentials (TOTP secrets, passkey data, webhook URLs, Discord tokens), and HTTPS encryption. However, no method of electronic transmission or storage is 100% secure.",
+                "thirdParty": ", and files you upload are kept in {{provider}}",
+                "loaded": "Your data is stored on servers operated by us or our hosting providers{{thirdParty}}. We implement industry-standard security measures including bcrypt password hashing, JWT authentication, encrypted storage of sensitive credentials (TOTP secrets, passkey data, webhook URLs, Discord tokens), and HTTPS encryption. However, no method of electronic transmission or storage is 100% secure."
+            },
+            "uploads": {
+                "title": "File Uploads",
+                "fallback": "Avatar and banner images you upload are stored on our servers. If you upload audio for music tracks on your profile, those files are also stored on our servers and streamed to visitors when played. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security.",
+                "thirdParty": "Avatar and banner images you upload are stored in {{provider}}, and if you upload audio for music tracks on your profile those files are streamed from the same store. {{app}} acts as the intermediary between you and that provider, which processes the files solely at our instruction and under its own privacy policy. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security.",
+                "loaded": "Avatar and banner images you upload are stored in {{provider}}. If you upload audio for music tracks on your profile, those files are also stored there and streamed to visitors when played. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security."
+            },
+            "cookies": {
+                "title": "Cookies and Tracking",
+                "categories": "{{app}} uses two categories of cookies:",
+                "banner": "When you first visit, a consent banner lets you choose “Accept all” (enables the analytics cookie) or “Essential only”. When the banner first appears, the “Essential only” option becomes selectable after a short countdown, so accepting non-essential cookies cannot happen accidentally. You can change your choice at any time through the “Cookie settings” link on the site or by clearing cookies.",
+                "signals": "We honor browser-level privacy signals: if your browser sends the Do Not Track header (DNT: 1) or Global Privacy Control (Sec-GPC: 1), no analytics cookies are set and no non-essential analytics run at all — even if you previously accepted. This preference always takes precedence over any stored choice.",
+                "advertisingInstance": "Public profiles on this instance may display advertising{{via}}. Those ad networks may set their own cookies or device identifiers to deliver and measure the ads shown; these are ad-delivery cookies and are not used by us to build a cross-site profile of you. Like the other cookies needed to render the page, they load without a separate consent step, and choosing “Essential only” disables only our analytics cookie rather than the ads. Where a network offers its own tracking controls, that network’s privacy policy governs them.",
+                "advertisingFallback": "Some public profiles may display advertising served by third-party ad networks. Those networks may set their own cookies or device identifiers to deliver and measure the ads they serve, under their own privacy policies. Ad delivery does not depend on your analytics choice: choosing “Essential only” disables our analytics cookie but does not remove advertising where a profile carries it.",
+                "advertisingVia": ", served through {{networks}}",
+                "advertisingBullet": "Advertising cookies",
+                "advertisingBulletBody": " (set by the third-party ad networks on profiles that carry ads): ad-delivery cookies used to show and measure the ads served on that profile. They are not used by {{app}} to build a cross-site profile of you, load without a separate consent step, and are not removed by choosing “Essential only”.",
+                "essentialLabel": "Essential cookies",
+                "essentialBody": " (always active, no consent needed): the authentication session cookie and a browser fingerprint cookie used to protect against brute-force attacks and rate-limit abuse. These are required for the service to function securely and are set automatically.",
+                "analyticsLabel": "Non-essential analytics cookie",
+                "analyticsBefore": " (",
+                "vidCookie": "bp_vid",
+                "analyticsAfter": "): a single anonymous cookie used to distinguish unique visitors and count unique profile views and link clicks. It contains no personal information. This cookie is set only after you explicitly accept non-essential cookies via the consent banner."
+            },
+            "retention": {
+                "title": "Data Retention",
+                "body": "We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. Authentication failure logs (IP addresses, hashed user-agent strings, browser fingerprints) are retained for up to 30 days and then automatically deleted. Newsletter subscription records are retained only while the profile runs a newsletter and you remain subscribed; they are deleted when you unsubscribe, when the profile owner erases them, or when the account is deleted. Product purchase records are retained to honour refunds, download access and accounting obligations. Custom domain TLS certificates are retained until renewed or the domain is removed. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period."
+            },
+            "rights": {
+                "title": "Your Rights",
+                "body": "You have the right to access, update, or delete your personal information at any time through your dashboard. You may also export your data or request complete account deletion by contacting us. Through your dashboard you can manage your registered passkeys, two-factor authentication settings, linked Discord account, webhook configurations, and custom domains. If you subscribed to a newsletter, the profile owner may remove your subscription and you may unsubscribe at any time with one click from any newsletter email; you may also request that your consent records be erased."
+            },
+            "changes": {
+                "title": "Changes to This Policy",
+                "p1": "We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the “Last updated” date.",
+                "p2": "Taking effect on {{date}}, if we publish a revised version of this Privacy Policy (or the Terms of Service) and you continue to use {{app}} without checking or reading the updated version for more than thirty (30) days after that version’s effective date, you will be deemed to have accepted the updated version. Your original, pinned acceptance remains on record and is never overwritten; continued use for more than 30 days after the new version’s effective date is treated as acceptance of the updated policy for consent-status purposes, based on your last login being at least 30 days after that effective date.",
+                "operator": "Automatic acceptance for operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. For those accounts we may record the accepted Terms and Privacy Policy versions automatically, but only after the same thirty (30) day period described above and only once the account is used again afterwards — never on the day the update is published. The recorded acceptance stores which versions were accepted, when, and a flag marking that the platform recorded it rather than an individual doing so, so an automatic acceptance is never recorded as, or reported as, a personal click-through. Accepting the terms yourself clears that flag. The roles covered are chosen by the instance operator and by default consist only of the built-in administrator role."
+            },
+            "operator": {
+                "title": "Who Operates This Service",
+                "body": "{{who}}{{place}}. The operator is the controller of the personal information described in this policy and decides how and why it is processed; the operator is responsible for this deployment and for responding to privacy and data-protection requests made through the contact details below.",
+                "whoNamed": "{{app}} is operated by {{name}}",
+                "whoAdmin": "{{app}} is operated by the instance’s administrator",
+                "place": ", established in {{jurisdiction}}"
+            },
+            "contact": {
+                "title": "Contact"
+            }
+        },
+        "subsections": {
+            "analytics": {
+                "title": "Analytics Data",
+                "body": "Profile owners can view aggregated analytics for their public profiles, including total and unique views, link clicks, referrer URLs, and browser types. This data is derived from IP addresses, user-agent strings, and the bp_vid cookie, which is only set for visitors who accepted non-essential cookies. Individual visitor identities are never exposed — analytics are shown only as aggregate counts and trends. All analytics data is retained for 90 days and then automatically deleted.",
+                "matomoFallback": "Aggregate traffic measurement is stored on infrastructure we operate; your data is not shared with external analytics providers. Analytics scripts and cookies are only loaded after you accept non-essential cookies and are never loaded for visitors whose browser sends Do Not Track or Global Privacy Control.",
+                "matomoEnabled": "This instance runs {{app}}’s self-hosted web analytics service (Matomo) on its own infrastructure to measure site traffic; your data is not shared with an external analytics provider. Matomo’s scripts and cookies are loaded only after you accept non-essential cookies, and are never loaded for visitors whose browser sends Do Not Track or Global Privacy Control. The same consent choice governs both the aggregate analytics described above and the Matomo measurements."
+            },
+            "signIn": {
+                "title": "Sign-In Providers",
+                "fallback": "If you sign in with a third-party or self-hosted identity provider, only the information that provider returns to us is received (typically an identifier, an email address, a display name and an avatar image), and your credentials are submitted to that provider rather than to this backend. Each provider operates under its own privacy policy, which we do not control.",
+                "pocketbaseLeadWithSso": ", and optionally with {{sso}}, or",
+                "pocketbaseLeadWithoutSso": " or",
+                "pocketbase": "This instance offers sign-in with email and password{{lead}} through a PocketBase instance operated by the instance operator. When you use the PocketBase sign-in button, your credentials are submitted directly to that operator-controlled PocketBase deployment through this site’s same-origin proxy, so your password never reaches this backend; PocketBase stores the credentials it needs to authenticate you. PocketBase is used for sign-in and nothing else — it is not used to collect or process visitor analytics, to store your files, or to hold any other content.",
+                "pocketbaseSso": "Sign-in with {{sso}} shares only the profile information those providers return to us (typically an identifier, an email address, a display name and an avatar image). Each provider operates under its own privacy policy, which we do not control.",
+                "passwordLeadWithSso": ", and with {{sso}}",
+                "passwordTail": " Sign-in with {{sso}} shares only the profile information those providers return to us (typically an identifier, an email address, a display name and an avatar image). Each provider operates under its own privacy policy, which we do not control.",
+                "password": "This instance offers sign-in with email and password{{lead}}. Sign-in sends your email address and the password you type to {{app}} for verification, over the same site connection that serves this page.{{tail}}",
+                "available": "Sign-in with {{sso}} is available, sharing only the profile information those providers return to us."
+            },
+            "abuse": {
+                "title": "Abuse Protection",
+                "body": "Sign-up and other abuse-prone forms on this instance are protected with {{captcha}}. The CAPTCHA provider receives the request it needs to score the submission (and, where the provider’s API requires it, the submitting IP address) and acts as a third party under its own privacy policy. The resulting token is verified server-side and the token itself is never stored."
+            },
+            "embeds": {
+                "title": "Third-Party Embedded Content",
+                "body": "Profiles may embed music from third-party providers such as Spotify and YouTube. YouTube embeds use the privacy-enhanced youtube-nocookie.com domain, which does not set tracking cookies on your visit. Spotify and other providers set their own cookies in the embedded player; those providers operate under their own privacy policies, which we do not control. We are not responsible for the privacy practices of third-party platforms."
+            },
+            "discord": {
+                "title": "Discord Integration",
+                "p1": "When you connect a Discord account, {{app}} receives from Discord only the data granted by the OAuth identify scope: your Discord user ID, username, global name, and avatar. The access and refresh tokens are stored encrypted and are used solely to keep your account link valid. Connecting is optional and always opt-in.",
+                "p2": "Live presence (online status, current activity, custom status) is shown only when you have explicitly turned on presence sharing for a profile. The bot observes presence only for users who are in a server shared with it; if you never enable presence sharing, your status is never read or displayed. Presence data is held in memory and is not retained.",
+                "p3": "The optional “Post to Discord” feature sends a profile embed (display name, profile link, avatar, bio, and — when enabled — your current status) to a webhook URL you provide. Webhook URLs are stored encrypted. Discord is a third party and operates under its own privacy policy, which we do not control."
+            },
+            "webhooks": {
+                "title": "Webhooks and Integrations",
+                "body": "You may configure outgoing webhooks to receive notifications about profile events (views, link clicks, etc.) on endpoints you provide. Webhook URLs and secrets are stored encrypted and are used only to deliver the events you request. You are responsible for the privacy practices of the endpoints you configure — we do not control how third-party webhook receivers handle the data they receive."
+            },
+            "domains": {
+                "title": "Custom Domains",
+                "tlsTitle": "Custom Domains and TLS",
+                "base": "If you configure a custom domain for your profile, the domain name and a verification token are stored to confirm ownership.",
+                "noTls": "If you configure a custom domain for your profile, the domain name and a verification token are stored to confirm ownership. You provide and maintain a valid HTTPS certificate for your domain yourself.",
+                "tls": "{{base}} {{tlsPhrase}} Let’s Encrypt TLS certificates and the associated account key are obtained and stored on the server to enable encrypted connections for your domain. Certificate data is used solely to serve your profile over HTTPS and is renewed automatically before expiry.",
+                "tlsAuto": "This instance issues TLS certificates automatically through",
+                "tlsWhen": "When automatic TLS (HTTPS) is enabled,"
+            },
+            "version": {
+                "title": "Version Checking",
+                "body": "{{app}} periodically checks for available software updates by fetching the project’s public CHANGELOG from GitHub (via raw.githubusercontent.com, the GitHub API, and cdn.jsdelivr.net). No personal information is transmitted in these requests — only the public repository URL is used. The check runs in the background on the server at startup and every 12 hours; the result is cached and served to all visitors to display the current version badge."
+            },
+            "email": {
+                "title": "Email Notifications",
+                "body": "If you opt in to email notifications for profile activity, we use the email address on your account to send you a digest when your profile receives views or link clicks. Notifications are only sent while the relevant setting is enabled and are rate-limited to avoid excessive email volume; you can disable them at any time from your settings. Important account or security notices (for example, account recovery) are sent to the email address on your account."
+            },
+            "newsletter": {
+                "title": "Newsletter",
+                "p1": "Public profiles on this instance may offer a newsletter. Subscribing is always an explicit, single opt-in: you voluntarily enter your email address and tick a checkbox agreeing to these Terms and the Privacy Policy. Subscribing never happens silently.",
+                "p2": "When you subscribe we store your email address, the time you subscribed, the time you agreed, the versions of these Terms and the Privacy Policy you agreed to, and whether you have unsubscribed. The IP address and browser user-agent captured to evidence consent are kept only in memory for 24 hours and are never written to the database. Your email address is used solely for the newsletters of the profile you subscribed to and is never shared with third parties.",
+                "p3": "Every newsletter we send identifies {{app}} or the sender, includes a physical postal address (or a link to our website when none is set), and provides a clear, one-click unsubscribe link. Unsubscribe requests are honored immediately and in all cases within 10 business days, as required by the US CAN-SPAM Act and Canada’s Anti-Spam Legislation (CASL). After unsubscribing you will receive no further newsletters and can resubscribe at any time.",
+                "p4": "Newsletter sending is subject to per-profile and per-tier volume limits; a paused or disabled newsletter profile never sends mail, even to existing subscribers.",
+                "selfSmtp": "A profile owner on this instance may send through their own SMTP relay instead of {{app}}’s mail stack. In that case the owner provides the relay host and credentials; the SMTP password is encrypted at rest (AES-256-GCM) and used only to deliver that profile’s newsletter. It is never returned in API responses and is never shared with third parties. Subscriber email addresses are transmitted to that relay solely to deliver the newsletter the subscriber opted into."
+            },
+            "invites": {
+                "title": "Purchased Invites",
+                "paidProviders": "Payment is taken through {{providers}}, whose own privacy policy governs the payment details; we store the purchase amount, currency, status and the payment-gateway transaction reference, but never card or wallet credentials.",
+                "paidFallback": "Payment is taken through the payment provider the instance operator has enabled, whose own privacy policy governs the payment details; we store the purchase amount, currency, status and the payment-gateway transaction reference, but never card or wallet credentials.",
+                "p1": "Invite credits may be purchased on {{app}}. {{paid}}",
+                "p2": "If you buy without an account, you are identified only by the email address you give us so we can deliver your invite codes. That address is stored on the purchase record, is used to fulfil and support the order, and is removed or made irrelevant once the codes are claimed.",
+                "p3": "Each purchase records which invite credits and codes came from it, so the operator can tell purchased credits apart from credits earned through events and roles, revoke what an order still holds if it is refunded, and answer a question about where a given code came from. Codes you have already redeemed, and the accounts created with them, are not revoked.",
+                "resaleRestricted": "Because resale is prohibited on this instance, a purchased code is linked to the order it was paid for. That link exists to enforce the resale rule and to handle refunds and disputes; it is not used for advertising, profiling, or automated decisions.",
+                "resalePermitted": "Reselling invite codes is permitted on this instance, so a code you transfer may be registered by someone else. The account created with that code is that person's account, and the email address on the purchase record remains attached to your order for refunds and support rather than moving to them. We do not require the name or contact details of whoever buys a code, and we do not use code transfers for advertising, profiling, or automated decisions."
+            },
+            "shop": {
+                "title": "Product Shop",
+                "paidProviders": "For a paid product we store the product’s title, description and price, the buyer’s email address, the purchase status and a payment-gateway transaction reference, and we send the buyer to {{providers}}, whose own privacy policy governs the payment.",
+                "freeProduct": "A product listed as free (no price) is delivered immediately on request, and no buyer or payment data is collected for it.",
+                "p1": "Public profiles on this instance may offer digital products for sale. {{paid}} We do not store card or wallet credentials. Download links are signed and time-limited.",
+                "p2": "If you buy without signing in, you are identified only by the email address you provide so the download link can be delivered to you; that address is used solely to fulfil and support the purchase.",
+                "fallbackP1": "Public profiles may offer digital products for sale. To fulfil a purchase we store the product’s title, description and price, the buyer’s email address, the purchase status and a payment-gateway transaction reference, and we send the buyer to the configured payment provider (for example Stripe, PayPal, or a cryptocurrency gateway) whose own privacy policy governs the payment. We do not store card or wallet credentials. Download links are signed and time-limited.",
+                "fallbackP2": "If you buy without signing in, you are identified only by the email address you provide so the download link can be delivered to you; that address is used solely to fulfil and support the purchase."
+            },
+            "tips": {
+                "title": "Tips",
+                "instance": "Public profiles on this instance may offer cryptocurrency tips{{coinText}}. Tipping is always voluntary: you choose the amount and may include an optional name and message that are shown to the profile owner. Wallet addresses are provided by the profile owner and payments are sent {{gateway}}. We do not process or store the coins themselves; the payment provider (where one is involved) and the profile owner receive the applicable payment data.",
+                "coinText": " ({{coins}})",
+                "gatewayBtcpay": "through the cryptocurrency payment gateway configured by the instance operator",
+                "gatewayWallet": "directly to the profile owner’s wallet, without a payment provider acting as intermediary",
+                "owner": "A profile shows a tipping block only when its owner enables tips and publishes a wallet address. The owner may disable tips at any time (which also hides their wallet addresses), and may delete any tip record from their dashboard."
+            }
+        }
+    },
+    "policyText": {
+        "listAnd": " and ",
+        "dateLocale": "en-US",
+        "storage": {
+            "local": "storage attached to this instance's own server",
+            "r2": "Cloudflare R2 object storage",
+            "b2": "Backblaze B2 object storage",
+            "s3": "an S3-compatible object store",
+            "default": "this instance's configured file storage"
+        },
+        "captcha": {
+            "turnstile": "Cloudflare Turnstile",
+            "recaptcha": "Google reCAPTCHA",
+            "hcaptcha": "hCaptcha"
+        },
+        "sso": {
+            "google": "Google",
+            "github": "GitHub",
+            "discord": "Discord"
+        },
+        "payment": {
+            "stripe": "Stripe",
+            "paypal": "PayPal ({{mode}})",
+            "live": "live",
+            "sandbox": "sandbox",
+            "crypto": "cryptocurrency through a self-hosted gateway ({{coins}})"
+        }
+    },
+    "apiDocs": {
+        "metaTitle": "API Documentation",
+        "metaDescription": "Explore the {{app}} public API — endpoints, parameters, and examples.",
+        "heading": "API Reference",
+        "subtitle": "{{app}} REST API — OpenAPI 3.0. Raw spec available at {{specPath}}",
+        "specPath": "/api/openapi.json",
+        "authIntro": "Most endpoints require an {{header}} header. Tokens are returned by {{login}} and {{register}}. Errors use a consistent {{shape}} shape.",
+        "authHeader": "Authorization: Bearer <token>",
+        "loginEndpoint": "POST /api/auth/login",
+        "registerEndpoint": "POST /api/auth/register",
+        "errorShape": "{ success: false, error: string }",
+        "loading": "Loading API spec...",
+        "error": "Could not load API spec",
+        "public": "public",
+        "parameters": "Parameters",
+        "requestBody": "Request body",
+        "requiredList": " — required: {{list}}",
+        "property": "{{name}} ({{type}}{{constraints}})",
+        "propertyConstraints": ": {{constraints}}",
+        "constraintMin": "min {{min}}",
+        "constraintMax": "max {{max}}",
+        "typeDefault": "string",
+        "listSeparator": " · ",
+        "constraintSeparator": ", ",
+        "responseStatus": "{{status}} {{description}}"
+    },
+    "seo": {
+        "titleSuffix": "{{title}} — {{app}}",
+        "ogType": "website",
+        "twitterCard": "summary_large_image",
+        "jsonLdContext": "https://schema.org",
+        "jsonLdSoftwareApplication": "SoftwareApplication",
+        "jsonLdWebSite": "WebSite",
+        "jsonLdApplicationCategory": "WebApplication",
+        "jsonLdOperatingSystem": "Web"
+    },
+    "format": {
+        "locale": "en-US",
+        "currency": "USD",
+        "fileSizeZero": "0 B",
+        "fileSizeUnitB": "B",
+        "fileSizeUnitKB": "KB",
+        "fileSizeUnitMB": "MB",
+        "fileSizeUnitGB": "GB"
     }
-  },
-  "privacy": {
-    "metaTitle": "Privacy Policy",
-    "metaDescription": "Read how {{app}} collects, uses, and protects your data.",
-    "shellTitle": "Privacy Policy",
-    "fallbackVersion": "October 12, 2026",
-    "contactPrefix": "If you have questions about this Privacy Policy, please ",
-    "contactNamed": "contact {{name}}",
-    "contactUs": "contact us",
-    "sections": {
-      "collect": {
-        "title": "Information We Collect",
-        "p1": "When you create an account on {{app}}, we collect your email address, username, and password (stored as a bcrypt hash). We also store any profile information you choose to provide, including display name, bio, avatar, banner, location, website, social links, theme preferences, and profile badges.",
-        "p2": "For security and abuse prevention, we record your IP address at registration and your most recent login IP address. Failed authentication attempts are logged with your IP address, a hash of your browser user-agent string, and an anonymous browser fingerprint cookie. These logs are retained for up to 30 days and then automatically deleted.",
-        "p3": "If you enable passkey (WebAuthn) login, we store the public key and credential identifier for each registered passkey. If you enable two-factor authentication using an authenticator app, we store your TOTP secret encrypted at rest. Neither passkey private keys nor TOTP secrets are ever stored.",
-        "p4": "To verify that a registered passkey is genuinely discoverable (resident), we store the timestamp of its most recent successful discoverable sign-in. This verification mark is refreshed only by an actual passkey sign-in and expires after a fixed number of days (14 by default) without one; it is used exclusively by account administrators to review account security and is never shown on your public profile."
-      },
-      "use": {
-        "title": "How We Use Your Information",
-        "p1": "We use your information to provide and maintain the {{app}} service, to personalize your experience, and to communicate with you about your account. We do not sell, trade, or otherwise transfer your personal information to third parties.",
-        "p2": "IP addresses and authentication logs are used solely for security purposes: to detect and prevent brute-force attacks, to evaluate login trust, and to enforce temporary account lockouts when repeated failures are detected."
-      },
-      "storage": {
-        "title": "Data Storage and Security",
-        "fallback": "Your data is stored on servers operated by us or our hosting providers. We implement industry-standard security measures including bcrypt password hashing, JWT authentication, encrypted storage of sensitive credentials (TOTP secrets, passkey data, webhook URLs, Discord tokens), and HTTPS encryption. However, no method of electronic transmission or storage is 100% secure.",
-        "thirdParty": ", and files you upload are kept in {{provider}}",
-        "loaded": "Your data is stored on servers operated by us or our hosting providers{{thirdParty}}. We implement industry-standard security measures including bcrypt password hashing, JWT authentication, encrypted storage of sensitive credentials (TOTP secrets, passkey data, webhook URLs, Discord tokens), and HTTPS encryption. However, no method of electronic transmission or storage is 100% secure."
-      },
-      "uploads": {
-        "title": "File Uploads",
-        "fallback": "Avatar and banner images you upload are stored on our servers. If you upload audio for music tracks on your profile, those files are also stored on our servers and streamed to visitors when played. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security.",
-        "thirdParty": "Avatar and banner images you upload are stored in {{provider}}, and if you upload audio for music tracks on your profile those files are streamed from the same store. {{app}} acts as the intermediary between you and that provider, which processes the files solely at our instruction and under its own privacy policy. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security.",
-        "loaded": "Avatar and banner images you upload are stored in {{provider}}. If you upload audio for music tracks on your profile, those files are also stored there and streamed to visitors when played. You may delete your uploads at any time through your dashboard. We validate file types and enforce size limits to maintain platform security."
-      },
-      "cookies": {
-        "title": "Cookies and Tracking",
-        "categories": "{{app}} uses two categories of cookies:",
-        "banner": "When you first visit, a consent banner lets you choose “Accept all” (enables the analytics cookie) or “Essential only”. When the banner first appears, the “Essential only” option becomes selectable after a short countdown, so accepting non-essential cookies cannot happen accidentally. You can change your choice at any time through the “Cookie settings” link on the site or by clearing cookies.",
-        "signals": "We honor browser-level privacy signals: if your browser sends the Do Not Track header (DNT: 1) or Global Privacy Control (Sec-GPC: 1), no analytics cookies are set and no non-essential analytics run at all — even if you previously accepted. This preference always takes precedence over any stored choice.",
-        "advertisingInstance": "Public profiles on this instance may display advertising{{via}}. Those ad networks may set their own cookies or device identifiers to deliver and measure the ads shown; these are ad-delivery cookies and are not used by us to build a cross-site profile of you. Like the other cookies needed to render the page, they load without a separate consent step, and choosing “Essential only” disables only our analytics cookie rather than the ads. Where a network offers its own tracking controls, that network’s privacy policy governs them.",
-        "advertisingFallback": "Some public profiles may display advertising served by third-party ad networks. Those networks may set their own cookies or device identifiers to deliver and measure the ads they serve, under their own privacy policies. Ad delivery does not depend on your analytics choice: choosing “Essential only” disables our analytics cookie but does not remove advertising where a profile carries it.",
-        "advertisingVia": ", served through {{networks}}",
-        "advertisingBullet": "Advertising cookies",
-        "advertisingBulletBody": " (set by the third-party ad networks on profiles that carry ads): ad-delivery cookies used to show and measure the ads served on that profile. They are not used by {{app}} to build a cross-site profile of you, load without a separate consent step, and are not removed by choosing “Essential only”.",
-        "essentialLabel": "Essential cookies",
-        "essentialBody": " (always active, no consent needed): the authentication session cookie and a browser fingerprint cookie used to protect against brute-force attacks and rate-limit abuse. These are required for the service to function securely and are set automatically.",
-        "analyticsLabel": "Non-essential analytics cookie",
-        "analyticsBefore": " (",
-        "vidCookie": "bp_vid",
-        "analyticsAfter": "): a single anonymous cookie used to distinguish unique visitors and count unique profile views and link clicks. It contains no personal information. This cookie is set only after you explicitly accept non-essential cookies via the consent banner."
-      },
-      "retention": {
-        "title": "Data Retention",
-        "body": "We retain your account data for as long as your account is active. Analytics data (page views and link clicks) is automatically deleted after 90 days. Authentication failure logs (IP addresses, hashed user-agent strings, browser fingerprints) are retained for up to 30 days and then automatically deleted. Newsletter subscription records are retained only while the profile runs a newsletter and you remain subscribed; they are deleted when you unsubscribe, when the profile owner erases them, or when the account is deleted. Product purchase records are retained to honour refunds, download access and accounting obligations. Custom domain TLS certificates are retained until renewed or the domain is removed. You may request account deletion by contacting us. Upon deletion, your personal data will be removed from our active systems, though some data may be retained in backups for a limited period."
-      },
-      "rights": {
-        "title": "Your Rights",
-        "body": "You have the right to access, update, or delete your personal information at any time through your dashboard. You may also export your data or request complete account deletion by contacting us. Through your dashboard you can manage your registered passkeys, two-factor authentication settings, linked Discord account, webhook configurations, and custom domains. If you subscribed to a newsletter, the profile owner may remove your subscription and you may unsubscribe at any time with one click from any newsletter email; you may also request that your consent records be erased."
-      },
-      "changes": {
-        "title": "Changes to This Policy",
-        "p1": "We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the “Last updated” date.",
-        "p2": "Taking effect on {{date}}, if we publish a revised version of this Privacy Policy (or the Terms of Service) and you continue to use {{app}} without checking or reading the updated version for more than thirty (30) days after that version’s effective date, you will be deemed to have accepted the updated version. Your original, pinned acceptance remains on record and is never overwritten; continued use for more than 30 days after the new version’s effective date is treated as acceptance of the updated policy for consent-status purposes, based on your last login being at least 30 days after that effective date.",
-        "operator": "Automatic acceptance for operator accounts. The instance operator may designate certain staff roles as operator accounts so that a policy update does not lock the operator out of the panel they administer. For those accounts we may record the accepted Terms and Privacy Policy versions automatically, but only after the same thirty (30) day period described above and only once the account is used again afterwards — never on the day the update is published. The recorded acceptance stores which versions were accepted, when, and a flag marking that the platform recorded it rather than an individual doing so, so an automatic acceptance is never recorded as, or reported as, a personal click-through. Accepting the terms yourself clears that flag. The roles covered are chosen by the instance operator and by default consist only of the built-in administrator role."
-      },
-      "operator": {
-        "title": "Who Operates This Service",
-        "body": "{{who}}{{place}}. The operator is the controller of the personal information described in this policy and decides how and why it is processed; the operator is responsible for this deployment and for responding to privacy and data-protection requests made through the contact details below."
-      },
-      "contact": {
-        "title": "Contact"
-      }
-    },
-    "subsections": {
-      "analytics": {
-        "title": "Analytics Data",
-        "body": "Profile owners can view aggregated analytics for their public profiles, including total and unique views, link clicks, referrer URLs, and browser types. This data is derived from IP addresses, user-agent strings, and the bp_vid cookie, which is only set for visitors who accepted non-essential cookies. Individual visitor identities are never exposed — analytics are shown only as aggregate counts and trends. All analytics data is retained for 90 days and then automatically deleted.",
-        "matomoFallback": "Aggregate traffic measurement is stored on infrastructure we operate; your data is not shared with external analytics providers. Analytics scripts and cookies are only loaded after you accept non-essential cookies and are never loaded for visitors whose browser sends Do Not Track or Global Privacy Control.",
-        "matomoEnabled": "This instance runs {{app}}’s self-hosted web analytics service (Matomo) on its own infrastructure to measure site traffic; your data is not shared with an external analytics provider. Matomo’s scripts and cookies are loaded only after you accept non-essential cookies, and are never loaded for visitors whose browser sends Do Not Track or Global Privacy Control. The same consent choice governs both the aggregate analytics described above and the Matomo measurements."
-      },
-      "signIn": {
-        "title": "Sign-In Providers",
-        "fallback": "If you sign in with a third-party or self-hosted identity provider, only the information that provider returns to us is received (typically an identifier, an email address, a display name and an avatar image), and your credentials are submitted to that provider rather than to this backend. Each provider operates under its own privacy policy, which we do not control.",
-        "pocketbaseLeadWithSso": ", and optionally with {{sso}}, or",
-        "pocketbaseLeadWithoutSso": " or",
-        "pocketbase": "This instance offers sign-in with email and password{{lead}} through a PocketBase instance operated by the instance operator. When you use the PocketBase sign-in button, your credentials are submitted directly to that operator-controlled PocketBase deployment through this site’s same-origin proxy, so your password never reaches this backend; PocketBase stores the credentials it needs to authenticate you. PocketBase is used for sign-in and nothing else — it is not used to collect or process visitor analytics, to store your files, or to hold any other content.",
-        "pocketbaseSso": "Sign-in with {{sso}} shares only the profile information those providers return to us (typically an identifier, an email address, a display name and an avatar image). Each provider operates under its own privacy policy, which we do not control.",
-        "passwordLeadWithSso": ", and with {{sso}}",
-        "passwordTail": " Sign-in with {{sso}} shares only the profile information those providers return to us (typically an identifier, an email address, a display name and an avatar image). Each provider operates under its own privacy policy, which we do not control.",
-        "password": "This instance offers sign-in with email and password{{lead}}. Sign-in sends your email address and the password you type to {{app}} for verification, over the same site connection that serves this page.{{tail}}",
-        "available": "Sign-in with {{sso}} is available, sharing only the profile information those providers return to us."
-      },
-      "abuse": {
-        "title": "Abuse Protection",
-        "body": "Sign-up and other abuse-prone forms on this instance are protected with {{captcha}}. The CAPTCHA provider receives the request it needs to score the submission (and, where the provider’s API requires it, the submitting IP address) and acts as a third party under its own privacy policy. The resulting token is verified server-side and the token itself is never stored."
-      },
-      "embeds": {
-        "title": "Third-Party Embedded Content",
-        "body": "Profiles may embed music from third-party providers such as Spotify and YouTube. YouTube embeds use the privacy-enhanced youtube-nocookie.com domain, which does not set tracking cookies on your visit. Spotify and other providers set their own cookies in the embedded player; those providers operate under their own privacy policies, which we do not control. We are not responsible for the privacy practices of third-party platforms."
-      },
-      "discord": {
-        "title": "Discord Integration",
-        "p1": "When you connect a Discord account, {{app}} receives from Discord only the data granted by the OAuth identify scope: your Discord user ID, username, global name, and avatar. The access and refresh tokens are stored encrypted and are used solely to keep your account link valid. Connecting is optional and always opt-in.",
-        "p2": "Live presence (online status, current activity, custom status) is shown only when you have explicitly turned on presence sharing for a profile. The bot observes presence only for users who are in a server shared with it; if you never enable presence sharing, your status is never read or displayed. Presence data is held in memory and is not retained.",
-        "p3": "The optional “Post to Discord” feature sends a profile embed (display name, profile link, avatar, bio, and — when enabled — your current status) to a webhook URL you provide. Webhook URLs are stored encrypted. Discord is a third party and operates under its own privacy policy, which we do not control."
-      },
-      "webhooks": {
-        "title": "Webhooks and Integrations",
-        "body": "You may configure outgoing webhooks to receive notifications about profile events (views, link clicks, etc.) on endpoints you provide. Webhook URLs and secrets are stored encrypted and are used only to deliver the events you request. You are responsible for the privacy practices of the endpoints you configure — we do not control how third-party webhook receivers handle the data they receive."
-      },
-      "domains": {
-        "title": "Custom Domains",
-        "tlsTitle": "Custom Domains and TLS",
-        "base": "If you configure a custom domain for your profile, the domain name and a verification token are stored to confirm ownership.",
-        "noTls": "If you configure a custom domain for your profile, the domain name and a verification token are stored to confirm ownership. You provide and maintain a valid HTTPS certificate for your domain yourself.",
-        "tls": "{{base}} {{tlsPhrase}} Let’s Encrypt TLS certificates and the associated account key are obtained and stored on the server to enable encrypted connections for your domain. Certificate data is used solely to serve your profile over HTTPS and is renewed automatically before expiry.",
-        "tlsAuto": "This instance issues TLS certificates automatically through",
-        "tlsWhen": "When automatic TLS (HTTPS) is enabled,"
-      },
-      "version": {
-        "title": "Version Checking",
-        "body": "{{app}} periodically checks for available software updates by fetching the project’s public CHANGELOG from GitHub (via raw.githubusercontent.com, the GitHub API, and cdn.jsdelivr.net). No personal information is transmitted in these requests — only the public repository URL is used. The check runs in the background on the server at startup and every 12 hours; the result is cached and served to all visitors to display the current version badge."
-      },
-      "email": {
-        "title": "Email Notifications",
-        "body": "If you opt in to email notifications for profile activity, we use the email address on your account to send you a digest when your profile receives views or link clicks. Notifications are only sent while the relevant setting is enabled and are rate-limited to avoid excessive email volume; you can disable them at any time from your settings. Important account or security notices (for example, account recovery) are sent to the email address on your account."
-      },
-      "newsletter": {
-        "title": "Newsletter",
-        "p1": "Public profiles on this instance may offer a newsletter. Subscribing is always an explicit, single opt-in: you voluntarily enter your email address and tick a checkbox agreeing to these Terms and the Privacy Policy. Subscribing never happens silently.",
-        "p2": "When you subscribe we store your email address, the time you subscribed, the time you agreed, the versions of these Terms and the Privacy Policy you agreed to, and whether you have unsubscribed. The IP address and browser user-agent captured to evidence consent are kept only in memory for 24 hours and are never written to the database. Your email address is used solely for the newsletters of the profile you subscribed to and is never shared with third parties.",
-        "p3": "Every newsletter we send identifies {{app}} or the sender, includes a physical postal address (or a link to our website when none is set), and provides a clear, one-click unsubscribe link. Unsubscribe requests are honored immediately and in all cases within 10 business days, as required by the US CAN-SPAM Act and Canada’s Anti-Spam Legislation (CASL). After unsubscribing you will receive no further newsletters and can resubscribe at any time.",
-        "p4": "Newsletter sending is subject to per-profile and per-tier volume limits; a paused or disabled newsletter profile never sends mail, even to existing subscribers.",
-        "selfSmtp": "A profile owner on this instance may send through their own SMTP relay instead of {{app}}’s mail stack. In that case the owner provides the relay host and credentials; the SMTP password is encrypted at rest (AES-256-GCM) and used only to deliver that profile’s newsletter. It is never returned in API responses and is never shared with third parties. Subscriber email addresses are transmitted to that relay solely to deliver the newsletter the subscriber opted into."
-      },
-      "invites": {
-        "title": "Purchased Invites",
-        "paidProviders": "Payment is taken through {{providers}}, whose own privacy policy governs the payment details; we store the purchase amount, currency, status and the payment-gateway transaction reference, but never card or wallet credentials.",
-        "paidFallback": "Payment is taken through the payment provider the instance operator has enabled, whose own privacy policy governs the payment details; we store the purchase amount, currency, status and the payment-gateway transaction reference, but never card or wallet credentials.",
-        "p1": "Invite credits may be purchased on {{app}}. {{paid}}",
-        "p2": "If you buy without an account, you are identified only by the email address you give us so we can deliver your invite codes. That address is stored on the purchase record, is used to fulfil and support the order, and is removed or made irrelevant once the codes are claimed.",
-        "p3": "Each purchase records which invite credits and codes came from it, so the operator can tell purchased credits apart from credits earned through events and roles, revoke what an order still holds if it is refunded, and answer a question about where a given code came from. Codes you have already redeemed, and the accounts created with them, are not revoked.",
-        "resaleRestricted": "Because resale is prohibited on this instance, a purchased code is linked to the order it was paid for. That link exists to enforce the resale rule and to handle refunds and disputes; it is not used for advertising, profiling, or automated decisions.",
-        "resalePermitted": "Reselling invite codes is permitted on this instance, so a code you transfer may be registered by someone else. The account created with that code is that person's account, and the email address on the purchase record remains attached to your order for refunds and support rather than moving to them. We do not require the name or contact details of whoever buys a code, and we do not use code transfers for advertising, profiling, or automated decisions."
-      },
-      "shop": {
-        "title": "Product Shop",
-        "paidProviders": "For a paid product we store the product’s title, description and price, the buyer’s email address, the purchase status and a payment-gateway transaction reference, and we send the buyer to {{providers}}, whose own privacy policy governs the payment.",
-        "freeProduct": "A product listed as free (no price) is delivered immediately on request, and no buyer or payment data is collected for it.",
-        "p1": "Public profiles on this instance may offer digital products for sale. {{paid}} We do not store card or wallet credentials. Download links are signed and time-limited.",
-        "p2": "If you buy without signing in, you are identified only by the email address you provide so the download link can be delivered to you; that address is used solely to fulfil and support the purchase.",
-        "fallbackP1": "Public profiles may offer digital products for sale. To fulfil a purchase we store the product’s title, description and price, the buyer’s email address, the purchase status and a payment-gateway transaction reference, and we send the buyer to the configured payment provider (for example Stripe, PayPal, or a cryptocurrency gateway) whose own privacy policy governs the payment. We do not store card or wallet credentials. Download links are signed and time-limited.",
-        "fallbackP2": "If you buy without signing in, you are identified only by the email address you provide so the download link can be delivered to you; that address is used solely to fulfil and support the purchase."
-      },
-      "tips": {
-        "title": "Tips",
-        "instance": "Public profiles on this instance may offer cryptocurrency tips{{coinText}}. Tipping is always voluntary: you choose the amount and may include an optional name and message that are shown to the profile owner. Wallet addresses are provided by the profile owner and payments are sent {{gateway}}. We do not process or store the coins themselves; the payment provider (where one is involved) and the profile owner receive the applicable payment data.",
-        "coinText": " ({{coins}})",
-        "gatewayBtcpay": "through the cryptocurrency payment gateway configured by the instance operator",
-        "gatewayWallet": "directly to the profile owner’s wallet, without a payment provider acting as intermediary",
-        "owner": "A profile shows a tipping block only when its owner enables tips and publishes a wallet address. The owner may disable tips at any time (which also hides their wallet addresses), and may delete any tip record from their dashboard."
-      }
-    }
-  },
-  "policyText": {
-    "listAnd": " and ",
-    "dateLocale": "en-US",
-    "storage": {
-      "local": "storage attached to this instance's own server",
-      "r2": "Cloudflare R2 object storage",
-      "b2": "Backblaze B2 object storage",
-      "s3": "an S3-compatible object store",
-      "default": "this instance's configured file storage"
-    },
-    "captcha": {
-      "turnstile": "Cloudflare Turnstile",
-      "recaptcha": "Google reCAPTCHA",
-      "hcaptcha": "hCaptcha"
-    },
-    "sso": {
-      "google": "Google",
-      "github": "GitHub",
-      "discord": "Discord"
-    },
-    "payment": {
-      "stripe": "Stripe",
-      "paypal": "PayPal ({{mode}})",
-      "live": "live",
-      "sandbox": "sandbox",
-      "crypto": "cryptocurrency through a self-hosted gateway ({{coins}})"
-    }
-  },
-  "apiDocs": {
-    "metaTitle": "API Documentation",
-    "metaDescription": "Explore the {{app}} public API — endpoints, parameters, and examples.",
-    "heading": "API Reference",
-    "subtitle": "{{app}} REST API — OpenAPI 3.0. Raw spec available at {{specPath}}",
-    "specPath": "/api/openapi.json",
-    "authIntro": "Most endpoints require an {{header}} header. Tokens are returned by {{login}} and {{register}}. Errors use a consistent {{shape}} shape.",
-    "authHeader": "Authorization: Bearer <token>",
-    "loginEndpoint": "POST /api/auth/login",
-    "registerEndpoint": "POST /api/auth/register",
-    "errorShape": "{ success: false, error: string }",
-    "loading": "Loading API spec...",
-    "error": "Could not load API spec",
-    "public": "public",
-    "parameters": "Parameters",
-    "requestBody": "Request body",
-    "requiredList": " — required: {{list}}",
-    "property": "{{name}} ({{type}}{{constraints}})",
-    "propertyConstraints": ": {{constraints}}",
-    "constraintMin": "min {{min}}",
-    "constraintMax": "max {{max}}",
-    "typeDefault": "string",
-    "listSeparator": " · ",
-    "constraintSeparator": ", ",
-    "responseStatus": "{{status}} {{description}}"
-  },
-  "seo": {
-    "titleSuffix": "{{title}} — {{app}}",
-    "ogType": "website",
-    "twitterCard": "summary_large_image",
-    "jsonLdContext": "https://schema.org",
-    "jsonLdSoftwareApplication": "SoftwareApplication",
-    "jsonLdWebSite": "WebSite",
-    "jsonLdApplicationCategory": "WebApplication",
-    "jsonLdOperatingSystem": "Web"
-  },
-  "format": {
-    "locale": "en-US",
-    "currency": "USD",
-    "fileSizeZero": "0 B",
-    "fileSizeUnitB": "B",
-    "fileSizeUnitKB": "KB",
-    "fileSizeUnitMB": "MB",
-    "fileSizeUnitGB": "GB"
-  }
 }
