@@ -6,19 +6,19 @@
         "description": "Compra un crédito de invitación, entonces usa uno de los codigos para registrarte.",
         "close": "Cerrar",
         "deliveringTo": "Enviando a {{email}}. Cámbialo debajo si esa no es la dirección en la que quieres los correos.",
-        "preferBrowse": "Prefer to browse first?",
-        "openFullPage": "Open the full invite page",
-        "button": "Buy an invite",
-        "changeBelow": "Change it below if that is not the address you want the codes at."
+        "preferBrowse": "Prefieres navegar primero?",
+        "openFullPage": "Abrir la página completa de invitaciones",
+        "button": "Comprar una invitación",
+        "changeBelow": "Cámbialo debajo si no es la dirección en la que quieres los códigos."
     },
     "enterGate": {
-        "pressToEnter": "Press to enter",
-        "orPressKey": "or press any key",
-        "pressStart": "Press to enter"
+        "pressToEnter": "Presiona para entrar",
+        "orPressKey": "o presiona cualquier tecla",
+        "pressStart": "Presiona para entrar"
     },
     "invite": {
-        "metaTitle": "Join {{name}}",
-        "metaDescription": "You've been invited to join {{name}}. Create your profile and start sharing your links.",
+        "metaTitle": "Unirte a {{name}}",
+        "metaDescription": "Has sido invitado a unirte a {{name}}. Crea tu perfil y empieza a compartir tus enlaces.",
         "durationPermanent": "permanente",
         "durationFirstYear": "tu primer año",
         "durationDays": "{{days}} días",
