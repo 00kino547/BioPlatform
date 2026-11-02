@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Timer } from "lucide-react";
 
 function diff(target: number, now: number) {
@@ -12,6 +13,7 @@ function diff(target: number, now: number) {
 }
 
 export function CountdownBanner({ label, targetDate, accent }: { label?: string; targetDate: string; accent: string }) {
+  const { t } = useTranslation("common");
   const target = useMemo(() => {
     const parsed = new Date(targetDate);
     return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
@@ -49,13 +51,13 @@ export function CountdownBanner({ label, targetDate, accent }: { label?: string;
         </p>
       )}
       {!target || done ? (
-        <p className="text-sm opacity-80">Done</p>
+          <p className="text-sm opacity-80">{t("countdown.done")}</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
-          {cell(d, "days")}
-          {cell(h, "hrs")}
-          {cell(m, "min")}
-          {cell(sec, "sec")}
+          {cell(d, t("countdown.days"))}
+          {cell(h, t("countdown.hrs"))}
+          {cell(m, t("countdown.min"))}
+          {cell(sec, t("countdown.sec"))}
         </div>
       )}
     </div>

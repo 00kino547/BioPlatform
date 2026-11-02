@@ -21,12 +21,17 @@ interface MockBucket {
   files: Map<string, MockFile>;
 }
 
-function installMockB2(): {
+function installMockB2(opts?: { restricted?: { bucketName: string; bucketId: string } }): {
   buckets: Map<string, MockBucket>;
   restore: () => void;
   seq: () => number;
   revoke: (upTo: number) => void;
 } {
+  // When `restricted` is set, the mock's authorize response carries a Backblaze
+  // `allowed` block (bucket-only application key) and b2_list_buckets is
+  // rejected with "unauthorized", exactly as Backblaze does for keys created
+  // without the listBuckets capability.
+  const restricted = opts?.restricted ?? null;
   const buckets = new Map<string, MockBucket>();
   let tokenCount = 0;
   let fileSeq = 0;
@@ -78,6 +83,7 @@ function installMockB2(): {
         authorizationToken: `token-${tokenCount}`,
         apiUrl: "http://mock-b2/api",
         downloadUrl: "http://mock-b2/download",
+        ...(restricted ? { allowed: { bucketId: restricted.bucketId, bucketName: restricted.bucketName, capabilities: ["writeFiles", "listFiles"] } } : {}),
       });
     }
 
@@ -105,6 +111,10 @@ function installMockB2(): {
     }
 
     if (u.pathname.endsWith("/b2_list_buckets")) {
+      if (restricted) {
+        // Bucket-restricted keys lack the listBuckets capability.
+        return json(401, { code: "unauthorized", message: "", status: 401 });
+      }
       const rows = [...buckets.values()].map((b) => ({ bucketId: b.bucketId, bucketName: b.bucketName }));
       return json(200, { buckets: rows });
     }
@@ -231,22 +241,28 @@ afterEach(() => {
   }
 });
 
-function provider(config?: Partial<ConstructorParameters<typeof B2StorageProvider>[0]>): StorageProvider {
-  const mock = installMockB2();
+function provider(config?: Partial<ConstructorParameters<typeof B2StorageProvider>[0]>, mockOpts?: Parameters<typeof installMockB2>[0]): {
+  p: StorageProvider;
+  mock: ReturnType<typeof installMockB2>;
+} {
+  const mock = installMockB2(mockOpts);
   mocks.push(mock.restore);
-  return createB2StorageProvider({
-    kind: "b2",
-    applicationKeyId: "key-id",
-    applicationKey: "app-key",
-    bucket: "my-bucket",
-    prefix: undefined,
-    ...config,
-  });
+  return {
+    p: createB2StorageProvider({
+      kind: "b2",
+      applicationKeyId: "key-id",
+      applicationKey: "app-key",
+      bucket: "my-bucket",
+      prefix: undefined,
+      ...config,
+    }),
+    mock,
+  };
 }
 
 describe("B2StorageProvider", () => {
   test("writeObject + readObject round-trip returns exact bytes", async () => {
-    const p = provider();
+    const p = provider().p;
     const payload = Buffer.from("hello b2 native storage");
     await p.writeObject("file.txt", payload, { contentType: "text/plain" });
     const read = await p.readObject("file.txt");
@@ -256,7 +272,7 @@ describe("B2StorageProvider", () => {
   });
 
   test("objectExists/statObject reflect written objects and ignore missing ones", async () => {
-    const p = provider();
+    const p = provider().p;
     assert.equal(await p.objectExists("a.txt"), false);
     await p.writeObject("a.txt", Buffer.from("aaa"));
     assert.equal(await p.objectExists("a.txt"), true);
@@ -269,7 +285,7 @@ describe("B2StorageProvider", () => {
   });
 
   test("listObjects enumerates written files", async () => {
-    const p = provider();
+    const p = provider().p;
     await p.writeObject("x.png", Buffer.from([0x89, 0x50]));
     await p.writeObject("y.png", Buffer.from([0x89, 0x51]));
     const list = await p.listObjects();
@@ -278,7 +294,7 @@ describe("B2StorageProvider", () => {
   });
 
   test("deleteObject removes the object", async () => {
-    const p = provider();
+    const p = provider().p;
     await p.writeObject("tmp.jpg", Buffer.from("jpeg"));
     assert.equal(await p.objectExists("tmp.jpg"), true);
     await p.deleteObject("tmp.jpg");
@@ -328,7 +344,7 @@ describe("B2StorageProvider", () => {
   });
 
   test("bucket is auto-created when missing", async () => {
-    const p = provider();
+    const p = provider().p;
     await p.writeObject("first.bin", Buffer.from("data"));
     assert.equal(await p.objectExists("first.bin"), true);
   });
@@ -369,5 +385,53 @@ describe("B2StorageProvider", () => {
       bucket: "b",
     });
     await assert.rejects(() => p.writeObject("x.bin", Buffer.from("x")), /B2_APPLICATION_KEY_ID/);
+  });
+
+  test("restricted bucket key (no listBuckets) resolves the bucket from authorize and still writes/reads", async () => {
+    // Backblaze bucket-only keys reject b2_list_buckets with 401 unauthorized;
+    // the bucket identity instead comes from the authorize response `allowed`
+    // block. Before the fix, uploads died in lookupBucket before reaching
+    // b2_get_upload_url (observed on prod with the owner's new restricted key).
+    const restricted = { bucketName: "my-bucket", bucketId: "bucket-restricted" };
+    const { p, mock } = provider(undefined, { restricted });
+    // Pre-register the restricted bucket in the mock storage so downloads and
+    // listings resolve against it.
+    mock.buckets.set(restricted.bucketId, {
+      bucketName: restricted.bucketName,
+      bucketId: restricted.bucketId,
+      files: new Map(),
+    });
+
+    const payload = Buffer.from("written under a restricted key");
+    await p.writeObject("restr.txt", payload, { contentType: "text/plain" });
+    assert.deepEqual(await p.readObject("restr.txt"), payload);
+    assert.equal(await p.objectExists("restr.txt"), true);
+    const listed = await p.listObjects();
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].name, "restr.txt");
+    await p.deleteObject("restr.txt");
+    assert.equal(await p.objectExists("restr.txt"), false);
+  });
+
+  test("restricted key for a different bucket fails fast with the key's bucket named", async () => {
+    const restricted = { bucketName: "someone-elses-bucket", bucketId: "bucket-other" };
+    const { p } = provider(undefined, { restricted });
+    await assert.rejects(
+      () => p.writeObject("x.bin", Buffer.from("x")),
+      /restricted to bucket "someone-elses-bucket"/
+    );
+  });
+
+  test("preknown B2_BUCKET_ID skips b2_list_buckets even with a listBuckets-less key", async () => {
+    const restricted = { bucketName: "my-bucket", bucketId: "bucket-preknown" };
+    const { p, mock } = provider({ bucketId: restricted.bucketId }, { restricted });
+    mock.buckets.set(restricted.bucketId, {
+      bucketName: restricted.bucketName,
+      bucketId: restricted.bucketId,
+      files: new Map(),
+    });
+    const payload = Buffer.from("bucket id was already known");
+    await p.writeObject("known.bin", payload, { contentType: "text/plain" });
+    assert.deepEqual(await p.readObject("known.bin"), payload);
   });
 });

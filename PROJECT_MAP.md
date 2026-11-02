@@ -77,7 +77,7 @@ apps/backend/src/
     ├── webhook.ts        # Webhook CRUD (list, create, patch, rotate-secret, test, deliveries, delete) — create/update/rotate/delete gated by update lockdown
     ├── version.ts        # Public GET /api/version (installed/latest/severity, ?force=1 bypasses cache)
     ├── config.ts         # Public GET /api/config — the config.yml `public` section (landing/policy/operational/ads/i18n)
-    ├── i18n.ts           # i18n STRUCTURE ONLY: GET /api/i18n/config + /api/i18n/locales answer 503 `i18n_not_implemented` until wired
+    ├── i18n.ts           # Public GET /api/i18n/config + /api/i18n/locales — serve config.yml `public.i18n` (enabled/defaultLocale/fallbackLocale/locales)
     ├── domain.ts         # Custom domains: public GET /api/domain (host/active/root), user self-serve request/verify/root/remove
     └── discord.ts        # Discord: status, OAuth connect/callback, disconnect, settings, post-to-webhook, session restore on boot — ?profileId scoped
 apps/backend/prisma/
@@ -106,8 +106,12 @@ apps/frontend/src/
 ├── index.css             # TailwindCSS + animations + scroll-reveal
 ├── config/branding.ts    # Branding env vars (VITE_*)
     ├── config/env.ts           # Env accessor: window.__APP_CONFIG__ (runtime, injected by the container) over import.meta.env (build time)
-    ├── i18n/index.ts           # i18n STRUCTURE ONLY: locale constants + resolveLocale + initI18n placeholder — NOT wired, no i18next dep yet
-    ├── locales/en/             # English translation namespace files (common/auth/landing/profile/invite/dashboard/admin/legal/shared)
+    ├── i18n/index.ts           # i18next runtime: static en/es resources, initI18n (stored pref → Accept-Language → default), resolveLocale, <html lang/dir>, missing-key + notice-dismissal helpers
+    ├── i18n/useI18n.ts         # React binding: { locale, locales, enabled, setLocale }
+    ├── i18n/I18nConfigGate.tsx # Applies config.yml public.i18n to the runtime once /api/config resolves
+    ├── i18n/LanguageSwitcher.tsx # Globe + <select> (landing footer + dashboard header)
+    ├── i18n/UntranslatedNotice.tsx # Dismissible "partially translated" banner (missing keys vs fallback)
+    ├── locales/en/             # English translation namespace files (common/auth/landing/profile/invite/dashboard/admin/legal/shared) — source of truth
     ├── locales/es/             # Spanish translation namespace files — byte-identical English placeholders until community translation
 ├── contexts/
 │   ├── AuthContext.tsx    # Auth state (login, register, logout)
@@ -116,7 +120,8 @@ apps/frontend/src/
 │   ├── api.ts            # API client (auth incl. passkeys/TOTP/2FA, multi-profile CRUD + aliases + badges + badge order, upload, export/import, analytics, email, music, tips, shop, webhooks, discord, custom domains, version check) — profile-scoped calls take profileId
 │   ├── seo.ts            # usePageMeta + JSON-LD (optional baseUrl for custom domains)
 │   ├── media.ts          # Frontend media helpers (image URL construction, CDN utils)
-│   ├── format.ts         # formatPrice (Intl currency) + fileSize helpers
+│   ├── format.ts         # formatPrice (Intl currency) + fileSize helpers — locale-aware
+│   ├── intl.ts           # Active-locale date/number/currency formatters (formatDate/DateTime/Time/Number/Currency) used across dashboard + admin
 │   ├── useVersionCheck.ts # Update-check hook: module-level cache + in-flight dedupe, useVersionCheck + useUpdateLockdown (locked = security/critical)
 │   ├── emailHint.ts      # emailHint() — shared "is this usable as a delivery address" check
 │   ├── usePolicyContext.ts # Fetches /api/policy/context once for landing/legal surfaces

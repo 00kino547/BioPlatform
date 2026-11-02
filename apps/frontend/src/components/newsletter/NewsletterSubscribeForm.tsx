@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { CheckCircle2, Send } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -11,6 +12,8 @@ interface NewsletterSubscribeFormProps {
 }
 
 export function NewsletterSubscribeForm({ profileId, heading, accent, textColor, mutedColor }: NewsletterSubscribeFormProps) {
+  // All copy on this form lives in the "profile" namespace under "newsletter".
+  const { t } = useTranslation("profile");
   const [email, setEmail] = useState("");
   const [agree, setAgree] = useState(false);
   const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
@@ -26,14 +29,14 @@ export function NewsletterSubscribeForm({ profileId, heading, accent, textColor,
       const res = await api.subscribeNewsletter(profileId, email.trim());
       if (res.success) {
         setStatus("done");
-        setMessage("You're subscribed. Thanks for joining!");
+        setMessage(t("newsletter.subscribed"));
       } else {
         setStatus("error");
-        setMessage(res.error ?? "Something went wrong. Please try again.");
+        setMessage(res.error ?? t("newsletter.genericError"));
       }
     } catch {
       setStatus("error");
-      setMessage("Something went wrong. Please try again.");
+      setMessage(t("newsletter.genericError"));
     }
   };
 
@@ -43,7 +46,7 @@ export function NewsletterSubscribeForm({ profileId, heading, accent, textColor,
       style={{ backgroundColor: `${accent}0a`, border: `1px solid ${accent}22` }}
     >
       <p className="text-sm font-semibold" style={{ color: textColor }}>
-        {heading?.trim() || "Join the newsletter"}
+        {heading?.trim() || t("newsletter.defaultHeading")}
       </p>
       {status === "done" ? (
         <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: "#22c55e" }}>
@@ -58,7 +61,7 @@ export function NewsletterSubscribeForm({ profileId, heading, accent, textColor,
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t("newsletter.emailPlaceholder")}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm outline-none transition-colors focus:border-violet-500"
               style={{ color: textColor }}
             />
@@ -70,15 +73,18 @@ export function NewsletterSubscribeForm({ profileId, heading, accent, textColor,
                 className="mt-0.5 accent-violet-500"
               />
               <span>
-                I agree to the{" "}
-                <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity" style={{ color: accent }}>
-                  Terms of Service
-                </a>{" "}
-                and{" "}
-                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity" style={{ color: accent }}>
-                  Privacy Policy
-                </a>{" "}
-                and consent to receiving this newsletter. You can unsubscribe at any time in one click.
+                <Trans
+                  ns="profile"
+                  i18nKey="newsletter.consent"
+                  components={{
+                    terms: (
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity" style={{ color: accent }} />
+                    ),
+                    privacy: (
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity" style={{ color: accent }} />
+                    ),
+                  }}
+                />
               </span>
             </label>
             <button
@@ -88,7 +94,7 @@ export function NewsletterSubscribeForm({ profileId, heading, accent, textColor,
               style={{ backgroundColor: accent, color: textColor === "#fff" ? "#18181b" : "#fff" }}
             >
               <Send className="h-4 w-4" />
-              Subscribe
+              {t("newsletter.subscribe")}
             </button>
             {status === "error" && <p className="text-xs" style={{ color: "#ef4444" }}>{message}</p>}
           </form>

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { branding } from "@/config/branding";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { PolicySection } from "@/components/legal/policyText";
@@ -15,6 +16,7 @@ export function PolicyShell({
   /** Conditionally rendered subsections of section 5, numbered from 5.1. */
   subsections: PolicySection[];
 }) {
+  const { t } = useTranslation("legal");
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-zinc-800/80 bg-zinc-900/30">
@@ -23,20 +25,20 @@ export function PolicyShell({
             {branding.name}
           </Link>
           <Link to="/" className="text-sm text-zinc-400 hover:text-white transition-colors">
-            Back to home
+            {t("policyShell.backToHome")}
           </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
         <h1 className="text-3xl font-bold text-white mb-2">{title}</h1>
-        <p className="text-sm text-zinc-500 mb-8">Last updated: {versionDate}</p>
+        <p className="text-sm text-zinc-500 mb-8">{t("policyShell.lastUpdated", { date: versionDate })}</p>
 
         <div className="prose prose-invert prose-zinc max-w-none space-y-8 text-sm leading-relaxed">
           {sections.map((section, index) => (
             <section key={section.id}>
               <h2 className="text-xl font-semibold text-white mb-3">
-                {index + 1}. {section.title}
+                {t("policyShell.sectionHeading", { number: index + 1, title: section.title })}
               </h2>
               {section.node ?? section.paragraphs.map((text, i) => (
                 <p key={i} className={i === 0 ? "text-zinc-400" : "text-zinc-400 mt-2"}>
@@ -49,7 +51,7 @@ export function PolicyShell({
                   {subsections.map((sub, subIndex) => (
                     <section key={sub.id}>
                       <h2 className="text-xl font-semibold text-white mb-3">
-                        5.{subIndex + 1}. {sub.title}
+                        {t("policyShell.subsectionHeading", { number: subIndex + 1, title: sub.title })}
                       </h2>
                       {sub.node ?? sub.paragraphs.map((text, i) => (
                         <p key={i} className={i === 0 ? "text-zinc-400" : "text-zinc-400 mt-2"}>

@@ -90,6 +90,10 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+const sensitiveActionSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+});
+
 const registrationResponseSchema = z.object({
   id: z.string().min(1),
   rawId: z.string().min(1),
@@ -831,10 +835,16 @@ router.post("/passkeys/register", requireAuth, requireNoUpdateLockdown, async (r
       response: registrationResponseSchema,
       name: z.string().trim().min(1).max(64).default("Passkey"),
       residentKey: z.enum(["resident", "nonResident"]).default("nonResident"),
+      currentPassword: sensitiveActionSchema.shape.currentPassword,
     })
     .safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId! }, select: { passwordHash: true } });
+  if (!user || !(await bcrypt.compare(parsed.data.currentPassword, user.passwordHash))) {
+    return res.status(401).json({ success: false, error: "Current password is incorrect" });
   }
 
   const result = await verifyRegister(req.userId!, parsed.data.response as never, requestHost(req));
@@ -908,9 +918,17 @@ router.delete("/passkeys/:id", requireAuth, requireNoUpdateLockdown, async (req,
 });
 
 router.post("/totp/setup", requireAuth, requireNoUpdateLockdown, async (req, res) => {
+  const parsed = sensitiveActionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+  }
+
   const user = await prisma.user.findUnique({ where: { id: req.userId! } });
   if (!user) {
     return res.status(404).json({ success: false, error: "User not found" });
+  }
+  if (!(await bcrypt.compare(parsed.data.currentPassword, user.passwordHash))) {
+    return res.status(401).json({ success: false, error: "Current password is incorrect" });
   }
 
   const { secret, otpauthUrl } = generateTotpSecret(user.username, getEnv().WEBAUTHN_RP_NAME);

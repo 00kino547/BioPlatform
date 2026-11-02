@@ -277,6 +277,7 @@ container ports stay fixed (`5432` / `6379` / `3000`), so `DATABASE_URL` and
 | `B2_APPLICATION_KEY_ID` | Backblaze B2 application key ID | _(empty)_ |
 | `B2_APPLICATION_KEY` | Backblaze B2 application key secret | _(empty)_ |
 | `B2_BUCKET` | B2 bucket name. Auto-created on first upload if missing | _(empty → required for `b2`)_ |
+| `B2_BUCKET_ID` | Optional pre-known Bucket ID (Backblaze dashboard → Bucket ID). Skips `b2_list_buckets`, which application keys without the `listBuckets` capability cannot call | _(empty)_ |
 | `B2_PREFIX` | Optional key prefix inside the bucket (e.g. `bio/uploads`) | _(empty)_ |
 | `B2_API_URL` | Backblaze B2 API base URL (only override for custom/regional endpoints) | `https://api.backblazeb2.com` |
 | `STORAGE_COMPRESS_ENABLED` | gzip (level 9) cloud uploads at rest (files ≥ 1 KB); local disk stays raw. Read side detects gzip by magic bytes, so toggling is non-destructive | `true` |

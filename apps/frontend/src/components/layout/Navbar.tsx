@@ -1,19 +1,24 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Menu, X, LayoutDashboard } from "lucide-react";
 import { Container } from "@/components/layout/Container";
 import { cn } from "@/lib/utils";
 import { branding } from "@/config/branding";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
+import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
 
+// Only ids + anchors live in code; the labels resolve from common.nav.<id> so the
+// same navbar works on the landing page, the API docs and the invite pages.
 const navLinks = [
-  { label: "Features", href: "#features" },
-  { label: "Showcase", href: "#showcase" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "FAQ", href: "#faq" },
+  { id: "features", href: "#features" },
+  { id: "showcase", href: "#showcase" },
+  { id: "pricing", href: "#pricing" },
+  { id: "faq", href: "#faq" },
 ];
 
 export function Navbar() {
+  const { t } = useTranslation("common");
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -48,29 +53,30 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-0.5">
             {navLinks.map((link) => (
               <a
-                key={link.label}
+                key={link.id}
                 href={link.href}
                 className="px-3.5 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
               >
-                {link.label}
+                {t(`nav.${link.id}`)}
               </a>
             ))}
             <Link
               to="/api-docs"
               className="px-3.5 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
             >
-              API Docs
+              {t("nav.apiDocs")}
             </Link>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <LanguageSwitcher className="mr-1" />
             {user ? (
               <Link
                 to="/dashboard"
                 className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
               >
                 <LayoutDashboard className="h-3.5 w-3.5" />
-                Dashboard
+                {t("nav.dashboard")}
               </Link>
             ) : (
               <>
@@ -78,13 +84,13 @@ export function Navbar() {
                   to="/login"
                   className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
                 >
-                  Sign In
+                  {t("nav.signIn")}
                 </Link>
                 <Link
                   to="/register"
                   className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all"
                 >
-                  Get Started
+                  {t("nav.getStarted")}
                 </Link>
               </>
             )}
@@ -93,7 +99,7 @@ export function Navbar() {
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="md:hidden relative z-10 p-2 -mr-2 text-zinc-400 hover:text-white transition-colors"
-            aria-label="Toggle menu"
+            aria-label={t("nav.toggleMenu")}
           >
             {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -113,12 +119,12 @@ export function Navbar() {
             <div className="py-4 flex flex-col gap-1">
               {navLinks.map((link) => (
                 <a
-                  key={link.label}
+                  key={link.id}
                   href={link.href}
                   onClick={() => setIsOpen(false)}
                   className="px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
                 >
-                  {link.label}
+                  {t(`nav.${link.id}`)}
                 </a>
               ))}
               <Link
@@ -126,9 +132,10 @@ export function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className="px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
               >
-                API Docs
+                {t("nav.apiDocs")}
               </Link>
               <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-col gap-2">
+                <LanguageSwitcher className="px-1 pb-1" />
                 {user ? (
                   <Link
                     to="/dashboard"
@@ -136,7 +143,7 @@ export function Navbar() {
                     className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 transition-all"
                   >
                     <LayoutDashboard className="h-3.5 w-3.5" />
-                    Dashboard
+                    {t("nav.dashboard")}
                   </Link>
                 ) : (
                   <>
@@ -145,14 +152,14 @@ export function Navbar() {
                       onClick={() => setIsOpen(false)}
                       className="inline-flex items-center justify-center gap-2 h-8 px-3 text-xs rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
                     >
-                      Sign In
+                      {t("nav.signIn")}
                     </Link>
                     <Link
                       to="/register"
                       onClick={() => setIsOpen(false)}
                       className="inline-flex items-center justify-center gap-2 h-8 w-full px-3 text-xs rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 transition-all"
                     >
-                      Get Started
+                      {t("nav.getStarted")}
                     </Link>
                   </>
                 )}

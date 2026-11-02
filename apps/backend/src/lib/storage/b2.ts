@@ -9,8 +9,20 @@ export interface B2StorageConfig {
   applicationKeyId: string;
   applicationKey: string;
   bucket: string;
+  // Optional pre-known Bucket ID. Backblaze application keys created without
+  // the listBuckets capability cannot call b2_list_buckets, so when the
+  // operator knows the bucket's ID (Backblaze dashboard → bucket → Bucket ID)
+  // it can be supplied here and the provider resolves the bucket without
+  // listing.
+  bucketId?: string;
   prefix?: string;
   apiUrl?: string;
+}
+
+interface B2Allowed {
+  bucketId?: string | null;
+  bucketName?: string | null;
+  capabilities?: string[];
 }
 
 interface B2Auth {
@@ -18,6 +30,9 @@ interface B2Auth {
   authorizationToken: string;
   apiUrl: string;
   downloadUrl: string;
+  // Backblaze includes this block for RESTRICTED application keys (e.g. a
+  // bucket-only key). It names the single bucket the key may act on.
+  allowed?: B2Allowed;
 }
 
 interface B2Bucket {
@@ -73,6 +88,7 @@ export class B2StorageProvider implements StorageProvider {
   private readonly keyId: string;
   private readonly applicationKey: string;
   private readonly bucketName: string;
+  private readonly initialBucketId: string | null;
   private readonly prefix: string;
   private readonly apiUrl: string;
 
@@ -85,6 +101,10 @@ export class B2StorageProvider implements StorageProvider {
     this.keyId = config.applicationKeyId?.trim() ?? "";
     this.applicationKey = config.applicationKey?.trim() ?? "";
     this.bucketName = config.bucket?.trim() ?? "";
+    // A pre-configured Bucket ID short-circuits b2_list_buckets, which is
+    // rejected for application keys without the listBuckets capability.
+    this.initialBucketId = config.bucketId?.trim() ? config.bucketId.trim() : null;
+    this.bucketId = this.initialBucketId;
     this.prefix = (config.prefix ?? "").replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
     this.apiUrl = (config.apiUrl ?? "https://api.backblazeb2.com").replace(/\/+$/, "");
   }
@@ -131,6 +151,7 @@ export class B2StorageProvider implements StorageProvider {
       authorizationToken?: string;
       apiUrl?: string;
       downloadUrl?: string;
+      allowed?: B2Allowed;
       apiInfo?: { storageApi?: { apiUrl?: string; downloadUrl?: string } };
     };
     const apiUrl = data.apiInfo?.storageApi?.apiUrl ?? data.apiUrl;
@@ -143,6 +164,10 @@ export class B2StorageProvider implements StorageProvider {
       authorizationToken: data.authorizationToken,
       apiUrl: apiUrl.replace(/\/+$/, ""),
       downloadUrl: downloadUrl.replace(/\/+$/, ""),
+      // Bucket-restricted application keys carry their single allowed bucket
+      // here; `lookupBucket` prefers it over b2_list_buckets (which such keys
+      // are not even allowed to call).
+      allowed: data.allowed,
     };
     // Track when the token was issued so `getAuth` can proactively refresh
     // before Backblaze's hard auth-token expiry.
@@ -220,6 +245,22 @@ export class B2StorageProvider implements StorageProvider {
   private async lookupBucket(): Promise<string | null> {
     if (!this.bucketName) {
       throw new Error('Storage provider "b2" requires B2_BUCKET');
+    }
+    // Restricted (bucket-only) application keys are created WITHOUT the
+    // listBuckets capability, so `b2_list_buckets` is rejected with
+    // "unauthorized" even though the key authorizes fine. For those keys the
+    // authorize response itself names the allowed bucket — preferring it lets
+    // reads AND writes work with a listBuckets-less key.
+    const auth = await this.getAuth();
+    if (auth.allowed?.bucketId) {
+      const allowedName = auth.allowed.bucketName ?? null;
+      if (allowedName && allowedName !== this.bucketName) {
+        throw new Error(
+          `B2 application key is restricted to bucket "${allowedName}" but B2_BUCKET is "${this.bucketName}"`
+        );
+      }
+      this.bucketId = auth.allowed.bucketId;
+      return auth.allowed.bucketId;
     }
     const list = await this.apiCall<{ buckets?: B2Bucket[] }>("b2_list_buckets", {
       accountId: (await this.getAuth()).accountId,
@@ -368,6 +409,7 @@ export function b2ConfigFromEnv(): B2StorageConfig {
     applicationKeyId: env.B2_APPLICATION_KEY_ID,
     applicationKey: env.B2_APPLICATION_KEY,
     bucket: env.B2_BUCKET,
+    bucketId: env.B2_BUCKET_ID || undefined,
     prefix: env.B2_PREFIX,
     apiUrl: env.B2_API_URL,
   };

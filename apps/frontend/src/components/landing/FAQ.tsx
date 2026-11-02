@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
@@ -7,45 +8,32 @@ import { branding } from "@/config/branding";
 import { BuyInviteModal } from "@/components/invites/BuyInviteModal";
 import { usePolicyContext } from "@/lib/usePolicyContext";
 
-/**
- * Built per render because one answer depends on whether invites are for sale.
- * Hardcoding the manual-only wording once the store is live would be a false
- * claim about how to get an account.
- */
-/** Matches the invite-system entry, whose answer changes with the store. */
-const INVITE_QUESTION = "How does the invite system work?";
+/** Stable id for the invite-system entry, whose answer changes with the store. */
+const INVITE_ITEM_ID = "q2";
 
-function buildFaqs(storeOpen: boolean) {
+/**
+ * Items are keyed by id (not the translated question) so translation can never
+ * break the "is this the invite question?" check below. `name` interpolates the
+ * branding name into the copy.
+ */
+function useFaqItems(storeOpen: boolean) {
+  const { t } = useTranslation("landing");
   return [
-  {
-    question: `What is ${branding.name}?`,
-    answer: `${branding.name} is a modern link-in-bio platform that lets you create a stunning profile page. Showcase your links, music, and social profiles in one beautifully designed page. It's built for creators, developers, and anyone who wants a polished digital presence.`,
-  },
-  {
-    question: "Is it self-hostable?",
-    answer: `Yes. ${branding.name} is fully open source and can be self-hosted on any Linux server with Docker. Our Docker Compose setup gets you running in minutes. You get full control over your data, storage, and deployment.`,
-  },
-  {
-    question: INVITE_QUESTION,
-    // Stated from the live policy context rather than hardcoded: with the paid
-    // store open, claiming the only route in is a handpicked invitation would be
-    // false, and it would hide the way to actually buy one.
-    answer: storeOpen
-      ? `${branding.name} is an invite-only platform. Accounts cannot be created freely. You can join by receiving a handpicked invitation from our staff, by being requested by an existing member and then manually approved, or by buying an invite yourself — a purchase gives you a code to register with straight away, and a bulk purchase puts any remaining codes on your new account.`
-      : `${branding.name} is an invite-only platform. Accounts cannot be created freely. You can join by either receiving a handpicked invitation from our staff, or by being requested by an existing member and then manually approved before an invite is issued. This exclusivity ensures a high-quality community and prevents spam and abuse.`,
-  },
-  {
-    question: "Can I use a custom domain?",
-    answer: "Premium users can connect a custom domain to their profile page. We provide step-by-step instructions for DNS configuration, and SSL certificates are automatically provisioned via Let's Encrypt.",
-  },
-  {
-    question: "What storage options are available?",
-    answer: `${branding.name} supports local storage out of the box, with Cloudflare R2, Backblaze B2, and S3-compatible storage available as upgrade options. Choose the provider that fits your needs and budget.`,
-  },
-  {
-    question: "Is my data secure?",
-    answer: "Yes. We use industry-standard encryption for all data at rest and in transit. Passwords are hashed with bcrypt, JWT tokens are used for authentication, and all file uploads are validated and sanitized.",
-  },
+    { id: "q0", question: t("faq.items.q0", { name: branding.name }), answer: t("faq.items.a0", { name: branding.name }) },
+    { id: "q1", question: t("faq.items.q1"), answer: t("faq.items.a1", { name: branding.name }) },
+    {
+      id: INVITE_ITEM_ID,
+      question: t("faq.items.q2"),
+      // Stated from the live policy context rather than hardcoded: with the paid
+      // store open, claiming the only route in is a handpicked invitation would be
+      // false, and it would hide the way to actually buy one.
+      answer: storeOpen
+        ? t("faq.items.a2StoreOpen", { name: branding.name })
+        : t("faq.items.a2Default", { name: branding.name }),
+    },
+    { id: "q3", question: t("faq.items.q3"), answer: t("faq.items.a3") },
+    { id: "q4", question: t("faq.items.q4"), answer: t("faq.items.a4", { name: branding.name }) },
+    { id: "q5", question: t("faq.items.q5"), answer: t("faq.items.a5") },
   ];
 }
 
@@ -85,9 +73,10 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
 }
 
 export function FAQ() {
+  const { t } = useTranslation("landing");
   const ctx = usePolicyContext();
   const storeOpen = ctx?.invites?.purchaseEnabled === true;
-  const faqs = buildFaqs(storeOpen);
+  const faqs = useFaqItems(storeOpen);
 
   return (
     <section id="faq" className="py-24 sm:py-32 relative">
@@ -95,13 +84,13 @@ export function FAQ() {
         <ScrollReveal>
           <div className="text-center mb-14">
             <p className="text-sm font-semibold uppercase tracking-widest text-violet-400 mb-4">
-              FAQ
+              {t("faq.eyebrow")}
             </p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
-              Frequently asked questions.
+              {t("faq.heading")}
             </h2>
             <p className="mt-5 text-lg text-zinc-400">
-              Everything you need to know about {branding.name}.
+              {t("faq.subtitle", { name: branding.name })}
             </p>
           </div>
         </ScrollReveal>
@@ -109,13 +98,13 @@ export function FAQ() {
         <ScrollReveal delay={100}>
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 divide-y divide-zinc-800/60">
             {faqs.map((faq) => (
-              <div key={faq.question} className="px-6 first:pt-1">
-                <FAQItem {...faq} />
+              <div key={faq.id} className="px-6 first:pt-1">
+                <FAQItem question={faq.question} answer={faq.answer} />
                 {/*
                   An answer that tells people they can buy an invite needs the way
                   to do it on the same screen, not just a link they have to guess at.
                 */}
-                {storeOpen && faq.question === INVITE_QUESTION ? (
+                {storeOpen && faq.id === INVITE_ITEM_ID ? (
                   <div className="pb-5">
                     <BuyInviteModal />
                   </div>

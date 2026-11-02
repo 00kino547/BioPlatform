@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { ShoppingBag, X } from "lucide-react";
 import { InviteCreditStore } from "@/components/settings/InviteCreditStore";
@@ -22,7 +23,7 @@ export function BuyInviteModal({
   /** Seeds the guest email field, typically the address already typed on the page. */
   email,
   /** Trigger label. */
-  label = "Buy an invite",
+  label,
   /** Called after a purchase so the host page can point at the order. */
   onPurchased,
   className = "",
@@ -32,7 +33,9 @@ export function BuyInviteModal({
   onPurchased?: (order: InvitePurchaseSummary) => void;
   className?: string;
 }) {
+  const { t } = useTranslation("invite");
   const [open, setOpen] = useState(false);
+  const modalLabel = label ?? t("buyInviteModal.button");
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const ctx = usePolicyContext();
@@ -135,21 +138,21 @@ export function BuyInviteModal({
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
-                aria-label="Buy an invite"
+                aria-label={modalLabel}
                 tabIndex={-1}
                 className="my-4 w-full max-w-3xl rounded-2xl border border-zinc-700 bg-zinc-950/95 p-5 shadow-2xl outline-none sm:p-6"
               >
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-semibold text-white">Get an invite</h2>
+                    <h2 className="text-lg font-semibold text-white">{t("buyInviteModal.heading")}</h2>
                     <p className="mt-1 text-sm text-zinc-400">
-                      Buy an invite credit, then use one of the codes to register.
+                      {t("buyInviteModal.description")}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={close}
-                    aria-label="Close"
+                    aria-label={t("buyInviteModal.close")}
                     className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
                   >
                     <X className="h-5 w-5" aria-hidden />
@@ -158,8 +161,7 @@ export function BuyInviteModal({
 
                 {email ? (
                   <p className="mb-4 text-xs text-zinc-500">
-                    Delivering to <span className="text-zinc-300">{email}</span>. Change it below if that
-                    is not the address you want the codes at.
+                    {t("buyInviteModal.deliveringTo")} <span className="text-zinc-300">{email}</span>. {t("buyInviteModal.changeBelow")}
                   </p>
                 ) : null}
 
@@ -172,9 +174,9 @@ export function BuyInviteModal({
                 />
 
                 <p className="mt-4 text-center text-xs text-zinc-500">
-                  Prefer to browse first?{" "}
+                  {t("buyInviteModal.preferBrowse")}{" "}
                   <a href="/invites" className="text-violet-400 transition-colors hover:text-violet-300">
-                    Open the full invite page
+                    {t("buyInviteModal.openFullPage")}
                   </a>
                   .
                 </p>

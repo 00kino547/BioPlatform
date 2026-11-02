@@ -1,39 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, setToken, getToken, type AuthUser, type TwoFactorRequired } from "@/lib/api";
-
-interface PasskeyLoginResult {
-  error?: string;
-  twoFactor?: TwoFactorRequired;
-}
-
-interface AuthContextValue {
-  user: AuthUser | null;
-  loading: boolean;
-  setAuth: (token: string, u: AuthUser) => Promise<void>;
-  loginWithPasskey: (identifier: string) => Promise<PasskeyLoginResult>;
-  loginWithPasskeyDiscoverable: () => Promise<PasskeyLoginResult>;
-  login: (identifier: string, password: string, captchaToken?: string) => Promise<{
-    error?: string;
-    twoFactor?: TwoFactorRequired;
-    unlockRequired?: boolean;
-    verifyEmailRequired?: boolean;
-  }>;
-  verifyTotp: (token: string, code: string) => Promise<string | null>;
-  verifyTwoFactorPasskey: (token: string) => Promise<string | null>;
-  register: (data: {
-    username: string;
-    email: string;
-    password: string;
-    inviteCode: string;
-    captchaToken?: string;
-    acceptedPolicies: boolean;
-    newsletterOptIn?: boolean;
-  }) => Promise<{ error?: string; fieldErrors?: Record<string, string>; needsVerification?: boolean; emailSent?: boolean; warning?: string }>;
-  refreshUser: () => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { api, setToken, getToken, type AuthUser } from "@/lib/api";
+import { authContext } from "./authContext";
+import type { PasskeyLoginResult } from "./authContext";
+// Shared i18next instance — AuthContext is a plain context (no hooks), so the
+// fallback error strings below are translated imperatively at throw time via
+// `i18n.t("auth:...")` with an explicit namespace prefix.
+import i18n from "@/i18n";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -84,11 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (identifier: string, password: string, captchaToken?: string) => {
     const res = await api.login({ identifier, password, captchaToken });
     if (!res.success || !res.data) {
-      if (res.unlockRequired) return { error: res.error ?? "Account locked", unlockRequired: true };
+      if (res.unlockRequired) return { error: res.error ?? i18n.t("auth:login.accountLocked"), unlockRequired: true };
       // A3b — the password was correct but the account's email is unverified:
       // the gate is not a failed attempt and must not read as one.
       if (res.verifyEmailRequired) return { error: res.error ?? "Please verify your email before signing in.", verifyEmailRequired: true };
-      return { error: res.error ?? "Login failed" };
+      return { error: res.error ?? i18n.t("auth:login.loginFailed") };
     }
 
     if (!("requiresTwoFactor" in res.data)) {
@@ -101,20 +73,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithPasskey = async (identifier: string): Promise<PasskeyLoginResult> => {
     const optionsRes = await api.loginPasskeyOptions(identifier);
-    if (!optionsRes.success || !optionsRes.data) return { error: optionsRes.error ?? "Could not start passkey login" };
+    if (!optionsRes.success || !optionsRes.data) return { error: optionsRes.error ?? i18n.t("auth:login.couldNotStartPasskey") };
 
     const { startAuthentication } = await import("@simplewebauthn/browser");
     let response;
     try {
       response = await startAuthentication({ optionsJSON: optionsRes.data.options });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Passkey login cancelled";
-      if (msg.toLowerCase().includes("cancel")) return { error: msg };
-      return { error: "Passkey login failed" };
+      // Classification mirrors the old check exactly (a non-Error throw was
+      // always treated as a cancellation); only the surfaced text is localized.
+      const cancelled = !(err instanceof Error) || err.message.toLowerCase().includes("cancel");
+      if (cancelled) return { error: i18n.t("auth:login.passkeyLoginCancelled") };
+      return { error: i18n.t("auth:login.passkeyLoginFailed") };
     }
 
     const verifyRes = await api.loginPasskeyVerify(identifier, response);
-    if (!verifyRes.success || !verifyRes.data) return { error: verifyRes.error ?? "Passkey authentication failed" };
+    if (!verifyRes.success || !verifyRes.data) return { error: verifyRes.error ?? i18n.t("auth:login.passkeyAuthFailed") };
 
     if ("requiresTwoFactor" in verifyRes.data) {
       return { twoFactor: verifyRes.data };
@@ -126,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithPasskeyDiscoverable = async (): Promise<PasskeyLoginResult> => {
     const optionsRes = await api.loginPasskeyDiscoverableOptions();
-    if (!optionsRes.success || !optionsRes.data) return { error: optionsRes.error ?? "Could not start passkey login" };
+    if (!optionsRes.success || !optionsRes.data) return { error: optionsRes.error ?? i18n.t("auth:login.couldNotStartPasskey") };
 
     const { startAuthentication } = await import("@simplewebauthn/browser");
     let response;
@@ -136,13 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         useBrowserAutofill: false,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Passkey login cancelled";
-      if (msg.toLowerCase().includes("cancel")) return { error: msg };
-      return { error: "Passkey login failed" };
+      const cancelled = !(err instanceof Error) || err.message.toLowerCase().includes("cancel");
+      if (cancelled) return { error: i18n.t("auth:login.passkeyLoginCancelled") };
+      return { error: i18n.t("auth:login.passkeyLoginFailed") };
     }
 
     const verifyRes = await api.loginPasskeyDiscoverableVerify(response);
-    if (!verifyRes.success || !verifyRes.data) return { error: verifyRes.error ?? "Passkey authentication failed" };
+    if (!verifyRes.success || !verifyRes.data) return { error: verifyRes.error ?? i18n.t("auth:login.passkeyAuthFailed") };
 
     if ("requiresTwoFactor" in verifyRes.data) {
       return { twoFactor: verifyRes.data };
@@ -154,27 +128,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyTotp = async (token: string, code: string) => {
     const res = await api.verifyTotp(token, code);
-    if (!res.success || !res.data) return res.error ?? "Verification failed";
+    if (!res.success || !res.data) return res.error ?? i18n.t("auth:login.verificationFailed");
     await completeAuth(res.data.token, res.data.user);
     return null;
   };
 
   const verifyTwoFactorPasskey = async (token: string) => {
     const optionsRes = await api.twoFactorPasskeyOptions(token);
-    if (!optionsRes.success || !optionsRes.data) return optionsRes.error ?? "Could not start passkey verification";
+    if (!optionsRes.success || !optionsRes.data) return optionsRes.error ?? i18n.t("auth:login.couldNotStartPasskeyVerify");
 
     const { startAuthentication } = await import("@simplewebauthn/browser");
     let response;
     try {
       response = await startAuthentication({ optionsJSON: optionsRes.data.options });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Passkey verification cancelled";
-      if (msg.toLowerCase().includes("cancel")) return msg;
-      return "Passkey verification failed";
+      const cancelled = !(err instanceof Error) || err.message.toLowerCase().includes("cancel");
+      if (cancelled) return i18n.t("auth:login.passkeyVerifyCancelled");
+      return i18n.t("auth:login.passkeyVerifyFailed");
     }
 
     const verifyRes = await api.twoFactorPasskeyVerify(token, response);
-    if (!verifyRes.success || !verifyRes.data) return verifyRes.error ?? "Passkey verification failed";
+    if (!verifyRes.success || !verifyRes.data) return verifyRes.error ?? i18n.t("auth:login.passkeyVerifyFailed");
 
     await completeAuth(verifyRes.data.token, verifyRes.data.user);
     return null;
@@ -192,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.register(data);
     if (!res.success || !res.data) {
       return {
-        error: res.error ?? "Registration failed",
+        error: res.error ?? i18n.t("auth:register.registrationFailed"),
         fieldErrors: res.fieldErrors,
       };
     }
@@ -218,14 +192,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, setAuth: completeAuth, login, loginWithPasskey, loginWithPasskeyDiscoverable, verifyTotp, verifyTwoFactorPasskey, register, refreshUser, logout }}>
+    <authContext.Provider value={{ user, loading, setAuth: completeAuth, login, loginWithPasskey, loginWithPasskeyDiscoverable, verifyTotp, verifyTwoFactorPasskey, register, refreshUser, logout }}>
       {children}
-    </AuthContext.Provider>
+    </authContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

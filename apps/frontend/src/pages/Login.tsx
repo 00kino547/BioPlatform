@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { Trans, useTranslation } from "react-i18next";
+import { useAuth } from "@/contexts/useAuth";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { SsoProviderButtons, EnterpriseSsoButtons } from "@/components/auth/SsoProviderButtons";
@@ -18,6 +19,7 @@ import { usePageMeta } from "@/lib/seo";
 type Stage = "identifier" | "method" | "password" | "twofactor";
 
 export function Login() {
+  const { t } = useTranslation("auth");
   const { login, loginWithPasskey, loginWithPasskeyDiscoverable, verifyTotp, verifyTwoFactorPasskey } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -42,7 +44,7 @@ export function Login() {
   const [captchaEnabled, setCaptchaEnabled] = useState(false);
   const [captchaNonce, setCaptchaNonce] = useState(0);
 
-  usePageMeta({ title: "Log In", description: `Sign in to ${branding.name} and manage your profile, links, and theme.`, url: "/login" });
+  usePageMeta({ title: t("login.metaTitle"), description: t("login.metaDescription", { name: branding.name }), url: "/login" });
 
   useEffect(() => {
     if (fromOAuth) {
@@ -54,11 +56,12 @@ export function Login() {
           setTwoFactor({ requiresTwoFactor: true, ...stored });
           setStage("twofactor");
         } catch {
-          setError("Your two-factor session has expired. Sign in again.");
+          setError(t("login.twoFactorExpired"));
         }
       }
     }
-  }, [fromOAuth]);
+    // `t` is a dependency so the error text re-resolves on a live language switch.
+  }, [fromOAuth, t]);
 
   const handleContinue = async () => {
     if (!identifier.trim()) return;
@@ -71,12 +74,12 @@ export function Login() {
     setLoading(false);
 
     if (!res.success) {
-      setError(res.error ?? "Something went wrong");
+      setError(res.error ?? t("login.genericError"));
       return;
     }
 
     if (!res.data?.found) {
-      setError("No account found with that username or email.");
+      setError(t("login.noAccount"));
       return;
     }
 
@@ -157,7 +160,7 @@ export function Login() {
     const res = await api.resendVerificationEmail(identifier.trim());
     setLoading(false);
     if (!res.success) {
-      setError(res.error ?? "Failed to send verification email");
+      setError(res.error ?? t("login.resendVerificationFailed"));
       return;
     }
     setVerifySent(true);
@@ -172,7 +175,7 @@ export function Login() {
     const res = await api.requestUnlock(identifier.trim());
     setLoading(false);
     if (!res.success) {
-      setError(res.error ?? "Failed to send unlock email");
+      setError(res.error ?? t("login.sendUnlockFailed"));
       return;
     }
     setUnlockSent(true);
@@ -218,7 +221,7 @@ export function Login() {
           <Link to="/" className="text-2xl font-bold text-white tracking-tight">
             {branding.name}
           </Link>
-          <p className="mt-2 text-sm text-zinc-400">Sign in to your account</p>
+          <p className="mt-2 text-sm text-zinc-400">{t("login.subtitle")}</p>
         </div>
 
         <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 space-y-5">
@@ -231,22 +234,21 @@ export function Login() {
           {unlockRequired && (
             <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3">
               <p className="text-sm text-amber-300 mb-2">
-                Your account is locked after too many failed attempts. Enter your username or email and we&apos;ll
-                send you an unlock link.
+                {t("login.lockedMessage")}
               </p>
               {unlockSent ? (
-                <p className="text-sm text-emerald-400">Unlock email sent — check your inbox.</p>
+                <p className="text-sm text-emerald-400">{t("login.unlockSent")}</p>
               ) : (
                 <form onSubmit={handleSendUnlock} className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="username or you@example.com"
+                    placeholder={t("login.identifierPlaceholder")}
                     className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                   />
                   <Button type="submit" disabled={loading} className="whitespace-nowrap">
-                    {loading ? "Sending..." : "Send unlock email"}
+                    {loading ? t("login.sending") : t("login.sendUnlockEmail")}
                   </Button>
                 </form>
               )}
@@ -256,22 +258,21 @@ export function Login() {
           {verifyEmailRequired && (
             <div className="rounded-lg bg-violet-500/10 border border-violet-500/25 px-4 py-3">
               <p className="text-sm text-violet-300 mb-2">
-                Your email is not verified yet, so signing in is blocked until you confirm it. Enter your username or email
-                and we&apos;ll send a fresh verification link.
+                {t("login.unverifiedMessage")}
               </p>
               {verifySent ? (
-                <p className="text-sm text-emerald-400">Verification email sent — check your inbox.</p>
+                <p className="text-sm text-emerald-400">{t("login.verificationSent")}</p>
               ) : (
                 <form onSubmit={handleResendVerification} className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="username or you@example.com"
+                    placeholder={t("login.identifierPlaceholder")}
                     className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-3.5 py-2 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                   />
                   <Button type="submit" disabled={loading} className="whitespace-nowrap">
-                    {loading ? "Sending..." : "Send verification email"}
+                    {loading ? t("login.sending") : t("login.sendVerificationEmail")}
                   </Button>
                 </form>
               )}
@@ -282,7 +283,7 @@ export function Login() {
             <>
               <div>
                 <label htmlFor="identifier" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                  Username or Email
+                  {t("login.identifierLabel")}
                 </label>
                 <input
                   id="identifier"
@@ -292,15 +293,15 @@ export function Login() {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
-                  placeholder="username or you@example.com"
+                  placeholder={t("login.identifierPlaceholder")}
                 />
               </div>
               <Button type="button" className="w-full h-11" onClick={handleContinue} disabled={loading}>
-                {loading ? "Checking..." : "Continue"}
+                {loading ? t("login.checking") : t("login.continue")}
               </Button>
               <div className="flex items-center gap-3 my-2">
                 <span className="h-px flex-1 bg-zinc-800" />
-                <span className="text-xs text-zinc-500">or</span>
+                <span className="text-xs text-zinc-500">{t("login.or")}</span>
                 <span className="h-px flex-1 bg-zinc-800" />
               </div>
               <Button
@@ -311,7 +312,7 @@ export function Login() {
                 disabled={loading}
               >
                 <Fingerprint className="h-5 w-5" />
-                Login with passkey
+                {t("login.loginWithPasskey")}
               </Button>
               <SsoProviderButtons />
               <PocketBaseLoginButton />
@@ -322,14 +323,20 @@ export function Login() {
           {stage === "method" && (
             <>
               <div className="text-center">
+                {/* login.signInAs uses the <Trans> tag form so the identifier keeps its styled span. */}
                 <p className="text-sm text-zinc-400">
-                  Sign in as <span className="text-white font-medium">{identifier}</span>
+                  <Trans
+                    i18nKey="login.signInAs"
+                    ns="auth"
+                    values={{ identifier }}
+                    components={[<span key="identifier" className="text-white font-medium" />]}
+                  />
                 </p>
                 <button
                   onClick={() => goBack("identifier")}
                   className="mt-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
                 >
-                  Not you? Use a different account
+                  {t("login.notYou")}
                 </button>
               </div>
               <div className="space-y-3">
@@ -341,7 +348,7 @@ export function Login() {
                   disabled={loading}
                 >
                   <Fingerprint className="h-5 w-5" />
-                  Passwordless (Passkey)
+                  {t("login.passwordless")}
                 </Button>
                 <Button
                   type="button"
@@ -350,7 +357,7 @@ export function Login() {
                   onClick={() => goBack("password")}
                 >
                   <KeyRound className="h-5 w-5" />
-                  Password
+                  {t("login.password")}
                 </Button>
               </div>
             </>
@@ -360,7 +367,7 @@ export function Login() {
             <form onSubmit={handlePassword} className="space-y-5">
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                  Password
+                  {t("login.password")}
                 </label>
                 <input
                   id="password"
@@ -378,14 +385,14 @@ export function Login() {
                 resetKey={captchaNonce}
               />
               <Button type="submit" className="w-full h-11" disabled={loading || (captchaEnabled && !captchaToken)}>
-                {loading ? "Signing in..." : "Sign in"}
+                {loading ? t("login.signingIn") : t("login.signIn")}
               </Button>
               <button
                 type="button"
                 onClick={() => goBack("method")}
                 className="w-full text-center text-xs text-violet-400 hover:text-violet-300 transition-colors"
               >
-                Back
+                {t("login.back")}
               </button>
             </form>
           )}
@@ -394,14 +401,14 @@ export function Login() {
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm text-zinc-300">
                 <Lock className="h-4 w-4 text-violet-400" />
-                Two-factor authentication required
+                {t("login.twoFactorRequired")}
               </div>
 
               {twoFactor.methods.totp && (
                 <form onSubmit={handleTotpVerify} className="space-y-3">
                   <div>
                     <label htmlFor="totp" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Verification code
+                      {t("login.verificationCode")}
                     </label>
                     <input
                       id="totp"
@@ -416,7 +423,7 @@ export function Login() {
                     />
                   </div>
                   <Button type="submit" className="w-full h-11" disabled={loading}>
-                    {loading ? "Verifying..." : "Verify"}
+                    {loading ? t("login.verifying") : t("login.verify")}
                   </Button>
                 </form>
               )}
@@ -430,7 +437,7 @@ export function Login() {
                   disabled={loading}
                 >
                   <Fingerprint className="h-5 w-5" />
-                  Use a Passkey
+                  {t("login.usePasskey")}
                 </Button>
               )}
 
@@ -439,16 +446,16 @@ export function Login() {
                 onClick={() => (fromOAuth ? goBack("identifier") : goBack("method"))}
                 className="w-full text-center text-xs text-violet-400 hover:text-violet-300 transition-colors"
               >
-                Back
+                {t("login.back")}
               </button>
             </div>
           )}
         </div>
 
         <p className="mt-6 text-center text-sm text-zinc-500">
-          Don&apos;t have an account?{" "}
+          {t("login.noAccountPrompt")}{" "}
           <Link to="/register" className="text-violet-400 hover:text-violet-300 transition-colors font-medium">
-            Register
+            {t("login.registerLink")}
           </Link>
         </p>
 
@@ -460,11 +467,11 @@ export function Login() {
         {storeOpen ? (
           <div className="mt-4 flex flex-col items-center gap-2">
             <p className="text-center text-xs text-zinc-500">
-              No invite yet?{" "}
+              {t("login.noInviteYet")}{" "}
               <a href={inviteHref} className="text-violet-400 transition-colors hover:text-violet-300">
-                Buy one here
+                {t("login.buyOneHere")}
               </a>{" "}
-              and register with the code.
+              {t("login.registerWithCode")}
             </p>
             <BuyInviteModal email={emailHint} />
           </div>

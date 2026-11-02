@@ -11,6 +11,7 @@
 // re-appear on the next profile page they visit.
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAdblockDetector } from "@scthakuri/adblock-detector";
 import { ShieldAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ interface AdblockNoticeProps {
 }
 
 export function AdblockNotice({ accent = "#7c3aed", textColor = "#e4e4e7" }: AdblockNoticeProps) {
+  const { t } = useTranslation("common");
   const { detected, loading } = useAdblockDetector();
   const [elapsed, setElapsed] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -73,10 +75,9 @@ export function AdblockNotice({ accent = "#7c3aed", textColor = "#e4e4e7" }: Adb
     >
       <ShieldAlert className="h-5 w-5 shrink-0" style={{ color: accent }} />
       <p className="flex-1 text-[13px] leading-relaxed" style={{ color: textColor }}>
-        Your ad blocker is on — {branding.name} profiles stay free thanks to their ads. Consider whitelisting
-        this page to keep supporting it.
+        {t("adblock.notice", { name: branding.name })}
       </p>
-      <Button size="sm" variant="ghost" aria-label="Dismiss adblock notice" onClick={dismiss} className="shrink-0">
+      <Button size="sm" variant="ghost" aria-label={t("adblock.dismissAria")} onClick={dismiss} className="shrink-0">
         <X className="h-4 w-4" />
       </Button>
     </div>

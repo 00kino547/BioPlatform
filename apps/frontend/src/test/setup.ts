@@ -8,6 +8,13 @@
 import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
+// Components call react-i18next's t(), so the shared i18next instance must be
+// initialised before any test renders. No config => the app pins to the default
+// locale (English), which is what the assertions expect.
+import { initI18n } from "@/i18n";
+
+initI18n();
+
 afterEach(() => {
   cleanup();
   sessionStorage.clear();

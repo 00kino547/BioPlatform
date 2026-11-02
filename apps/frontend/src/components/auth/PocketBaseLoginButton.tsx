@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Database, ShieldCheck, KeyRound } from "lucide-react";
 import { api, type PocketBaseAuthConfig } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import { OAUTH_SETUP_KEY, OAUTH_TF_KEY } from "@/lib/oauthStorage";
+
+// "PocketBase" is a trademark and is never translated; it is passed as a raw
+// interpolation value into translated wrapper copy.
+const POCKETBASE_BRAND = "PocketBase";
 
 interface PocketBaseLoginButtonProps {
   mode?: "login" | "signup";
@@ -12,13 +17,15 @@ interface PocketBaseLoginButtonProps {
   className?: string;
 }
 
-// Reads a PocketBase error body and returns a human-readable message.
-function pbErrorMessage(body: unknown): string {
+// Reads a PocketBase error body and returns a human-readable message. The
+// fallback is supplied by the caller so it is always localized copy; the
+// server-provided message is used verbatim when present.
+function pbErrorMessage(body: unknown, fallback: string): string {
   if (body && typeof body === "object" && "message" in body) {
     const message = (body as { message?: unknown }).message;
     if (typeof message === "string" && message) return message;
   }
-  return "PocketBase rejected the sign-in";
+  return fallback;
 }
 
 // Sign in against the operator-controlled PocketBase through the same-origin
@@ -26,6 +33,7 @@ function pbErrorMessage(body: unknown): string {
 // backend — it is POSTed straight to PocketBase from the SPA and only the
 // resulting token is handed to /auth/oauth/pocketbase/exchange.
 export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButtonProps) {
+  const { t } = useTranslation("auth");
   const navigate = useNavigate();
   const { setAuth } = useAuth();
   const [config, setConfig] = useState<PocketBaseAuthConfig | null>(null);
@@ -47,7 +55,7 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
 
   const requestJson = useCallback(
     async (path: string, body: Record<string, unknown>) => {
-      if (!config?.clientUrl) throw new Error("PocketBase sign-in is not configured");
+      if (!config?.clientUrl) throw new Error(t("pocketbase.notConfigured", { provider: POCKETBASE_BRAND }));
       const res = await fetch(`${config.clientUrl}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,10 +67,10 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
         // caller can run the OTP leg.
         return { mfaId: parsed.mfaId as string };
       }
-      if (!res.ok) throw new Error(pbErrorMessage(parsed));
+      if (!res.ok) throw new Error(pbErrorMessage(parsed, t("pocketbase.rejected", { provider: POCKETBASE_BRAND })));
       return { body: parsed };
     },
-    [config]
+    [config, t]
   );
 
   // Runs our /exchange: handles logged_in / needs_two_factor / needs_setup.
@@ -72,7 +80,7 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
       try {
         const res = await api.pocketbaseExchange({ token, invite });
         if (!res.success || !res.data) {
-          setError(res.error ?? "Could not complete sign-in");
+          setError(res.error ?? t("pocketbase.completeFailed"));
           return;
         }
         if (res.data.status === "logged_in") {
@@ -94,14 +102,15 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
           navigate("/oauth/complete");
           return;
         }
-        setError("Unexpected sign-in response");
+        setError(t("pocketbase.unexpectedResponse"));
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not complete sign-in");
+        setError(e instanceof Error ? e.message : t("pocketbase.completeFailed"));
       } finally {
         setLoading(false);
       }
     },
-    [invite, navigate, setAuth]
+    // `t` is a dependency so fallback/error copy re-resolves on a live language switch.
+    [invite, navigate, setAuth, t]
   );
 
   const handleSubmit = async (e: FormEvent) => {
@@ -120,18 +129,18 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
           email: identity.trim(),
         });
         const otpId = otpRes.body?.otpId;
-        if (typeof otpId !== "string") throw new Error("PocketBase did not return an OTP request");
+        if (typeof otpId !== "string") throw new Error(t("pocketbase.noOtp", { provider: POCKETBASE_BRAND }));
         setPbMfaId(result.mfaId);
         setPbOtpId(otpId);
         setStep("otp");
-        setError("Check your PocketBase email for a one-time code.");
+        setError(t("pocketbase.otpSent", { provider: POCKETBASE_BRAND }));
         return;
       }
       const token = result.body?.token;
-      if (typeof token !== "string") throw new Error("PocketBase did not return an auth token");
+      if (typeof token !== "string") throw new Error(t("pocketbase.noToken", { provider: POCKETBASE_BRAND }));
       await completeExchange(token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "PocketBase rejected the sign-in");
+      setError(err instanceof Error ? err.message : t("pocketbase.rejected", { provider: POCKETBASE_BRAND }));
     } finally {
       setLoading(false);
     }
@@ -148,14 +157,14 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
         mfaId: pbMfaId,
       });
       if (result.mfaId) {
-        setError("That code was not accepted. Try again.");
+        setError(t("pocketbase.otpRejected"));
         return;
       }
       const token = result.body?.token;
-      if (typeof token !== "string") throw new Error("PocketBase did not return an auth token");
+      if (typeof token !== "string") throw new Error(t("pocketbase.noToken", { provider: POCKETBASE_BRAND }));
       await completeExchange(token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "PocketBase rejected the code");
+      setError(err instanceof Error ? err.message : t("pocketbase.rejectedCode", { provider: POCKETBASE_BRAND }));
     } finally {
       setLoading(false);
     }
@@ -174,13 +183,13 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
           disabled={loading}
         >
           <Database className="h-4.5 w-4.5 text-zinc-300" />
-          Continue with PocketBase
+          {t("sso.continueWith", { provider: POCKETBASE_BRAND })}
         </Button>
       ) : step === "credentials" ? (
         <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <ShieldCheck className="h-4 w-4 text-violet-400" />
-            Sign in with your PocketBase account
+            {t("pocketbase.signInTitle", { provider: POCKETBASE_BRAND })}
           </div>
           {error && (
             <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-sm text-red-400">
@@ -193,7 +202,7 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
             required
             value={identity}
             onChange={(e) => setIdentity(e.target.value)}
-            placeholder="PocketBase email or username"
+            placeholder={t("pocketbase.identityPlaceholder", { provider: POCKETBASE_BRAND })}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           />
           <input
@@ -202,25 +211,25 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder={t("login.password")}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           />
           <Button type="submit" className="w-full h-10" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in with PocketBase"}
+            {loading ? t("login.signingIn") : t("pocketbase.signIn", { provider: POCKETBASE_BRAND })}
           </Button>
           <button
             type="button"
             onClick={() => setOpen(false)}
             className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
           >
-            Cancel
+            {t("security.cancel")}
           </button>
         </form>
       ) : (
         <form onSubmit={handleOtpSubmit} className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <KeyRound className="h-4 w-4 text-violet-400" />
-            Enter your one-time code
+            {t("pocketbase.otpTitle")}
           </div>
           {error && (
             <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-sm text-amber-300">
@@ -234,11 +243,11 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
             required
             value={otpCode}
             onChange={(e) => setOtpCode(e.target.value)}
-            placeholder="6-digit code"
+            placeholder={t("pocketbase.otpPlaceholder")}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 text-center tracking-[0.3em]"
           />
           <Button type="submit" className="w-full h-10" disabled={loading}>
-            {loading ? "Verifying..." : "Verify code"}
+            {loading ? t("login.verifying") : t("pocketbase.verify")}
           </Button>
           <button
             type="button"
@@ -248,7 +257,7 @@ export function PocketBaseLoginButton({ invite, className }: PocketBaseLoginButt
             }}
             className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
           >
-            Use a different PocketBase account
+            {t("pocketbase.differentAccount", { provider: POCKETBASE_BRAND })}
           </button>
         </form>
       )}

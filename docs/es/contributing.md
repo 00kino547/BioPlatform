@@ -13,6 +13,10 @@ Gracias por considerar contribuir a BioPlatform. Esta guía define los estándar
 
 La documentación en español vive en `docs/es/` y es una traducción de la versión en inglés, nunca al revés. `docs/es/` debe mantener el mismo conjunto de archivos y la misma estructura que `docs/en/`.
 
+### Excepción de localización
+
+El inglés sigue siendo la fuente de verdad y el idioma obligatorio para el código, los comentarios, los mensajes de commit y los pull requests. Las cadenas visibles para el usuario son la única excepción: la comunidad las traduce a través de la instancia autoalojada de Weblate. No necesitas un segundo idioma para contribuir y no debes traducir cadenas a mano: añade o edita la cadena en inglés como siempre y deja que los traductores trabajen a través de Weblate. Consulta [Traducción](translating.md) para conocer el flujo (revisión antes del commit, traducción automática solo como sugerencias, cómo añadir un idioma nuevo y cómo llegan las traducciones combinadas a la aplicación tras un rebuild).
+
 ## Primeros Pasos
 
 Requisitos: Node.js 20+, `corepack enable` para pnpm y una instancia de PostgreSQL (local o mediante Docker Compose).

@@ -15,7 +15,7 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 vi.mock("@/lib/useInstanceConfig", () => ({ useInstanceConfig: () => null }));
-vi.mock("@/contexts/DomainContext", () => ({ useDomain: () => ({ info: null }) }));
+vi.mock("@/contexts/useDomain", () => ({ useDomain: () => ({ info: null }) }));
 vi.mock("@/lib/seo", () => ({
   usePageMeta: () => {},
   useJsonLd: () => {},

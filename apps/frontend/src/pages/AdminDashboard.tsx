@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { useAuth } from "@/contexts/useAuth";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
@@ -8,6 +10,7 @@ import { UpdateDialog } from "@/components/updates/UpdateDialog";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { getToken, type Badge, type Role, type InviteGrantEvent } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/lib/intl";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { X, Edit, Save, Trash2, ShieldAlert, Sparkles } from "lucide-react";
 import {
@@ -135,55 +138,58 @@ interface AdminDomainEntry {
 
 type Tab = "codes" | "users" | "roles" | "badges" | "bans" | "moderation" | "logs" | "domains" | "themes" | "landing" | "affiliates" | "orders" | "newsletter" | "policy";
 
-function securityFlagLabel(flag: User["securityFlag"]): string {
-  return flag === "no-passkeys" ? "NO PASSKEY" : flag === "passkeys-unverified" ? "PASSKEYS UNVERIFIED" : "";
+function securityFlagLabel(flag: User["securityFlag"], t: TFunction<"admin">): string {
+  return flag === "no-passkeys"
+    ? t("admin.securityFlags.noPasskey")
+    : flag === "passkeys-unverified"
+    ? t("admin.securityFlags.passkeysUnverified")
+    : "";
 }
 
-function securityFlagReason(u: User): string {
+function securityFlagReason(u: User, t: TFunction<"admin">): string {
   if (u.securityFlag === "no-passkeys") {
-    return "No passkey registered. This user can only sign in with email + password";
+    return t("admin.securityFlags.noPasskeyHint");
   }
   if (u.securityFlag === "passkeys-unverified") {
     const stale = u.passkeyCount - u.passkeysFreshCount;
     const staleResident = u.residentPasskeyCount - u.residentFreshCount;
-    let reason = `${stale} of ${u.passkeyCount} passkey${u.passkeyCount === 1 ? "" : "s"} has not proven discoverability recently (no discoverable sign-in).`;
-    if (staleResident > 0) reason += ` ${staleResident} resident passkey${staleResident === 1 ? "" : "s"} flagged as more important.`;
+    let reason = t("admin.securityFlags.stale", { stale, total: u.passkeyCount, s: u.passkeyCount === 1 ? "" : "s" });
+    if (staleResident > 0) reason += t("admin.securityFlags.staleResident", { count: staleResident, s: staleResident === 1 ? "" : "s" });
     return reason;
   }
   return "";
 }
 
-const PERMISSION_LABELS: Record<string, string> = {
-  "users.view": "View users",
-  "users.manage": "Manage users",
-  "profiles.manage": "Manage profiles",
-  "profiles.customDomain": "Use custom domains",
-  "invites.manage": "Manage invite codes",
-  "invites.generate": "Generate own invite codes",
-  "bans.manage": "Manage bans & lockouts",
-  "moderation.manage": "DMCA moderation",
-  "roles.manage": "Manage roles",
-  "badges.manage": "Manage badges",
-  "themes.manage": "Manage seasonal themes",
-  "affiliates.manage": "Manage the affiliate program",
-  "orders.manage": "Manage orders & billing",
-  "settings.manage": "Manage landing settings",
-  "newsletter.manage": "Manage newsletters & consent",
-  "logs.view": "View auth logs",
-  "api.basic": "API access — basic endpoints",
-  "api.advanced": "API access — advanced (Premium)",
-  "api.enterprise": "API access — enterprise endpoints",
-};
-
-const PERMISSION_ORDER = Object.keys(PERMISSION_LABELS);
+const PERMISSION_ORDER = [
+  "users.view",
+  "users.manage",
+  "profiles.manage",
+  "profiles.customDomain",
+  "invites.manage",
+  "invites.generate",
+  "bans.manage",
+  "moderation.manage",
+  "roles.manage",
+  "badges.manage",
+  "themes.manage",
+  "affiliates.manage",
+  "orders.manage",
+  "settings.manage",
+  "newsletter.manage",
+  "logs.view",
+  "api.basic",
+  "api.advanced",
+  "api.enterprise",
+];
 
 const PAGE_SIZE = 10;
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
+  const { t } = useTranslation("admin");
   const perms = new Set(user?.permissions ?? []);
 
-  usePageMeta({ title: "Admin Panel", description: `Administrative panel for ${branding.name}.`, url: "/admin" });
+  usePageMeta({ title: t("dashboard:dashboard.header.adminPanel"), description: t("admin.meta.description", { name: branding.name }), url: "/admin" });
   const canInvites = perms.has("invites.manage");
   const canViewUsers = perms.has("users.view");
   const canManageUsers = perms.has("users.manage");
@@ -448,7 +454,7 @@ export function AdminDashboard() {
       setThemesData(data.data);
       setThemesError("");
     } else {
-      setThemesError(data.error ?? "Failed to load seasonal themes");
+      setThemesError(data.error ?? t("admin.toasts.loadSeasonalThemesFailed"));
     }
   };
 
@@ -469,7 +475,7 @@ export function AdminDashboard() {
       setTimeout(() => setThemeSaved(false), 2000);
       fetchThemes();
     } else {
-      setThemeError(data.error ?? "Failed to save theme settings");
+      setThemeError(data.error ?? t("admin.toasts.saveThemeSettingsFailed"));
     }
   };
 
@@ -492,7 +498,7 @@ export function AdminDashboard() {
     if (data.success) {
       fetchThemes();
     } else {
-      setThemeError(data.error ?? "Failed to update theme");
+      setThemeError(data.error ?? t("admin.toasts.updateThemeFailed"));
     }
   };
 
@@ -510,7 +516,7 @@ export function AdminDashboard() {
       fetchThemes();
       return true;
     }
-    setThemeError(data.error ?? "Failed to upload background");
+    setThemeError(data.error ?? t("admin.toasts.uploadBackgroundFailed"));
     return false;
   };
 
@@ -525,7 +531,7 @@ export function AdminDashboard() {
       fetchThemes();
       return true;
     }
-    setThemeError(data.error ?? "Failed to remove background");
+    setThemeError(data.error ?? t("admin.toasts.removeBackgroundFailed"));
     return false;
   };
 
@@ -539,7 +545,7 @@ export function AdminDashboard() {
     if (data.success) {
       fetchDomains();
     } else {
-      window.alert(data.error ?? "Failed to approve domain");
+      window.alert(data.error ?? t("admin.toasts.approveDomainFailed"));
     }
   };
 
@@ -553,7 +559,7 @@ export function AdminDashboard() {
     if (data.success) {
       fetchDomains();
     } else {
-      window.alert(data.error ?? "Failed to reject domain");
+      window.alert(data.error ?? t("admin.toasts.rejectDomainFailed"));
     }
   };
 
@@ -567,14 +573,13 @@ export function AdminDashboard() {
     if (data.success) {
       fetchDomains();
     } else {
-      window.alert(data.error ?? "Failed to issue certificate");
+      window.alert(data.error ?? t("admin.toasts.issueCertFailed"));
     }
   };
 
   const handleRemoveDomain = async (d: AdminDomainEntry) => {
     if (!window.confirm(
-      `Remove custom domain "${d.domain}"?\n\n` +
-      "This permanently deletes the request, removes any TLS certificates for it from disk, and regenerates the nginx custom-domain configuration. You will also need to delete its DNS records. Continue?"
+      t("admin.toasts.removeDomainConfirm", { domain: d.domain })
     )) return;
     const token = getToken();
     const res = await fetch(`/api/admin/custom-domains/${d.id}`, {
@@ -586,7 +591,7 @@ export function AdminDashboard() {
       setDomains((prev) => prev.filter((x) => x.id !== d.id));
       setDomainsTotal((t) => Math.max(t - 1, 0));
     } else {
-      window.alert(data.error ?? "Failed to remove domain");
+      window.alert(data.error ?? t("admin.toasts.removeDomainFailed"));
     }
   };
 
@@ -624,7 +629,7 @@ export function AdminDashboard() {
     e.preventDefault();
     setWlMsg("");
     if (!wlValue.trim()) {
-      setWlMsg("Enter an IP address or CIDR network.");
+      setWlMsg(t("admin.toasts.enterIpOrCidr"));
       return;
     }
     const token = getToken();
@@ -643,7 +648,7 @@ export function AdminDashboard() {
       await fetchWhitelist(0);
       setWhitelistPage(0);
     } else {
-      setWlMsg(data.error ?? "Failed to add allowlist entry");
+      setWlMsg(data.error ?? t("admin.toasts.addAllowlistFailed"));
     }
   };
 
@@ -657,7 +662,7 @@ export function AdminDashboard() {
     if (data.success) {
       await fetchWhitelist();
     } else {
-      window.alert(data.error ?? "Failed to remove allowlist entry");
+      window.alert(data.error ?? t("admin.toasts.removeAllowlistFailed"));
     }
   };
 
@@ -706,7 +711,7 @@ export function AdminDashboard() {
     setLoading(false);
 
     if (!data.success) {
-      setError(data.error ?? "Failed to create codes");
+      setError(data.error ?? t("admin.toasts.createCodesFailed"));
       return;
     }
 
@@ -742,7 +747,7 @@ export function AdminDashboard() {
     if (data.success) {
       setInviteSettings((prev) => (prev ? { ...prev, userGenerationEnabled: enabled } : prev));
     } else {
-      setEventMsg(data.error ?? "Failed to update invite settings");
+      setEventMsg(data.error ?? t("admin.toasts.updateInviteSettingsFailed"));
     }
   };
 
@@ -763,11 +768,11 @@ export function AdminDashboard() {
     const data = await res.json();
     setLoading(false);
     if (!data.success) {
-      setEventMsg(data.error ?? "Failed to run invite event");
+      setEventMsg(data.error ?? t("admin.toasts.runInviteEventFailed"));
       return;
     }
     setEventMsg(
-      `Granted ${data.data.grantedUsers} user(s) ${eventCount} invite credit(s) each, expiring ${new Date(data.data.allowanceExpiresAt).toLocaleDateString()}.`
+      t("admin.inviteEvent.granted", { count: data.data.grantedUsers, each: eventCount, date: formatDate(data.data.allowanceExpiresAt) })
     );
     await fetchEvents();
     await fetchCodes();
@@ -776,9 +781,7 @@ export function AdminDashboard() {
 
   const handleInviteBan = async (u: User, banned: boolean) => {
     if (banned && !window.confirm(
-      `Ban "${u.username}" from invites?\n\n` +
-      "They can no longer generate invite codes or receive invite-event allowances. " +
-      "Their unused invites are revoked immediately and their remaining allowance is zeroed."
+      t("admin.toasts.banConfirm", { username: u.username })
     )) return;
     const token = getToken();
     const res = await fetch(`/api/admin/users/${u.id}`, {
@@ -799,14 +802,13 @@ export function AdminDashboard() {
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, ...patch } : x)));
       setEditingUser((prev) => (prev && prev.id === u.id ? { ...prev, ...patch } : prev));
     } else {
-      window.alert(data.error ?? "Failed to update invite ban");
+      window.alert(data.error ?? t("admin.toasts.updateInviteBanFailed"));
     }
   };
 
   const handleDeleteUser = async (u: User) => {
     if (!window.confirm(
-      `Permanently delete user "${u.username}"?\n\n` +
-      "This erases their account, all profiles, badges, webhooks, passkeys, invite codes, auth logs and uploads from the database and disk. This is irreversible (GDPR erasure)."
+      t("admin.toasts.deleteUserConfirm", { username: u.username })
     )) return;
     const token = getToken();
     const res = await fetch(`/api/admin/users/${u.id}`, {
@@ -820,7 +822,7 @@ export function AdminDashboard() {
       if (canBans) fetchBans();
       if (canLogs) fetchLogs();
     } else {
-      window.alert(data.error ?? "Failed to delete user");
+      window.alert(data.error ?? t("admin.toasts.deleteUserFailed"));
     }
   };
 
@@ -962,17 +964,17 @@ export function AdminDashboard() {
     });
     const data = await res.json();
     if (!data.success) {
-      setRoleMsg(data.error ?? "Failed to save role");
+      setRoleMsg(data.error ?? t("admin.toasts.saveRoleFailed"));
       return;
     }
-    setRoleMsg("Saved");
+    setRoleMsg(t("admin.roles.saved"));
     setRoleForm({ id: null, name: "", description: "", permissions: [], inviteBatchLimit: "0", inviteOutstandingLimit: "0", inviteCooldownMinutes: "0", inviteDefaultExpiryDays: "30", inviteMinExpiryDays: "1", inviteMaxExpiryDays: "365" });
     fetchRoles();
     setTimeout(() => setRoleMsg(""), 2000);
   };
 
   const handleRoleDelete = async (id: string) => {
-    if (!window.confirm("Delete this role? Users with this role must be reassigned first.")) return;
+    if (!window.confirm(t("admin.toasts.deleteRoleConfirm"))) return;
     const token = getToken();
     const res = await fetch(`/api/admin/roles/${id}`, {
       method: "DELETE",
@@ -982,7 +984,7 @@ export function AdminDashboard() {
     if (data.success) {
       setRoles((prev) => prev.filter((r) => r.id !== id));
     } else {
-      setRoleMsg(data.error ?? "Failed to delete role");
+      setRoleMsg(data.error ?? t("admin.toasts.deleteRoleFailed"));
       setTimeout(() => setRoleMsg(""), 3000);
     }
   };
@@ -1008,17 +1010,17 @@ export function AdminDashboard() {
     });
     const data = await res.json();
     if (!data.success) {
-      setBadgeMsg(data.error ?? "Failed to save badge");
+      setBadgeMsg(data.error ?? t("admin.toasts.saveBadgeFailed"));
       return;
     }
-    setBadgeMsg("Saved");
+    setBadgeMsg(t("admin.badges.saved"));
     setBadgeForm({ id: null, slug: "", label: "", color: "#a855f7", icon: "Award" });
     fetchBadges();
     setTimeout(() => setBadgeMsg(""), 2000);
   };
 
   const handleBadgeDelete = async (id: string) => {
-    if (!window.confirm("Delete this badge? It will be removed from all profiles and users.")) return;
+    if (!window.confirm(t("admin.toasts.deleteBadgeConfirm"))) return;
     const token = getToken();
     const res = await fetch(`/api/admin/badges/${id}`, {
       method: "DELETE",
@@ -1028,7 +1030,7 @@ export function AdminDashboard() {
     if (data.success) {
       setBadgeCatalog((prev) => prev.filter((b) => b.id !== id));
     } else {
-      setBadgeMsg(data.error ?? "Failed to delete badge");
+      setBadgeMsg(data.error ?? t("admin.toasts.deleteBadgeFailed"));
       setTimeout(() => setBadgeMsg(""), 3000);
     }
   };
@@ -1047,21 +1049,21 @@ export function AdminDashboard() {
               to="/dashboard"
               className="text-sm text-violet-400 hover:text-violet-300 transition-colors font-medium"
             >
-              My Dashboard
+              {t("admin.header.myDashboard")}
             </Link>
             <span className="inline-flex items-center gap-2 text-sm text-zinc-400">
               {user?.username}
               <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-semibold text-violet-400 border border-violet-500/20">
-                {user?.role?.name ?? "Staff"}
+                {user?.role?.name ?? t("admin.header.staff")}
               </span>
             </span>
             {versionData?.prereleaseAvailable && versionData.prereleaseLatest && (
               <span
-                title={`Pre-release v${versionData.prereleaseLatest} is available. It is shown here only and does not count as a required update.`}
+                title={t("admin.header.prereleaseNotice", { version: versionData.prereleaseLatest })}
                 className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-300 border border-amber-500/20"
               >
                 <Sparkles className="h-3 w-3" />
-                Pre-release v{versionData.prereleaseLatest} available
+                {t("admin.header.prereleaseAvailable", { version: versionData.prereleaseLatest })}
               </span>
             )}
             <Button
@@ -1071,44 +1073,43 @@ export function AdminDashboard() {
               className={locked ? "border-red-500/30 text-red-300" : undefined}
             >
               <ShieldAlert className={`h-4 w-4 ${locked ? "text-red-400" : ""}`} />
-              Updates
+              {t("admin.header.updates")}
             </Button>
             <Button variant="secondary" size="sm" onClick={logout}>
-              Sign out
+              {t("admin.header.signOut")}
             </Button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
-        <h1 className="text-2xl font-bold text-white mb-2">Admin Dashboard</h1>
-        <p className="text-zinc-400 mb-8">Manage invite codes, users, roles, badges and security.</p>
+        <h1 className="text-2xl font-bold text-white mb-2">{t("admin.header.title")}</h1>
+        <p className="text-zinc-400 mb-8">{t("admin.header.subtitle")}</p>
 
         {locked && (
           <div className="mb-8 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
             <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-red-300">
-              <p className="font-semibold">A critical or security update is required.</p>
+              <p className="font-semibold">{t("admin.header.criticalRequired")}</p>
               <p className="mt-0.5 text-red-300/80">
-                Deleting users and changing roles, badges, tiers or invite bans is disabled until the app is
-                updated. Other administration continues to work.
+                {t("admin.header.criticalBody")}
               </p>
             </div>
           </div>
         )}
 
         <div className="flex flex-wrap gap-1 mb-8 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1">
-          {allowedTabs.map((t) => (
+          {allowedTabs.map((tabKey) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                tab === t
+                tab === tabKey
                   ? "bg-zinc-800 text-white"
                   : "text-zinc-400 hover:text-zinc-300"
               }`}
             >
-              {t === "codes" ? "Invite Codes" : t === "users" ? "Users" : t === "roles" ? "Roles" : t === "badges" ? "Badges" : t === "bans" ? "Bans" : t === "moderation" ? "Moderation" : t === "domains" ? "Custom Domains" : t === "themes" ? "Theming" : t === "landing" ? "Landing" : t === "affiliates" ? "Affiliate" : t === "orders" ? "Orders" : t === "newsletter" ? "Newsletter" : t === "policy" ? "Legal" : "Logs"}
+              {t(`admin.tabs.${tabKey}`)}
             </button>
           ))}
         </div>
@@ -1116,18 +1117,17 @@ export function AdminDashboard() {
         {tab === "codes" && (
           <>
             <div className="grid gap-6 sm:grid-cols-3 mb-8">
-              <StatCard label="Total" value={codeCounts?.total ?? invitesTotal} />
-              <StatCard label="Used" value={codeCounts?.used ?? codes.filter((c) => c.usedById).length} />
-              <StatCard label="Available" value={codeCounts?.available ?? codes.filter((c) => !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now())).length} />
+              <StatCard label={t("admin.stats.total")} value={codeCounts?.total ?? invitesTotal} />
+              <StatCard label={t("admin.stats.used")} value={codeCounts?.used ?? codes.filter((c) => c.usedById).length} />
+              <StatCard label={t("admin.stats.available")} value={codeCounts?.available ?? codes.filter((c) => !c.usedById && !c.revokedAt && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now())).length} />
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-white mb-1">User invite generation</h2>
+                  <h2 className="text-lg font-semibold text-white mb-1">{t("admin.inviteSettings.userGenerationTitle")}</h2>
                   <p className="text-sm text-zinc-500">
-                    Allow non-admin users to generate invite codes. Role quotas and event allowances still
-                    apply; invite-banned users stay excluded.
+                    {t("admin.inviteSettings.userGenerationDescription")}
                   </p>
                 </div>
                 <button
@@ -1146,20 +1146,19 @@ export function AdminDashboard() {
               </div>
               <p className="text-xs text-zinc-500 mt-3">
                 {inviteSettings === null
-                  ? "Loading…"
+                  ? t("admin.inviteSettings.loading")
                   : inviteSettings.userGenerationEnabled
-                  ? `Enabled — ${inviteSettings.eligibleUserCount} user(s) eligible.`
-                  : "Disabled — users with a generation-enabled role still need this switch on."}
+                  ? t("admin.inviteSettings.enabled", { count: inviteSettings.eligibleUserCount })
+                  : t("admin.inviteSettings.disabled")}
               </p>
             </div>
 
             <AdminInvitePurchaseCard />
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
-              <h2 className="text-lg font-semibold text-white mb-1">Invite event</h2>
+              <h2 className="text-lg font-semibold text-white mb-1">{t("admin.inviteEvent.title")}</h2>
               <p className="text-sm text-zinc-500 mb-4">
-                Grant every non-banned user an invite allowance. They generate the codes themselves; the
-                allowance and any code created from it expire on the chosen date.
+                {t("admin.inviteEvent.description")}
               </p>
 
               {eventMsg && (
@@ -1175,7 +1174,7 @@ export function AdminDashboard() {
               <form onSubmit={handleCreateEvent} className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Invites per user
+                    {t("admin.inviteEvent.invitesPerUser")}
                   </label>
                   <input
                     type="number"
@@ -1187,7 +1186,7 @@ export function AdminDashboard() {
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Allowance expires in</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.inviteEvent.allowanceExpiresIn")}</label>
                   <div className="flex gap-2">
                     <input
                       type="number"
@@ -1201,31 +1200,31 @@ export function AdminDashboard() {
                       onChange={(e) => setEventUnit(e.target.value as "days" | "weeks")}
                       className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                     >
-                      <option value="days">days</option>
-                      <option value="weeks">weeks</option>
+                      <option value="days">{t("admin.inviteEvent.unitDays")}</option>
+                      <option value="weeks">{t("admin.inviteEvent.unitWeeks")}</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex items-end">
                   <Button type="submit" disabled={loading} className="whitespace-nowrap">
-                    {loading ? "Granting…" : "Run event"}
+                    {loading ? t("admin.inviteEvent.granting") : t("admin.inviteEvent.runEvent")}
                   </Button>
                 </div>
               </form>
 
               {events.length > 0 && (
                 <div className="mt-6">
-                  <h3 className="text-sm font-semibold text-white mb-3">Recent events</h3>
+                  <h3 className="text-sm font-semibold text-white mb-3">{t("admin.inviteEvent.recentEvents")}</h3>
                   <div className="space-y-2">
                     {events.map((ev) => (
                       <div key={ev.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-2.5">
                         <span className="text-zinc-300">
-                          +{ev.count} invite{ev.count === 1 ? "" : "s"} per user
+                          {t("admin.inviteEvent.perUserLine", { count: ev.count, s: ev.count === 1 ? "" : "s" })}
                         </span>
-                        <span className="text-zinc-500">expires {ev.expiryDays}d</span>
-                        <span className="text-zinc-500">by {ev.createdBy?.username ?? "deleted admin"}</span>
+                        <span className="text-zinc-500">{t("admin.inviteEvent.expires")} {ev.expiryDays}{t("admin.inviteEvent.daySuffix")}</span>
+                        <span className="text-zinc-500">{t("admin.inviteEvent.by")} {ev.createdBy?.username ?? t("admin.inviteEvent.deletedAdmin")}</span>
                         <span className="text-xs text-zinc-600 ml-auto">
-                          {new Date(ev.createdAt).toLocaleString()}
+                          {formatDateTime(ev.createdAt)}
                         </span>
                       </div>
                     ))}
@@ -1244,7 +1243,7 @@ export function AdminDashboard() {
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
-              <h2 className="text-lg font-semibold text-white mb-4">Generate Invite Codes</h2>
+              <h2 className="text-lg font-semibold text-white mb-4">{t("admin.generateForm.title")}</h2>
 
               {error && (
                 <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
@@ -1254,7 +1253,7 @@ export function AdminDashboard() {
 
               <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Count</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.generateForm.count")}</label>
                   <input
                     type="number"
                     min={1}
@@ -1266,7 +1265,7 @@ export function AdminDashboard() {
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Expires in days <span className="text-zinc-500">(optional)</span>
+                    {t("admin.generateForm.expiresInDays")} <span className="text-zinc-500">{t("admin.generateForm.optional")}</span>
                   </label>
                   <input
                     type="number"
@@ -1274,13 +1273,13 @@ export function AdminDashboard() {
                     max={365}
                     value={expiresDays}
                     onChange={(e) => setExpiresDays(e.target.value)}
-                    placeholder="Never"
+                    placeholder={t("admin.generateForm.neverPlaceholder")}
                     className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                   />
                 </div>
                 <div className="flex items-end">
                   <Button type="submit" disabled={loading} className="whitespace-nowrap">
-                    {loading ? "Creating..." : "Generate"}
+                    {loading ? t("admin.generateForm.creating") : t("admin.generateForm.generate")}
                   </Button>
                 </div>
               </form>
@@ -1288,7 +1287,7 @@ export function AdminDashboard() {
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                <h2 className="text-lg font-semibold text-white">All Invite Codes</h2>
+                <h2 className="text-lg font-semibold text-white">{t("admin.codesTable.title")}</h2>
                 <div className="flex items-center gap-2">
                   {(["all", "available", "mine"] as const).map((f) => (
                     <button
@@ -1304,24 +1303,24 @@ export function AdminDashboard() {
                           : "text-zinc-400 hover:text-white hover:bg-zinc-800"
                       }`}
                     >
-                      {f === "all" ? "All" : f === "available" ? "Available" : "Created by me"}
+                      {f === "all" ? t("admin.codesTable.filterAll") : f === "available" ? t("admin.codesTable.filterAvailable") : t("admin.codesTable.filterCreatedByMe")}
                     </button>
                   ))}
                 </div>
               </div>
 
               {codes.length === 0 ? (
-                <p className="text-sm text-zinc-500">{inviteFilter === "all" ? "No codes yet." : "No invite codes match this filter."}</p>
+                <p className="text-sm text-zinc-500">{inviteFilter === "all" ? t("admin.codesTable.noCodes") : t("admin.codesTable.noMatch")}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                        <th className="pb-3 font-medium">Code</th>
-                        <th className="pb-3 font-medium">Status</th>
-                        <th className="pb-3 font-medium">Created by</th>
-                        <th className="pb-3 font-medium">Expires</th>
-                        <th className="pb-3 font-medium">Created</th>
+                        <th className="pb-3 font-medium">{t("admin.codesTable.headerCode")}</th>
+                        <th className="pb-3 font-medium">{t("admin.codesTable.headerStatus")}</th>
+                        <th className="pb-3 font-medium">{t("admin.codesTable.headerCreatedBy")}</th>
+                        <th className="pb-3 font-medium">{t("admin.codesTable.headerExpires")}</th>
+                        <th className="pb-3 font-medium">{t("admin.codesTable.headerCreated")}</th>
                         <th className="pb-3 font-medium"></th>
                       </tr>
                     </thead>
@@ -1332,19 +1331,19 @@ export function AdminDashboard() {
                               {code.code}
                               {code.fromAllowance && (
                                 <span className="ml-2 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-400 border border-violet-500/20">
-                                  EVENT
+                                  {t("admin.codesTable.statusEvent")}
                                 </span>
                               )}
                             </td>
                             <td className="py-3">
                               {code.revokedAt ? (
-                                <span className="text-red-400">Revoked</span>
+                                <span className="text-red-400">{t("admin.codesTable.statusRevoked")}</span>
                               ) : code.usedById ? (
                                 <span className="text-zinc-500">
-                                  Used{code.usedBy ? ` by ${code.usedBy.username}` : ""}
+                                  {t("admin.codesTable.statusUsed")}{code.usedBy ? t("admin.codesTable.usedBy", { username: code.usedBy.username }) : ""}
                                 </span>
                               ) : (
-                                <span className="text-emerald-400">Available</span>
+                                <span className="text-emerald-400">{t("admin.codesTable.statusAvailable")}</span>
                               )}
                             </td>
                             <td className="py-3 text-zinc-400">
@@ -1352,11 +1351,11 @@ export function AdminDashboard() {
                             </td>
                             <td className="py-3 text-zinc-500">
                               {code.expiresAt
-                                ? new Date(code.expiresAt).toLocaleDateString()
-                                : "Never"}
+                                ? formatDate(code.expiresAt)
+                                : t("admin.codesTable.never")}
                             </td>
                             <td className="py-3 text-zinc-500">
-                              {new Date(code.createdAt).toLocaleDateString()}
+                              {formatDate(code.createdAt)}
                             </td>
                             <td className="py-3">
                               {!code.usedById && !code.revokedAt && (
@@ -1364,7 +1363,7 @@ export function AdminDashboard() {
                                   onClick={() => handleRevoke(code.id)}
                                   className="text-xs text-red-400 hover:text-red-300 transition-colors"
                                 >
-                                  Revoke
+                                  {t("admin.codesTable.revoke")}
                                 </button>
                               )}
                             </td>
@@ -1389,17 +1388,16 @@ export function AdminDashboard() {
 
         {tab === "users" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-            <h2 className="text-lg font-semibold text-white mb-4">All Users</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">{t("admin.usersTable.title")}</h2>
 
             {users.some((u) => u.securityFlag !== "none") && (
               <div className="mb-6 rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-red-400">
                   <ShieldAlert className="h-4 w-4" />
-                  Passkey security flags
+                  {t("admin.usersTable.passkeyFlags")}
                 </div>
                 <p className="mt-1 text-xs text-zinc-400">
-                  Accounts at risk: no passkey registered, or a passkey that has not proven it is
-                  discoverable (resident) through a recent sign-in.
+                  {t("admin.usersTable.passkeyFlagsDescription")}
                 </p>
                 <ul className="mt-3 space-y-2">
                   {users
@@ -1408,9 +1406,9 @@ export function AdminDashboard() {
                       <li key={u.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                         <span className="font-mono text-red-300">{u.username}</span>
                         <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20">
-                          {securityFlagLabel(u.securityFlag)}
+                          {securityFlagLabel(u.securityFlag, t)}
                         </span>
-                        <span className="text-zinc-400">{securityFlagReason(u)}</span>
+                        <span className="text-zinc-400">{securityFlagReason(u, t)}</span>
                       </li>
                     ))}
                 </ul>
@@ -1418,17 +1416,17 @@ export function AdminDashboard() {
             )}
 
             {users.length === 0 ? (
-              <p className="text-sm text-zinc-500">No users.</p>
+              <p className="text-sm text-zinc-500">{t("admin.usersTable.noUsers")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                      <th className="pb-3 font-medium">Username</th>
-                      <th className="pb-3 font-medium">Email</th>
-                      <th className="pb-3 font-medium">Role</th>
-                      <th className="pb-3 font-medium">Tier</th>
-                      <th className="pb-3 font-medium">Joined</th>
+                      <th className="pb-3 font-medium">{t("admin.usersTable.headerUsername")}</th>
+                      <th className="pb-3 font-medium">{t("admin.usersTable.headerEmail")}</th>
+                      <th className="pb-3 font-medium">{t("admin.usersTable.headerRole")}</th>
+                      <th className="pb-3 font-medium">{t("admin.usersTable.headerTier")}</th>
+                      <th className="pb-3 font-medium">{t("admin.usersTable.headerJoined")}</th>
                       <th className="pb-3 font-medium"></th>
                     </tr>
                   </thead>
@@ -1439,15 +1437,15 @@ export function AdminDashboard() {
                           {u.username}
                           {u.inviteBanned && (
                             <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20">
-                              INVITE BANNED
+                              {t("admin.usersTable.inviteBanned")}
                             </span>
                           )}
                           {u.securityFlag !== "none" && (
                             <span
-                              title={securityFlagReason(u)}
+                              title={securityFlagReason(u, t)}
                               className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20"
                             >
-                              {securityFlagLabel(u.securityFlag)}
+                              {securityFlagLabel(u.securityFlag, t)}
                             </span>
                           )}
                         </td>
@@ -1461,11 +1459,15 @@ export function AdminDashboard() {
                             {u.role?.name ?? "—"}
                           </span>
                           <span className="block text-[10px] text-zinc-600 mt-0.5">
-                            (t:{u.trackLimit ?? "–"} p:{u.profileLimit ?? "–"} a:{u.aliasLimit ?? "–"}
-                            {u.seatLimit !== null && u.seatLimit !== undefined
-                              ? ` s:${u.seatsUsed}/${u.seatLimit}${!u.hasPaidOrder && u.tier === "ENTERPRISE" ? " ⚠" : ""}`
-                              : ""}
-                            )
+                            {t("admin.usersTable.positionInfo", {
+                              t: u.trackLimit ?? "–",
+                              p: u.profileLimit ?? "–",
+                              a: u.aliasLimit ?? "–",
+                              seat:
+                                u.seatLimit !== null && u.seatLimit !== undefined
+                                  ? ` ${t("admin.usersTable.seats", { used: u.seatsUsed, limit: u.seatLimit })}${!u.hasPaidOrder && u.tier === "ENTERPRISE" ? t("admin.usersTable.seatWarning") : ""}`
+                                  : "",
+                            })}
                           </span>
                         </td>
                         <td className="py-3">
@@ -1482,7 +1484,7 @@ export function AdminDashboard() {
                           </span>
                         </td>
                         <td className="py-3 text-zinc-500">
-                          {new Date(u.createdAt).toLocaleDateString()}
+                          {formatDate(u.createdAt)}
                         </td>
                         <td className="py-3">
                           {canManageUsers && (
@@ -1491,21 +1493,21 @@ export function AdminDashboard() {
                                 <button
                                   onClick={() => handleDeleteUser(u)}
                                   disabled={locked}
-                                  title={locked ? "Locked until the app is updated" : "Permanently delete this user (GDPR erasure)"}
+                                  title={locked ? t("admin.usersTable.deleteLocked") : t("admin.usersTable.deleteTitle")}
                                   className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   <Trash2 className="h-3 w-3" />
-                                  Delete
+                                  {t("admin.usersTable.delete")}
                                 </button>
                               )}
                               <button
                                 onClick={() => openEditProfile(u)}
                                 disabled={locked}
-                                title={locked ? "Locked until the app is updated" : undefined}
+                                title={locked ? t("admin.usersTable.deleteLocked") : undefined}
                                 className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Edit className="h-3 w-3" />
-                                Edit Profile
+                                {t("admin.usersTable.editProfile")}
                               </button>
                             </div>
                           )}
@@ -1531,14 +1533,14 @@ export function AdminDashboard() {
           <div className="space-y-6">
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
               <h2 className="text-lg font-semibold text-white mb-1">
-                {roleForm.id ? "Edit Role" : "Create Role"}
+                {roleForm.id ? t("admin.roles.editRole") : t("admin.roles.createRole")}
               </h2>
               <p className="text-sm text-zinc-500 mb-4">
-                The Admin role always has every permission. The User role and custom roles can be edited here.
+                {t("admin.roles.adminNote")}
               </p>
 
               {roleMsg && (
-                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${roleMsg === "Saved" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${roleMsg === t("admin.roles.saved") ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
                   {roleMsg}
                 </div>
               )}
@@ -1546,22 +1548,22 @@ export function AdminDashboard() {
               <form onSubmit={handleRoleSave} className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name</label>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.roles.name")}</label>
                     <input
                       type="text"
                       value={roleForm.name}
                       onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                      placeholder="e.g. Moderator"
+                      placeholder={t("admin.roles.namePlaceholder")}
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Description</label>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.roles.description")}</label>
                     <input
                       type="text"
                       value={roleForm.description}
                       onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                      placeholder="What is this role for?"
+                      placeholder={t("admin.roles.descriptionPlaceholder")}
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                     />
                   </div>
@@ -1569,17 +1571,15 @@ export function AdminDashboard() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-1">
-                    Invite generation
+                    {t("admin.roles.inviteGeneration")}
                   </label>
                   <p className="text-xs text-zinc-500 mb-3">
-                    Requires the "Generate own invite codes" permission. Batch limit 0 disables role-based
-                    generation. Outstanding limit 0 = unlimited. Cooldown 0 = none. Expiry bounds apply to
-                    every code the role generates.
+                    {t("admin.roles.inviteGenerationDescription")}
                   </p>
                   <div className="grid sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                        Max per batch (0 = off)
+                        {t("admin.roles.maxPerBatch")}
                       </label>
                       <input
                         type="number"
@@ -1591,7 +1591,7 @@ export function AdminDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                        Max unused at once (0 = ∞)
+                        {t("admin.roles.maxUnused")}
                       </label>
                       <input
                         type="number"
@@ -1603,7 +1603,7 @@ export function AdminDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                        Cooldown (minutes)
+                        {t("admin.roles.cooldown")}
                       </label>
                       <input
                         type="number"
@@ -1615,7 +1615,7 @@ export function AdminDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                        Default expiry (days)
+                        {t("admin.roles.defaultExpiry")}
                       </label>
                       <input
                         type="number"
@@ -1627,7 +1627,7 @@ export function AdminDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                        Min expiry (days)
+                        {t("admin.roles.minExpiry")}
                       </label>
                       <input
                         type="number"
@@ -1639,7 +1639,7 @@ export function AdminDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                        Max expiry (days)
+                        {t("admin.roles.maxExpiry")}
                       </label>
                       <input
                         type="number"
@@ -1653,7 +1653,7 @@ export function AdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">Permissions</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">{t("admin.roles.permissions")}</label>
                   <div className="grid sm:grid-cols-2 gap-2">
                     {PERMISSION_ORDER.map((perm) => {
                       const checked = roleForm.permissions.includes(perm);
@@ -1686,7 +1686,7 @@ export function AdminDashboard() {
                           >
                             {checked && "✓"}
                           </span>
-                          {PERMISSION_LABELS[perm]}
+                          {t(`admin.permissions.${perm}`)}
                         </button>
                       );
                     })}
@@ -1696,11 +1696,11 @@ export function AdminDashboard() {
                 <div className="flex gap-3">
                   <Button type="submit" disabled={locked}>
                     <Save className="h-4 w-4" />
-                    {roleForm.id ? "Save Role" : "Create Role"}
+                    {roleForm.id ? t("admin.roles.saveRole") : t("admin.roles.createRoleButton")}
                   </Button>
                   {roleForm.id && (
                     <Button variant="secondary" onClick={() => setRoleForm({ id: null, name: "", description: "", permissions: [], inviteBatchLimit: "0", inviteOutstandingLimit: "0", inviteCooldownMinutes: "0", inviteDefaultExpiryDays: "30", inviteMinExpiryDays: "1", inviteMaxExpiryDays: "365" })}>
-                      Cancel
+                      {t("admin.roles.cancel")}
                     </Button>
                   )}
                 </div>
@@ -1708,9 +1708,9 @@ export function AdminDashboard() {
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-              <h2 className="text-lg font-semibold text-white mb-4">Roles</h2>
+              <h2 className="text-lg font-semibold text-white mb-4">{t("admin.roles.heading")}</h2>
               {roles.length === 0 ? (
-                <p className="text-sm text-zinc-500">No roles yet.</p>
+                <p className="text-sm text-zinc-500">{t("admin.roles.noRoles")}</p>
               ) : (
                 <div className="space-y-3">
                   {roles.map((r) => (
@@ -1721,11 +1721,11 @@ export function AdminDashboard() {
                             <span className="text-sm font-semibold text-white">{r.name}</span>
                             {r.isSystem && (
                               <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-                                System
+                                {t("admin.roles.system")}
                               </span>
                             )}
                             <span className="text-[11px] text-zinc-600">
-                              {roleUserCount(r.id)} user{roleUserCount(r.id) === 1 ? "" : "s"}
+                              {t("admin.roles.userCount", { count: roleUserCount(r.id), s: roleUserCount(r.id) === 1 ? "" : "s" })}
                             </span>
                           </div>
                           {r.description && (
@@ -1733,11 +1733,11 @@ export function AdminDashboard() {
                           )}
                           <div className="flex flex-wrap gap-1.5 mt-2.5">
                             {r.permissions.length === 0 ? (
-                              <span className="text-[11px] text-zinc-600">No permissions</span>
+                                <span className="text-[11px] text-zinc-600">{t("admin.roles.noPermissions")}</span>
                             ) : (
                               r.permissions.map((p) => (
                                 <span key={p} className="rounded-full bg-zinc-800/80 px-2 py-0.5 text-[11px] text-zinc-300 border border-zinc-700/50">
-                                  {PERMISSION_LABELS[p] ?? p}
+                                  {t(`admin.permissions.${p}`, { defaultValue: p })}
                                 </span>
                               ))
                             )}
@@ -1745,8 +1745,15 @@ export function AdminDashboard() {
                           <p className="text-[11px] text-zinc-600 mt-2">
                             Invites:{" "}
                             {r.inviteBatchLimit > 0
-                              ? `${r.inviteBatchLimit}/batch · ${r.inviteOutstandingLimit > 0 ? `${r.inviteOutstandingLimit} outstanding` : "∞ outstanding"} · ${r.inviteCooldownMinutes}min cooldown · expiry ${r.inviteDefaultExpiryDays}d (${r.inviteMinExpiryDays}–${r.inviteMaxExpiryDays})`
-                              : "generation disabled"}
+                              ? t("admin.roles.inviteSummary", {
+                                  batch: r.inviteBatchLimit,
+                                  outstanding: r.inviteOutstandingLimit > 0 ? t("admin.roles.outstanding", { count: r.inviteOutstandingLimit }) : t("admin.roles.unlimitedOutstanding"),
+                                  cooldown: r.inviteCooldownMinutes,
+                                  def: r.inviteDefaultExpiryDays,
+                                  min: r.inviteMinExpiryDays,
+                                  max: r.inviteMaxExpiryDays,
+                                })
+                              : t("admin.roles.generationDisabled")}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1766,17 +1773,17 @@ export function AdminDashboard() {
                               })
                             }
                             disabled={locked}
-                            title={locked ? "Locked until the app is updated" : undefined}
+                            title={locked ? t("admin.roles.locked") : undefined}
                             className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Edit className="h-3 w-3" />
-                            Edit
+                            {t("admin.roles.edit")}
                           </button>
                           {!r.isSystem && (
                             <button
                               onClick={() => handleRoleDelete(r.id)}
                               disabled={locked}
-                              title={locked ? "Locked until the app is updated" : undefined}
+                            title={locked ? t("admin.usersTable.deleteLocked") : undefined}
                               className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1796,14 +1803,14 @@ export function AdminDashboard() {
           <div className="space-y-6">
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
               <h2 className="text-lg font-semibold text-white mb-1">
-                {badgeForm.id ? "Edit Badge" : "Create Badge"}
+                {badgeForm.id ? t("admin.badges.editBadge") : t("admin.badges.createBadge")}
               </h2>
               <p className="text-sm text-zinc-500 mb-4">
-                Badges appear on profiles as colored icons. Pick a label, color and lucide icon name.
+                {t("admin.badges.description")}
               </p>
 
               {badgeMsg && (
-                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${badgeMsg === "Saved" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${badgeMsg === t("admin.badges.saved") ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
                   {badgeMsg}
                 </div>
               )}
@@ -1811,34 +1818,34 @@ export function AdminDashboard() {
               <form onSubmit={handleBadgeSave} className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Label</label>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.badges.label")}</label>
                     <input
                       type="text"
                       value={badgeForm.label}
                       onChange={(e) => setBadgeForm({ ...badgeForm, label: e.target.value })}
-                      placeholder="e.g. Gold Member"
+                      placeholder={t("admin.badges.labelPlaceholder")}
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Internal ID <span className="text-zinc-500">(optional)</span>
+                      {t("admin.badges.internalId")} <span className="text-zinc-500">{t("admin.badges.optional")}</span>
                     </label>
                     <input
                       type="text"
                       value={badgeForm.slug}
                       onChange={(e) => setBadgeForm({ ...badgeForm, slug: e.target.value })}
-                      placeholder="gold-member"
+                      placeholder={t("admin.badges.internalIdPlaceholder")}
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                     />
                     <p className="mt-1 text-xs text-zinc-500">
-                      Machine-readable identifier. Auto-generated from the label when empty.
+                      {t("admin.badges.internalIdHint")}
                     </p>
                   </div>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Color</label>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.badges.color")}</label>
                     <div className="flex gap-2">
                       <input
                         type="color"
@@ -1856,31 +1863,31 @@ export function AdminDashboard() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Icon <span className="text-zinc-500">(lucide name)</span>
+                      {t("admin.badges.icon")} <span className="text-zinc-500">{t("admin.badges.iconHint")}</span>
                     </label>
                     <input
                       type="text"
                       value={badgeForm.icon}
                       onChange={(e) => setBadgeForm({ ...badgeForm, icon: e.target.value })}
-                      placeholder="Award"
+                      placeholder={t("admin.badges.iconPlaceholder")}
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 font-mono"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">Preview</label>
-                  <BadgePill badge={{ id: "preview", slug: badgeForm.slug || "preview", label: badgeForm.label || "Badge", color: badgeForm.color, icon: badgeForm.icon, isSystem: false }} size="lg" />
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">{t("admin.badges.preview")}</label>
+                  <BadgePill badge={{ id: "preview", slug: badgeForm.slug || "preview", label: badgeForm.label || t("admin.badges.previewBadge"), color: badgeForm.color, icon: badgeForm.icon, isSystem: false }} size="lg" />
                 </div>
 
                 <div className="flex gap-3">
                   <Button type="submit" disabled={locked}>
                     <Save className="h-4 w-4" />
-                    {badgeForm.id ? "Save Badge" : "Create Badge"}
+                    {badgeForm.id ? t("admin.badges.saveBadge") : t("admin.badges.createBadgeButton")}
                   </Button>
                   {badgeForm.id && (
                     <Button variant="secondary" onClick={() => setBadgeForm({ id: null, slug: "", label: "", color: "#a855f7", icon: "Award" })}>
-                      Cancel
+                      {t("admin.badges.cancel")}
                     </Button>
                   )}
                 </div>
@@ -1888,9 +1895,9 @@ export function AdminDashboard() {
             </div>
 
             <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-              <h2 className="text-lg font-semibold text-white mb-4">Badges</h2>
+              <h2 className="text-lg font-semibold text-white mb-4">{t("admin.badges.heading")}</h2>
               {badgeCatalog.length === 0 ? (
-                <p className="text-sm text-zinc-500">No badges yet.</p>
+                <p className="text-sm text-zinc-500">{t("admin.badges.noBadges")}</p>
               ) : (
                 <div className="flex flex-wrap gap-3">
                   {badgeCatalog.map((b) => (
@@ -1909,7 +1916,7 @@ export function AdminDashboard() {
                               })
                             }
                             disabled={locked}
-                            title={locked ? "Locked until the app is updated" : undefined}
+                            title={locked ? t("admin.badges.locked") : undefined}
                             className="text-xs text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Edit className="h-3.5 w-3.5" />
@@ -1917,7 +1924,7 @@ export function AdminDashboard() {
                           <button
                             onClick={() => handleBadgeDelete(b.id)}
                             disabled={locked}
-                            title={locked ? "Locked until the app is updated" : undefined}
+                            title={locked ? t("admin.badges.locked") : undefined}
                             className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1934,47 +1941,45 @@ export function AdminDashboard() {
 
         {tab === "bans" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-6">
-            <h2 className="text-lg font-semibold text-white mb-1">IP Allowlist</h2>
+            <h2 className="text-lg font-semibold text-white mb-1">{t("admin.allowlist.title")}</h2>
             <p className="text-sm text-zinc-500 mb-4">
-              IPs or CIDR networks that bypass the anti-abuse fingerprint guard: users on them can register
-              multiple accounts (e.g. beta testers) and are exempt from login lockouts even if the network was
-              flagged. Stored in the database, so it survives redeploys.
+              {t("admin.allowlist.description")}
             </p>
 
             <form onSubmit={handleAddWhitelist} className="flex flex-col sm:flex-row gap-3 mb-4">
               <input
                 value={wlValue}
                 onChange={(e) => setWlValue(e.target.value)}
-                placeholder="IP or CIDR (e.g. 203.0.113.0/24)"
+                placeholder={t("admin.allowlist.ipPlaceholder")}
                 className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
               />
               <input
                 value={wlNote}
                 onChange={(e) => setWlNote(e.target.value)}
-                placeholder="Note (optional)"
+                placeholder={t("admin.allowlist.notePlaceholder")}
                 className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
               />
               <button
                 type="submit"
                 className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-500 transition-colors"
               >
-                Add
+                {t("admin.allowlist.add")}
               </button>
             </form>
 
             {wlMsg && <p className="text-sm text-amber-400 mb-3">{wlMsg}</p>}
 
             {whitelist.length === 0 ? (
-              <p className="text-sm text-zinc-500">No allowlisted IPs.</p>
+              <p className="text-sm text-zinc-500">{t("admin.allowlist.noEntries")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                      <th className="pb-3 font-medium">Value</th>
-                      <th className="pb-3 font-medium">Note</th>
-                      <th className="pb-3 font-medium">Added by</th>
-                      <th className="pb-3 font-medium">Added</th>
+                      <th className="pb-3 font-medium">{t("admin.allowlist.headerValue")}</th>
+                      <th className="pb-3 font-medium">{t("admin.allowlist.headerNote")}</th>
+                      <th className="pb-3 font-medium">{t("admin.allowlist.headerAddedBy")}</th>
+                      <th className="pb-3 font-medium">{t("admin.allowlist.headerAdded")}</th>
                       <th className="pb-3 font-medium"></th>
                     </tr>
                   </thead>
@@ -1984,13 +1989,13 @@ export function AdminDashboard() {
                         <td className="py-3 font-mono text-zinc-300">{entry.value}</td>
                         <td className="py-3 text-zinc-400">{entry.note || "—"}</td>
                         <td className="py-3 text-zinc-400">{entry.createdBy}</td>
-                        <td className="py-3 text-zinc-500">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="py-3 text-zinc-500">{formatDateTime(entry.createdAt)}</td>
                         <td className="py-3">
                           <button
                             onClick={() => handleRemoveWhitelist(entry.id)}
                             className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
                           >
-                            Remove
+                            {t("admin.allowlist.remove")}
                           </button>
                         </td>
                       </tr>
@@ -2012,24 +2017,23 @@ export function AdminDashboard() {
         )}
         {tab === "bans" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-            <h2 className="text-lg font-semibold text-white mb-1">Auth Bans &amp; Lockouts</h2>
+            <h2 className="text-lg font-semibold text-white mb-1">{t("admin.bans.title")}</h2>
             <p className="text-sm text-zinc-500 mb-4">
-              Automatically applied to fingerprints (IP, cookie, user agent) and accounts after repeated failed
-              auth attempts. Remove a record to allow access again.
+              {t("admin.bans.description")}
             </p>
 
             {bans.length === 0 ? (
-              <p className="text-sm text-zinc-500">No bans or lockouts.</p>
+              <p className="text-sm text-zinc-500">{t("admin.bans.noEntries")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                      <th className="pb-3 font-medium">Type</th>
-                      <th className="pb-3 font-medium">Value</th>
-                      <th className="pb-3 font-medium">Failures</th>
-                      <th className="pb-3 font-medium">Status</th>
-                      <th className="pb-3 font-medium">Updated</th>
+                      <th className="pb-3 font-medium">{t("admin.bans.headerType")}</th>
+                      <th className="pb-3 font-medium">{t("admin.bans.headerValue")}</th>
+                      <th className="pb-3 font-medium">{t("admin.bans.headerFailures")}</th>
+                      <th className="pb-3 font-medium">{t("admin.bans.headerStatus")}</th>
+                      <th className="pb-3 font-medium">{t("admin.bans.headerUpdated")}</th>
                       <th className="pb-3 font-medium"></th>
                     </tr>
                   </thead>
@@ -2049,18 +2053,18 @@ export function AdminDashboard() {
                           <td className="py-3 text-zinc-400">{ban.failCount}</td>
                           <td className="py-3">
                             {ban.permanent ? (
-                              <span className="text-red-400 text-xs font-semibold">Permanent ban</span>
+                              <span className="text-red-400 text-xs font-semibold">{t("admin.bans.permanentBan")}</span>
                             ) : locked ? (
                               <span className="text-amber-400 text-xs font-semibold">
-                                Locked until{" "}
-                                {new Date(ban.lockedUntil as string).toLocaleString()}
+                                {t("admin.bans.lockedUntil")}{" "}
+                                {formatDateTime(ban.lockedUntil as string)}
                               </span>
                             ) : (
-                              <span className="text-emerald-400 text-xs">Clear</span>
+                              <span className="text-emerald-400 text-xs">{t("admin.bans.clear")}</span>
                             )}
                           </td>
                           <td className="py-3 text-zinc-500">
-                            {new Date(ban.updatedAt).toLocaleString()}
+                            {formatDateTime(ban.updatedAt)}
                           </td>
                           <td className="py-3">
                             {ban.kind === "ACCOUNT" && (
@@ -2068,14 +2072,14 @@ export function AdminDashboard() {
                                 onClick={() => handleUnlockAccount(ban.accountId!)}
                                 className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors mr-3"
                               >
-                                Unlock
+                                {t("admin.bans.unlock")}
                               </button>
                             )}
                             <button
                               onClick={() => handleUnban(ban.id)}
                               className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
                             >
-                              Unban
+                              {t("admin.bans.unban")}
                             </button>
                           </td>
                         </tr>
@@ -2101,25 +2105,24 @@ export function AdminDashboard() {
         )}
         {tab === "logs" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-            <h2 className="text-lg font-semibold text-white mb-1">Auth Log</h2>
+            <h2 className="text-lg font-semibold text-white mb-1">{t("admin.authLog.title")}</h2>
             <p className="text-sm text-zinc-500 mb-4">
-              Failed auth attempts with the applied penalty. Entries are pruned automatically once their lock
-              expires or after the retention period.
+              {t("admin.authLog.description")}
             </p>
 
             {logs.length === 0 ? (
-              <p className="text-sm text-zinc-500">No auth log entries.</p>
+              <p className="text-sm text-zinc-500">{t("admin.authLog.noEntries")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                      <th className="pb-3 font-medium">Time</th>
-                      <th className="pb-3 font-medium">User</th>
-                      <th className="pb-3 font-medium">Reason</th>
-                      <th className="pb-3 font-medium">IP</th>
-                      <th className="pb-3 font-medium">Penalty</th>
-                      <th className="pb-3 font-medium">Triggered by</th>
+                      <th className="pb-3 font-medium">{t("admin.authLog.headerTime")}</th>
+                      <th className="pb-3 font-medium">{t("admin.authLog.headerUser")}</th>
+                      <th className="pb-3 font-medium">{t("admin.authLog.headerReason")}</th>
+                      <th className="pb-3 font-medium">{t("admin.authLog.headerIp")}</th>
+                      <th className="pb-3 font-medium">{t("admin.authLog.headerPenalty")}</th>
+                      <th className="pb-3 font-medium">{t("admin.authLog.headerTriggeredBy")}</th>
                       <th className="pb-3 font-medium"></th>
                     </tr>
                   </thead>
@@ -2129,16 +2132,16 @@ export function AdminDashboard() {
                       return (
                         <tr key={log.id}>
                           <td className="py-3 whitespace-nowrap text-zinc-500">
-                            {new Date(log.createdAt).toLocaleString()}
+                            {formatDateTime(log.createdAt)}
                           </td>
                           <td className="py-3 font-mono text-zinc-300">{log.username ?? "—"}</td>
                           <td className="py-3 text-zinc-300">{log.reason}</td>
                           <td className="py-3 font-mono text-zinc-500">{log.ip}</td>
                           <td className="py-3">
                             {log.permanent ? (
-                              <span className="text-red-400 text-xs font-semibold">Permanent lock</span>
+                              <span className="text-red-400 text-xs font-semibold">{t("admin.authLog.permanentLock")}</span>
                             ) : log.penaltyMinutes !== null ? (
-                              <span className="text-amber-400 text-xs">+{log.penaltyMinutes} min</span>
+                              <span className="text-amber-400 text-xs">{t("admin.authLog.plusMinutes", { count: log.penaltyMinutes })}</span>
                             ) : (
                               <span className="text-zinc-600 text-xs">—</span>
                             )}
@@ -2150,7 +2153,7 @@ export function AdminDashboard() {
                                 onClick={() => handleUnlockAccount(log.accountId!)}
                                 className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
                               >
-                                Unlock
+                                {t("admin.authLog.unlock")}
                               </button>
                             )}
                           </td>
@@ -2175,25 +2178,24 @@ export function AdminDashboard() {
 
         {tab === "domains" && (
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-            <h2 className="text-lg font-semibold text-white mb-1">Custom Domains</h2>
+            <h2 className="text-lg font-semibold text-white mb-1">{t("admin.domains.title")}</h2>
             <p className="text-sm text-zinc-500 mb-4">
-              Self-serve custom domain requests. Users prove ownership with a TXT record; review verified
-              requests and activate or reject them here.
+              {t("admin.domains.description")}
             </p>
 
             {domains.length === 0 ? (
-              <p className="text-sm text-zinc-500">No custom domain requests yet.</p>
+              <p className="text-sm text-zinc-500">{t("admin.domains.noRequests")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
-                      <th className="pb-3 font-medium">Domain</th>
-                      <th className="pb-3 font-medium">Owner</th>
-                      <th className="pb-3 font-medium">Profile</th>
-                      <th className="pb-3 font-medium">Status</th>
-                      <th className="pb-3 font-medium">TLS</th>
-                      <th className="pb-3 font-medium">Requested</th>
+                      <th className="pb-3 font-medium">{t("admin.domains.headerDomain")}</th>
+                      <th className="pb-3 font-medium">{t("admin.domains.headerOwner")}</th>
+                      <th className="pb-3 font-medium">{t("admin.domains.headerProfile")}</th>
+                      <th className="pb-3 font-medium">{t("admin.domains.headerStatus")}</th>
+                      <th className="pb-3 font-medium">{t("admin.domains.headerTls")}</th>
+                      <th className="pb-3 font-medium">{t("admin.domains.headerRequested")}</th>
                       <th className="pb-3 font-medium"></th>
                     </tr>
                   </thead>
@@ -2210,52 +2212,52 @@ export function AdminDashboard() {
                         <td className="py-3 text-zinc-300">
                           {d.profileSlug}
                           {d.rootTarget ? (
-                            <span className="block text-xs text-zinc-500">root → {d.rootTarget}</span>
+                            <span className="block text-xs text-zinc-500">{t("admin.domains.root")} {d.rootTarget}</span>
                           ) : (
-                            <span className="block text-xs text-zinc-600">root → landing</span>
+                            <span className="block text-xs text-zinc-600">{t("admin.domains.rootLanding")}</span>
                           )}
                         </td>
                         <td className="py-3">
                           {d.status === "VERIFIED" ? (
                             <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-400">
-                              Verified
+                              {t("admin.domains.statusVerified")}
                             </span>
                           ) : d.status === "ACTIVE" ? (
                             <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
-                              Active
+                              {t("admin.domains.statusActive")}
                             </span>
                           ) : d.status === "REJECTED" ? (
                             <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-400">
-                              Rejected
+                              {t("admin.domains.statusRejected")}
                             </span>
                           ) : (
                             <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-400">
-                              Pending TXT
+                              {t("admin.domains.statusPendingTxt")}
                             </span>
                           )}
                         </td>
                         <td className="py-3">
                           {d.status === "ACTIVE" && d.tlsStatus === "ISSUED" ? (
                             <span className="text-xs text-emerald-400" title={d.tlsError ?? undefined}>
-                              valid to {d.tlsExpiresAt ? new Date(d.tlsExpiresAt).toLocaleDateString() : "—"}
+                              {t("admin.domains.validTo")} {d.tlsExpiresAt ? formatDate(d.tlsExpiresAt) : "—"}
                             </span>
                           ) : d.status === "ACTIVE" && d.tlsStatus === "PENDING" ? (
-                            <span className="text-xs text-amber-400">issuing…</span>
+                            <span className="text-xs text-amber-400">{t("admin.domains.issuing")}</span>
                           ) : d.status === "ACTIVE" && d.tlsStatus === "FAILED" ? (
                             <span
                               className="text-xs text-red-400 underline decoration-dotted underline-offset-2 cursor-help"
-                              title={d.tlsError ?? "Certificate issuance failed"}
+                              title={d.tlsError ?? t("admin.toasts.certIssuanceFailed")}
                             >
-                              failed — hover for details
+                              {t("admin.domains.failedHover")}
                             </span>
                           ) : d.status === "ACTIVE" ? (
-                            <span className="text-xs text-zinc-500">none</span>
+                            <span className="text-xs text-zinc-500">{t("admin.domains.none")}</span>
                           ) : (
                             <span className="text-xs text-zinc-700">—</span>
                           )}
                         </td>
                         <td className="py-3 text-zinc-500 whitespace-nowrap">
-                          {new Date(d.createdAt).toLocaleDateString()}
+                          {formatDate(d.createdAt)}
                         </td>
                         <td className="py-3 whitespace-nowrap">
                           {d.status === "VERIFIED" ? (
@@ -2263,7 +2265,7 @@ export function AdminDashboard() {
                               onClick={() => handleApproveDomain(d.id)}
                               className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition-colors"
                             >
-                              Activate
+                              {t("admin.domains.activate")}
                             </button>
                           ) : (
                             <span className="text-xs text-zinc-600">—</span>
@@ -2273,7 +2275,7 @@ export function AdminDashboard() {
                               onClick={() => handleRejectDomain(d.id)}
                               className="ml-2 rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/25 transition-colors"
                             >
-                              Reject
+                              {t("admin.domains.reject")}
                             </button>
                           )}
                           {d.status === "ACTIVE" && d.tlsStatus !== "ISSUED" && d.tlsStatus !== "PENDING" && (
@@ -2281,16 +2283,16 @@ export function AdminDashboard() {
                               onClick={() => handleIssueCert(d.id)}
                               className="ml-2 rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-400 hover:bg-violet-500/25 transition-colors"
                             >
-                              Issue cert
+                              {t("admin.domains.issueCert")}
                             </button>
                           )}
                           <button
                             onClick={() => handleRemoveDomain(d)}
                             disabled={locked}
-                            title={locked ? "Locked until the app is updated" : "Remove this custom domain and its TLS certificates"}
+                            title={locked ? t("admin.domains.locked") : t("admin.domains.removeTitle")}
                             className="ml-2 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-red-500/15 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            Remove
+                            {t("admin.domains.remove")}
                           </button>
                         </td>
                       </tr>
@@ -2342,7 +2344,7 @@ export function AdminDashboard() {
           <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-white">Edit Profile</h2>
+                <h2 className="text-lg font-semibold text-white">{t("admin.editProfile.title")}</h2>
                 <p className="text-sm text-zinc-400">@{editingUser.username}</p>
               </div>
               <button
@@ -2361,7 +2363,7 @@ export function AdminDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Display Name
+                    {t("admin.editProfile.displayName")}
                   </label>
                   <input
                     type="text"
@@ -2373,7 +2375,7 @@ export function AdminDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Bio</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.editProfile.bio")}</label>
                   <textarea
                     value={editProfile.bio ?? ""}
                     onChange={(e) =>
@@ -2387,7 +2389,7 @@ export function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Location
+                      {t("admin.editProfile.location")}
                     </label>
                     <input
                       type="text"
@@ -2400,7 +2402,7 @@ export function AdminDashboard() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Website
+                      {t("admin.editProfile.website")}
                     </label>
                     <input
                       type="url"
@@ -2414,20 +2416,20 @@ export function AdminDashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">Tier</label>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.editProfile.tier")}</label>
                     <select
                       value={editTier}
                       onChange={(e) => setEditTier(e.target.value as "FREE" | "PRO" | "ENTERPRISE")}
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     >
-                      <option value="FREE">Free</option>
-                      <option value="PRO">Pro</option>
-                      <option value="ENTERPRISE">Enterprise</option>
+                      <option value="FREE">{t("common:tiers.free")}</option>
+                      <option value="PRO">{t("common:tiers.pro")}</option>
+                      <option value="ENTERPRISE">{t("common:tiers.enterprise")}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Track Limit <span className="text-zinc-500">(optional)</span>
+                      {t("admin.editProfile.trackLimit")} <span className="text-zinc-500">{t("admin.editProfile.optional")}</span>
                     </label>
                     <input
                       type="number"
@@ -2435,7 +2437,7 @@ export function AdminDashboard() {
                       max={100}
                       value={editTrackLimit}
                       onChange={(e) => setEditTrackLimit(e.target.value)}
-                      placeholder="Tier default"
+                      placeholder={t("admin.editProfile.tierDefaultPlaceholder")}
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>
@@ -2443,7 +2445,7 @@ export function AdminDashboard() {
 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Profile Limit <span className="text-zinc-500">(optional)</span>
+                      {t("admin.editProfile.profileLimit")} <span className="text-zinc-500">{t("admin.editProfile.optional")}</span>
                     </label>
                     <input
                       type="number"
@@ -2451,13 +2453,13 @@ export function AdminDashboard() {
                       max={100}
                       value={editProfileLimit}
                       onChange={(e) => setEditProfileLimit(e.target.value)}
-                      placeholder="Tier default"
+                      placeholder={t("admin.editProfile.tierDefaultPlaceholder")}
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Alias Limit <span className="text-zinc-500">(optional)</span>
+                      {t("admin.editProfile.aliasLimit")} <span className="text-zinc-500">{t("admin.editProfile.optional")}</span>
                     </label>
                     <input
                       type="number"
@@ -2465,13 +2467,13 @@ export function AdminDashboard() {
                       max={100}
                       value={editAliasLimit}
                       onChange={(e) => setEditAliasLimit(e.target.value)}
-                      placeholder="Tier default"
+                      placeholder={t("admin.editProfile.tierDefaultPlaceholder")}
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                      Team Seat Limit <span className="text-zinc-500">(enterprise gifted)</span>
+                      {t("admin.editProfile.teamSeatLimit")} <span className="text-zinc-500">{t("admin.editProfile.teamSeatEnterpriseGifted")}</span>
                     </label>
                     <input
                       type="number"
@@ -2479,13 +2481,13 @@ export function AdminDashboard() {
                       max={100000}
                       value={editSeatLimit}
                       onChange={(e) => setEditSeatLimit(e.target.value)}
-                      placeholder="Unlimited"
+                      placeholder={t("admin.editProfile.unlimitedPlaceholder")}
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label className="text-sm font-medium text-zinc-300">Public</label>
+                  <label className="text-sm font-medium text-zinc-300">{t("admin.editProfile.public")}</label>
                   <button
                     onClick={() =>
                       setEditProfile({ ...editProfile, isPublic: !editProfile.isPublic })
@@ -2502,7 +2504,7 @@ export function AdminDashboard() {
                   </button>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Role</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("admin.editProfile.role")}</label>
                   <select
                     value={editRoleId}
                     onChange={(e) => setEditRoleId(e.target.value)}
@@ -2511,13 +2513,13 @@ export function AdminDashboard() {
                     {roles.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
-                        {r.isSystem ? " (System)" : ""}
+                        {r.isSystem ? t("admin.editProfile.systemSuffix") : ""}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">Badges</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">{t("admin.editProfile.badges")}</label>
                   <div className="flex flex-wrap gap-2">
                     {badgeCatalog.map((badge) => {
                       const active = editBadges.includes(badge.id);
@@ -2542,17 +2544,17 @@ export function AdminDashboard() {
                       );
                     })}
                     {badgeCatalog.length === 0 && (
-                      <span className="text-[11px] text-zinc-600">No badges available</span>
+                      <span className="text-[11px] text-zinc-600">{t("admin.editProfile.noBadgesAvailable")}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-800/30 px-3.5 py-3">
                   <div>
-                    <p className="text-sm font-medium text-zinc-200">Invite access</p>
+                    <p className="text-sm font-medium text-zinc-200">{t("admin.editProfile.inviteAccess")}</p>
                     <p className="text-xs text-zinc-500">
                       {editingUser.inviteBanned
-                        ? "Banned from invite events and invite generation."
-                        : "Allowed to join invite events and generate invites."}
+                        ? t("admin.editProfile.inviteBannedNote")
+                        : t("admin.editProfile.inviteAllowedNote")}
                     </p>
                   </div>
                   {editingUser.id !== user?.id && (
@@ -2560,24 +2562,24 @@ export function AdminDashboard() {
                       type="button"
                       onClick={() => handleInviteBan(editingUser, !editingUser.inviteBanned)}
                       disabled={locked}
-                      title={locked ? "Locked until the app is updated" : undefined}
+                      title={locked ? t("admin.editProfile.locked") : undefined}
                       className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                         editingUser.inviteBanned
                           ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
                           : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
                       }`}
                     >
-                      {editingUser.inviteBanned ? "Unban invites" : "Ban invites"}
+                      {editingUser.inviteBanned ? t("admin.editProfile.unbanInvites") : t("admin.editProfile.banInvites")}
                     </button>
                   )}
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <Button variant="secondary" onClick={() => setEditingUser(null)}>
-                    Cancel
-                  </Button>
+                      {t("admin.editProfile.cancel")}
+                    </Button>
                   <Button onClick={handleSaveProfile} disabled={editLoading || locked}>
                     <Save className="h-4 w-4" />
-                    {editSaved ? "Saved!" : "Save"}
+                    {editSaved ? t("admin.editProfile.saved") : t("admin.editProfile.save")}
                   </Button>
                 </div>
               </div>

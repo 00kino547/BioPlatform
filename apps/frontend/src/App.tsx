@@ -1,7 +1,12 @@
 import { lazy, Suspense, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { DomainProvider, useDomain } from "@/contexts/DomainContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
+import { DomainProvider } from "@/contexts/DomainContext";
+import { useDomain } from "@/contexts/useDomain";
+import { I18nConfigGate } from "@/i18n/I18nConfigGate";
+import { UntranslatedNotice } from "@/i18n/UntranslatedNotice";
 import { branding } from "@/config/branding";
 import { usePageMeta, useJsonLd } from "@/lib/seo";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -39,8 +44,10 @@ const Terms = lazy(() => import("@/pages/Terms").then((m) => ({ default: m.Terms
 const ApiDocs = lazy(() => import("@/pages/ApiDocs").then((m) => ({ default: m.ApiDocs })));
 
 function Landing() {
+  // Shell-level landing page title lives in the "shared" namespace.
+  const { t } = useTranslation("shared");
   usePageMeta({
-    title: `${branding.name} — ${branding.tagline}`,
+    title: t("app.landingTitle", { name: branding.name, tagline: branding.tagline }),
     description: branding.description,
     url: "/",
   });
@@ -132,6 +139,7 @@ function PageFallback() {
 
 function App() {
   return (
+    <I18nConfigGate>
     <BrowserRouter>
       <AuthProvider>
         <DomainProvider>
@@ -176,12 +184,14 @@ function App() {
               </Routes>
             </Suspense>
             <CookieConsentBanner />
+            <UntranslatedNotice />
             <AnalyticsLoader />
           </div>
           </ConsentGate>
         </DomainProvider>
       </AuthProvider>
     </BrowserRouter>
+    </I18nConfigGate>
   );
 }
 

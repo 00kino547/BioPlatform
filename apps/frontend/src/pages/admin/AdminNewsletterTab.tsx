@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api, type NewsletterConfig, type NewsletterSubscriber, type NewsletterTierConfig, type NewsletterWhitelistUser } from "@/lib/api";
+import { formatDateTime } from "@/lib/intl";
 import { Pagination } from "./Pagination";
 import { Loader2, Mail, Megaphone, RotateCcw, Save, Search, ShieldCheck, UserCheck, UserX } from "lucide-react";
 
@@ -11,6 +13,8 @@ const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-violet-500";
 
 export function AdminNewsletterTab() {
+  // Admin tab for newsletter tier limits, consent lookups, sender allowlist and broadcasts.
+  const { t } = useTranslation("admin");
   const [config, setConfig] = useState<NewsletterConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -58,13 +62,13 @@ export function AdminNewsletterTab() {
         syncDraft(res.data.config);
         setError("");
       } else {
-        setError(res.error ?? "Could not load newsletter config");
+        setError(res.error ?? t("admin.newsletter.configLoadFailed"));
       }
     } catch {
-      setError("Could not load newsletter config");
+      setError(t("admin.newsletter.configLoadFailed"));
     }
     setLoading(false);
-  }, [syncDraft]);
+  }, [syncDraft, t]);
 
   useEffect(() => {
     load();
@@ -92,16 +96,16 @@ export function AdminNewsletterTab() {
         setConfig(res.data);
         syncDraft(res.data.config);
       } else {
-        setError(res.error ?? "Could not save newsletter config");
+        setError(res.error ?? t("admin.newsletter.configSaveFailed"));
       }
     } catch {
-      setError("Could not save newsletter config");
+      setError(t("admin.newsletter.configSaveFailed"));
     }
     setSaving(false);
   };
 
   const reset = async () => {
-    if (!window.confirm("Reset newsletter tier limits to the built-in defaults (FREE 0, PRO 1, ENTERPRISE 5 per 24 h)?")) return;
+    if (!window.confirm(t("admin.newsletter.resetConfirm"))) return;
     setResetting(true);
     setError("");
     try {
@@ -110,10 +114,10 @@ export function AdminNewsletterTab() {
         setConfig(res.data);
         syncDraft(res.data.config);
       } else {
-        setError(res.error ?? "Could not reset newsletter config");
+        setError(res.error ?? t("admin.newsletter.configResetFailed"));
       }
     } catch {
-      setError("Could not reset newsletter config");
+      setError(t("admin.newsletter.configResetFailed"));
     }
     setResetting(false);
   };
@@ -128,7 +132,7 @@ export function AdminNewsletterTab() {
     const res = await api.searchNewsletterConsent(email);
     setSearching(false);
     if (!res.success || !res.data) {
-      setSearchError(res.error ?? "Search failed");
+      setSearchError(res.error ?? t("admin.newsletter.searchFailed"));
       return;
     }
     setSearchResult(res.data);
@@ -143,10 +147,10 @@ export function AdminNewsletterTab() {
       setWlUsers(res.data.users);
       if (res.meta) setWlTotal(res.meta.total);
     } else {
-      setWlError(res.error ?? "Could not load the sender allowlist.");
+      setWlError(res.error ?? t("admin.newsletter.wlLoadFailed"));
     }
     setWlLoading(false);
-  }, [wlQuery]);
+  }, [wlQuery, t]);
 
   useEffect(() => {
     void loadWhitelist();
@@ -159,7 +163,7 @@ export function AdminNewsletterTab() {
     if (res.success && res.data) {
       setWlUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, whitelisted: res.data!.whitelisted } : x)));
     } else {
-      setWlError(res.error ?? "Could not update the sender allowlist.");
+      setWlError(res.error ?? t("admin.newsletter.wlUpdateFailed"));
     }
     setWlToggling(null);
   };
@@ -168,7 +172,8 @@ export function AdminNewsletterTab() {
   const [broadcastBody, setBroadcastBody] = useState("");
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcastNotice, setBroadcastNotice] = useState("");
+  // Store tone + localized text separately so the error styling never depends on English substrings.
+  const [broadcastNotice, setBroadcastNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [broadcasts, setBroadcasts] = useState<{ id: string; subject: string; recipientCount: number; successCount: number; sentAt: string }[]>([]);
 
   const loadBroadcast = useCallback(async () => {
@@ -184,29 +189,34 @@ export function AdminNewsletterTab() {
   const sendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastSubject.trim() || !broadcastBody.trim()) return;
-    if (!window.confirm(`Send this announcement to ${audienceCount ?? 0} opted-in user(s)? This cannot be undone.`)) return;
+    if (!window.confirm(t("admin.newsletter.sendConfirm", { count: audienceCount ?? 0 }))) return;
     setBroadcasting(true);
-    setBroadcastNotice("");
+    setBroadcastNotice(null);
     try {
       const res = await api.sendNewsletterBroadcast({ subject: broadcastSubject.trim(), body: broadcastBody.trim() });
       if (res.success && res.data) {
-        setBroadcastNotice(
-          `Sent to ${res.data.recipientCount} recipient(s): ${res.data.successCount} delivered, ${res.data.failedCount} failed.`
-        );
+        setBroadcastNotice({
+          tone: "ok",
+          text: t("admin.newsletter.broadcastSent", {
+            recipients: res.data.recipientCount,
+            delivered: res.data.successCount,
+            failed: res.data.failedCount,
+          }),
+        });
         setBroadcastSubject("");
         setBroadcastBody("");
         void loadBroadcast();
       } else {
-        setBroadcastNotice(res.error ?? "Broadcast failed.");
+        setBroadcastNotice({ tone: "err", text: res.error ?? t("admin.newsletter.broadcastFailed") });
       }
     } catch {
-      setBroadcastNotice("Broadcast failed.");
+      setBroadcastNotice({ tone: "err", text: t("admin.newsletter.broadcastFailed") });
     }
     setBroadcasting(false);
   };
 
   if (loading) {
-    return <p className="text-sm text-zinc-500 text-center py-12">Loading newsletter configuration…</p>;
+    return <p className="text-sm text-zinc-500 text-center py-12">{t("admin.newsletter.loading")}</p>;
   }
 
   return (
@@ -221,12 +231,15 @@ export function AdminNewsletterTab() {
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
             <Mail className="h-4 w-4 text-violet-400" />
-            <h2 className="text-lg font-semibold text-white">Newsletter tier limits</h2>
+            <h2 className="text-lg font-semibold text-white">{t("admin.newsletter.tierLimitsTitle")}</h2>
           </div>
           <p className="text-sm text-zinc-500">
-            How many newsletter sends each account tier may make per rolling window. Source:{" "}
-            <span className="font-medium text-zinc-300">{config?.configSource === "db" ? "admin override" : "default"}</span>.
-            Every send counts against the window. FREE defaults to 0 (sending disabled).
+            <Trans
+              ns="admin"
+              i18nKey="admin.newsletter.tierLimitsDescription"
+              values={{ source: config?.configSource === "db" ? t("admin.newsletter.sourceAdminOverride") : t("admin.newsletter.sourceDefault") }}
+              components={{ strong: <span className="font-medium text-zinc-300" /> }}
+            />
           </p>
         </div>
 
@@ -235,7 +248,7 @@ export function AdminNewsletterTab() {
             {TIERS.map((tier) => (
               <div key={tier} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
                 <p className="text-sm font-semibold text-white mb-3">{tier}</p>
-                <label className="block text-xs text-zinc-500 mb-1">Sends per window</label>
+                <label className="block text-xs text-zinc-500 mb-1">{t("admin.newsletter.sendsPerWindow")}</label>
                 <input
                   type="number"
                   min={0}
@@ -244,7 +257,7 @@ export function AdminNewsletterTab() {
                   onChange={(e) => patchTier(tier, "sendLimit", e.target.value)}
                   className={`${inputClass} mb-3`}
                 />
-                <label className="block text-xs text-zinc-500 mb-1">Window (hours)</label>
+                <label className="block text-xs text-zinc-500 mb-1">{t("admin.newsletter.windowHours")}</label>
                 <input
                   type="number"
                   min={1}
@@ -266,7 +279,7 @@ export function AdminNewsletterTab() {
             className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving…" : dirty ? "Save Changes" : "Saved"}
+            {saving ? t("admin.newsletter.saving") : dirty ? t("admin.newsletter.save") : t("admin.newsletter.saved")}
           </button>
           <button
             type="button"
@@ -275,7 +288,7 @@ export function AdminNewsletterTab() {
             className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RotateCcw className="h-4 w-4" />
-            {resetting ? "Resetting…" : "Reset to Defaults"}
+            {resetting ? t("admin.newsletter.resetting") : t("admin.newsletter.resetToDefaults")}
           </button>
         </div>
       </div>
@@ -284,12 +297,10 @@ export function AdminNewsletterTab() {
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <ShieldCheck className="h-4 w-4 text-violet-400" />
-            <h2 className="text-lg font-semibold text-white">Consent search</h2>
+            <h2 className="text-lg font-semibold text-white">{t("admin.newsletter.consentSearchTitle")}</h2>
           </div>
           <p className="text-sm text-zinc-500">
-            Verify a subscriber&apos;s consent (GDPR / CASL accountability). Permanent rows show the email, subscribe/unsubscribe
-            status and policy versions agreed to; the account-level platform announcements opt-in/opt-out is shown separately.
-            The IP + User-Agent captured at signup are kept transiently in memory for 24 h and never stored in the database.
+            {t("admin.newsletter.consentSearchDescription")}
           </p>
         </div>
 
@@ -298,7 +309,7 @@ export function AdminNewsletterTab() {
             type="email"
             value={searchEmail}
             onChange={(e) => setSearchEmail(e.target.value)}
-            placeholder="subscriber@example.com"
+            placeholder={t("admin.newsletter.searchPlaceholder")}
             className={inputClass}
           />
           <button
@@ -307,7 +318,7 @@ export function AdminNewsletterTab() {
             className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Search
+            {t("admin.newsletter.search")}
           </button>
         </form>
 
@@ -318,23 +329,25 @@ export function AdminNewsletterTab() {
             {searchResult.subscriptions.length === 0 &&
             searchResult.consentEvents.length === 0 &&
             (!searchResult.account || !searchResult.account.exists) ? (
-              <p className="text-sm text-zinc-500">No consent records found for this email.</p>
+              <p className="text-sm text-zinc-500">{t("admin.newsletter.noConsentRecords")}</p>
             ) : (
               <>
                 {searchResult.account?.exists && (
                   <div>
-                    <h3 className="text-sm font-medium text-white mb-2">Account-level announcements</h3>
+                    <h3 className="text-sm font-medium text-white mb-2">{t("admin.newsletter.accountAnnouncements")}</h3>
                     <ul className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg">
                       <li className="px-4 py-3 text-sm">
                         <p className="text-white">{searchResult.account.username}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">
                           {searchResult.account.announcementsOptIn
-                            ? `Opted in to platform announcements${searchResult.account.announcementsOptInAt ? ` on ${new Date(searchResult.account.announcementsOptInAt).toLocaleString()}` : ""}`
+                            ? searchResult.account.announcementsOptInAt
+                              ? t("admin.newsletter.optedInOn", { date: formatDateTime(searchResult.account.announcementsOptInAt) })
+                              : t("admin.newsletter.optedIn")
                             : searchResult.account.announcementsUnsubscribedAt
-                              ? `Unsubscribed from platform announcements on ${new Date(searchResult.account.announcementsUnsubscribedAt).toLocaleString()}`
-                              : "Never opted in to platform announcements"}
+                              ? t("admin.newsletter.unsubscribedOn", { date: formatDateTime(searchResult.account.announcementsUnsubscribedAt) })
+                              : t("admin.newsletter.neverOptedIn")}
                           {searchResult.account.acceptedPoliciesAt
-                            ? ` · Policies accepted ${new Date(searchResult.account.acceptedPoliciesAt).toLocaleString()}`
+                            ? t("admin.newsletter.policiesAccepted", { date: formatDateTime(searchResult.account.acceptedPoliciesAt) })
                             : ""}
                         </p>
                       </li>
@@ -343,7 +356,7 @@ export function AdminNewsletterTab() {
                 )}
                 {searchResult.subscriptions.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-white mb-2">Permanent subscription records</h3>
+                    <h3 className="text-sm font-medium text-white mb-2">{t("admin.newsletter.permanentRecords")}</h3>
                     <ul className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg">
                       {searchResult.subscriptions.map((sub, i) => (
                         <li key={i} className="px-4 py-3 text-sm">
@@ -356,13 +369,18 @@ export function AdminNewsletterTab() {
                               }`}
                             >
                               {sub.status === "unsubscribed" ? <UserX className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />}
-                              {sub.status}
+                              {sub.status === "unsubscribed" ? t("admin.newsletter.statusUnsubscribed") : t("admin.newsletter.statusSubscribed")}
                             </span>
                             {sub.email}
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5">
-                            Profile {sub.profileId} · agreed {new Date(sub.agreedAt).toLocaleString()} · TOS v{sub.tosVersion} · Privacy v{sub.privacyVersion}
-                            {sub.unsubscribedAt ? ` · unsubscribed ${new Date(sub.unsubscribedAt).toLocaleString()}` : ""}
+                            {t("admin.newsletter.profileLine", {
+                              profileId: sub.profileId,
+                              date: formatDateTime(sub.agreedAt),
+                              tos: sub.tosVersion,
+                              privacy: sub.privacyVersion,
+                            })}
+                            {sub.unsubscribedAt ? t("admin.newsletter.unsubscribedSuffix", { date: formatDateTime(sub.unsubscribedAt) }) : ""}
                           </p>
                         </li>
                       ))}
@@ -371,12 +389,14 @@ export function AdminNewsletterTab() {
                 )}
                 {searchResult.consentEvents.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-white mb-2">Transient consent evidence (in-memory only, ≤ 24 h)</h3>
+                    <h3 className="text-sm font-medium text-white mb-2">{t("admin.newsletter.transientEvidence")}</h3>
                     <ul className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg">
                       {searchResult.consentEvents.map((ev, i) => (
                         <li key={i} className="px-4 py-3 text-sm">
-                          <p className="text-white">{ev.at} · profile {ev.profileId}</p>
-                          <p className="text-xs text-zinc-500 mt-0.5">IP {ev.ip} · UA {ev.userAgent || "(empty)"}</p>
+                          <p className="text-white">{t("admin.newsletter.evidenceLine", { at: ev.at, profileId: ev.profileId })}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">
+                            {t("admin.newsletter.evidenceIpUa", { ip: ev.ip, ua: ev.userAgent || t("admin.newsletter.emptyUa") })}
+                          </p>
                         </li>
                       ))}
                     </ul>
@@ -392,12 +412,10 @@ export function AdminNewsletterTab() {
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <UserCheck className="h-4 w-4 text-violet-400" />
-            <h2 className="text-lg font-semibold text-white">Sender allowlist</h2>
+            <h2 className="text-lg font-semibold text-white">{t("admin.newsletter.senderAllowlistTitle")}</h2>
           </div>
           <p className="text-sm text-zinc-500">
-            Manually whitelist accounts to send newsletters from their own SMTP without the tier or DNS requirements — for
-            example users on Proton Mail or Gmail SMTP, where the sending domain can&apos;t carry the verification TXT record.
-            Whitelisted accounts are rate-limited at the Enterprise tier limits and still need a passed SMTP test email.
+            {t("admin.newsletter.senderAllowlistDescription")}
           </p>
         </div>
 
@@ -408,7 +426,7 @@ export function AdminNewsletterTab() {
               setWlQuery(e.target.value);
               setWlPage(0);
             }}
-            placeholder="Search by username or email"
+            placeholder={t("admin.newsletter.wlSearchPlaceholder")}
             className={inputClass}
           />
           <button
@@ -420,7 +438,7 @@ export function AdminNewsletterTab() {
             className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-700"
           >
             <Search className="h-4 w-4" />
-            Filter
+            {t("admin.newsletter.filter")}
           </button>
         </div>
 
@@ -432,7 +450,7 @@ export function AdminNewsletterTab() {
               <Loader2 className="h-5 w-5 animate-spin text-zinc-600" />
             </div>
           ) : wlUsers.length === 0 ? (
-            <p className="text-sm text-zinc-500 text-center py-6">No accounts found. Whitelist an account so it can send from its own SMTP.</p>
+            <p className="text-sm text-zinc-500 text-center py-6">{t("admin.newsletter.wlEmpty")}</p>
           ) : (
             <ul className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg">
               {wlUsers.map((u) => (
@@ -442,8 +460,8 @@ export function AdminNewsletterTab() {
                       {u.username} <span className="text-zinc-500">· {u.email}</span>
                     </p>
                     <p className="text-xs text-zinc-500 truncate">
-                      Tier {u.tier} · {u.profiles.length} profile(s)
-                      {u.profiles.length > 0 ? ` · ${u.profiles.map((p) => p.displayName || p.slug || "unnamed").join(", ")}` : ""}
+                      {t("admin.newsletter.tierProfiles", { tier: u.tier, count: u.profiles.length })}
+                      {u.profiles.length > 0 ? t("admin.newsletter.profilesSuffix", { names: u.profiles.map((p) => p.displayName || p.slug || t("admin.newsletter.unnamed")).join(", ") }) : ""}
                     </p>
                   </div>
                   <button
@@ -457,7 +475,7 @@ export function AdminNewsletterTab() {
                     }`}
                   >
                     {wlToggling === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : u.whitelisted ? <UserCheck className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
-                    {u.whitelisted ? "Whitelisted" : "Allowlist"}
+                    {u.whitelisted ? t("admin.newsletter.whitelisted") : t("admin.newsletter.allowlist")}
                   </button>
                 </li>
               ))}
@@ -480,40 +498,39 @@ export function AdminNewsletterTab() {
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <Megaphone className="h-4 w-4 text-violet-400" />
-            <h2 className="text-lg font-semibold text-white">Platform announcements</h2>
+            <h2 className="text-lg font-semibold text-white">{t("admin.newsletter.announcementsTitle")}</h2>
           </div>
           <p className="text-sm text-zinc-500">
-            Send an email to every user who opted in to platform news at registration (or in their account settings).
-            Recipients get a one-click unsubscribe link tied to their account. Sent through the instance SMTP.
+            {t("admin.newsletter.announcementsDescription")}
           </p>
         </div>
 
         <form onSubmit={sendBroadcast} className="space-y-3">
           <div>
-            <label className="block text-xs text-zinc-500 mb-1">Subject</label>
+            <label className="block text-xs text-zinc-500 mb-1">{t("admin.newsletter.subject")}</label>
             <input
               type="text"
               value={broadcastSubject}
               maxLength={120}
               onChange={(e) => setBroadcastSubject(e.target.value)}
-              placeholder="What's new on the platform…"
+              placeholder={t("admin.newsletter.subjectPlaceholder")}
               className={inputClass}
             />
           </div>
           <div>
-            <label className="block text-xs text-zinc-500 mb-1">Body</label>
+            <label className="block text-xs text-zinc-500 mb-1">{t("admin.newsletter.body")}</label>
             <textarea
               value={broadcastBody}
               maxLength={5000}
               rows={6}
               onChange={(e) => setBroadcastBody(e.target.value)}
-              placeholder="Write your announcement here. Plain text and line breaks only."
+              placeholder={t("admin.newsletter.bodyPlaceholder")}
               className={`${inputClass} resize-y`}
             />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-zinc-500">
-              {audienceCount === null ? "Loading audience…" : `${audienceCount} opted-in user(s) will receive this email.`}
+              {audienceCount === null ? t("admin.newsletter.loadingAudience") : t("admin.newsletter.audienceCount", { count: audienceCount })}
             </p>
             <button
               type="submit"
@@ -521,7 +538,7 @@ export function AdminNewsletterTab() {
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {broadcasting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
-              {broadcasting ? "Sending…" : "Send broadcast"}
+              {broadcasting ? t("admin.newsletter.sending") : t("admin.newsletter.sendBroadcast")}
             </button>
           </div>
         </form>
@@ -529,24 +546,26 @@ export function AdminNewsletterTab() {
         {broadcastNotice && (
           <p
             className={`mt-4 text-sm ${
-              broadcastNotice.includes("failed") || broadcastNotice.startsWith("No users") || broadcastNotice.includes("exceed") || broadcastNotice.includes("delivery")
-                ? "text-red-400"
-                : "text-emerald-400"
+              broadcastNotice.tone === "ok" ? "text-emerald-400" : "text-red-400"
             }`}
           >
-            {broadcastNotice}
+            {broadcastNotice.text}
           </p>
         )}
 
         {broadcasts.length > 0 && (
           <div className="mt-6">
-            <h3 className="text-sm font-medium text-white mb-2">Recent broadcasts</h3>
+            <h3 className="text-sm font-medium text-white mb-2">{t("admin.newsletter.recentBroadcasts")}</h3>
             <ul className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg">
               {broadcasts.map((b) => (
                 <li key={b.id} className="px-4 py-3 text-sm">
                   <p className="text-white truncate">{b.subject}</p>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    {new Date(b.sentAt).toLocaleString()} · {b.recipientCount} recipient(s) · {b.successCount} delivered
+                    {t("admin.newsletter.broadcastMeta", {
+                      date: formatDateTime(b.sentAt),
+                      recipients: b.recipientCount,
+                      delivered: b.successCount,
+                    })}
                   </p>
                 </li>
               ))}

@@ -25,15 +25,30 @@ export async function fulfillOrderAsPaid(
   if (opts.gatewayStatus) data.gatewayStatus = opts.gatewayStatus;
 
   let upgraded = false;
+  let finalTier = order.user.tier;
   await prisma.$transaction(async (tx) => {
-    if (order.status !== "PENDING") return;
-    if (TIER_RANK[order.plan] > TIER_RANK[order.user.tier]) {
-      await tx.user.update({ where: { id: order.userId }, data: { tier: order.plan } });
-      upgraded = true;
+    const res = await tx.order.updateMany({ where: { id: orderId, status: "PENDING" }, data });
+    if (res.count === 0) {
+      // Lost the PENDING claim: a webhook redelivery or a concurrent
+      // fulfilment already moved the order. Keep the caller's tier answer
+      // consistent with what actually committed instead of the stale pre-read.
+      const current = await tx.order.findUnique({ where: { id: orderId }, include: { user: { select: { tier: true } } } });
+      if (current) finalTier = current.user.tier;
+      return;
     }
-    await tx.order.update({ where: { id: orderId }, data });
+    // Claim won: re-read inside the transaction so the tier bump is decided
+    // against the row as committed, not the stale pre-read snapshot.
+    const fresh = await tx.order.findUnique({ where: { id: orderId }, include: { user: { select: { tier: true } } } });
+    if (!fresh) return;
+    if (TIER_RANK[fresh.plan] > TIER_RANK[fresh.user.tier]) {
+      await tx.user.update({ where: { id: fresh.userId }, data: { tier: fresh.plan } });
+      upgraded = true;
+      finalTier = fresh.plan;
+    } else {
+      finalTier = fresh.user.tier;
+    }
   });
-  return { upgraded, tier: upgraded ? order.plan : order.user.tier };
+  return { upgraded, tier: finalTier };
 }
 
 export async function markOrderCancelled(

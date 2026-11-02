@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { avatarSrcSet } from "@/lib/media";
 
@@ -12,6 +13,7 @@ interface EnterGateProps {
 }
 
 export function EnterGate({ name, username, avatar, accent, textColor, onEnter }: EnterGateProps) {
+  const { t } = useTranslation("invite");
   const [entered, setEntered] = useState(false);
   const [gone, setGone] = useState(false);
 
@@ -74,12 +76,12 @@ export function EnterGate({ name, username, avatar, accent, textColor, onEnter }
         className="group mt-10 inline-flex items-center gap-3 rounded-full px-8 py-3.5 text-base font-bold text-white transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
         style={{ backgroundColor: accent, boxShadow: `0 0 40px -8px ${accent}aa` }}
       >
-        Press to enter
+        {t("enterGate.pressStart")}
         <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
       </button>
 
       <p className="mt-4 text-xs" style={{ color: `${textColor}66` }}>
-        or press any key
+        {t("enterGate.orPressKey")}
       </p>
     </div>
   );

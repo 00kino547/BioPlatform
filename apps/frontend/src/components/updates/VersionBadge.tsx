@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, CircleDashed, GitBranch } from "lucide-react";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { UpdateDialog } from "@/components/updates/UpdateDialog";
 import { cn } from "@/lib/utils";
 
 export function VersionBadge() {
+  // All user-facing strings come from the `dashboard` namespace (updates.* keys).
+  const { t } = useTranslation("dashboard");
   const { data, locked } = useUpdateLockdown();
   const [open, setOpen] = useState(false);
 
@@ -31,7 +34,7 @@ export function VersionBadge() {
     <>
       <button
         onClick={() => setOpen(true)}
-        title={locked ? "A critical or security update is available" : "Software version"}
+        title={locked ? t("updates.badgeCriticalTitle") : t("updates.badgeVersionTitle")}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer",
           classes

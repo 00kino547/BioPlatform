@@ -48,6 +48,7 @@ import YAML from "yaml";
 import { z } from "zod";
 import { getEnv } from "../config/env.js";
 import { AD_NETWORKS, type AdNetworkId, resolveAdScriptSrc } from "./ads.js";
+import { syncNginxCsp } from "./csp.js";
 
 /** Sentinel suffix next to the config file that a CLI reload writes to. */
 export const RELOAD_SENTINEL_SUFFIX = ".reload";
@@ -413,6 +414,10 @@ export function loadInstanceConfig(overridePath?: string): InstanceConfig {
   console.log(
     `Instance config: ${result.source === "file" ? `loaded ${filePath}` : `${filePath} not found — using defaults`}`
   );
+  // Every successful (re)applied snapshot re-renders the nginx CSP header from
+  // `public.ads`, so the browser-facing policy always matches the configured
+  // networks exactly (and carries zero ad hosts while ads are disabled).
+  syncNginxCsp(loaded.public.ads);
   return loaded;
 }
 
@@ -476,6 +481,8 @@ export function tryAutoReloadOnce(
   const changed = result.source === "file" && JSON.stringify(current) !== JSON.stringify(result.config);
   loaded = result.config;
   appliedMtimes = { config: configMtime, sentinel: sentinelMtime };
+  // Keep the nginx-side CSP in lockstep with the freshly applied `public.ads`.
+  if (changed) syncNginxCsp(loaded.public.ads);
   return { reloaded: true, changed };
 }
 

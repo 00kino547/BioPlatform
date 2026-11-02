@@ -16,6 +16,7 @@ import {
   signInviteClaimToken,
 } from "../lib/inviteOrders.js";
 import { bumpAuthVersion } from "../lib/authVersion.js";
+import { refundByGateway } from "../lib/payments/refund.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requirePermission } from "../middleware/admin.js";
 import { getPolicyStatus, sendPolicyNotice, setPolicyNoticeNote } from "../lib/policyNotice.js";
@@ -134,6 +135,19 @@ const roleUpdateSchema = z.object({
   description: z.string().max(256).nullable().optional().transform((v) => (v ? stripHtml(v) : v)),
   permissions: z.array(permissionEnum).optional(),
 }).extend(inviteConfigSchema.shape);
+
+/**
+ * Custom roles are delegated authority. A role manager may grant only
+ * permissions they already hold, so editing a role cannot become a path to
+ * full administrator access.
+ */
+async function canDelegatePermissions(userId: string | undefined, requested: readonly string[]): Promise<boolean> {
+  if (!userId) return false;
+  const caller = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
+  if (!caller) return false;
+  const callerPermissions = new Set(permissionsFor(caller.role));
+  return requested.every((permission) => callerPermissions.has(permission));
+}
 
 const landingConfigSchema = z.object({
   featuredProfileUsername: z
@@ -938,6 +952,10 @@ router.post("/roles", requirePermission(PERMISSIONS.ROLES_MANAGE), requireNoUpda
     return res.status(409).json({ success: false, error: "A role with that name already exists" });
   }
 
+  if (permissions && !(await canDelegatePermissions(req.userId, permissions))) {
+    return res.status(403).json({ success: false, error: "Cannot grant permissions beyond your own" });
+  }
+
   const role = await prisma.role.create({
     data: {
       name,
@@ -968,6 +986,10 @@ router.patch("/roles/:id", requirePermission(PERMISSIONS.ROLES_MANAGE), requireN
     if (full !== submitted) {
       return res.status(400).json({ success: false, error: "The Admin role always has full permissions" });
     }
+  }
+
+  if (parsed.data.permissions && !(await canDelegatePermissions(req.userId, parsed.data.permissions))) {
+    return res.status(403).json({ success: false, error: "Cannot grant permissions beyond your own" });
   }
 
   const data: Record<string, unknown> = {};
@@ -1273,11 +1295,16 @@ router.post(
 );
 
 /**
- * Records that a paid invite purchase was refunded.
+ * Refunds a paid invite purchase and revokes what it produced.
  *
- * This does NOT move money. The platform has no outbound refund integration for
- * Stripe, PayPal or the crypto gateway, so an operator has to return the funds at
- * the provider first and use this endpoint to bring our records in line.
+ * For card gateways the platform moves the money itself: `refundByGateway`
+ * issues the provider-side refund (Stripe via the checkout session, PayPal via
+ * the capture) BEFORE the local record is touched, and only proceeds when the
+ * provider accepted or had already refunded the payment. If the configured
+ * gateway is unreachable the endpoint answers 502 and the purchase stays PAID.
+ * Crypto invoices and MANUAL purchases keep the no-automation path: their funds
+ * sit in the operator's own store wallet or a hand-captured payment, so the
+ * operator returns the money first and this endpoint then reconciles the books.
  *
  * What it does do is revoke the unspent artifacts of that exact order: invite
  * credits are deleted and guest codes are revoked. Credit already redeemed, and
@@ -1293,9 +1320,33 @@ router.post(
   async (req: Request, res: Response) => {
     const parsed = invitePurchaseActionSchema.safeParse(req.params);
     if (!parsed.success) return res.status(400).json({ success: false, error: "Invalid purchase." });
+
+    // Money first — see the comment above the handler. Only a PAID purchase
+    // has a provider capture to refund; any other state is refused below
+    // without touching the provider.
+    let providerRefundPerformed = false;
+    const purchase = await prisma.invitePurchaseOrder.findUnique({
+      where: { id: parsed.data.id },
+      select: { status: true, method: true, gatewayTransactionId: true, priceCents: true, currency: true },
+    });
+    if (purchase && purchase.status === "PAID") {
+      const outcome = await refundByGateway(
+        purchase.method,
+        purchase.gatewayTransactionId,
+        purchase.priceCents,
+        purchase.currency
+      );
+      if (outcome.state === "failed") {
+        return res
+          .status(502)
+          .json({ success: false, error: `Provider refund failed, the purchase was NOT marked refunded: ${outcome.message}` });
+      }
+      providerRefundPerformed = outcome.state === "refunded";
+    }
+
     const ok = await refundInvitePurchase(parsed.data.id, { gatewayStatus: "refunded" });
     if (!ok) return res.status(409).json({ success: false, error: "Purchase is not refundable." });
-    res.json({ success: true, data: { refunded: true, providerRefundPerformed: false } });
+    res.json({ success: true, data: { refunded: true, providerRefundPerformed } });
   }
 );
 
@@ -2110,6 +2161,9 @@ router.patch("/orders/:id", requirePermission(PERMISSIONS.ORDERS_MANAGE), async 
       if (existing.status === "PAID") {
         return res.status(409).json({ success: false, error: "A paid order cannot be cancelled; refund it instead" });
       }
+      if (existing.status === "REFUNDED") {
+        return res.status(409).json({ success: false, error: "A refunded order is closed" });
+      }
       data.status = "CANCELLED";
       break;
     case "REFUNDED":
@@ -2122,22 +2176,76 @@ router.patch("/orders/:id", requirePermission(PERMISSIONS.ORDERS_MANAGE), async 
       if (existing.status === "PAID") {
         return res.status(409).json({ success: false, error: "A paid order cannot be reverted to pending" });
       }
+      if (existing.status === "REFUNDED") {
+        // Re-opening a refunded order would invite paying for perks already
+        // reversed at the gateway.
+        return res.status(409).json({ success: false, error: "A refunded order is closed" });
+      }
       data.status = "PENDING";
       data.paidAt = null;
       break;
   }
 
-  const plan = existing.plan;
-  const userTier = existing.user.tier;
-  const order = await prisma.$transaction(async (tx) => {
-    const updated = await tx.order.update({ where: { id: existing.id }, data });
-    if (parsed.data.status === "PAID" && TIER_RANK[plan] > TIER_RANK[userTier]) {
-      await tx.user.update({ where: { id: updated.userId }, data: { tier: plan } });
+  // Money first: for a card gateway the platform issues the provider-side
+  // refund BEFORE recording the local state, so the books can never claim a
+  // refund the gateway did not issue. The outcome is decided by
+  // `refundByGateway`: crypto invoices and MANUAL payments keep their money in
+  // the operator's own hands (documented as manual), and a card gateway that
+  // is configured but currently unreachable FAILS the whole transition rather
+  // than recording a refund that never happened. Gateway-initiated refunds
+  // (arriving as webhooks) never reach this branch — the provider already did
+  // the work before the local record exists.
+  let providerRefunded = false;
+  if (parsed.data.status === "REFUNDED") {
+    const outcome = await refundByGateway(
+      existing.method,
+      existing.gatewayTransactionId,
+      existing.finalPriceCents,
+      existing.currency
+    );
+    if (outcome.state === "failed") {
+      return res
+        .status(502)
+        .json({ success: false, error: `Provider refund failed, the order was NOT marked refunded: ${outcome.message}` });
     }
-    return updated;
-  });
+    providerRefunded = outcome.state === "refunded";
+  }
 
-  res.json({ success: true, data: order });
+  const plan = existing.plan;
+  // Allowed source states for each requested transition. The route-level 409s
+  // above give clean errors for the common cases, but they check a row that a
+  // concurrent webhook could change between the read and the write — so the
+  // write itself is a conditional `updateMany` that only claims the order from
+  // a state the transition is still legal from (same pattern as
+  // fulfillOrderAsPaid / markOrderRefunded / markOrderCancelled).
+  const allowedFrom: Prisma.OrderWhereInput["status"] =
+    parsed.data.status === "PAID"
+      // Force-payout makes a PENDING or CANCELLED order paid, but must not
+      // resurrect a REFUNDED order or rewrite an already-PAID one.
+      ? { notIn: ["PAID", "REFUNDED"] }
+      : parsed.data.status === "REFUNDED"
+        ? { equals: "PAID" }
+        // CANCELLED and PENDING must never undo a landed payment nor erase a
+        // recorded refund: REFUNDED is a terminal state.
+        : { notIn: ["PAID", "REFUNDED"] };
+  const order = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({ where: { id: existing.id, status: allowedFrom }, data });
+    if (claimed.count === 0) return null;
+    const fresh = await tx.order.findUnique({
+      where: { id: existing.id },
+      include: { user: { select: { id: true, tier: true } } },
+    });
+    if (!fresh) return null;
+    if (parsed.data.status === "PAID" && TIER_RANK[plan] > TIER_RANK[fresh.user.tier]) {
+      await tx.user.update({ where: { id: fresh.userId }, data: { tier: plan } });
+    }
+    return fresh;
+  });
+  if (!order) {
+    return res.status(409).json({ success: false, error: "Order status changed concurrently, reload and try again" });
+  }
+
+  res.json({ success: true, data: order, providerRefundPerformed: providerRefunded });
 });
 
 router.get("/orders-config", requirePermission(PERMISSIONS.SETTINGS_MANAGE), async (_req, res) => {

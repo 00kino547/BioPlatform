@@ -1,53 +1,55 @@
 import { Router, type Request, type Response } from "express";
+import { getPublicInstanceConfig } from "../lib/instanceConfig.js";
 
 const router = Router();
 
 /**
- * i18n API — STRUCTURE ONLY.
+ * i18n API.
  *
- * Nothing behind these endpoints works yet (and they are intentionally not
- * wired to the config toggle or any translation store). They exist so the
- * endpoint contract is already fixed and the frontend can be written against
- * it before the feature ships. Every route currently answers 503 Service
- * Unavailable with a stable `code` so callers can detect (and UI can surface)
- * "i18n not implemented" distinctly from a real failure.
+ * The multi-language UI is driven entirely by the `public.i18n` block in
+ * config.yml, which is validated once (`lib/instanceConfig.ts`) and can hot-reload
+ * without a restart. The translation files themselves are frontend bundle assets
+ * (apps/frontend/src/locales/{lng}/*.json) and are NEVER served from the backend —
+ * these endpoints only expose the switch + locale set the UI must honour.
  *
- * Planned contract (do not drift from these paths):
+ * Contract:
  *   GET /api/i18n/config   -> { success, data: { enabled, defaultLocale,
  *                              fallbackLocale, locales } }  (mirror of the
- *                              config.yml `public.i18n` block)
+ *                              config.yml `public.i18n` block; the same data
+ *                              also flows through GET /api/config)
  *   GET /api/i18n/locales  -> { success, data: { defaultLocale,
- *                              fallbackLocale, locales } }  (locales the UI
- *                              may offer; files ship with the frontend bundle)
+ *                              fallbackLocale, locales } }  (the locale set the
+ *                              UI may offer; `enabled` is intentionally omitted
+ *                              because a locale list is only meaningful once the
+ *                              feature is on, which the caller reads from
+ *                              /config)
  *
- * No locale-file server is planned: translations are frontend bundle assets
- * (apps/frontend/src/locales/{lng}/*.json), never served from the backend.
+ * Both answers are `no-store`: the block hot-reloads, so a cached locale list
+ * could outlive an operator's config edit.
  */
 
-/** Every placeholder response shares one stable, machine-readable reason. */
-const NOT_IMPLEMENTED = {
-  success: false,
-  error: "i18n service is not implemented yet",
-  code: "i18n_not_implemented",
-} as const;
-
 /**
- * GET /api/i18n/config — the instance's i18n switch + locale set, once wired.
- * Structurally this returned value mirrors `public.i18n` from config.yml, which
- * also flows through the existing GET /api/config payload unchanged.
+ * GET /api/i18n/config — the instance's i18n switch + locale set. Mirrors the
+ * `public.i18n` section that also flows through GET /api/config; exposed here so
+ * the UI can poll the feature state without pulling the whole config payload.
+ * `enabled: false` is a valid 200 (the feature is off, not an error) — the
+ * frontend stays inert until an operator flips it.
  */
 router.get("/config", (_req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-store");
-  res.status(503).json(NOT_IMPLEMENTED);
+  const { enabled, defaultLocale, fallbackLocale, locales } = getPublicInstanceConfig().i18n;
+  res.json({ success: true, data: { enabled, defaultLocale, fallbackLocale, locales } });
 });
 
 /**
  * GET /api/i18n/locales — the locale set the UI may offer the visitor. Same
- * 503 placeholder state as `/config`; both are unblocked together.
+ * source block as `/config` minus the master switch; both read `public.i18n`
+ * live so a config edit is visible on the next request.
  */
 router.get("/locales", (_req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-store");
-  res.status(503).json(NOT_IMPLEMENTED);
+  const { defaultLocale, fallbackLocale, locales } = getPublicInstanceConfig().i18n;
+  res.json({ success: true, data: { defaultLocale, fallbackLocale, locales } });
 });
 
 export default router;

@@ -247,6 +247,11 @@ export async function disableAccount(userId: string, reason: string): Promise<vo
     data: {
       disabledAt: new Date(),
       disabledReason: reason,
+      // Kill every issued JWT of this account at once: request-time gates also
+      // check `disabledAt`, but `authVersion` is the mechanism that makes the
+      // existing tokens fail `requireAuth` and the optional-auth routes
+      // (shop, DMCA filing, invite purchase) with no grace period at all.
+      authVersion: { increment: 1 },
       // Clear any appeal record left over from a PREVIOUS disable/re-activate
       // cycle. `purgeDisabledAccounts` treats a non-null `appealReviewedAt` as
       // "no open appeal", so a stale value here would let a freshly re-disabled

@@ -164,7 +164,7 @@ export function isDiscordWebhookUrl(value: string): boolean {
   const host = url.hostname.toLowerCase();
   const isDiscordHost =
     host === "discord.com" || host.endsWith(".discord.com") || host === "discordapp.com" || host.endsWith(".discordapp.com");
-  return isDiscordHost && /^\/api\/webhooks\/\d+\/[\w-]+/.test(url.pathname);
+  return url.protocol === "https:" && isDiscordHost && /^\/api\/webhooks\/\d+\/[\w-]+/.test(url.pathname);
 }
 
 export function toAbsoluteUrl(value: string | null | undefined): string | null {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { runCommand, HINT_TEXT, type TerminalLine, type TerminalLink, type TerminalCommand } from "./commands";
+import { useTranslation } from "react-i18next";
+import { runCommand, getHintText, type TerminalLine, type TerminalLink, type TerminalCommand } from "./commands";
 
 interface InteractiveTerminalProps {
   username: string;
@@ -105,7 +106,8 @@ export function InteractiveTerminal({
   maxHeight = "min(420px, 60vh)",
   noPadding = false,
 }: InteractiveTerminalProps) {
-  const [lines, setLines] = useState<TerminalLine[]>([{ text: HINT_TEXT, kind: "dim" }]);
+  const { t } = useTranslation("profile");
+  const [lines, setLines] = useState<TerminalLine[]>([{ text: getHintText(t), kind: "dim" }]);
   const [value, setValue] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -133,14 +135,14 @@ export function InteractiveTerminal({
   const submit = (raw: string) => {
     if (!raw) return;
     const promptLine: TerminalLine = { text: `$ ${raw}`, kind: "accent" };
-    const res = runCommand(raw, { username, displayName, bio, website, brand, host, links, terminalCommands });
+    const res = runCommand(raw, { username, displayName, bio, website, brand, host, links, terminalCommands }, t);
 
     setHistory((h) => [...h, raw]);
     setHistoryIdx(-1);
     setValue("");
 
     if (res.clear) {
-      setLines([{ text: HINT_TEXT, kind: "dim" }]);
+      setLines([{ text: getHintText(t), kind: "dim" }]);
       focus();
       return;
     }
@@ -236,7 +238,7 @@ export function InteractiveTerminal({
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            aria-label="Terminal input"
+            aria-label={t("interactiveTerminal.inputLabel")}
             data-testid="terminal-input"
             className="flex-1 bg-transparent text-sm font-semibold outline-none"
             style={{ color: text, caretColor: accent }}

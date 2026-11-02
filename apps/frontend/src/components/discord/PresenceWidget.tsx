@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { DiscordAccount, DiscordActivity, DiscordPresence } from "@/lib/api";
 import { Gamepad2, Radio, ListMusic, Tv, Trophy, MessageCircle, ExternalLink, Music2, PlayCircle } from "lucide-react";
 
@@ -55,43 +57,45 @@ function activityPlatform(activity: DiscordActivity): string {
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
-  spotify: "Spotify",
-  youtube: "YouTube",
-  twitch: "Twitch",
-  soundcloud: "SoundCloud",
-  applemusic: "Apple Music",
-  roblox: "Roblox",
-  steam: "Steam",
-  netflix: "Netflix",
-  crunchyroll: "Crunchyroll",
-  discord: "Discord",
+  spotify: "spotify",
+  youtube: "youtube",
+  twitch: "twitch",
+  soundcloud: "soundcloud",
+  applemusic: "appleMusic",
+  roblox: "roblox",
+  steam: "steam",
+  netflix: "netflix",
+  crunchyroll: "crunchyroll",
+  discord: "discord",
   generic: "",
 };
 
 function PlatformMark({ platform }: { platform: string }) {
+  const { t } = useTranslation("profile");
   if (platform === "spotify") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-[#1DB954]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#1DB954]">
-        <SpotifyMark /> Spotify
+        <SpotifyMark /> {t("presenceWidget.platformLabels.spotify")}
       </span>
     );
   }
   if (platform === "youtube") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-[#FF0000]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FF0000]">
-        <PlayCircle className="h-3 w-3" /> YouTube
+        <PlayCircle className="h-3 w-3" /> {t("presenceWidget.platformLabels.youtube")}
       </span>
     );
   }
   if (platform === "twitch") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-[#9146FF]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#a970ff]">
-        <Tv className="h-3 w-3" /> Twitch
+        <Tv className="h-3 w-3" /> {t("presenceWidget.platformLabels.twitch")}
       </span>
     );
   }
-  const label = PLATFORM_LABEL[platform];
-  if (!label) return null;
+  const key = PLATFORM_LABEL[platform];
+  if (!key) return null;
+  const label = t(`presenceWidget.platformLabels.${key}`);
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-zinc-700/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300">
       {label}
@@ -124,20 +128,20 @@ function activityIcon(activities: DiscordActivity[]) {
   }
 }
 
-function activityLabel(activity: DiscordActivity): string {
+function activityLabel(activity: DiscordActivity, t: TFunction): string {
   switch (activity.type) {
     case 1:
-      return "Streaming";
+      return t("presenceWidget.activityStreaming");
     case 2:
-      return "Listening to";
+      return t("presenceWidget.activityListening");
     case 3:
-      return "Watching";
+      return t("presenceWidget.activityWatching");
     case 5:
-      return "Competing in";
+      return t("presenceWidget.activityCompeting");
     case 6:
-      return "Hanging out";
+      return t("presenceWidget.activityHangingOut");
     default:
-      return "Playing";
+      return t("presenceWidget.activityPlaying");
   }
 }
 
@@ -194,14 +198,15 @@ function resolveButtonUrl(activity: DiscordActivity, label: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 }
 
-function formatMs(ms: number): string {
+function formatMs(ms: number, t: TFunction): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSec / 60);
   const seconds = totalSec % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  return t("presenceWidget.timeFormat", { minutes, seconds: String(seconds).padStart(2, "0") });
 }
 
 function ProgressTimebar({ activity, accent, textColor }: { activity: DiscordActivity; accent?: string; textColor?: string }) {
+  const { t } = useTranslation("profile");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -226,8 +231,8 @@ function ProgressTimebar({ activity, accent, textColor }: { activity: DiscordAct
         />
       </div>
       <div className="mt-1.5 flex items-center justify-between text-[11px] tabular-nums" style={{ color: `${textColor ?? "#ffffff"}88` }}>
-        <span>{formatMs(elapsed)}</span>
-        <span>{formatMs(total)}</span>
+        <span>{formatMs(elapsed, t)}</span>
+        <span>{formatMs(total, t)}</span>
       </div>
     </div>
   );
@@ -241,6 +246,7 @@ interface PresenceWidgetProps {
 }
 
 export function PresenceWidget({ account, presence, accent, textColor }: PresenceWidgetProps) {
+  const { t } = useTranslation("profile");
   const statusColor = presence ? STATUS_COLORS[presence.status] ?? "#747f8d" : "#747f8d";
   const AccentIcon = presence ? activityIcon(presence.activities) : null;
   const primary = presence?.activities.find((a) => a.type !== 4) ?? null;
@@ -254,7 +260,7 @@ export function PresenceWidget({ account, presence, accent, textColor }: Presenc
   const buttonRows: { label: string; url?: string }[] | null = primary?.buttons?.length
     ? primary.buttons.map((label) => ({ label, url: resolveButtonUrl(primary, label) }))
     : isMusic && activityPlatform(primary!) === "spotify"
-      ? [{ label: "Play on Spotify", url: resolveButtonUrl(primary!, "Spotify") }]
+      ? [{ label: t("presenceWidget.playOnSpotify"), url: resolveButtonUrl(primary!, "Spotify") }]
       : null;
 
   return (
@@ -294,7 +300,7 @@ export function PresenceWidget({ account, presence, accent, textColor }: Presenc
           style={{ backgroundColor: `${statusColor}1a`, color: statusColor }}
         >
           <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: statusColor }} />
-          {presence?.statusLabel ?? "Offline"}
+          {presence?.statusLabel ?? t("presenceWidget.statusOffline")}
         </span>
       </div>
 
@@ -344,7 +350,7 @@ export function PresenceWidget({ account, presence, accent, textColor }: Presenc
                     ) : (
                       <Gamepad2 className="h-3.5 w-3.5 shrink-0" />
                     )}
-                    {activityLabel(primary)} {primary.name}
+                    {activityLabel(primary, t)} {primary.name}
                   </p>
                   <PlatformMark platform={activityPlatform(primary)} />
                   <p className={isMusic ? "mt-1 text-sm sm:text-base font-semibold truncate" : "mt-0.5 text-sm font-semibold truncate"} style={{ color: textColor }}>

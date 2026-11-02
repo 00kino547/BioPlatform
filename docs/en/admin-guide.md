@@ -128,7 +128,7 @@ While no instructions are published the buyer-facing storefront **hides** the "p
 The table under the card lists recent purchases with the buyer, method and status:
 
 - **Confirm** — marks a **MANUAL** order paid and grants the credits or mails the codes.
-- **Mark refunded** — records the refund and revokes whatever the order still holds: its unused credits are deleted and its unused guest codes are revoked. **It does not return any money** — do that at the payment provider first, then mark it here. Credit already redeemed is never revoked, because revoking it would mean deleting a real account.
+- **Mark refunded** — records the refund and revokes whatever the order still holds: its unused credits are deleted and its unused guest codes are revoked. For **Card (Stripe)** and **PayPal** purchases the platform now moves the money itself: the refund request is issued at the gateway **before** our records change, and a gateway that is unreachable answers an error instead of recording a refund that never happened. **Crypto invoices are still money you move yourself** — the funds sit in your own store wallet — so return them via your gateway's refund tool first, then mark the order here; the "does not return any money" path also covers instances with the card gateway switched off. Credit already redeemed is never revoked, because revoking it would mean deleting a real account.
 - **Cancel** — voids a pending gateway order that was never paid.
 
 ### When mail is not configured
@@ -145,8 +145,8 @@ Guests are told to check their spam folder after a purchase, since a legit mail 
 
 ### Refunding, in order
 
-1. Return the money at the payment provider.
-2. Click **Mark refunded** so our records and the buyer's access agree.
+1. Return the money at the payment provider — for Card and PayPal orders, clicking **Mark refunded** does this for you automatically (the local record is only written when the gateway accepts the refund).
+2. Click **Mark refunded** so our records and the buyer's access agree. For crypto and manual payments, return the money from your own wallet/provider dashboard first; the click then only reconciles the records.
 
 If you skip step 2 the buyer keeps the credits and you have no record that the order was refunded.
 
@@ -334,7 +334,7 @@ The **Orders** tab (requires the `orders.manage` permission) is the fulfillment 
 2. **Process orders** — the list shows every order (newest first) with the buyer (username, email, tier), the ordered plan, the payment method (Contact owner / Card / PayPal / Crypto), the currency + base price, the buyer's discount percent and the final price asked, gateway details (transaction id, provider status, crypto coin + quoted amount) when applicable, the note the user left, its status, and any admin note. Filter by status and paginate as needed.
    - **Mark paid** — approve a **Pending** order once you've received payment. The account is upgraded automatically to the ordered plan if it's higher than their current tier (Free → PRO → Enterprise).
    - **Cancel** — refuse a **Pending** order (user can order again).
-   - **Refund** — reverse a **Paid** order (e.g. a mistake); the account is **not** downgraded.
+   - **Refund** — reverse a **Paid** order (e.g. a mistake); the account is **not** downgraded. For **Card** and **PayPal** orders the refund is issued at the gateway automatically **before** the order is marked refunded — if the gateway is unreachable, the order stays **Paid** and the dashboard shows an error, so you cannot record a refund the provider did not issue. Crypto payments keep the manual money-first flow (return the funds from your store wallet, then mark refunded).
    - **Pending again** — reopen a cancelled order.
    - Every status change can include an **admin note** (max 500 chars) that is shown in the buyer's Billing tab order history.
 

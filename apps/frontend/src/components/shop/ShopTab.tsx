@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, useRef, Fragment } from "react";
+import { useTranslation } from "react-i18next";
 import { ShoppingBag, Loader2, Save, Trash2, Upload, RefreshCw, BadgePercent, ImagePlus } from "lucide-react";
 import { api, type Profile, type ShopProduct, type ShopOverview, type Sale } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { SectionCard, Toggle } from "@/components/ui/dashboard";
 import { formatPrice, fileSize } from "@/lib/format";
+import { formatDate } from "@/lib/intl";
 
 interface ShopTabProps {
   profile: Profile | null;
@@ -23,6 +25,7 @@ const DEFAULTS: Record<string, string> = {
 };
 
 export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
+  const { t } = useTranslation("profile");
   const profileId = profile?.id;
   const [overview, setOverview] = useState<ShopOverview | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -64,7 +67,7 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
     const res = await api.updateProfile({ shopDiscountPercent: v }, profileId);
     setDiscountSaving(false);
     if (!res.success || !res.data) {
-      setDiscountError(res.error ?? "Could not save the discount.");
+      setDiscountError(res.error ?? t("shopTab.saveDiscountError"));
       return;
     }
     onProfileChange({ shopDiscountPercent: res.data.shopDiscountPercent ?? null });
@@ -88,7 +91,7 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
     );
     setCreating(false);
     if (!res.success) {
-      setCreateError(res.error ?? "Could not create the product.");
+      setCreateError(res.error ?? t("shopTab.createError"));
       return;
     }
     setForm(DEFAULTS);
@@ -102,7 +105,7 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
   };
 
   const removeProduct = async (p: ShopProduct) => {
-    if (!confirm(`Delete "${p.title}"? ${p.type === "DOWNLOAD" ? "The file and preview will be permanently removed." : "This request listing will be removed."}`)) return;
+    if (!confirm(t(p.type === "DOWNLOAD" ? "shopTab.deleteConfirmDownload" : "shopTab.deleteConfirmRequest", { title: p.title }))) return;
     await api.deleteProduct(p.id);
     void load();
   };
@@ -113,34 +116,34 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
   };
 
   if (!profileId) {
-    return <p className="text-sm text-zinc-500 text-center py-12">Select a profile to manage its shop.</p>;
+    return <p className="text-sm text-zinc-500 text-center py-12">{t("shopTab.selectProfile")}</p>;
   }
 
-  const limitText = overview?.limit == null ? "Unlimited" : `${(overview?.products ?? []).length}/${overview.limit} products`;
+  const limitText = overview?.limit == null ? t("shopTab.unlimited") : t("shopTab.productsCount", { used: (overview?.products ?? []).length, limit: overview.limit });
 
   return (
     <div className="space-y-4">
       <SectionCard
         icon={<ShoppingBag className="h-4 w-4" />}
-        title="Product shop"
-        desc={`Sell digital products on your public profile. Guests and logged-in users pay with the payment methods enabled on this instance.`}
+        title={t("shopTab.productShop")}
+        desc={t("shopTab.productShopDesc")}
       >
         {overview && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 mb-4">
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-              <p className="text-xs text-zinc-500">Plan limit</p>
+              <p className="text-xs text-zinc-500">{t("shopTab.planLimit")}</p>
               <p className="text-sm font-semibold text-white">{limitText}</p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-              <p className="text-xs text-zinc-500">Discount</p>
-              <p className="text-sm font-semibold text-white">{overview.discountPercent}%</p>
+              <p className="text-xs text-zinc-500">{t("shopTab.discount")}</p>
+              <p className="text-sm font-semibold text-white">{overview.discountPercent}{t("shopTab.percent")}</p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-              <p className="text-xs text-zinc-500">Sales</p>
+              <p className="text-xs text-zinc-500">{t("shopTab.sales")}</p>
               <p className="text-sm font-semibold text-white">{overview.totalSold}</p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-              <p className="text-xs text-zinc-500">Revenue</p>
+              <p className="text-xs text-zinc-500">{t("shopTab.revenue")}</p>
               <p className="text-sm font-semibold text-white">{formatPrice(overview.revenueCents, overview.currency)}</p>
             </div>
           </div>
@@ -149,10 +152,10 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3.5 mb-4">
           <div className="flex items-center gap-2.5 mb-2">
             <BadgePercent className="h-4 w-4 text-violet-400" />
-            <h4 className="text-sm font-medium text-white">Profile discount</h4>
+            <h4 className="text-sm font-medium text-white">{t("shopTab.profileDiscount")}</h4>
           </div>
           <p className="text-xs text-zinc-500 mb-2">
-            A percentage discount applied to every product price on this profile's shop.
+            {t("shopTab.profileDiscountDesc")}
           </p>
           <div className="flex flex-wrap items-center gap-2.5">
             <input
@@ -168,45 +171,44 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
               className={inputClass}
               style={{ width: "7rem" }}
             />
-            <span className="text-sm text-zinc-400">%</span>
+            <span className="text-sm text-zinc-400">{t("shopTab.percent")}</span>
             <Button onClick={saveDiscount} disabled={discountSaving}>
               <Save className="h-4 w-4" />
-              {discountSaving ? "Saving..." : discountSaved ? "Saved!" : "Save discount"}
+              {discountSaving ? t("shopTab.saving") : discountSaved ? t("shopTab.saved") : t("shopTab.saveDiscount")}
             </Button>
           </div>
           {discountError && <p className="text-xs mt-2 text-red-400">{discountError}</p>}
         </div>
 
         <div className="flex items-center gap-2 mb-3">
-          <h4 className="text-sm font-medium text-white">Add a product</h4>
+          <h4 className="text-sm font-medium text-white">{t("shopTab.addProduct")}</h4>
           {loading && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
         </div>
         <div className="flex gap-1 p-0.5 rounded-lg bg-zinc-900 mb-3 max-w-xs" style={{ border: "1px solid #27272a" }}>
-          {(["DOWNLOAD", "REQUEST"] as const).map((t) => (
+          {(["DOWNLOAD", "REQUEST"] as const).map((type) => (
             <button
-              key={t}
+              key={type}
               type="button"
-              onClick={() => setForm({ ...form, type: t })}
+              onClick={() => setForm({ ...form, type })}
               className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                form.type === t ? "bg-violet-500/25 text-violet-300" : "text-zinc-400 hover:text-zinc-200"
+                form.type === type ? "bg-violet-500/25 text-violet-300" : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              {t === "DOWNLOAD" ? "Download file" : "Request work"}
+              {type === "DOWNLOAD" ? t("shopTab.downloadFile") : t("shopTab.requestWork")}
             </button>
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {form.type === "REQUEST" ? (
             <div className="sm:col-span-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-3">
-              <p className="text-sm text-zinc-300">Request-type product</p>
+              <p className="text-sm text-zinc-300">{t("shopTab.requestTypeProduct")}</p>
               <p className="text-xs text-zinc-500 mt-1">
-                Buyers describe what they need and you fulfil it manually. No file is attached — deliver
-                to them over email, chat, or a later download product.
+                {t("shopTab.requestTypeDesc")}
               </p>
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Deliverable file</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("shopTab.deliverableFile")}</label>
               <input
                 ref={fileInput as React.Ref<HTMLInputElement>}
                 type="file"
@@ -216,11 +218,11 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
                 }}
                 className="block w-full text-sm text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-violet-300 hover:file:bg-violet-500/30"
               />
-              <p className="text-xs text-zinc-500 mt-1">The file buyers receive. Listed with its size and name.</p>
+              <p className="text-xs text-zinc-500 mt-1">{t("shopTab.deliverableFileHelp")}</p>
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Preview image (optional)</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("shopTab.previewImage")}</label>
             <input
               type="file"
               accept="image/jpeg,image/png,image/gif,image/webp"
@@ -230,21 +232,21 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
               }}
               className="block w-full text-sm text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-violet-300 hover:file:bg-violet-500/30"
             />
-            <p className="text-xs text-zinc-500 mt-1">Shown on the public shop card. Up to 5 MB (JPEG/PNG/GIF/WebP).</p>
+            <p className="text-xs text-zinc-500 mt-1">{t("shopTab.previewImageHelp")}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Title</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("shopTab.title")}</label>
             <input
               value={form.title}
               maxLength={80}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="e.g. HD Wallpaper Pack"
+              placeholder={t("shopTab.titlePlaceholder")}
               className={inputClass}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Price ({overview?.currency ?? "USD"})
+              {t("shopTab.price", { currency: overview?.currency ?? "USD" })}
             </label>
             <input
               type="number"
@@ -252,18 +254,18 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
               step={0.01}
               value={form.priceCents}
               onChange={(e) => setForm({ ...form, priceCents: e.target.value })}
-              placeholder="0.00 = free"
+              placeholder={t("shopTab.pricePlaceholder")}
               className={inputClass}
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Description</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("shopTab.description")}</label>
             <textarea
               value={form.description}
               maxLength={500}
               rows={2}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="What is this product?"
+              placeholder={t("shopTab.descriptionPlaceholder")}
               className={`${inputClass} resize-none`}
             />
           </div>
@@ -272,18 +274,18 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
         <div className="mt-3">
           <Button onClick={createProduct} disabled={creating || !form.title.trim() || (form.type !== "REQUEST" && !form.file)}>
             <Upload className="h-4 w-4" />
-            {creating ? "Uploading..." : "Create product"}
+            {creating ? t("shopTab.uploading") : t("shopTab.createProduct")}
           </Button>
         </div>
       </SectionCard>
 
       <SectionCard
         icon={<RefreshCw className="h-4 w-4" />}
-        title="Products"
-        desc="Enable, disable, or remove products. Only enabled products are shown on your public profile."
+        title={t("shopTab.products")}
+        desc={t("shopTab.productsDesc")}
       >
         {overview && overview.products.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4">No products yet. Add your first product above.</p>
+          <p className="text-sm text-zinc-500 py-4">{t("shopTab.noProducts")}</p>
         ) : (
           <div className="space-y-2">
             {overview?.products.map((p) => (
@@ -302,13 +304,13 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white truncate">{p.title}</p>
                   <p className="text-xs text-zinc-500">
-                    {p.type === "REQUEST" ? "Request · " : ""}
+                    {p.type === "REQUEST" ? t("shopTab.requestPrefix") : ""}
                     {p.fileName ? `${p.fileName} · ${fileSize(p.fileSize)} · ` : ""}
-                    {p.priceCents === 0 ? "Free" : formatPrice(p.priceCents, overview.currency)}{" "}
+                    {p.priceCents === 0 ? t("shopTab.free") : formatPrice(p.priceCents, overview.currency)}{" "}
                     {discount > 0 && p.priceCents > 0 && (
                       <span className="line-through opacity-60">{formatPrice(Math.round(p.priceCents * 100 / (100 - discount)), overview.currency)}</span>
                     )}
-                    {p.purchases ? ` · ${p.purchases} sold` : ""}
+                    {p.purchases ? ` · ${t("shopTab.soldCount", { count: p.purchases })}` : ""}
                   </p>
                 </div>
                 <Toggle on={p.enabled} onChange={() => toggleProduct(p)} />
@@ -328,14 +330,14 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-violet-500"
                 >
                   <ImagePlus className="h-3.5 w-3.5" />
-                  Preview
+                  {t("shopTab.previewButton")}
                 </button>
                 <button
                   onClick={() => removeProduct(p)}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  Delete
+                  {t("shopTab.deleteButton")}
                 </button>
               </div>
             ))}
@@ -345,22 +347,22 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
 
       <SectionCard
         icon={<BadgePercent className="h-4 w-4" />}
-        title="Recent sales"
-        desc="Payments are recorded and shown here once the gateway confirms them."
+        title={t("shopTab.recentSales")}
+        desc={t("shopTab.recentSalesDesc")}
       >
         {sales.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4">No sales yet.</p>
+          <p className="text-sm text-zinc-500 py-4">{t("shopTab.noSales")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-zinc-500 border-b border-zinc-800">
-                  <th className="py-2 pr-3 font-medium">Product</th>
-                  <th className="py-2 pr-3 font-medium">Buyer</th>
-                  <th className="py-2 pr-3 font-medium">Method</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 pr-3 font-medium">Amount</th>
-                  <th className="py-2 font-medium">Date</th>
+                  <th className="py-2 pr-3 font-medium">{t("shopTab.tableProduct")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("shopTab.tableBuyer")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("shopTab.tableMethod")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("shopTab.tableStatus")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("shopTab.tableAmount")}</th>
+                  <th className="py-2 font-medium">{t("shopTab.tableDate")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -368,8 +370,8 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
                     <Fragment key={s.id}>
                       <tr className="border-b border-zinc-800/60">
                         <td className="py-2 pr-3 text-white">{s.product.title}</td>
-                        <td className="py-2 pr-3 text-zinc-400">{s.buyerEmail ?? (s.isGuest ? "Guest" : "Account")}</td>
-                        <td className="py-2 pr-3 text-zinc-400">{s.method === "FREE" ? "Free" : s.method === "CRYPTO" ? `${s.cryptoCoin ?? "Crypto"}` : s.method}</td>
+                        <td className="py-2 pr-3 text-zinc-400">{s.buyerEmail ?? (s.isGuest ? t("shopTab.guest") : t("shopTab.account"))}</td>
+                        <td className="py-2 pr-3 text-zinc-400">{s.method === "FREE" ? t("shopTab.methodFree") : s.method === "CRYPTO" ? `${s.cryptoCoin ?? t("shopTab.crypto")}` : s.method}</td>
                         <td className="py-2 pr-3">
                           <span
                             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -384,14 +386,14 @@ export function ShopTab({ profile, onProfileChange }: ShopTabProps) {
                           </span>
                         </td>
                         <td className="py-2 pr-3 text-zinc-300">
-                          {s.method === "FREE" ? "—" : `${formatPrice(s.finalPriceCents, s.currency)}${s.discountPercent > 0 ? ` (-${s.discountPercent}%)` : ""}`}
+                          {s.method === "FREE" ? t("shopTab.dash") : `${formatPrice(s.finalPriceCents, s.currency)}${s.discountPercent > 0 ? t("shopTab.discountSuffix", { percent: s.discountPercent }) : ""}`}
                         </td>
-                        <td className="py-2 text-zinc-500">{new Date(s.createdAt).toLocaleDateString()}</td>
+                        <td className="py-2 text-zinc-500">{formatDate(s.createdAt)}</td>
                       </tr>
                       {s.product.type === "REQUEST" && s.requestText && (
                         <tr className="border-b border-zinc-800/60">
                           <td colSpan={6} className="py-2 pr-3 pl-6 text-xs text-zinc-500">
-                            <span className="text-zinc-400">Request:</span> {s.requestText}
+                            <span className="text-zinc-400">{t("shopTab.requestLabel")}</span> {s.requestText}
                           </td>
                         </tr>
                       )}

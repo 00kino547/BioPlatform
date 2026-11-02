@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Check, X, ZoomIn, ZoomOut } from "lucide-react";
 
@@ -25,6 +26,7 @@ export function ImageCropper({
   onConfirm,
   onCancel,
 }: ImageCropperProps) {
+  const { t } = useTranslation("common");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(1);
@@ -137,18 +139,18 @@ export function ImageCropper({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-white">Position your image</h2>
+          <h2 className="text-lg font-semibold text-white">{t("imageCropper.title")}</h2>
           <button
             onClick={onCancel}
             className="text-zinc-400 hover:text-white transition-colors"
-            aria-label="Cancel"
+            aria-label={t("imageCropper.cancel")}
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <p className="text-sm text-zinc-400 mb-4">
-          Drag to move and scroll to zoom. Pick the part you want to show.
+          {t("imageCropper.hint")}
         </p>
 
         <div className="flex items-center justify-center mb-4">
@@ -164,7 +166,7 @@ export function ImageCropper({
             {imageUrl ? (
               <img
                 src={imageUrl}
-                alt="Crop preview"
+                alt={t("imageCropper.previewAlt")}
                 draggable={false}
                 className="absolute max-w-none pointer-events-none"
                 style={{
@@ -175,7 +177,7 @@ export function ImageCropper({
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-zinc-500">
-                Loading...
+                {t("imageCropper.loading")}
               </div>
             )}
             <div className="absolute inset-0 shadow-[inset_0_0_0_2px_rgba(124,58,237,0.6)] pointer-events-none" />
@@ -199,11 +201,11 @@ export function ImageCropper({
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1" onClick={onCancel}>
             <X className="h-4 w-4" />
-            Cancel
+            {t("imageCropper.cancel")}
           </Button>
           <Button className="flex-1" onClick={async () => onConfirm(await cropToFile())}>
             <Check className="h-4 w-4" />
-            Confirm
+            {t("imageCropper.confirm")}
           </Button>
         </div>
       </div>

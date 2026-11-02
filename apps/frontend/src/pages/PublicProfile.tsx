@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
 import { api, type PublicProfile, type Badge, type DiscordPresence, type SocialLink, type FeatureFlags } from "@/lib/api";
 import { branding } from "@/config/branding";
 import { usePageMeta, useJsonLd, useMetaTags } from "@/lib/seo";
-import { useDomain } from "@/contexts/DomainContext";
+import { useDomain } from "@/contexts/useDomain";
 import { bannerSrcSet, avatarSrcSet, toBackgroundImage } from "@/lib/media";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { FloatingMusicPlayer } from "@/components/music/MusicPlayer";
@@ -56,6 +57,7 @@ function contrastInitialColor(bg: string) {
 }
 
 export function PublicProfilePage() {
+  const { t } = useTranslation("profile");
   const { username } = useParams<{ username: string }>();
   const [searchParams] = useSearchParams();
   const { info: domainInfo } = useDomain();
@@ -72,7 +74,7 @@ export function PublicProfilePage() {
   const instance = useInstanceConfig();
 
   usePageMeta({
-    title: profile ? `${profile.displayName || profile.username} (@${profile.username})` : "Profile",
+    title: profile ? `${profile.displayName || profile.username} (@${profile.username})` : t("publicProfile.metaTitleFallback"),
     description: profile?.bio || branding.description,
     url: `/${username ?? ""}`,
     image: profile ? `${customBase ?? branding.url}/api/profiles/${profile.username}/og.png` : branding.ogImage,
@@ -168,13 +170,13 @@ export function PublicProfilePage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-2">Profile not found</h1>
-          <p className="text-zinc-400 text-sm">This profile doesn&apos;t exist or is private.</p>
+          <h1 className="text-2xl font-bold text-white mb-2">{t("publicProfile.notFoundTitle")}</h1>
+          <p className="text-zinc-400 text-sm">{t("publicProfile.notFoundDescription")}</p>
           <a
             href="/"
             className="inline-block mt-6 text-sm text-violet-400 hover:text-violet-300 transition-colors"
           >
-            Back to {branding.name}
+            {t("publicProfile.backHome", { name: branding.name })}
           </a>
         </div>
       </div>
@@ -311,7 +313,7 @@ export function PublicProfilePage() {
           ? "divider"
           : "row";
 
-  const linkContainerClass =
+  const linkContainerClass = (
     layout === "grid"
       ? "grid gap-2.5 sm:grid-cols-2"
       : layout === "bento"
@@ -326,7 +328,7 @@ export function PublicProfilePage() {
               ? "grid gap-2.5 sm:grid-cols-2"
               : layout === "terminal"
                 ? "flex flex-col gap-1.5"
-                : "flex flex-col gap-2.5";
+                : "flex flex-col gap-2.5") + " [&>*]:min-w-0";
 
   const avatarSize = (() => {
     if (isHero) return { width: "clamp(6rem, 14vw, 8.5rem)", height: "clamp(6rem, 14vw, 8.5rem)" };
@@ -369,7 +371,7 @@ export function PublicProfilePage() {
   const identityBlock = isEditorial ? (
     <div className="flex flex-col items-center text-center">
       <p className="text-[11px] font-semibold uppercase tracking-[0.3em] mb-3" style={{ color: accent }}>
-        @{profile.username}
+        {t("publicProfile.handleAt", { username: profile.username })}
       </p>
       {renderAvatar({
         width: "clamp(4rem, 10vw, 5.5rem)",
@@ -414,7 +416,7 @@ export function PublicProfilePage() {
           {profile.displayName ?? profile.username}
         </h1>
         <p className="text-xs sm:text-sm truncate" style={{ color: displayMuted }}>
-          @{profile.username}
+          {t("publicProfile.handleAt", { username: profile.username })}
         </p>
         {profile.badges && profile.badges.length > 0 && (
           <div className={`flex flex-wrap gap-1.5 mt-2 ${isTopbar ? "sm:hidden" : ""}`}>
@@ -481,12 +483,12 @@ export function PublicProfilePage() {
   );
 
   const discordBlock = profile.discord ? (
-    <div className={`flex flex-col ${isSidebar ? "" : "mt-6 sm:mt-7"}`}>
+    <div className={`flex flex-col min-w-0 ${isSidebar ? "" : "mt-6 sm:mt-7"}`}>
       <h2
         className="text-[11px] font-semibold uppercase tracking-widest mb-2.5 text-left"
         style={{ color: mutedColor }}
       >
-        Discord
+        {t("publicProfile.discordHeading")}
       </h2>
       <PresenceWidget
         account={{
@@ -522,7 +524,9 @@ export function PublicProfilePage() {
     const displayText = isEmail
       ? link.url.startsWith("mailto:") ? link.url.slice(7) : link.url
       : isDiscordInvite
-        ? `discord.gg${new URL(link.url).pathname.replace(/^\/invite/, "") || "/invite"}`
+        ? t("publicProfile.discordInvite", {
+            path: new URL(link.url).pathname.replace(/^\/invite/, "") || "/invite",
+          })
         : link.url;
 
     const Tag = isClickable ? "a" : "div";
@@ -628,14 +632,14 @@ export function PublicProfilePage() {
         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer transition-all duration-200 hover:opacity-90"
         style={{ backgroundColor: `${accent}10`, border: `1px solid ${accent}22` }}
         onClick={profile.id ? () => api.trackClick(profile.id!, link.platform, link.label?.trim() || link.platform).catch(() => {}) : undefined}
-        title="Scan to open this link"
+        title={t("publicProfile.scanTitle")}
       >
         <span className="rounded-lg bg-white p-1.5 flex-shrink-0" style={variant === "tile" ? { marginInline: "auto" } : undefined}>
           <QRCodeSVG value={value} size={72} bgColor="#ffffff" fgColor="#18181b" level="M" />
         </span>
         {variant !== "tile" ? (
           <span className="min-w-0 text-left">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider opacity-70">Scan to open</span>
+            <span className="block text-[11px] font-semibold uppercase tracking-wider opacity-70">{t("publicProfile.scanLabel")}</span>
             <span className="block text-xs opacity-55 truncate">{value.replace(/^mailto:/, "")}</span>
           </span>
         ) : null}
@@ -676,7 +680,7 @@ export function PublicProfilePage() {
         className="h-2 w-2 rounded-full shadow"
         style={{ backgroundColor: profile.presenceStatus === "online" ? "#22c55e" : profile.presenceStatus === "idle" ? "#eab308" : "#a1a1aa" }}
       />
-      {profile.presenceStatus === "online" ? "Online" : profile.presenceStatus === "idle" ? "Away" : "Offline"}
+      {profile.presenceStatus === "online" ? t("publicProfile.statusOnline") : profile.presenceStatus === "idle" ? t("publicProfile.statusAway") : t("publicProfile.statusOffline")}
     </span>
   ) : null;
 
@@ -755,8 +759,8 @@ export function PublicProfilePage() {
       }`}
     >
       {shopReturnStatus === "success"
-        ? "Payment received! Your download is ready — open the product card to download it."
-        : "Your purchase was cancelled. No charge was made."}
+        ? t("publicProfile.shopNoticeSuccess")
+        : t("publicProfile.shopNoticeCancelled")}
     </div>
   ) : null;
 
@@ -787,7 +791,7 @@ export function PublicProfilePage() {
             sizes="(min-width: 928px) 896px, 92vw"
             fetchPriority="high"
             decoding="async"
-            alt="Banner"
+            alt={t("publicProfile.bannerAlt")}
             className="w-full object-cover"
             style={{ height: "clamp(7rem, 16vw, 11rem)" }}
           />
@@ -810,7 +814,7 @@ export function PublicProfilePage() {
               <p className="mt-4 font-serif italic tracking-wide" style={{ color: "#44403c" }}>
                 {profile.displayName ?? profile.username}
               </p>
-              <p className="text-xs" style={{ color: "#78716c" }}>@{profile.username}</p>
+              <p className="text-xs" style={{ color: "#78716c" }}>{t("publicProfile.handleAt", { username: profile.username })}</p>
               {profile.badges && profile.badges.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-1.5 mt-3">
                   {profile.badges.map((id) => badgeCatalog.find((b) => b.id === id)).filter((b): b is Badge => Boolean(b)).map((badge) => (
@@ -839,14 +843,14 @@ export function PublicProfilePage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
                 <span className="ml-2 text-[10px] uppercase tracking-widest opacity-50" style={{ color: displayTextColor }}>
-                  {profile.username}@bioplatform ~ zsh
+                  {t("publicProfile.terminalHost", { username: profile.username })}
                 </span>
               </div>
               <div className="px-4 sm:px-6 py-5 space-y-3">
-                <p className="text-xs opacity-60">$ cat whoami.txt</p>
+                <p className="text-xs opacity-60">{t("publicProfile.terminalWhoami")}</p>
                 <p className="text-sm font-semibold" style={{ color: accent }}>
                   {profile.displayName ?? profile.username}
-                  <span className="opacity-50 font-normal"> @ {profile.username}</span>
+                  <span className="opacity-50 font-normal"> {t("publicProfile.terminalUserHandle", { username: profile.username })}</span>
                 </p>
                 {profile.bio && (
                   <p className="text-xs opacity-50"># {profile.bio}</p>
@@ -879,7 +883,7 @@ export function PublicProfilePage() {
                 >
                   {profile.displayName ?? profile.username}
                 </h1>
-                <p className="text-sm mt-1" style={{ color: displayMuted }}>@{profile.username}</p>
+                <p className="text-sm mt-1" style={{ color: displayMuted }}>{t("publicProfile.handleAt", { username: profile.username })}</p>
                 {profile.badges && profile.badges.length > 0 && (
                   <div className="flex flex-wrap justify-center gap-1.5 mt-3">
                     {profile.badges.map((id) => badgeCatalog.find((b) => b.id === id)).filter((b): b is Badge => Boolean(b)).map((badge) => (
@@ -909,7 +913,7 @@ export function PublicProfilePage() {
                   <h1 className="font-bold truncate text-lg" style={{ color: displayTextColor }}>
                     {profile.displayName ?? profile.username}
                   </h1>
-                  <p className="text-xs truncate" style={{ color: displayMuted }}>@{profile.username}</p>
+                  <p className="text-xs truncate" style={{ color: displayMuted }}>{t("publicProfile.handleAt", { username: profile.username })}</p>
                 </div>
                 {profile.badges && profile.badges.length > 0 && (
                   <div className="flex flex-wrap justify-end gap-1.5">
@@ -943,7 +947,7 @@ export function PublicProfilePage() {
               <h1 className="font-bold truncate mt-4 text-xl" style={{ color: displayTextColor }}>
                 {profile.displayName ?? profile.username}
               </h1>
-              <p className="text-xs mt-0.5" style={{ color: displayMuted }}>@{profile.username}</p>
+              <p className="text-xs mt-0.5" style={{ color: displayMuted }}>{t("publicProfile.handleAt", { username: profile.username })}</p>
               {profile.badges && profile.badges.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-1.5 mt-3">
                   {profile.badges.map((id) => badgeCatalog.find((b) => b.id === id)).filter((b): b is Badge => Boolean(b)).map((badge) => (
@@ -981,7 +985,7 @@ export function PublicProfilePage() {
               {bioBlock}
               {metaBlock}
             </aside>
-            <div className="lg:min-w-0">
+            <div className="min-w-0">
               {discordBlock}
               {linksBlock}
             </div>
@@ -1010,9 +1014,8 @@ export function PublicProfilePage() {
       <div className="mt-8 flex items-center gap-3">
         <VersionBadge />
         <p className="text-xs" style={{ color: `${textColor}44` }}>
-          Powered by{" "}
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 transition-opacity">
-            {branding.name}
+            {t("publicProfile.poweredBy", { name: branding.name })}
           </a>
         </p>
       </div>

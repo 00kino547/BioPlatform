@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   api,
   type EnterpriseSsoConfig,
   type EnterpriseSsoIdentity,
 } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import { LockedFeature } from "@/components/ui/LockedFeature";
 import { Building2, Link2, Loader2, ShieldCheck, Trash2 } from "lucide-react";
@@ -37,6 +38,7 @@ const emptyForm: ConfigForm = {
 };
 
 export function EnterpriseSsoCard() {
+  const { t } = useTranslation("auth");
   const { user } = useAuth();
   const hasEnterprise = user?.apiLevel === "enterprise";
 
@@ -110,14 +112,14 @@ export function EnterpriseSsoCard() {
         enabled: form.enabled,
       });
       if (!res.success || !res.data) {
-        showError(res.error ?? "Could not save SSO configuration");
+        showError(res.error ?? t("enterpriseSso.saveFailed"));
         return;
       }
-      showSuccess("SSO configuration saved.");
+      showSuccess(t("enterpriseSso.saved"));
       setEditing(false);
       await load();
     } catch {
-      showError("Could not save SSO configuration");
+      showError(t("enterpriseSso.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -133,9 +135,9 @@ export function EnterpriseSsoCard() {
       setIdentities([]);
       setEditing(false);
       setConfirmRemove(false);
-      showSuccess("SSO provider removed.");
+      showSuccess(t("enterpriseSso.removed"));
     } else {
-      showError(res.error ?? "Could not remove the SSO provider");
+      showError(res.error ?? t("enterpriseSso.removeFailed"));
     }
   };
 
@@ -145,7 +147,7 @@ export function EnterpriseSsoCard() {
     if (res.success && res.data?.redirectUrl) {
       window.location.href = res.data.redirectUrl;
     } else {
-      showError(res.error ?? "Could not start a test sign-in");
+      showError(res.error ?? t("enterpriseSso.testSignInFailed"));
     }
   };
 
@@ -155,7 +157,7 @@ export function EnterpriseSsoCard() {
     if (res.success && res.data?.redirectUrl) {
       window.location.href = res.data.redirectUrl;
     } else {
-      showError(res.error ?? "Could not link this account");
+      showError(res.error ?? t("enterpriseSso.linkFailed"));
     }
   };
 
@@ -164,9 +166,9 @@ export function EnterpriseSsoCard() {
     const res = await api.ssoEnterpriseIdentityDelete(id);
     if (res.success) {
       setIdentities(identities.filter((i) => i.id !== id));
-      showSuccess("SSO identity unlinked.");
+      showSuccess(t("enterpriseSso.identityUnlinked"));
     } else {
-      showError(res.error ?? "Could not unlink this identity");
+      showError(res.error ?? t("enterpriseSso.unlinkFailed"));
     }
   };
 
@@ -174,11 +176,11 @@ export function EnterpriseSsoCard() {
     return (
       <div className="mt-8">
         <LockedFeature
-          feature="Business SSO"
+          feature={t("enterpriseSso.featureName")}
           required="enterprise"
-          title="Business SSO is an Enterprise feature"
-          description="Add a corporate single sign-on provider (Microsoft Entra ID, Okta, Keycloak, Google Workspace…). Every social sign-in stays available on Free and Premium."
-          note="Requires Enterprise · OIDC single sign-on"
+          title={t("enterpriseSso.lockedTitle")}
+          description={t("enterpriseSso.lockedDescription")}
+          note={t("enterpriseSso.lockedNote")}
         />
       </div>
     );
@@ -188,7 +190,7 @@ export function EnterpriseSsoCard() {
     return (
       <div className="mt-8 flex items-center justify-center py-10 text-sm text-zinc-500">
         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-        Loading SSO configuration...
+        {t("enterpriseSso.loading")}
       </div>
     );
   }
@@ -199,19 +201,19 @@ export function EnterpriseSsoCard() {
         <div>
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-amber-300" />
-            <h2 className="text-base font-semibold text-white">Business SSO</h2>
+            <h2 className="text-base font-semibold text-white">{t("enterpriseSso.title")}</h2>
           </div>
           <p className="mt-1 text-sm text-zinc-400">
-            Single sign-on via any OIDC provider — Microsoft Entra ID, Okta, Keycloak, Google Workspace and more.
+            {t("enterpriseSso.subtitle")}
           </p>
         </div>
         {config && !editing && (
           <div className="flex items-center gap-2">
             <Button type="button" variant="secondary" onClick={testSignIn}>
-              Test sign-in
+              {t("enterpriseSso.testSignIn")}
             </Button>
             <Button type="button" variant="secondary" onClick={startEdit}>
-              Edit
+              {t("enterpriseSso.edit")}
             </Button>
           </div>
         )}
@@ -232,11 +234,10 @@ export function EnterpriseSsoCard() {
       {!config && !editing && (
         <div className="mt-6 flex flex-col items-start gap-4 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/20 p-5">
           <p className="text-sm text-zinc-400">
-            You haven&apos;t connected a provider yet. Your users will see &quot;Continue with [provider]&quot; on the
-            sign-in page, and every account whose verified email is on an allowed domain can sign in.
+            {t("enterpriseSso.emptyHint")}
           </p>
           <Button type="button" onClick={startEdit}>
-            Connect an OIDC provider
+            {t("enterpriseSso.connectProvider")}
           </Button>
         </div>
       )}
@@ -245,79 +246,79 @@ export function EnterpriseSsoCard() {
         <div className="mt-6 space-y-5">
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-300">Provider name</label>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t("enterpriseSso.providerNameLabel")}</label>
               <input
                 className={inputClass}
                 value={form.displayName}
                 onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
-                placeholder="Acme Corp"
+                placeholder={t("enterpriseSso.providerNamePlaceholder")}
                 maxLength={64}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-300">Client ID</label>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t("enterpriseSso.clientIdLabel")}</label>
               <input
                 className={inputClass}
                 value={form.clientId}
                 onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
-                placeholder="Your OIDC application client ID"
+                placeholder={t("enterpriseSso.clientIdPlaceholder")}
                 maxLength={300}
               />
             </div>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Issuer URL <span className="text-zinc-500">(or OIDC discovery document URL)</span>
+              {t("enterpriseSso.issuerUrlLabel")} <span className="text-zinc-500">{t("enterpriseSso.issuerUrlHint")}</span>
             </label>
             <input
               className={inputClass}
               value={form.issuerUrl}
               onChange={(e) => setForm((f) => ({ ...f, issuerUrl: e.target.value }))}
-              placeholder="https://login.microsoftonline.com/{tenant}/v2.0"
+              placeholder={t("enterpriseSso.issuerUrlPlaceholder")}
             />
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-zinc-300">
-                Client secret {config ? <span className="text-zinc-500">(leave blank to keep)</span> : null}
+                {t("enterpriseSso.clientSecretLabel")} {config ? <span className="text-zinc-500">{t("enterpriseSso.clientSecretKeep")}</span> : null}
               </label>
               <input
                 type="password"
                 className={inputClass}
                 value={form.clientSecret}
                 onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
-                placeholder={config ? "••••••••••••" : "Required on first save"}
+                placeholder={config ? "••••••••••••" : t("enterpriseSso.clientSecretRequired")}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-300">Provider logo URL</label>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t("enterpriseSso.logoUrlLabel")}</label>
               <input
                 className={inputClass}
                 value={form.logoUrl}
                 onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))}
-                placeholder="https://…/logo.png (optional)"
+                placeholder={t("enterpriseSso.logoUrlPlaceholder")}
               />
             </div>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Allowed email domains{" "}
-              <span className="text-zinc-500">(comma separated — empty allows any verified email)</span>
+              {t("enterpriseSso.allowedDomainsLabel")}{" "}
+              <span className="text-zinc-500">{t("enterpriseSso.allowedDomainsHint")}</span>
             </label>
             <input
               className={inputClass}
               value={form.allowedDomains}
               onChange={(e) => setForm((f) => ({ ...f, allowedDomains: e.target.value }))}
-              placeholder="acme.com, sub.acme.com"
+              placeholder={t("enterpriseSso.allowedDomainsPlaceholder")}
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-zinc-300">Scopes</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t("enterpriseSso.scopesLabel")}</label>
             <input
               className={inputClass}
               value={form.scopes}
               onChange={(e) => setForm((f) => ({ ...f, scopes: e.target.value }))}
-              placeholder="openid email profile"
+              placeholder={t("enterpriseSso.scopesPlaceholder")}
             />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -328,8 +329,8 @@ export function EnterpriseSsoCard() {
                 onChange={(e) => setForm((f) => ({ ...f, enforced: e.target.checked }))}
                 className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-violet-500"
               />
-              Enforce SSO on my account
-              <span className="text-xs text-zinc-500">— password and social sign-in will be disabled for this account</span>
+              {t("enterpriseSso.enforceLabel")}
+              <span className="text-xs text-zinc-500">{t("enterpriseSso.enforceHint")}</span>
             </label>
             <label className="flex items-center gap-2 text-sm text-zinc-300">
               <input
@@ -338,12 +339,12 @@ export function EnterpriseSsoCard() {
                 onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
                 className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-violet-500"
               />
-              Enabled
+              {t("security.enabled")}
             </label>
           </div>
           <div className="flex items-center gap-3">
             <Button type="button" onClick={save} disabled={busy || !form.displayName || !form.issuerUrl || !form.clientId}>
-              {busy ? "Saving..." : "Save configuration"}
+              {busy ? t("enterpriseSso.saving") : t("enterpriseSso.save")}
             </Button>
             <Button
               type="button"
@@ -353,7 +354,7 @@ export function EnterpriseSsoCard() {
                 showError();
               }}
             >
-              Cancel
+              {t("security.cancel")}
             </Button>
           </div>
         </div>
@@ -363,53 +364,53 @@ export function EnterpriseSsoCard() {
         <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
             <div>
-              <div className="text-xs text-zinc-500">Provider</div>
+              <div className="text-xs text-zinc-500">{t("enterpriseSso.providerLabel")}</div>
               <div className="mt-0.5 font-medium text-white">{config.displayName}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Issuer</div>
+              <div className="text-xs text-zinc-500">{t("enterpriseSso.issuerLabel")}</div>
               <div className="mt-0.5 font-medium text-white">{config.issuerUrl}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Client ID</div>
+              <div className="text-xs text-zinc-500">{t("enterpriseSso.clientIdLabel")}</div>
               <div className="mt-0.5 font-mono text-white">{config.clientId}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Secret</div>
+              <div className="text-xs text-zinc-500">{t("enterpriseSso.secretLabel")}</div>
               <div className="mt-0.5 font-mono text-zinc-400">{config.clientSecretMasked}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Linked accounts</div>
+              <div className="text-xs text-zinc-500">{t("enterpriseSso.linkedAccountsLabel")}</div>
               <div className="mt-0.5 font-medium text-white">{config.identityCount}</div>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button type="button" variant="secondary" onClick={linkAccount}>
               <Link2 className="h-4 w-4" />
-              Link this account
+              {t("enterpriseSso.linkAccount")}
             </Button>
             {config.enforced && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                SSO enforced
+                {t("enterpriseSso.enforced")}
               </span>
             )}
             {!config.enabled && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800/60 px-3 py-1 text-xs text-zinc-400">
-                Disabled
+                {t("security.disabled")}
               </span>
             )}
           </div>
           {confirmRemove ? (
             <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm">
-              <p className="text-red-300">Remove this provider? Everyone currently signing in through it will lose this method.</p>
+              <p className="text-red-300">{t("enterpriseSso.removeConfirm")}</p>
               <div className="mt-3 flex items-center gap-3">
                 <Button type="button" onClick={remove} disabled={busy} className="bg-red-600 hover:bg-red-700 text-white">
                   <Trash2 className="h-4 w-4" />
-                  Remove provider
+                  {t("enterpriseSso.removeProvider")}
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => setConfirmRemove(false)}>
-                  Cancel
+                  {t("security.cancel")}
                 </Button>
               </div>
             </div>
@@ -421,7 +422,7 @@ export function EnterpriseSsoCard() {
                 className="inline-flex items-center gap-1.5 text-sm text-red-400 transition-colors hover:text-red-300"
               >
                 <Trash2 className="h-4 w-4" />
-                Remove provider
+                {t("enterpriseSso.removeProvider")}
               </button>
             </div>
           )}
@@ -430,7 +431,7 @@ export function EnterpriseSsoCard() {
 
       {identities.length > 0 && (
         <div className="mt-6">
-          <h3 className="text-sm font-semibold text-zinc-300">Linked SSO identities</h3>
+          <h3 className="text-sm font-semibold text-zinc-300">{t("enterpriseSso.linkedIdentities")}</h3>
           <div className="mt-3 space-y-2">
             {identities.map((identity) => (
               <div
@@ -453,7 +454,7 @@ export function EnterpriseSsoCard() {
                   onClick={() => unlinkIdentity(identity.id)}
                   className="text-sm text-zinc-400 transition-colors hover:text-red-400"
                 >
-                  Unlink
+                  {t("enterpriseSso.unlink")}
                 </button>
               </div>
             ))}

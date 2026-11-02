@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Coins, Loader2, Save, Trash2 } from "lucide-react";
 import { api, type Profile, type TipRecord, type TipCoinTotals } from "@/lib/api";
+import { formatDate } from "@/lib/intl";
 import { Button } from "@/components/ui/button";
 import { SectionCard, Toggle } from "@/components/ui/dashboard";
 
@@ -19,6 +21,7 @@ function fmtAmt(v: string, coin: string): string {
 }
 
 export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
+  const { t } = useTranslation("profile");
   const profileId = profile?.id;
   const [enabled, setEnabled] = useState(!!profile?.tipsEnabled);
   const [heading, setHeading] = useState(profile?.tipsHeading ?? "");
@@ -68,7 +71,7 @@ export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
     const res = await api.updateProfile(patch, profileId);
     setSettingsSaving(false);
     if (!res.success || !res.data) {
-      setSettingsError(res.error ?? "Could not save tips settings.");
+      setSettingsError(res.error ?? t("tipsTab.saveError"));
       return;
     }
     onProfileChange({
@@ -83,13 +86,13 @@ export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
 
   const removeTip = async (id: string) => {
     if (!profileId) return;
-    if (!confirm("Delete this tip record?")) return;
+    if (!confirm(t("tipsTab.deleteConfirm"))) return;
     await api.deleteTip(id, profileId);
     void loadOverview();
   };
 
   if (!profileId) {
-    return <p className="text-sm text-zinc-500 text-center py-12">Select a profile to manage its tips.</p>;
+    return <p className="text-sm text-zinc-500 text-center py-12">{t("tipsTab.selectProfile")}</p>;
   }
 
   const btcTotals = totals.BTC ?? { confirmedAmount: "0", recordedAmount: "0", confirmedCount: 0, recordedCount: 0 };
@@ -99,52 +102,52 @@ export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
     <div className="space-y-4">
       <SectionCard
         icon={<Coins className="h-4 w-4" />}
-        title="Tips"
-        desc="Accept cryptocurrency tips from your visitors. When BTCPay is configured on this instance, visitors can pay directly; otherwise a wallet address + QR is shown and you reconcile recorded tips manually."
+        title={t("tipsTab.title")}
+        desc={t("tipsTab.description")}
       >
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-white">Tips enabled</p>
+              <p className="text-sm font-medium text-white">{t("tipsTab.tipsEnabled")}</p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                {enabled ? "The tip block is shown on your public profile." : "Off — no tip block is visible to visitors."}
+                {enabled ? t("tipsTab.enabledOn") : t("tipsTab.enabledOff")}
               </p>
             </div>
             <Toggle on={enabled} onChange={() => setEnabled(!enabled)} />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Tip heading</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("tipsTab.tipHeading")}</label>
             <input
               value={heading}
               maxLength={60}
               onChange={(e) => setHeading(e.target.value)}
-              placeholder="Send a tip"
+              placeholder={t("tipsTab.tipHeadingPlaceholder")}
               className={inputClass}
             />
-            <p className="text-xs text-zinc-500 mt-1">Shown above the public tip block. Leave empty for the default heading.</p>
+            <p className="text-xs text-zinc-500 mt-1">{t("tipsTab.tipHeadingHelp")}</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Bitcoin address</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("tipsTab.bitcoinAddress")}</label>
             <input
               value={btcAddress}
               onChange={(e) => setBtcAddress(e.target.value)}
-              placeholder="1... / 3... / bc1..."
+              placeholder={t("tipsTab.bitcoinAddressPlaceholder")}
               className={inputClass}
             />
-            <p className="text-xs text-zinc-500 mt-1">Your public BTC wallet address (P2PKH, P2SH, or bech32).</p>
+            <p className="text-xs text-zinc-500 mt-1">{t("tipsTab.bitcoinAddressHelp")}</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Litecoin address</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t("tipsTab.litecoinAddress")}</label>
             <input
               value={ltcAddress}
               onChange={(e) => setLtcAddress(e.target.value)}
-              placeholder="L... / M... / ltc1..."
+              placeholder={t("tipsTab.litecoinAddressPlaceholder")}
               className={inputClass}
             />
-            <p className="text-xs text-zinc-500 mt-1">Your public LTC wallet address (P2PKH, P2SH, or bech32).</p>
+            <p className="text-xs text-zinc-500 mt-1">{t("tipsTab.litecoinAddressHelp")}</p>
           </div>
 
           {settingsError && (
@@ -154,7 +157,7 @@ export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
           <div className="flex gap-2.5">
             <Button onClick={saveSettings} disabled={settingsSaving}>
               <Save className="h-4 w-4" />
-              {settingsSaving ? "Saving..." : settingsSaved ? "Saved!" : "Save Settings"}
+              {settingsSaving ? t("tipsTab.saving") : settingsSaved ? t("tipsTab.saved") : t("tipsTab.saveSettings")}
             </Button>
           </div>
         </div>
@@ -162,19 +165,19 @@ export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
 
       <SectionCard
         icon={<Coins className="h-4 w-4" />}
-        title="Overview"
-        desc={`${overviewMode === "btcpay" ? "BTCPay is configured — confirmed payments are marked automatically via webhook." : "Address mode — tips are recorded as intents; you reconcile them against your wallet."}`}
+        title={t("tipsTab.overview")}
+        desc={overviewMode === "btcpay" ? t("tipsTab.overviewBtcpay") : t("tipsTab.overviewAddress")}
       >
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-            <p className="text-xs text-zinc-500">Bitcoin (recorded)</p>
+            <p className="text-xs text-zinc-500">{t("tipsTab.bitcoinRecorded")}</p>
             <p className="text-sm font-semibold text-white">{fmtAmt(btcTotals.recordedAmount, "BTC")}</p>
-            <p className="text-xs text-zinc-500">{btcTotals.recordedCount} tip(s)</p>
+            <p className="text-xs text-zinc-500">{t("tipsTab.tipCount", { count: btcTotals.recordedCount })}</p>
           </div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-            <p className="text-xs text-zinc-500">Litecoin (recorded)</p>
+            <p className="text-xs text-zinc-500">{t("tipsTab.litecoinRecorded")}</p>
             <p className="text-sm font-semibold text-white">{fmtAmt(ltcTotals.recordedAmount, "LTC")}</p>
-            <p className="text-xs text-zinc-500">{ltcTotals.recordedCount} tip(s)</p>
+            <p className="text-xs text-zinc-500">{t("tipsTab.tipCount", { count: ltcTotals.recordedCount })}</p>
           </div>
         </div>
 
@@ -183,24 +186,24 @@ export function TipsTab({ profile, onProfileChange }: TipsTabProps) {
             <Loader2 className="h-5 w-5 animate-spin text-zinc-600" />
           </div>
         ) : recent.length === 0 ? (
-          <p className="text-sm text-zinc-500 text-center py-6">No tips yet.</p>
+          <p className="text-sm text-zinc-500 text-center py-6">{t("tipsTab.noTips")}</p>
         ) : (
           <ul className="divide-y divide-zinc-800 border-t border-zinc-800">
-            {recent.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-3 py-2.5">
+            {recent.map((tip) => (
+              <li key={tip.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-sm text-white">
-                    {fmtAmt(t.amount, t.coin)}{t.name ? ` — ${t.name}` : ""}
+                    {fmtAmt(tip.amount, tip.coin)}{tip.name ? t("tipsTab.tipNameSuffix", { name: tip.name }) : ""}
                   </p>
                   <p className="text-xs text-zinc-500 truncate">
-                    {t.status}{t.paidAt ? ` · paid ${new Date(t.paidAt).toLocaleDateString()}` : ` · recorded ${new Date(t.createdAt).toLocaleDateString()}`}
+                    {tip.status}{tip.paidAt ? t("tipsTab.paidDate", { date: formatDate(tip.paidAt) }) : t("tipsTab.recordedDate", { date: formatDate(tip.createdAt) })}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeTip(t.id)}
+                  onClick={() => removeTip(tip.id)}
                   className="flex-shrink-0 rounded-lg p-2 text-zinc-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                  title="Delete tip record"
+                  title={t("tipsTab.deleteTip")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

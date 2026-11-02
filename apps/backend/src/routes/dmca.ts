@@ -134,12 +134,24 @@ function buildNotice(description: string, attestation: { signature: string }): s
  * consent gates — those belong to `requireAuth`, and a locked account filing a
  * report against itself changes nothing about who may speak to the operator.
  */
-function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) {
     try {
-      const payload = jwt.verify(header.slice(7), getEnv().JWT_SECRET) as { userId: string; purpose?: string };
-      if (payload.purpose === "auth") req.userId = payload.userId;
+      const token = header.slice(7);
+      const payload = jwt.verify(token, getEnv().JWT_SECRET) as { userId: string; purpose?: string; av?: number };
+      if (payload.purpose === "auth" && payload.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: payload.userId },
+          select: { id: true, authVersion: true, disabledAt: true },
+        });
+        if (user) {
+          const tokenVersion = payload.av ?? 0;
+          if (tokenVersion === user.authVersion && !user.disabledAt) {
+            req.userId = user.id;
+          }
+        }
+      }
     } catch {
       // fall through as anonymous
     }

@@ -1,4 +1,5 @@
 import { prisma } from "../prisma.js";
+import type { Prisma, PurchaseStatus } from "@prisma/client";
 import { fulfillOrderAsPaid, markOrderCancelled, markOrderRefunded } from "./fulfill.js";
 import { SHOP_PURCHASE_PREFIX } from "../shop.js";
 import { sendRequestNotificationEmail } from "../shop.js";
@@ -19,12 +20,30 @@ export async function handleGatewayEvent(
 
   if (orderId.startsWith("tip-")) {
     const tipId = orderId.slice(4);
-    const tip = await prisma.tip.findUnique({ where: { id: tipId }, select: { id: true, status: true } });
-    if (!tip || tip.status === "CONFIRMED") return;
-    await prisma.tip.update({
-      where: { id: tip.id },
-      data: kind === "paid" ? { status: "CONFIRMED", paidAt: new Date() } : { status: "CANCELLED" },
-    });
+    // Conditional transitions (not check-then-act `update`): a redelivery or a
+    // refund that races an in-flight confirm must get the row lock in exactly
+    // one place, so two concurrent gateway events can never both "win" and the
+    // second event cannot overwrite the first one's state.
+    if (kind === "paid") {
+      // Confirm unless already CONFIRMED. A cancel that raced and landed first
+      // is resurrected on purpose: the gateway reporting a payment means the
+      // money is on the platform's side, whatever the earlier expiry said.
+      await prisma.tip.updateMany({
+        where: { id: tipId, status: { not: "CONFIRMED" } },
+        data: { status: "CONFIRMED", paidAt: new Date() },
+      });
+    } else {
+      // Only a pending tip can be cancelled/refunded: a stale cancel or expiry
+      // event must never demote a tip whose payment already landed, and a
+      // confirmed tip re-receiving a cancel event is a no-op. There is no
+      // REFUNDED status in TipStatus, so refunds keep the same CANCELLED
+      // terminal state as cancels (money reversal is reconciled at the
+      // gateway/provider side).
+      await prisma.tip.updateMany({
+        where: { id: tipId, status: "PENDING" },
+        data: { status: "CANCELLED" },
+      });
+    }
     return;
   }
 
@@ -76,7 +95,7 @@ export async function handleGatewayEvent(
     });
     if (!purchase || purchase.status === "REFUNDED") return;
     if (purchase.status === "PAID" && kind !== "refunded") return;
-    const data: Record<string, unknown> = {};
+    const data: Prisma.ProductPurchaseUpdateManyMutationInput = {};
     if (kind === "paid") {
       data.status = "PAID";
       data.paidAt = new Date();
@@ -86,14 +105,32 @@ export async function handleGatewayEvent(
     } else {
       data.status = "CANCELLED";
     }
+    // The source states each gateway event may claim the purchase from. These
+    // mirror the pre-existing routing guards below (paid is refused for an
+    // already-PAID or REFUNDED purchase, refunded may land in any non-REFUNDED
+    // state, cancel applies only to a PENDING purchase).
+    const transition: Prisma.ProductPurchaseWhereInput["status"] =
+      kind === "paid"
+        ? { in: ["PENDING", "CANCELLED"] }
+        : kind === "refunded"
+          ? { in: ["PENDING", "PAID", "CANCELLED"] }
+          : { in: ["PENDING"] };
     if (txId) data.gatewayTransactionId = txId;
-    if (kind) data.gatewayStatus = kind;
-    await prisma.productPurchase.update({ where: { id: purchase.id }, data });
+    if (kind) data.gatewayStatus = kind as PurchaseStatus;
+    // Conditional transition, not the previous read-then-`update`: the row is
+    // claimed under the allowed source states, so a pay/refund pair arriving in
+    // quick succession (redeliveries, double notifications) can never let the
+    // later event overwrite what the earlier one legitimately wrote.
+    const claimed = await prisma.productPurchase.updateMany({
+      where: { id: purchase.id, status: transition },
+      data,
+    });
 
     // Paid request-type orders notify the seller with the full order summary;
     // the browser already shows the buyer a confirmation when the payment
-    // lands, so no buyer email is fired from here.
-    if (kind === "paid" && purchase.product.type === "REQUEST" && purchase.requestText) {
+    // lands, so no buyer email is fired from here. The notification rides on
+    // the transition claim so a raced duplicate delivery notifies once.
+    if (claimed.count === 1 && kind === "paid" && purchase.product.type === "REQUEST" && purchase.requestText) {
       const sellerEmail = purchase.product.profile.user.email;
       if (sellerEmail) {
         const label = new Intl.NumberFormat("en-US", {

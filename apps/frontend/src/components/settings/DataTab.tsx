@@ -1,9 +1,12 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Download, Upload, FileSpreadsheet, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 
 export function DataTab({ profileId }: { profileId?: string }) {
+  // All user-facing strings come from the `dashboard` namespace (data.* keys).
+  const { t } = useTranslation("dashboard");
   const [exporting, setExporting] = useState<"xlsx" | "ods" | null>(null);
   const [exportError, setExportError] = useState("");
   const [importing, setImporting] = useState(false);
@@ -25,7 +28,7 @@ export function DataTab({ profileId }: { profileId?: string }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Export failed. Please try again.");
+      setExportError(err instanceof Error ? err.message : t("data.exportFailed"));
     } finally {
       setExporting(null);
     }
@@ -42,18 +45,18 @@ export function DataTab({ profileId }: { profileId?: string }) {
         const applied = res.data?.applied ?? [];
         setImportResult({
           success: true,
-          message: `Imported ${applied.length} field${applied.length === 1 ? "" : "s"}.`,
+          message: t("data.importedFields", { count: applied.length, s: applied.length === 1 ? "" : "s" }),
           warnings: res.data?.warnings ?? res.warnings ?? [],
         });
       } else {
         setImportResult({
           success: false,
-          message: res.error ?? "Import failed.",
+          message: res.error ?? t("data.importFailed"),
           warnings: res.warnings ?? [],
         });
       }
     } catch {
-      setImportResult({ success: false, message: "Import failed. Please try again.", warnings: [] });
+      setImportResult({ success: false, message: t("data.importFailedRetry"), warnings: [] });
     } finally {
       setImporting(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -63,12 +66,9 @@ export function DataTab({ profileId }: { profileId?: string }) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-        <h4 className="text-sm font-medium text-white">About profile transfer</h4>
+        <h4 className="text-sm font-medium text-white">{t("data.aboutTitle")}</h4>
         <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-          Export your profile as a generic spreadsheet (single sheet, one field per row) that you can
-          open anywhere — Excel, LibreOffice, Google Sheets, or Notepad. Imports accept .xlsx, .ods, and
-          .csv files. Macro-enabled files (.xlsm, .xls) are rejected. Unknown rows are skipped and listed
-          as warnings. Importing replaces your current profile fields.
+          {t("data.aboutBody")}
         </p>
       </div>
 
@@ -104,18 +104,18 @@ export function DataTab({ profileId }: { profileId?: string }) {
         <div className="flex items-center gap-3">
           <FileSpreadsheet className="h-5 w-5 text-violet-400" />
           <div>
-            <h4 className="text-sm font-medium text-white">Export profile</h4>
-            <p className="text-xs text-zinc-500">Download your profile data as a spreadsheet.</p>
+            <h4 className="text-sm font-medium text-white">{t("data.exportTitle")}</h4>
+            <p className="text-xs text-zinc-500">{t("data.exportDescription")}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button onClick={() => handleExport("xlsx")} disabled={exporting !== null}>
             <Download className="h-4 w-4" />
-            {exporting === "xlsx" ? "Exporting..." : "Export .xlsx"}
+            {exporting === "xlsx" ? t("data.exporting") : t("data.exportXlsx")}
           </Button>
           <Button variant="secondary" onClick={() => handleExport("ods")} disabled={exporting !== null}>
             <Download className="h-4 w-4" />
-            {exporting === "ods" ? "Exporting..." : "Export .ods"}
+            {exporting === "ods" ? t("data.exporting") : t("data.exportOds")}
           </Button>
         </div>
       </div>
@@ -124,8 +124,8 @@ export function DataTab({ profileId }: { profileId?: string }) {
         <div className="flex items-center gap-3">
           <Upload className="h-5 w-5 text-violet-400" />
           <div>
-            <h4 className="text-sm font-medium text-white">Import profile</h4>
-            <p className="text-xs text-zinc-500">Upload a .xlsx, .ods, or .csv file. Macro files are rejected.</p>
+            <h4 className="text-sm font-medium text-white">{t("data.importTitle")}</h4>
+            <p className="text-xs text-zinc-500">{t("data.importDescription")}</p>
           </div>
         </div>
         <input
@@ -138,7 +138,7 @@ export function DataTab({ profileId }: { profileId?: string }) {
         <div className="flex flex-wrap gap-3">
           <Button onClick={() => fileInput.current?.click()} disabled={importing}>
             {importing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {importing ? "Importing..." : "Choose file"}
+            {importing ? t("data.importing") : t("data.chooseFile")}
           </Button>
         </div>
       </div>

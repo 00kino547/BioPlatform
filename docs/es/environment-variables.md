@@ -278,6 +278,7 @@ solo cambia lo que expone el host.
 | `B2_APPLICATION_KEY_ID` | ID de clave de aplicación de Backblaze B2 | _(vacío)_ |
 | `B2_APPLICATION_KEY` | Clave secreta de aplicación de Backblaze B2 | _(vacío)_ |
 | `B2_BUCKET` | Nombre del contenedor B2. Se crea automáticamente en la primera subida si no existe | _(vacío → obligatorio para `b2`)_ |
+| `B2_BUCKET_ID` | ID de contenedor preconocido opcional (panel de Backblaze → Bucket ID). Evita `b2_list_buckets`, que las claves de aplicación sin la capacidad `listBuckets` no pueden invocar | _(vacío)_ |
 | `B2_PREFIX` | Prefijo de clave opcional dentro del contenedor (p. ej. `bio/uploads`) | _(vacío)_ |
 | `B2_API_URL` | URL base de la API de Backblaze B2 (solo sobrescribe puntos finales personalizados/regionales) | `https://api.backblazeb2.com` |
 | `STORAGE_COMPRESS_ENABLED` | Comprime con gzip (nivel 9) las subidas en la nube en reposo (archivos ≥ 1 KB); el disco local permanece sin comprimir. El lado de lectura detecta gzip por bytes mágicos, por lo que cambiar el valor no es destructivo | `true` |

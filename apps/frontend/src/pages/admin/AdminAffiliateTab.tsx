@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api, type AffiliateLevelInfo, type AffiliateOverview } from "@/lib/api";
 import { RefreshCw, Users, Percent, Trophy, Shield, Plus, Trash2, Save, RotateCcw } from "lucide-react";
 
@@ -19,15 +20,15 @@ interface Draft {
 }
 
 const KIND_LABEL: Record<Kind, string> = {
-  discountLevels: "Discount levels",
-  allowanceLevels: "Allowance levels",
-  badgeLevels: "Badge levels",
+  discountLevels: "admin.affiliate.kindDiscount",
+  allowanceLevels: "admin.affiliate.kindAllowance",
+  badgeLevels: "admin.affiliate.kindBadge",
 };
 
 const KIND_HINT: Record<Kind, string> = {
-  discountLevels: "Referrals → discount to the referrer (%)",
-  allowanceLevels: "Referrals → extra invite credits",
-  badgeLevels: "Referrals → badge slug",
+  discountLevels: "admin.affiliate.hintDiscount",
+  allowanceLevels: "admin.affiliate.hintAllowance",
+  badgeLevels: "admin.affiliate.hintBadge",
 };
 
 function toRows(levels: AffiliateLevelInfo[]): DraftRow[] {
@@ -47,6 +48,8 @@ function toLevels(rows: DraftRow[]): { level: number; value: string }[] {
 }
 
 export function AdminAffiliateTab() {
+  // Admin tab for the affiliate/referral program milestones and leaderboard.
+  const { t } = useTranslation("admin");
   const [overview, setOverview] = useState<AffiliateOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,13 +75,13 @@ export function AdminAffiliateTab() {
         syncDraft(res.data);
         setError("");
       } else {
-        setError(res.error ?? "Could not load affiliate overview");
+        setError(res.error ?? t("admin.affiliate.loadFailed"));
       }
     } catch {
-      setError("Could not load affiliate overview");
+      setError(t("admin.affiliate.loadFailed"));
     }
     setLoading(false);
-  }, [syncDraft]);
+  }, [syncDraft, t]);
 
   useEffect(() => {
     load();
@@ -135,16 +138,16 @@ export function AdminAffiliateTab() {
         setOverview(res.data);
         syncDraft(res.data);
       } else {
-        setError(res.error ?? "Could not save milestone configuration");
+        setError(res.error ?? t("admin.affiliate.saveFailed"));
       }
     } catch {
-      setError("Could not save milestone configuration");
+      setError(t("admin.affiliate.saveFailed"));
     }
     setSaving(false);
   };
 
   const reset = async () => {
-    if (!window.confirm("Reset milestone configuration to the environment (AFFILIATE_*_LEVELS) defaults?")) return;
+    if (!window.confirm(t("admin.affiliate.resetConfirm"))) return;
     setResetting(true);
     setError("");
     try {
@@ -153,16 +156,16 @@ export function AdminAffiliateTab() {
         setOverview(res.data);
         syncDraft(res.data);
       } else {
-        setError(res.error ?? "Could not reset milestone configuration");
+        setError(res.error ?? t("admin.affiliate.resetFailed"));
       }
     } catch {
-      setError("Could not reset milestone configuration");
+      setError(t("admin.affiliate.resetFailed"));
     }
     setResetting(false);
   };
 
   if (loading) {
-    return <p className="text-sm text-zinc-500 text-center py-12">Loading affiliate overview…</p>;
+    return <p className="text-sm text-zinc-500 text-center py-12">{t("admin.affiliate.loading")}</p>;
   }
 
   const cfg = overview?.config;
@@ -180,58 +183,65 @@ export function AdminAffiliateTab() {
         <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
           <div className="flex items-center gap-2 mb-2">
             <Users className="h-4 w-4 text-violet-400" />
-            <p className="text-sm font-medium text-white">Referrals</p>
+            <p className="text-sm font-medium text-white">{t("admin.affiliate.statReferrals")}</p>
           </div>
           <p className="text-3xl font-bold text-white">{overview?.totalReferrals ?? 0}</p>
-          <p className="text-xs text-zinc-500 mt-1">Total redeemed invites</p>
+          <p className="text-xs text-zinc-500 mt-1">{t("admin.affiliate.statReferralsSub")}</p>
         </div>
         <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
           <div className="flex items-center gap-2 mb-2">
             <Percent className="h-4 w-4 text-violet-400" />
-            <p className="text-sm font-medium text-white">Invitee discount</p>
+            <p className="text-sm font-medium text-white">{t("admin.affiliate.statInviteeDiscount")}</p>
           </div>
           <p className="text-3xl font-bold text-white">{cfg?.inviteeDiscountPercent ?? 0}%</p>
-          <p className="text-xs text-zinc-500 mt-1">Flat discount per invited user</p>
+          <p className="text-xs text-zinc-500 mt-1">{t("admin.affiliate.statInviteeDiscountSub")}</p>
         </div>
         <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
           <div className="flex items-center gap-2 mb-2">
             <Trophy className="h-4 w-4 text-violet-400" />
-            <p className="text-sm font-medium text-white">Referrers</p>
+            <p className="text-sm font-medium text-white">{t("admin.affiliate.statReferrers")}</p>
           </div>
           <p className="text-3xl font-bold text-white">{overview?.distinctReferrers ?? 0}</p>
-          <p className="text-xs text-zinc-500 mt-1">Distinct referrers with redemptions</p>
+          <p className="text-xs text-zinc-500 mt-1">{t("admin.affiliate.statReferrersSub")}</p>
         </div>
         <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
           <div className="flex items-center gap-2 mb-2">
             <Shield className="h-4 w-4 text-violet-400" />
-            <p className="text-sm font-medium text-white">Anti-abuse</p>
+            <p className="text-sm font-medium text-white">{t("admin.affiliate.statAntiAbuse")}</p>
           </div>
           <p className="text-2xl font-bold text-white capitalize">{cfg?.abuseAction ?? "reject"}</p>
           <p className="text-xs text-zinc-500 mt-1">
-            Scope: <span className="capitalize">{cfg?.abuseScope ?? "both"}</span> on same IP/device
+            <Trans
+              ns="admin"
+              i18nKey="admin.affiliate.scope"
+              values={{ scope: cfg?.abuseScope ?? "both" }}
+              components={{ strong: <span className="capitalize" /> }}
+            >
+              Scope: <strong>{cfg?.abuseScope ?? "both"}</strong> on same IP/device
+            </Trans>
           </p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-medium text-white">Milestone configuration</h3>
+          <h3 className="text-sm font-medium text-white">{t("admin.affiliate.configTitle")}</h3>
           <button
             onClick={load}
             className="text-xs text-zinc-400 hover:text-white transition-colors flex items-center gap-1"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
+            {t("admin.affiliate.refresh")}
           </button>
         </div>
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs text-zinc-500">
             {source === "db" ? (
               <span className="text-violet-400 font-medium">
-                Admin override — replaces the AFFILIATE_*_LEVELS environment defaults
+                {t("admin.affiliate.adminOverride")}
               </span>
             ) : (
-              "Using the AFFILIATE_*_LEVELS environment defaults"
+              t("admin.affiliate.usingEnv")
             )}
           </p>
           {source === "db" && (
@@ -241,15 +251,15 @@ export function AdminAffiliateTab() {
               className="text-xs text-zinc-400 hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              {resetting ? "Resetting…" : "Use environment defaults"}
+              {resetting ? t("admin.affiliate.resetting") : t("admin.affiliate.useEnvDefaults")}
             </button>
           )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 mb-4">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-            <p className="text-sm font-medium text-white mb-0.5">Invitee discount</p>
-            <p className="text-xs text-zinc-500 mb-3">Flat % off the referred user gets when they sign up via an invite (0 = off)</p>
+            <p className="text-sm font-medium text-white mb-0.5">{t("admin.affiliate.fieldInviteeDiscount")}</p>
+            <p className="text-xs text-zinc-500 mb-3">{t("admin.affiliate.fieldInviteeDiscountHelp")}</p>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -264,8 +274,8 @@ export function AdminAffiliateTab() {
             </div>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-            <p className="text-sm font-medium text-white mb-0.5">Discount duration</p>
-            <p className="text-xs text-zinc-500 mb-3">How long the discount lasts for the invitee and the referrer (days, -1 = permanent)</p>
+            <p className="text-sm font-medium text-white mb-0.5">{t("admin.affiliate.fieldDiscountDuration")}</p>
+            <p className="text-xs text-zinc-500 mb-3">{t("admin.affiliate.fieldDiscountDurationHelp")}</p>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -273,10 +283,10 @@ export function AdminAffiliateTab() {
                 max={3650}
                 value={draft?.discountDurationDays ?? ""}
                 onChange={(e) => patchParam("discountDurationDays", e.target.value)}
-                placeholder="days"
+                placeholder={t("admin.affiliate.unitDays")}
                 className="w-28 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500/50"
               />
-              <span className="text-sm text-zinc-500">days</span>
+              <span className="text-sm text-zinc-500">{t("admin.affiliate.unitDays")}</span>
             </div>
           </div>
         </div>
@@ -284,11 +294,11 @@ export function AdminAffiliateTab() {
         <div className="grid gap-4 sm:grid-cols-3">
           {(["discountLevels", "allowanceLevels", "badgeLevels"] as Kind[]).map((kind) => (
             <div key={kind} className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-              <p className="text-sm font-medium text-white mb-0.5">{KIND_LABEL[kind]}</p>
-              <p className="text-xs text-zinc-500 mb-3">{KIND_HINT[kind]}</p>
+              <p className="text-sm font-medium text-white mb-0.5">{t(KIND_LABEL[kind])}</p>
+              <p className="text-xs text-zinc-500 mb-3">{t(KIND_HINT[kind])}</p>
               <div className="space-y-2">
                 {(draft?.[kind] ?? []).length === 0 ? (
-                  <p className="text-xs text-zinc-500 py-1">No levels configured</p>
+                  <p className="text-xs text-zinc-500 py-1">{t("admin.affiliate.noLevels")}</p>
                 ) : (
                   (draft?.[kind] ?? []).map((row) => (
                     <div key={row.key} className="flex items-center gap-2">
@@ -297,20 +307,20 @@ export function AdminAffiliateTab() {
                         min={1}
                         value={row.level}
                         onChange={(e) => patchRow(kind, row.key, { level: e.target.value })}
-                        placeholder="refs"
+                        placeholder={t("admin.affiliate.placeholderRefs")}
                         className="w-20 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500/50"
                       />
                       <input
                         type="text"
                         value={row.value}
                         onChange={(e) => patchRow(kind, row.key, { value: e.target.value })}
-                        placeholder={kind === "badgeLevels" ? "badge slug" : kind === "allowanceLevels" ? "invites" : "%"}
+                        placeholder={kind === "badgeLevels" ? t("admin.affiliate.placeholderBadgeSlug") : kind === "allowanceLevels" ? t("admin.affiliate.placeholderInvites") : "%"}
                         className="flex-1 min-w-0 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500/50"
                       />
                       <button
                         onClick={() => removeRow(kind, row.key)}
                         className="text-zinc-500 hover:text-red-400 transition-colors shrink-0"
-                        aria-label="Remove level"
+                        aria-label={t("admin.affiliate.removeLevel")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -323,7 +333,7 @@ export function AdminAffiliateTab() {
                 className="mt-3 text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add level
+                {t("admin.affiliate.addLevel")}
               </button>
             </div>
           ))}
@@ -336,26 +346,26 @@ export function AdminAffiliateTab() {
             className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition-colors"
           >
             <Save className="h-4 w-4" />
-            {saving ? "Saving…" : dirty ? "Save configuration" : "Saved"}
+            {saving ? t("admin.affiliate.saving") : dirty ? t("admin.affiliate.saveConfig") : t("admin.affiliate.saved")}
           </button>
-          {!dirty && <p className="text-xs text-zinc-500">No pending changes</p>}
+          {!dirty && <p className="text-xs text-zinc-500">{t("admin.affiliate.noPendingChanges")}</p>}
         </div>
       </div>
 
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
-        <h3 className="text-sm font-medium text-white mb-4">Top referrers</h3>
+        <h3 className="text-sm font-medium text-white mb-4">{t("admin.affiliate.leaderboardTitle")}</h3>
         {(overview?.leaderboard ?? []).length === 0 ? (
-          <p className="text-sm text-zinc-500">No referrals yet.</p>
+          <p className="text-sm text-zinc-500">{t("admin.affiliate.noReferrals")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800/60 text-left text-zinc-500">
                   <th className="pb-3 font-medium">#</th>
-                  <th className="pb-3 font-medium">User</th>
-                  <th className="pb-3 font-medium">Tier</th>
-                  <th className="pb-3 font-medium">Referrals</th>
-                  <th className="pb-3 font-medium">Discount</th>
+                  <th className="pb-3 font-medium">{t("admin.affiliate.headerUser")}</th>
+                  <th className="pb-3 font-medium">{t("admin.affiliate.headerTier")}</th>
+                  <th className="pb-3 font-medium">{t("admin.affiliate.headerReferrals")}</th>
+                  <th className="pb-3 font-medium">{t("admin.affiliate.headerDiscount")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/40">

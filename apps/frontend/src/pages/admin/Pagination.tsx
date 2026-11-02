@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 interface PaginationProps {
   page: number;
   total: number;
@@ -7,6 +9,8 @@ interface PaginationProps {
 }
 
 export function Pagination({ page, total, pageSize, onPage, loading = false }: PaginationProps) {
+  // Shared page control used by the invite-code, moderation and newsletter tables.
+  const { t } = useTranslation("admin");
   if (total <= pageSize) return null;
 
   const from = total === 0 ? 0 : page * pageSize + 1;
@@ -21,10 +25,10 @@ export function Pagination({ page, total, pageSize, onPage, loading = false }: P
         disabled={page === 0 || loading}
         className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Previous
+        {t("admin.pagination.previous")}
       </button>
       <span className="text-xs text-zinc-500">
-        {from}–{to} of {total} · page {page + 1} of {lastPage + 1}
+        {t("admin.pagination.summary", { from, to, total, page: page + 1, lastPage: lastPage + 1 })}
       </span>
       <button
         type="button"
@@ -32,7 +36,7 @@ export function Pagination({ page, total, pageSize, onPage, loading = false }: P
         disabled={page >= lastPage || loading}
         className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Next
+        {t("admin.pagination.next")}
       </button>
     </div>
   );

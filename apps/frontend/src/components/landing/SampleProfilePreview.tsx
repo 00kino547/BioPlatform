@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { FxOverlay, type FxEffect } from "@/components/ui/FxOverlay";
 import { InteractiveTerminal } from "@/components/terminal/InteractiveTerminal";
@@ -29,14 +30,16 @@ const DEFAULT_LINKS: PreviewLink[] = [
 ];
 
 const PRESET_THEMES = [
-  { label: "Midnight", bg: "#09090b", cardBg: "rgba(24,24,27,0.6)", text: "#e4e4e7", accent: "#7c3aed" },
-  { label: "Ocean", bg: "#0c1222", cardBg: "rgba(15,23,42,0.7)", text: "#e2e8f0", accent: "#0ea5e9" },
-  { label: "Sunset", bg: "#1a0a0a", cardBg: "rgba(45,10,10,0.6)", text: "#fef2f2", accent: "#f97316" },
-  { label: "Forest", bg: "#0a1a0f", cardBg: "rgba(10,30,15,0.6)", text: "#ecfdf5", accent: "#22c55e" },
-  { label: "Aurora", bg: "#071426", cardBg: "rgba(10,25,45,0.65)", text: "#e0f2fe", accent: "#22d3ee" },
-  { label: "Pearl", bg: "#f4f1eb", cardBg: "rgba(255,255,255,0.85)", text: "#1c1917", accent: "#b45309" },
+  { id: "midnight", bg: "#09090b", cardBg: "rgba(24,24,27,0.6)", text: "#e4e4e7", accent: "#7c3aed" },
+  { id: "ocean", bg: "#0c1222", cardBg: "rgba(15,23,42,0.7)", text: "#e2e8f0", accent: "#0ea5e9" },
+  { id: "sunset", bg: "#1a0a0a", cardBg: "rgba(45,10,10,0.6)", text: "#fef2f2", accent: "#f97316" },
+  { id: "forest", bg: "#0a1a0f", cardBg: "rgba(10,30,15,0.6)", text: "#ecfdf5", accent: "#22c55e" },
+  { id: "aurora", bg: "#071426", cardBg: "rgba(10,25,45,0.65)", text: "#e0f2fe", accent: "#22d3ee" },
+  { id: "pearl", bg: "#f4f1eb", cardBg: "rgba(255,255,255,0.85)", text: "#1c1917", accent: "#b45309" },
 ];
 
+// Platform names double as DATA (PlatformIcon matches on the exact name), so they
+// stay in canonical English and are intentionally NOT translated.
 const LINK_PLATFORMS = ["GitHub", "Twitter", "YouTube", "Twitch", "Discord", "Instagram", "TikTok", "Email"];
 
 interface SampleProfilePreviewProps {
@@ -56,9 +59,10 @@ export function SampleProfilePreview({
   fill = false,
   className = "",
 }: SampleProfilePreviewProps) {
-  const [name, setName] = useState("Alex Morgan");
-  const [handle, setHandle] = useState("alexmorgan");
-  const [bio, setBio] = useState("Designer & developer building the future of digital identity.");
+  const { t } = useTranslation("landing");
+  const [name, setName] = useState(t("sampleProfilePreview.defaultName"));
+  const [handle, setHandle] = useState(t("sampleProfilePreview.defaultHandle"));
+  const [bio, setBio] = useState(t("sampleProfilePreview.defaultBio"));
   const [links, setLinks] = useState<PreviewLink[]>(DEFAULT_LINKS);
   const [preset, setPreset] = useState(0);
   const [bg, setBg] = useState("#09090b");
@@ -133,12 +137,12 @@ export function SampleProfilePreview({
                   : "flex w-full flex-col gap-2.5";
 
   const pickPreset = (i: number) => {
-    const t = PRESET_THEMES[i];
+    const presetTheme = PRESET_THEMES[i];
     setPreset(i);
-    setBg(t.bg);
-    setCardBg(t.cardBg);
-    setText(t.text);
-    setAccent(t.accent);
+    setBg(presetTheme.bg);
+    setCardBg(presetTheme.cardBg);
+    setText(presetTheme.text);
+    setAccent(presetTheme.accent);
   };
 
   const addLink = () => {
@@ -201,7 +205,7 @@ export function SampleProfilePreview({
           <button
             type="button"
             onClick={() => removeLink(i)}
-            aria-label="Remove link"
+            aria-label={t("sampleProfilePreview.removeLink")}
             className="ml-auto shrink-0 self-center text-current opacity-50 hover:opacity-100 transition-opacity"
           >
             &times;
@@ -320,14 +324,14 @@ export function SampleProfilePreview({
                 <span className="h-2.5 w-2.5 rounded-full bg-red-500/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
-                <span className="ml-2 text-[10px] uppercase tracking-widest text-zinc-400">{handle}@bioplatform ~ zsh</span>
+                <span className="ml-2 text-[10px] uppercase tracking-widest text-zinc-400">{t("sampleProfilePreview.terminalHost", { username: handle })}</span>
               </div>
               <div className="space-y-2.5 px-4 py-5">
-                <p className="text-xs text-zinc-400">$ cat whoami.txt</p>
+                <p className="text-xs text-zinc-400">{t("sampleProfilePreview.terminalWhoami")}</p>
                 <p className="text-sm font-semibold text-zinc-100">
                   {name} <span className="font-normal opacity-50">@ {handle}</span>
                 </p>
-                <p className="text-xs text-zinc-400 opacity-70"># {bio}</p>
+                <p className="text-xs text-zinc-400 opacity-70">{t("sampleProfilePreview.terminalBio", { bio })}</p>
                 <InteractiveTerminal
                   username={handle}
                   displayName={name}
@@ -501,10 +505,10 @@ export function SampleProfilePreview({
       {showEditor && editable && (
         <div className="space-y-5">
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-5">
-            <p className="text-sm font-medium text-white mb-4">Sample profile</p>
+            <p className="text-sm font-medium text-white mb-4">{t("sampleProfilePreview.editorSampleProfile")}</p>
             <div className="space-y-3">
               <label className="block">
-                <span className="text-xs text-zinc-400">Name</span>
+                <span className="text-xs text-zinc-400">{t("sampleProfilePreview.editorName")}</span>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -512,7 +516,7 @@ export function SampleProfilePreview({
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-zinc-400">Handle</span>
+                <span className="text-xs text-zinc-400">{t("sampleProfilePreview.editorHandle")}</span>
                 <input
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
@@ -520,7 +524,7 @@ export function SampleProfilePreview({
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-zinc-400">Bio</span>
+                <span className="text-xs text-zinc-400">{t("sampleProfilePreview.editorBio")}</span>
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
@@ -532,42 +536,42 @@ export function SampleProfilePreview({
           </div>
 
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-5">
-            <p className="text-sm font-medium text-white mb-4">Appearance</p>
+            <p className="text-sm font-medium text-white mb-4">{t("sampleProfilePreview.appearance")}</p>
             <div className="grid grid-cols-3 gap-2.5">
-              {PRESET_THEMES.map((t, i) => (
+              {PRESET_THEMES.map((theme, i) => (
                 <button
-                  key={t.label}
+                  key={theme.id}
                   type="button"
                   onClick={() => pickPreset(i)}
                   className={`rounded-xl p-2.5 transition-all cursor-pointer ${
                     preset === i ? "ring-2 ring-violet-500 ring-offset-2 ring-offset-zinc-950" : "hover:ring-1 hover:ring-zinc-700"
                   }`}
                 >
-                  <div className="h-12 rounded-lg mb-2" style={{ backgroundColor: t.accent }} />
-                  <p className="text-xs font-medium text-white">{t.label}</p>
+                  <div className="h-12 rounded-lg mb-2" style={{ backgroundColor: theme.accent }} />
+                  <p className="text-xs font-medium text-white">{t(`common:themes.${theme.id}`)}</p>
                 </button>
               ))}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <ColorField label="Background" value={bg} onChange={setBg} disabled={!!theme} />
-              <ColorField label="Card" value={cardBg} onChange={setCardBg} disabled={!!theme} />
-              <ColorField label="Text" value={text} onChange={setText} disabled={!!theme} />
-              <ColorField label="Accent" value={accent} onChange={setAccent} disabled={!!theme} />
+              <ColorField label={t("sampleProfilePreview.colorBackground")} value={bg} onChange={setBg} disabled={!!theme} />
+              <ColorField label={t("sampleProfilePreview.colorCard")} value={cardBg} onChange={setCardBg} disabled={!!theme} />
+              <ColorField label={t("sampleProfilePreview.colorText")} value={text} onChange={setText} disabled={!!theme} />
+              <ColorField label={t("sampleProfilePreview.colorAccent")} value={accent} onChange={setAccent} disabled={!!theme} />
             </div>
             <div className="mt-3">
               <label className="block">
-                <span className="text-xs text-zinc-400">Background image URL</span>
+                <span className="text-xs text-zinc-400">{t("sampleProfilePreview.backgroundImageUrl")}</span>
                 <input
                   value={background ?? ""}
                   onChange={(e) => setBackground(e.target.value || null)}
                   disabled={!!theme}
-                  placeholder="https://… optional"
+                  placeholder={t("sampleProfilePreview.backgroundImagePlaceholder")}
                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none disabled:opacity-40"
                 />
               </label>
             </div>
             <div className="mt-4">
-              <p className="text-xs text-zinc-400 mb-2">Layout</p>
+              <p className="text-xs text-zinc-400 mb-2">{t("sampleProfilePreview.layout")}</p>
               <div className="grid grid-cols-3 gap-2">
                 {["default", "grid", "compact", "wide", "glassmorphism", "minimal", "sidebar", "editorial", "hero", "bento", "terminal", "polaroid", "topbar"].map((l) => (
                   <button
@@ -588,13 +592,13 @@ export function SampleProfilePreview({
 
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-white">Links</p>
+              <p className="text-sm font-medium text-white">{t("sampleProfilePreview.links")}</p>
               <button
                 type="button"
                 onClick={() => setShowLinkForm((v) => !v)}
                 className="rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-400 hover:bg-violet-500/25 transition-colors"
               >
-                + Add
+                {t("sampleProfilePreview.add")}
               </button>
             </div>
             {showLinkForm && (
@@ -612,7 +616,7 @@ export function SampleProfilePreview({
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addLink()}
-                  placeholder="https://… or @username"
+                  placeholder={t("sampleProfilePreview.linkUrlPlaceholder")}
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
                 />
                 <button
@@ -620,7 +624,7 @@ export function SampleProfilePreview({
                   onClick={addLink}
                   className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-400 transition-colors"
                 >
-                  Add
+                  {t("sampleProfilePreview.addConfirm")}
                 </button>
               </div>
             )}
@@ -631,7 +635,7 @@ export function SampleProfilePreview({
                     <PlatformIcon platform={link.platform} className="h-3.5 w-3.5" color="#a78bfa" />
                     {link.platform} <span className="text-zinc-500">{link.url}</span>
                   </span>
-                  <button type="button" onClick={() => removeLink(i)} aria-label="Remove" className="text-zinc-500 hover:text-red-400 transition-colors">
+                  <button type="button" onClick={() => removeLink(i)} aria-label={t("sampleProfilePreview.remove")} className="text-zinc-500 hover:text-red-400 transition-colors">
                     &times;
                   </button>
                 </li>

@@ -1,5 +1,7 @@
+import { activeLocale } from "./intl";
+
 export function formatPrice(cents: number, currency: string = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(activeLocale(), {
     style: "currency",
     currency,
     minimumFractionDigits: 2,

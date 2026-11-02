@@ -5,7 +5,6 @@ interface PlatformIconProps {
   className?: string;
   color?: string;
 }
-
 const icons: Record<string, (color: string) => ReactNode> = {
   twitter: (c) => (
     <svg viewBox="0 0 24 24" fill={c}>
@@ -147,61 +146,3 @@ export function PlatformIcon({ platform, className = "h-4 w-4", color = "current
   }
   return <span className={className}>{renderer(color)}</span>;
 }
-
-export const platformDisplayNames: Record<string, string> = {
-  twitter: "Twitter / X",
-  x: "Twitter / X",
-  github: "GitHub",
-  youtube: "YouTube",
-  twitch: "Twitch",
-  discord: "Discord",
-  tiktok: "TikTok",
-  instagram: "Instagram",
-  facebook: "Facebook",
-  linkedin: "LinkedIn",
-  spotify: "Spotify",
-  email: "Email",
-
-  gitlab: "GitLab",
-  reddit: "Reddit",
-  pinterest: "Pinterest",
-  snapchat: "Snapchat",
-  threads: "Threads",
-  bluesky: "Bluesky",
-  mastodon: "Mastodon",
-  whatsapp: "WhatsApp",
-  telegram: "Telegram",
-  signal: "Signal",
-  kick: "Kick",
-  steam: "Steam",
-  soundcloud: "SoundCloud",
-};
-
-export const platformColors: Record<string, string> = {
-  twitter: "#1DA1F2",
-  x: "#ffffff",
-  github: "#ffffff",
-  youtube: "#FF0000",
-  twitch: "#9146FF",
-  discord: "#5865F2",
-  tiktok: "#00f2ea",
-  instagram: "#E4405F",
-  facebook: "#1877F2",
-  linkedin: "#0A66C2",
-  spotify: "#1DB954",
-  email: "#EA4335",
-
-  gitlab: "#FC6D26",
-  reddit: "#FF4500",
-  pinterest: "#BD081C",
-  snapchat: "#FFFC00",
-  threads: "#000000",
-  bluesky: "#0285FF",
-  mastodon: "#6364FF",
-  whatsapp: "#25D366",
-  telegram: "#26A5E4",
-  signal: "#3B45FD",
-  kick: "#53FC19",
-  steam: "#000000",
-  soundcloud: "#FF5500",
-};

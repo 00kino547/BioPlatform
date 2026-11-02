@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
 import type { PolicyContext } from "@/lib/api";
+import { formatDate } from "@/lib/intl";
+import i18n from "@/i18n";
+
+// These are plain functions, not React components, so they cannot use the
+// `useTranslation` hook. `lt` reads the shared i18next instance directly and
+// fixes the namespace to "legal" for every call in this module and the pages
+// that import it.
+export const lt = (key: string, options?: Record<string, unknown>): string =>
+  i18n.t(`legal:${key}`, options);
 
 // Pure text/label helpers shared by the /privacy and /terms pages.
 //
@@ -31,7 +40,7 @@ export function formatPolicyDate(iso: string): string {
   const [, year, month, day] = match;
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString("en-US", {
+  return formatDate(date, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -43,15 +52,15 @@ export function formatPolicyDate(iso: string): string {
 export function storageLabel(provider: string): string {
   switch (provider) {
     case "local":
-      return "storage attached to this instance's own server";
+      return lt("policyText.storage.local");
     case "r2":
-      return "Cloudflare R2 object storage";
+      return lt("policyText.storage.r2");
     case "b2":
-      return "Backblaze B2 object storage";
+      return lt("policyText.storage.b2");
     case "s3":
-      return "an S3-compatible object store";
+      return lt("policyText.storage.s3");
     default:
-      return "this instance's configured file storage";
+      return lt("policyText.storage.default");
   }
 }
 
@@ -60,37 +69,43 @@ export function captchaLabel(ctx: PolicyContext): string | null {
   if (!ctx.captcha.enabled) return null;
   switch (ctx.captcha.provider) {
     case "turnstile":
-      return "Cloudflare Turnstile";
+      return lt("policyText.captcha.turnstile");
     case "recaptcha":
-      return "Google reCAPTCHA";
+      return lt("policyText.captcha.recaptcha");
     case "hcaptcha":
-      return "hCaptcha";
+      return lt("policyText.captcha.hcaptcha");
     default:
       return null;
   }
 }
 
-const SSO_LABELS: Record<string, string> = {
-  google: "Google",
-  github: "GitHub",
-  discord: "Discord",
+const SSO_LABEL_KEYS: Record<string, string> = {
+  google: "policyText.sso.google",
+  github: "policyText.sso.github",
+  discord: "policyText.sso.discord",
 };
 
 /** "Google and GitHub" / "Google, GitHub and Discord" / "" when none. */
 export function ssoProviderList(ctx: PolicyContext): string {
-  const names = ctx.auth.sso.map((p) => SSO_LABELS[p] ?? p);
+  const names = ctx.auth.sso.map((p) => (SSO_LABEL_KEYS[p] ? lt(SSO_LABEL_KEYS[p]) : p));
   if (names.length === 0) return "";
   if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${names.slice(0, -1).join(", ")}${lt("policyText.listAnd")}${names[names.length - 1]}`;
 }
 
 /** Payment processors this instance can actually route a payment through. */
 export function paymentProviderList(ctx: PolicyContext): string[] {
   const out: string[] = [];
-  if (ctx.payments.stripe) out.push("Stripe");
-  if (ctx.payments.paypal) out.push(`PayPal (${ctx.payments.paypalMode === "live" ? "live" : "sandbox"})`);
+  if (ctx.payments.stripe) out.push(lt("policyText.payment.stripe"));
+  if (ctx.payments.paypal) {
+    out.push(
+      lt("policyText.payment.paypal", {
+        mode: ctx.payments.paypalMode === "live" ? lt("policyText.payment.live") : lt("policyText.payment.sandbox"),
+      })
+    );
+  }
   if (ctx.payments.crypto && ctx.payments.cryptoCoins.length > 0) {
-    out.push(`cryptocurrency through a self-hosted gateway (${ctx.payments.cryptoCoins.join(", ")})`);
+    out.push(lt("policyText.payment.crypto", { coins: ctx.payments.cryptoCoins.join(", ") }));
   }
   return out;
 }
@@ -99,7 +114,7 @@ export function paymentProviderList(ctx: PolicyContext): string[] {
 export function proseList(items: string[]): string {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+  return `${items.slice(0, -1).join(", ")}${lt("policyText.listAnd")}${items[items.length - 1]}`;
 }
 
 export interface PolicySection {

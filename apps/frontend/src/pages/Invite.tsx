@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 import { Gift, UserPlus, ExternalLink } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { api, type InviteInfo } from "@/lib/api";
@@ -11,12 +12,13 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/landing/Footer";
 
 export function Invite() {
+  const { t } = useTranslation("invite");
   const { code = "" } = useParams();
   const { user, loading } = useAuth();
 
   usePageMeta({
-    title: `Join ${branding.name}`,
-    description: `You've been invited to join ${branding.name}. Create your profile and start sharing your links.`,
+    title: t("invite.metaTitle", { name: branding.name }),
+    description: t("invite.metaDescription", { name: branding.name }),
     url: `/invite/${code}`,
   });
 
@@ -56,10 +58,10 @@ export function Invite() {
   const discountActive = (invite?.inviteeDiscountPercent ?? 0) > 0;
   const durationLabel =
     (invite?.discountDurationDays ?? 0) < 0
-      ? "permanent"
+      ? t("invite.durationPermanent")
       : invite?.discountDurationDays === 365
-        ? "your first year"
-        : `${invite?.discountDurationDays ?? 365} days`;
+        ? t("invite.durationFirstYear")
+        : t("invite.durationDays", { days: invite?.discountDurationDays ?? 365 });
 
   return (
     <>
@@ -79,13 +81,13 @@ export function Invite() {
                   <ExternalLink className="h-5 w-5 text-zinc-500" />
                 </div>
                 <div className="space-y-1.5">
-                  <h1 className="text-lg font-semibold text-white">This page doesn&apos;t exist</h1>
+                  <h1 className="text-lg font-semibold text-white">{t("invite.notFoundTitle")}</h1>
                   <p className="text-sm text-zinc-400">
-                    The invite link is invalid or has already been used.
+                    {t("invite.notFoundDescription")}
                   </p>
                 </div>
                 <Button href="/" variant="outline" size="lg" className="w-full">
-                  Back to {branding.name}
+                  {t("invite.backHome", { name: branding.name })}
                 </Button>
               </div>
             )}
@@ -95,10 +97,15 @@ export function Invite() {
                 <div className="text-center space-y-1.5">
                   <div className="mx-auto inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300">
                     <Gift className="h-3.5 w-3.5" />
-                    Invitation
+                    {t("invite.invitationBadge")}
                   </div>
                   <p className="text-sm text-zinc-400">
-                    You&apos;ve been invited to join <span className="text-white font-medium">{branding.name}</span>
+                    <Trans
+                      ns="invite"
+                      i18nKey="invite.invitedToJoin"
+                      values={{ name: branding.name }}
+                      components={[<span className="text-white font-medium" />]}
+                    />
                   </p>
                 </div>
 
@@ -133,10 +140,10 @@ export function Invite() {
                 {discountActive && (
                   <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 text-center space-y-1">
                     <p className="text-2xl font-bold text-white">
-                      {invite.inviteeDiscountPercent}% off
+                      {t("invite.percentOff", { percent: invite.inviteeDiscountPercent })}
                     </p>
                     <p className="text-sm text-zinc-300">
-                      on every plan, for {durationLabel}
+                      {t("invite.onEveryPlan", { duration: durationLabel })}
                     </p>
                   </div>
                 )}
@@ -148,10 +155,10 @@ export function Invite() {
                     className="w-full"
                   >
                     <UserPlus className="h-4 w-4" />
-                    Create your account with this invite
+                    {t("invite.createAccount")}
                   </Button>
                   <p className="text-center text-xs text-zinc-500">
-                    Invite codes are single-use. Registration is invite-only.
+                    {t("invite.singleUseNote")}
                   </p>
                 </div>
               </>

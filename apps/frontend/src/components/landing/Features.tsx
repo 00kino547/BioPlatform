@@ -11,14 +11,18 @@ import {
   Paintbrush,
   Layers,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 
+// Only the icon and presentation live in code; the copy is resolved from the
+// `landing.features.items.<id>` keys so it can be translated. Keeping the visuals
+// keyed by `id` (not the translated title) means an i18n switch never reorders or
+// re-keys the list.
 const features = [
   {
     icon: User,
-    title: "Custom Profiles",
-    description: "Personalize your profile with avatars, banners, bios, and custom usernames that represent you.",
+    id: "customProfiles",
     color: "from-violet-500/20 to-violet-600/5",
     iconColor: "text-violet-400",
     iconBg: "bg-violet-500/10",
@@ -26,8 +30,7 @@ const features = [
   },
   {
     icon: Layers,
-    title: "Multiple Profiles",
-    description: "Run several link pages from one account, each with its own slug, theme, links, and music. Alias slugs give every page extra short URLs.",
+    id: "multipleProfiles",
     color: "from-sky-500/20 to-sky-600/5",
     iconColor: "text-sky-400",
     iconBg: "bg-sky-500/10",
@@ -35,8 +38,7 @@ const features = [
   },
   {
     icon: Link2,
-    title: "Social Links",
-    description: "Connect all your social platforms in one beautiful link page. Instagram, Twitter, GitHub, and more.",
+    id: "socialLinks",
     color: "from-cyan-500/20 to-cyan-600/5",
     iconColor: "text-cyan-400",
     iconBg: "bg-cyan-500/10",
@@ -44,8 +46,7 @@ const features = [
   },
   {
     icon: Music,
-    title: "Music Player",
-    description: "Embed your favorite tracks and let visitors listen directly from your profile.",
+    id: "musicPlayer",
     color: "from-rose-500/20 to-rose-600/5",
     iconColor: "text-rose-400",
     iconBg: "bg-rose-500/10",
@@ -53,8 +54,7 @@ const features = [
   },
   {
     icon: Palette,
-    title: "Themes",
-    description: "Choose from stunning pre-built themes or create your own unique style with the theme editor.",
+    id: "themes",
     color: "from-amber-500/20 to-amber-600/5",
     iconColor: "text-amber-400",
     iconBg: "bg-amber-500/10",
@@ -62,8 +62,7 @@ const features = [
   },
   {
     icon: BarChart3,
-    title: "Analytics",
-    description: "Track views, clicks, and engagement with a built-in analytics dashboard.",
+    id: "analytics",
     color: "from-emerald-500/20 to-emerald-600/5",
     iconColor: "text-emerald-400",
     iconBg: "bg-emerald-500/10",
@@ -71,8 +70,7 @@ const features = [
   },
   {
     icon: Lock,
-    title: "Invite-Only",
-    description: "Exclusive access ensures quality and prevents spam across the platform.",
+    id: "inviteOnly",
     color: "from-violet-500/20 to-violet-600/5",
     iconColor: "text-violet-400",
     iconBg: "bg-violet-500/10",
@@ -80,8 +78,7 @@ const features = [
   },
   {
     icon: Upload,
-    title: "Secure Uploads",
-    description: "Upload avatars, banners, and files with S3-compatible storage. Your files, your control.",
+    id: "secureUploads",
     color: "from-cyan-500/20 to-cyan-600/5",
     iconColor: "text-cyan-400",
     iconBg: "bg-cyan-500/10",
@@ -89,8 +86,7 @@ const features = [
   },
   {
     icon: Server,
-    title: "Self-Hostable",
-    description: "Deploy on your own server with Docker in minutes. Full control over your data and infrastructure.",
+    id: "selfHostable",
     color: "from-emerald-500/20 to-emerald-600/5",
     iconColor: "text-emerald-400",
     iconBg: "bg-emerald-500/10",
@@ -98,8 +94,7 @@ const features = [
   },
   {
     icon: Gauge,
-    title: "Fast Performance",
-    description: "Lightning-fast loading with optimized assets, CDN support, and edge deployment.",
+    id: "fastPerformance",
     color: "from-amber-500/20 to-amber-600/5",
     iconColor: "text-amber-400",
     iconBg: "bg-amber-500/10",
@@ -107,8 +102,7 @@ const features = [
   },
   {
     icon: Paintbrush,
-    title: "Modern Design",
-    description: "Clean, modern interfaces built with the latest design trends and attention to detail.",
+    id: "modernDesign",
     color: "from-rose-500/20 to-rose-600/5",
     iconColor: "text-rose-400",
     iconBg: "bg-rose-500/10",
@@ -117,6 +111,7 @@ const features = [
 ];
 
 export function Features() {
+  const { t } = useTranslation("landing");
   return (
     <section id="features" className="py-24 sm:py-32 relative">
       <div className="absolute inset-0 bg-gradient-to-b from-background via-violet-950/[0.02] to-background" />
@@ -125,22 +120,22 @@ export function Features() {
         <ScrollReveal>
           <div className="text-center max-w-2xl mx-auto mb-16 sm:mb-20">
             <p className="text-sm font-semibold uppercase tracking-widest text-violet-400 mb-4">
-              Features
+              {t("features.eyebrow")}
             </p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
-              Everything you need,
+              {t("features.headingLine1")}
               <br />
-              nothing you don&apos;t.
+              {t("features.headingLine2")}
             </h2>
             <p className="mt-5 text-lg text-zinc-400 max-w-xl mx-auto">
-              A complete toolkit for your online presence, designed for creators who care about quality.
+              {t("features.subtitle")}
             </p>
           </div>
         </ScrollReveal>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {features.map((feature, i) => (
-            <ScrollReveal key={feature.title} delay={i * 60}>
+            <ScrollReveal key={feature.id} delay={i * 60}>
               <div
                 className={`group relative rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 sm:p-7 transition-all duration-300 hover:border-zinc-700/80 hover:bg-zinc-900/60 card-glow h-full ${feature.span}`}
               >
@@ -148,10 +143,10 @@ export function Features() {
                   <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
                 </div>
                 <h3 className="text-base font-semibold text-white mb-2">
-                  {feature.title}
+                  {t(`features.items.${feature.id}.title`)}
                 </h3>
                 <p className="text-sm text-zinc-400 leading-relaxed">
-                  {feature.description}
+                  {t(`features.items.${feature.id}.description`)}
                 </p>
               </div>
             </ScrollReveal>

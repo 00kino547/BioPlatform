@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { api, type DmcaStatus } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/intl";
 import { Pagination } from "./Pagination";
 import {
   ArrowLeft,
@@ -38,14 +40,15 @@ import {
 type SubView = "queue" | "media" | "hashes" | "disabled";
 
 export function ModerationTab({ locked }: { locked: boolean }) {
+  const { t } = useTranslation("admin");
   const [view, setView] = useState<SubView>("queue");
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const tabs: Array<{ value: SubView; label: string }> = [
-    { value: "queue", label: "Report queue" },
-    { value: "media", label: "Media search" },
-    { value: "hashes", label: "Banned hashes" },
-    { value: "disabled", label: "Disabled accounts" },
+    { value: "queue", label: t("admin.moderation.views.queue") },
+    { value: "media", label: t("admin.moderation.views.media") },
+    { value: "hashes", label: t("admin.moderation.views.hashes") },
+    { value: "disabled", label: t("admin.moderation.views.disabled") },
   ];
 
   return (
@@ -53,7 +56,7 @@ export function ModerationTab({ locked }: { locked: boolean }) {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Gavel size={18} className="text-violet-400" />
-          <h2 className="text-lg font-semibold text-white">DMCA moderation</h2>
+          <h2 className="text-lg font-semibold text-white">{t("admin.moderation.heading")}</h2>
         </div>
       </header>
 
@@ -122,6 +125,7 @@ function statusClass(status: DmcaStatus): string {
 }
 
 function ReportQueue({ onOpen }: { onOpen: (id: string) => void }) {
+  const { t } = useTranslation("admin");
   const [status, setStatus] = useState<DmcaStatus | undefined>(undefined);
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
@@ -138,7 +142,7 @@ function ReportQueue({ onOpen }: { onOpen: (id: string) => void }) {
     try {
       const res = await api.getAdminDmcaReports({ status, q: appliedQ, limit: 20, offset: page * 20 });
       if (!res.success || !res.data) {
-        setError(res.error ?? "Could not load reports");
+        setError(res.error ?? t("admin.moderation.queue.loadFailed"));
         return;
       }
       // Rows are `data`; `counts`/`pagination` are siblings (see api.ts ApiResponse).
@@ -146,11 +150,11 @@ function ReportQueue({ onOpen }: { onOpen: (id: string) => void }) {
       setCounts((res.counts as Record<DmcaStatus, number> | undefined) ?? null);
       setTotal(res.pagination?.total ?? 0);
     } catch {
-      setError("Could not load reports");
+      setError(t("admin.moderation.queue.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [status, appliedQ, page]);
+  }, [status, appliedQ, page, t]);
 
   useEffect(() => {
     void load();
@@ -177,22 +181,22 @@ function ReportQueue({ onOpen }: { onOpen: (id: string) => void }) {
               status === s ? statusClass(s) : "bg-zinc-800/70 text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            {s.replace("_", " ")} · {counts ? counts[s] : "…"}
+            {t(`admin.moderation.statuses.${s}`)} · {counts ? counts[s] : "…"}
           </button>
         ))}
-        <span className="ml-auto text-xs text-zinc-500">{total} report{total === 1 ? "" : "s"}</span>
+        <span className="ml-auto text-xs text-zinc-500">{t("admin.moderation.queue.reportCount", { count: total, s: total === 1 ? "" : "s" })}</span>
       </div>
 
       <form onSubmit={submitSearch} className="flex gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search claimant name, email or work URL…"
+          placeholder={t("admin.moderation.queue.searchPlaceholder")}
           className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-2 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
         />
         <Button type="submit" variant="outline" className="shrink-0">
           <Search size={14} className="mr-1.5" aria-hidden />
-          Search
+          {t("admin.moderation.queue.search")}
         </Button>
       </form>
 
@@ -203,9 +207,9 @@ function ReportQueue({ onOpen }: { onOpen: (id: string) => void }) {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading reports…</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.queue.loading")}</p>
       ) : reports.length === 0 ? (
-        <p className="text-sm text-zinc-500">No reports match these filters.</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.queue.empty")}</p>
       ) : (
         <ul className="space-y-2">
           {reports.map((r) => (
@@ -217,27 +221,27 @@ function ReportQueue({ onOpen }: { onOpen: (id: string) => void }) {
                 <p className="flex flex-wrap items-center gap-2 text-sm text-white">
                   <span className="truncate font-medium">{r.claimantName}</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(r.status)}`}>
-                    {r.status.replace("_", " ")}
+                    {t(`admin.moderation.statuses.${r.status}`)}
                   </span>
                   {r.activeHashes > 0 && (
                     <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-400">
-                      {r.activeHashes} active ban{r.activeHashes === 1 ? "" : "s"}
+                      {t("admin.moderation.queue.activeBan", { count: r.activeHashes, s: r.activeHashes === 1 ? "" : "s" })}
                     </span>
                   )}
                 </p>
                 <p className="mt-1 truncate text-xs text-zinc-500">
                   {r.claimantEmail} ·{" "}
-                  <span className="font-mono text-zinc-600">{(r.workUrl || "no work URL").slice(0, 60)}</span>
-                  {r.filedBy ? ` · filed by ${r.filedBy}` : " · filed by guest"}
+                  <span className="font-mono text-zinc-600">{(r.workUrl || t("admin.moderation.queue.noWorkUrl")).slice(0, 60)}</span>
+                  {r.filedBy ? ` · ${t("admin.moderation.queue.filedBy", { username: r.filedBy })}` : ` · ${t("admin.moderation.queue.filedByGuest")}`}
                 </p>
                 <p className="mt-0.5 text-[11px] text-zinc-600">
-                  {new Date(r.createdAt).toLocaleString()}
-                  {r.handledAt ? ` · handled ${new Date(r.handledAt).toLocaleString()}` : ""}
+                  {formatDateTime(r.createdAt)}
+                  {r.handledAt ? ` · ${t("admin.moderation.queue.handled", { date: formatDateTime(r.handledAt) })}` : ""}
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={() => onOpen(r.id)}>
                 <Eye size={14} className="mr-1.5" aria-hidden />
-                Review
+                {t("admin.moderation.queue.review")}
               </Button>
             </li>
           ))}
@@ -276,6 +280,7 @@ type ReportDetailData = {
 };
 
 export function ReportDetail({ reportId, locked, onBack }: { reportId: string; locked: boolean; onBack: () => void }) {
+  const { t } = useTranslation("admin");
   const [report, setReport] = useState<ReportDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -291,16 +296,16 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
     try {
       const res = await api.getAdminDmcaReport(reportId);
       if (!res.success || !res.data) {
-        setError(res.error ?? "Could not load the report");
+        setError(res.error ?? t("admin.moderation.detail.loadFailed"));
         return;
       }
       setReport(res.data);
     } catch {
-      setError("Could not load the report");
+      setError(t("admin.moderation.detail.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [reportId]);
+  }, [reportId, t]);
 
   useEffect(() => {
     void load();
@@ -318,13 +323,13 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
     const res = await api.dismissAdminDmcaReport(reportId, dismissNote);
     setBusy(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not dismiss the report" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.detail.dismissFailed") });
       return;
     }
     // reset() also clears `notice`, so it must run BEFORE the success notice;
     // otherwise the OK banner is wiped in the same render batch and never shows.
     reset();
-    setNotice({ tone: "ok", text: "Report dismissed. The claimant has been emailed the outcome." });
+    setNotice({ tone: "ok", text: t("admin.moderation.detail.dismissed") });
     await load();
   };
 
@@ -334,34 +339,30 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
     const res = await api.recordAdminDmcaCounterNotice(reportId, counterText);
     setBusy(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not record the counter-notice" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.detail.counterFailed") });
       return;
     }
     // See dismiss(): reset() clears `notice`, so it must precede the toast.
     reset();
-    setNotice({ tone: "ok", text: "Counter-notice recorded. Hash bans lifted; accounts stay disabled until reviewed." });
+    setNotice({ tone: "ok", text: t("admin.moderation.detail.counterRecorded") });
     await load();
   };
 
   const remove = async () => {
-    const ok = window.confirm(
-      "Deleting this report permanently removes it — the claimant's record is gone.\n\n" +
-        "Its hashes are un-banned first, so a hash ban is NOT kept after deleting the report.\n\n" +
-        "Continue?"
-    );
+    const ok = window.confirm(t("admin.moderation.detail.deleteConfirm"));
     if (!ok) return;
     setBusy("delete");
     setNotice(null);
     const res = await api.deleteAdminDmcaReport(reportId);
     setBusy(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not delete the report" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.detail.deleteFailed") });
       return;
     }
     onBack();
   };
 
-  if (loading) return <p className="text-sm text-zinc-500">Loading report…</p>;
+  if (loading) return <p className="text-sm text-zinc-500">{t("admin.moderation.detail.loading")}</p>;
   if (error || !report) {
     return (
       <div className="space-y-3">
@@ -370,7 +371,7 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
         </p>
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft size={14} className="mr-1.5" aria-hidden />
-          Back to queue
+          {t("admin.moderation.detail.backToQueue")}
         </Button>
       </div>
     );
@@ -381,35 +382,35 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
       <div className="flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={onBack}>
           <ArrowLeft size={14} className="mr-1.5" aria-hidden />
-          Queue
+          {t("admin.moderation.detail.queue")}
         </Button>
         <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusClass(report.status)}`}>
-          {report.status.replace("_", " ")}
+          {t(`admin.moderation.statuses.${report.status}`)}
         </span>
       </div>
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <Field label="Claimant" value={`${report.claimantName} <${report.claimantEmail}>`} />
-          <Field label="Work URL" value={report.workUrl || "—"} mono />
-          <Field label="Filed" value={new Date(report.createdAt).toLocaleString()} />
+          <Field label={t("admin.moderation.detail.claimant")} value={`${report.claimantName} <${report.claimantEmail}>`} />
+          <Field label={t("admin.moderation.detail.workUrl")} value={report.workUrl || "—"} mono />
+          <Field label={t("admin.moderation.detail.filed")} value={formatDateTime(report.createdAt)} />
           <Field
-            label="Filed by"
-            value={report.filedByUser ? `@${report.filedByUser.username}` : "Guest (not signed into an account)"}
+            label={t("admin.moderation.detail.filedBy")}
+            value={report.filedByUser ? `@${report.filedByUser.username}` : t("admin.moderation.detail.guestFiled")}
           />
           {report.handledAt ? (
-            <Field label="Handled" value={`${new Date(report.handledAt).toLocaleString()}${report.handledBy ? ` by @${report.handledBy.username}` : ""}`} />
+            <Field label={t("admin.moderation.detail.handled")} value={`${formatDateTime(report.handledAt)}${report.handledBy ? t("admin.moderation.detail.handledBy", { username: report.handledBy.username }) : ""}`} />
           ) : null}
-          {report.decisionNote ? <Field label="Decision note" value={report.decisionNote} wide /> : null}
+          {report.decisionNote ? <Field label={t("admin.moderation.detail.decisionNote")} value={report.decisionNote} wide /> : null}
         </dl>
 
-        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">Description</p>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t("admin.moderation.detail.description")}</p>
         <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">{report.description || "—"}</p>
 
         {report.infringingUrls.length > 0 ? (
           <>
             <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Infringing URLs reported
+              {t("admin.moderation.detail.infringingUrls")}
             </p>
             <ul className="mt-1 space-y-1">
               {report.infringingUrls.map((url) => (
@@ -423,7 +424,7 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
 
         {report.contactNote ? (
           <>
-            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact note</p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t("admin.moderation.detail.contactNote")}</p>
             <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">{report.contactNote}</p>
           </>
         ) : null}
@@ -431,8 +432,8 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
         {report.counterNotice ? (
           <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-3">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sky-400">
-              <Scale size={13} aria-hidden /> Counter-notice
-              {report.counterNoticeAt ? ` · ${new Date(report.counterNoticeAt).toLocaleString()}` : ""}
+              <Scale size={13} aria-hidden /> {t("admin.moderation.detail.counterNotice")}
+              {report.counterNoticeAt ? ` · ${formatDateTime(report.counterNoticeAt)}` : ""}
             </p>
             <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">{report.counterNotice}</p>
           </div>
@@ -443,7 +444,7 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
             <Hash size={15} className="text-zinc-400" aria-hidden />
-            Hash bans on this report
+            {t("admin.moderation.detail.hashBansTitle")}
           </h3>
           <ul className="mt-3 space-y-2">
             {report.hashes.map((h) => (
@@ -454,16 +455,16 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
                     h.unbannedAt ? "bg-zinc-700/40 text-zinc-400" : "bg-red-500/15 text-red-400"
                   }`}
                 >
-                  {h.unbannedAt ? "un-banned" : "active ban"}
+                  {h.unbannedAt ? t("admin.moderation.detail.unbanned") : t("admin.moderation.detail.activeBan")}
                 </span>
                 {h.unbannedAt ? (
                   <span className="text-zinc-500">
-                    lifted {new Date(h.unbannedAt).toLocaleString()}
-                    {h.unbannedBy ? ` by @${h.unbannedBy.username}` : ""}
+                    {t("admin.moderation.detail.lifted", { date: formatDateTime(h.unbannedAt) })}
+                    {h.unbannedBy ? t("admin.moderation.detail.byUser", { username: h.unbannedBy.username }) : ""}
                   </span>
                 ) : (
                   <span className="text-zinc-500">
-                    since {new Date(h.bannedAt).toLocaleString()}
+                    {t("admin.moderation.detail.since", { date: formatDateTime(h.bannedAt) })}
                     {h.reason ? ` · ${h.reason}` : ""}
                   </span>
                 )}
@@ -489,32 +490,31 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
       <div className="grid gap-4 lg:grid-cols-2">
         {/* First-line decisions */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-          <h3 className="text-sm font-semibold text-white">Take down</h3>
+          <h3 className="text-sm font-semibold text-white">{t("admin.moderation.detail.takeDownTitle")}</h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Pick the reported files. Every account's copy of the same bytes is removed, the hashes are
-            banned, and the owners' accounts are disabled.
+            {t("admin.moderation.detail.takeDownBody")}
           </p>
           {pickMedia ? (
             <MediaSearch mode="takedown" reportId={reportId} locked={locked} onDone={() => { setPickMedia(false); void load(); }} />
           ) : (
             <Button size="sm" disabled={locked || report.status === "TAKEN_DOWN"} onClick={() => setPickMedia(true)}>
               <Gavel size={14} className="mr-1.5" aria-hidden />
-              {report.status === "TAKEN_DOWN" ? "Already taken down" : "Take down files"}
+              {report.status === "TAKEN_DOWN" ? t("admin.moderation.detail.alreadyTakenDown") : t("admin.moderation.detail.takeDownFiles")}
             </Button>
           )}
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-          <h3 className="text-sm font-semibold text-white">Dismiss</h3>
+          <h3 className="text-sm font-semibold text-white">{t("admin.moderation.detail.dismissTitle")}</h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Records the decision as no action needed. The claimant is emailed the outcome.
+            {t("admin.moderation.detail.dismissBody")}
           </p>
           <textarea
             value={dismissNote}
             onChange={(e) => setDismissNote(e.target.value)}
             maxLength={1000}
             rows={3}
-            placeholder="Why is no action being taken?"
+            placeholder={t("admin.moderation.detail.dismissPlaceholder")}
             className="mt-3 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           />
           <Button
@@ -525,22 +525,21 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
             onClick={() => void dismiss()}
           >
             {busy === "dismiss" ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : null}
-            Dismiss report
+            {t("admin.moderation.detail.dismissButton")}
           </Button>
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
-          <h3 className="text-sm font-semibold text-white">Counter-notice</h3>
+          <h3 className="text-sm font-semibold text-white">{t("admin.moderation.detail.counterTitle")}</h3>
           <p className="mt-1 text-xs text-zinc-500">
-            The reported party disputes the claim. Their hash bans are lifted, but their accounts stay
-            disabled until you re-activate them on the Disabled accounts view.
+            {t("admin.moderation.detail.counterBody")}
           </p>
           <textarea
             value={counterText}
             onChange={(e) => setCounterText(e.target.value)}
             maxLength={2000}
             rows={3}
-            placeholder="Paste the counter-notice text here."
+            placeholder={t("admin.moderation.detail.counterPlaceholder")}
             className="mt-3 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           />
           <Button
@@ -551,19 +550,18 @@ export function ReportDetail({ reportId, locked, onBack }: { reportId: string; l
             onClick={() => void recordCounter()}
           >
             {busy === "counter" ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : null}
-            {report.status === "COUNTER_NOTICE" ? "Counter-notice recorded" : "Record counter-notice"}
+            {report.status === "COUNTER_NOTICE" ? t("admin.moderation.detail.counterButtonDone") : t("admin.moderation.detail.counterButton")}
           </Button>
         </div>
 
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
-          <h3 className="text-sm font-semibold text-red-300">Delete permanently</h3>
+          <h3 className="text-sm font-semibold text-red-300">{t("admin.moderation.detail.deleteTitle")}</h3>
           <p className="mt-1 text-xs text-red-300/70">
-            Removes the report row entirely. Its hashes are un-banned first, so this is not a way to keep
-            a ban alive. Use it only for junk or mistaken filings.
+            {t("admin.moderation.detail.deleteBody")}
           </p>
           <Button size="sm" variant="outline" className="mt-3 border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200" disabled={busy === "delete" || locked} onClick={() => void remove()}>
             {busy === "delete" ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : <Trash2 size={14} className="mr-1.5" aria-hidden />}
-            Delete report
+            {t("admin.moderation.detail.deleteButton")}
           </Button>
         </div>
       </div>
@@ -610,6 +608,7 @@ function MediaSearch({
   locked: boolean;
   onDone?: () => void;
 }) {
+  const { t } = useTranslation("admin");
   const [sha256, setSha256] = useState("");
   const [username, setUsername] = useState("");
   const [kind, setKind] = useState("");
@@ -661,17 +660,17 @@ function MediaSearch({
         offset: page * 20,
       });
       if (!res.success || !res.data) {
-        setError(res.error ?? "Could not search media");
+        setError(res.error ?? t("admin.moderation.media.loadFailed"));
         return;
       }
       setFiles(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch {
-      setError("Could not search media");
+      setError(t("admin.moderation.media.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [applied.sha256, applied.username, applied.kind, page]);
+  }, [applied.sha256, applied.username, applied.kind, page, t]);
 
   useEffect(() => {
     void load();
@@ -699,19 +698,26 @@ function MediaSearch({
     for (const f of picked) coveredAccounts.add(f.owner.username);
     for (const f of picked) for (const o of f.copyOwners) coveredAccounts.add(o);
     return window.confirm(
-      `Take down ${picked.length} file${picked.length === 1 ? "" : "s"}?\n\n` +
-        `Every account holding the same bytes is affected — automatic expansion covers ` +
-        `${coveredAccounts.size} account${coveredAccounts.size === 1 ? "" : "s"} in total:` +
-        `\n\n${[...coveredAccounts].join(", ")}\n\n` +
-        `${disableAccount ? "Their accounts will be DISABLED." : "Accounts will NOT be disabled."}\n\n` +
-        `This cannot be undone. Continue?`
+      t("admin.moderation.media.confirm", {
+        count: picked.length,
+        s: picked.length === 1 ? "" : "s",
+        accounts: coveredAccounts.size,
+        owners: [...coveredAccounts].join(", "),
+        disableLine: disableAccount
+          ? t("admin.moderation.media.confirmDisable")
+          : t("admin.moderation.media.confirmKeep"),
+      })
     );
   };
 
   const describeResult = (r: { filesRemoved: number; hashesBanned: number; accountsDisabled: string[] }) =>
-    `Removed ${r.filesRemoved} file${r.filesRemoved === 1 ? "" : "s"}, banned ${r.hashesBanned} hash${
-      r.hashesBanned === 1 ? "" : "es"
-    } and disabled ${r.accountsDisabled.length} account${r.accountsDisabled.length === 1 ? "" : "s"}.`;
+    t("admin.moderation.media.result", {
+      files: r.filesRemoved,
+      s: r.filesRemoved === 1 ? "" : "s",
+      hashes: r.hashesBanned,
+      es: r.hashesBanned === 1 ? "" : "es",
+      accounts: r.accountsDisabled.length,
+    });
 
   const execute = async () => {
     const ids = [...selected];
@@ -729,7 +735,7 @@ function MediaSearch({
         : await api.runAdminDmcaManualTakedown({ mediaFileIds: ids, note: note || undefined, disableAccount });
     setBusy(false);
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not run the takedown" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.media.executeFailed") });
       return;
     }
     setNotice({ tone: "ok", text: describeResult(res.data) });
@@ -740,11 +746,7 @@ function MediaSearch({
 
   /** Remove one stored copy only — the bytes are NOT banned. */
   const deleteFile = async (f: MediaRow) => {
-    if (
-      !window.confirm(
-        `Delete this single file?\n\n${f.filePath}\n\nOnly this copy is removed — the bytes are NOT banned, so it can be uploaded again.`
-      )
-    ) {
+    if (!window.confirm(t("admin.moderation.media.deleteConfirm", { filePath: f.filePath }))) {
       return;
     }
     setRowBusy(f.id);
@@ -752,21 +754,21 @@ function MediaSearch({
     const res = await api.deleteAdminDmcaMedia(f.id);
     setRowBusy(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not delete the file" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.media.deleteFailed") });
       return;
     }
-    setNotice({ tone: "ok", text: "File deleted." });
+    setNotice({ tone: "ok", text: t("admin.moderation.media.deleteNotice") });
     await load();
   };
 
   /** Disable one account (no takedown) with a recorded, appealable reason. */
   const disableOwner = async (f: MediaRow) => {
     const reason = window.prompt(
-      `Reason for disabling @${f.owner.username}. It is recorded on the account and the user can appeal.`
+      t("admin.moderation.media.disableOwnerPrompt", { username: f.owner.username })
     );
     if (reason === null) return;
     if (!reason.trim()) {
-      setNotice({ tone: "err", text: "A reason is required." });
+      setNotice({ tone: "err", text: t("admin.moderation.media.disableOwnerReasonRequired") });
       return;
     }
     setRowBusy(f.id);
@@ -774,10 +776,10 @@ function MediaSearch({
     const res = await api.disableAdminDmcaUser(f.owner.userId, reason.trim());
     setRowBusy(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not disable the account" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.media.disableOwnerFailed") });
       return;
     }
-    setNotice({ tone: "ok", text: `@${f.owner.username} disabled.` });
+    setNotice({ tone: "ok", text: t("admin.moderation.media.disableOwnerNotice", { username: f.owner.username }) });
     await load();
   };
 
@@ -785,13 +787,7 @@ function MediaSearch({
   const takedownProfileRow = async (f: MediaRow) => {
     const slug = f.profileSlug;
     if (!slug) return;
-    if (
-      !window.confirm(
-        `Take down EVERY media file owned by @${f.owner.username} (profile /u/${slug})?\n\n` +
-          `All their uploads are removed and their hashes banned. Their account stays enabled.\n\n` +
-          `This cannot be undone. Continue?`
-      )
-    ) {
+    if (!window.confirm(t("admin.moderation.media.takeDownProfileRowConfirm", { username: f.owner.username, slug }))) {
       return;
     }
     setRowBusy(f.id);
@@ -799,16 +795,16 @@ function MediaSearch({
     const res = await api.takedownAdminDmcaProfile(slug, {});
     setRowBusy(null);
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not take down the profile" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.manual.profileFailed") });
       return;
     }
-    setNotice({ tone: "ok", text: `Profile /u/${slug}: ${describeResult(res.data)}` });
+    setNotice({ tone: "ok", text: t("admin.moderation.media.takeDownProfileRowResult", { slug, result: describeResult(res.data) }) });
     await load();
   };
 
   const banHashAction = async () => {
     if (!hashSha.trim()) {
-      setNotice({ tone: "err", text: "A SHA-256 hash is required." });
+      setNotice({ tone: "err", text: t("admin.moderation.manual.shaRequired") });
       return;
     }
     setHashBusy(true);
@@ -820,27 +816,30 @@ function MediaSearch({
     });
     setHashBusy(false);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not ban the hash" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.manual.banHashFailed") });
       return;
     }
     setHashSha("");
     setHashPhash("");
     setHashNote("");
-    setNotice({ tone: "ok", text: "Hash banned." });
+    setNotice({ tone: "ok", text: t("admin.moderation.manual.banHashNotice") });
     await load();
   };
 
   const takeDownProfileForm = async () => {
     const ref = profileRef.trim();
     if (!ref) {
-      setNotice({ tone: "err", text: "A profile slug or id is required." });
+      setNotice({ tone: "err", text: t("admin.moderation.manual.profileRefRequired") });
       return;
     }
     if (
       !window.confirm(
-        `Take down EVERY media file owned by profile "${ref}"?` +
-          (profileDisable ? "\n\nTheir account will be DISABLED." : "\n\nTheir account stays enabled.") +
-          "\n\nThis cannot be undone. Continue?"
+        t("admin.moderation.manual.profileConfirm", {
+          ref,
+          disableLine: profileDisable
+            ? t("admin.moderation.manual.profileConfirmDisable")
+            : t("admin.moderation.manual.profileConfirmKeep"),
+        })
       )
     ) {
       return;
@@ -853,7 +852,7 @@ function MediaSearch({
     });
     setProfileBusy(false);
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not take down the profile" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.manual.profileFailed") });
       return;
     }
     setProfileRef("");
@@ -866,25 +865,25 @@ function MediaSearch({
   const disableAccountForm = async () => {
     const ref = accountRef.trim();
     if (!ref) {
-      setNotice({ tone: "err", text: "A username or user id is required." });
+      setNotice({ tone: "err", text: t("admin.moderation.manual.accountRefRequired") });
       return;
     }
     if (!accountReason.trim()) {
-      setNotice({ tone: "err", text: "A reason is required." });
+      setNotice({ tone: "err", text: t("admin.moderation.manual.reasonRequired") });
       return;
     }
-    if (!window.confirm(`Disable the account "${ref}"?\n\nThey can appeal. Continue?`)) return;
+    if (!window.confirm(t("admin.moderation.manual.accountConfirm", { ref }))) return;
     setAccountBusy(true);
     setNotice(null);
     const res = await api.disableAdminDmcaUser(ref, accountReason.trim());
     setAccountBusy(false);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not disable the account" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.manual.accountFailed") });
       return;
     }
     setAccountRef("");
     setAccountReason("");
-    setNotice({ tone: "ok", text: `Account "${ref}" disabled.` });
+    setNotice({ tone: "ok", text: t("admin.moderation.manual.accountNotice", { ref }) });
     await load();
   };
 
@@ -902,41 +901,41 @@ function MediaSearch({
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex-1 min-w-[140px]">
-          <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Hash (sha256)</span>
+          <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.media.hash")}</span>
           <input
             value={sha256}
             onChange={(e) => setSha256(e.target.value)}
-            placeholder="e.g. 0000000000000000…"
+            placeholder={t("admin.moderation.media.hashPlaceholder")}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs font-mono text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           />
         </label>
         <label className="flex-1 min-w-[120px]">
-          <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Username</span>
+          <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.media.username")}</span>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="@alice"
+            placeholder={t("admin.moderation.media.usernamePlaceholder")}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           />
         </label>
         <label className="min-w-[130px]">
-          <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Kind</span>
+          <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.media.kind")}</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
           >
-            <option value="">Any kind</option>
+            <option value="">{t("admin.moderation.media.anyKind")}</option>
             {kindOptions.map((k) => (
               <option key={k} value={k}>
-                {k.replace("_", " ")}
+                {t(`admin.moderation.kinds.${k}`)}
               </option>
             ))}
           </select>
         </label>
         <Button size="sm" type="button" onClick={runSearch}>
           <Search size={14} className="mr-1.5" aria-hidden />
-          Search
+          {t("admin.moderation.media.search")}
         </Button>
       </div>
 
@@ -947,9 +946,9 @@ function MediaSearch({
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Searching media…</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.media.loading")}</p>
       ) : files.length === 0 ? (
-        <p className="text-sm text-zinc-500">No media files match. Try a username or check the hash.</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.media.empty")}</p>
       ) : (
         <ul className="space-y-2">
           {files.map((f) => (
@@ -963,24 +962,24 @@ function MediaSearch({
                 disabled={f.banned}
                 onChange={() => toggle(f.id)}
                 className="mt-1 accent-violet-500"
-                aria-label={`Select ${f.filePath}`}
+                aria-label={t("admin.moderation.media.selectFile", { filePath: f.filePath })}
               />
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-2 text-sm text-white">
-                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{f.kind.replace("_", " ")}</span>
+                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{t(`admin.moderation.kinds.${f.kind}`)}</span>
                   <span className="text-xs text-zinc-400">@{f.owner.username}</span>
                   {f.profileSlug ? <span className="text-xs text-zinc-600">/u/{f.profileSlug}</span> : null}
                   {f.banned ? (
                     <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-400">
-                      hash banned
+                      {t("admin.moderation.media.hashBanned")}
                     </span>
                   ) : null}
                 </p>
                 <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{f.filePath}</p>
                 <p className="mt-0.5 text-[11px] text-zinc-600">
-                  sha <span className="font-mono">{f.sha256.slice(0, 16)}…</span> · pHash{" "}
+                  {t("admin.moderation.media.sha")} <span className="font-mono">{f.sha256.slice(0, 16)}…</span> · {t("admin.moderation.media.pHash")}{" "}
                   <span className="font-mono">{f.pHashHex.slice(0, 12)}…</span> ·{" "}
-                  {new Date(f.createdAt).toLocaleString()}
+                  {formatDateTime(f.createdAt)}
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -988,9 +987,9 @@ function MediaSearch({
                   className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                     f.copyCount > 1 ? "bg-amber-500/15 text-amber-400" : "bg-zinc-800 text-zinc-500"
                   }`}
-                  title={f.copyOwners.length > 0 ? `Held by: ${f.copyOwners.join(", ")}` : undefined}
+                  title={f.copyOwners.length > 0 ? t("admin.moderation.media.heldBy", { owners: f.copyOwners.join(", ") }) : undefined}
                 >
-                  {f.copyCount} copy{f.copyCount === 1 ? "" : "ies"}
+                  {t("admin.moderation.media.copyCount", { count: f.copyCount, ies: f.copyCount === 1 ? "" : "ies" })}
                 </span>
                 {f.copyOwners.length > 0 ? (
                   <p className="mt-1 max-w-[160px] truncate text-[10px] text-zinc-600">
@@ -1002,33 +1001,33 @@ function MediaSearch({
                     <Button
                       size="sm"
                       variant="outline"
-                      aria-label={`Delete ${f.filePath}`}
+                      aria-label={t("admin.moderation.media.deleteRowLabel", { filePath: f.filePath })}
                       disabled={rowBusy === f.id || locked}
                       onClick={() => void deleteFile(f)}
                     >
                       {rowBusy === f.id ? <Loader2 size={13} className="mr-1 animate-spin" aria-hidden /> : <Trash2 size={13} className="mr-1" aria-hidden />}
-                      Delete
+                      {t("admin.moderation.media.deleteRow")}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      aria-label={`Disable owner ${f.owner.username}`}
+                      aria-label={t("admin.moderation.media.disableOwnerLabel", { username: f.owner.username })}
                       disabled={rowBusy === f.id || locked}
                       onClick={() => void disableOwner(f)}
                     >
                       <UserX size={13} className="mr-1" aria-hidden />
-                      Disable owner
+                      {t("admin.moderation.media.disableOwner")}
                     </Button>
                     {f.profileSlug ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        aria-label={`Take down profile ${f.profileSlug}`}
+                        aria-label={t("admin.moderation.media.takeDownProfileRowLabel", { slug: f.profileSlug })}
                         disabled={rowBusy === f.id || locked}
                         onClick={() => void takedownProfileRow(f)}
                       >
                         <Gavel size={13} className="mr-1" aria-hidden />
-                        Take down profile
+                        {t("admin.moderation.media.takeDownProfileRow")}
                       </Button>
                     ) : null}
                   </div>
@@ -1044,14 +1043,14 @@ function MediaSearch({
       {(
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
           <h3 className="text-sm font-semibold text-white">
-            {mode === "takedown" ? "Take down the reported files" : "Take down the selected files"}
+            {mode === "takedown" ? t("admin.moderation.media.takeDownHeadingReport") : t("admin.moderation.media.takeDownHeadingSelected")}
           </h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Every account holding the same bytes is affected. Accounts are disabled only when you tick the box below.
+            {t("admin.moderation.media.takeDownSubtitle")}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <Button size="sm" variant="outline" type="button" onClick={selectAllShown}>
-              Select all {files.length} shown
+              {t("admin.moderation.media.selectAll", { count: files.length })}
             </Button>
             <label className="flex items-center gap-2 text-xs text-zinc-400">
               <input
@@ -1060,10 +1059,10 @@ function MediaSearch({
                 onChange={(e) => setDisableAccount(e.target.checked)}
                 className="accent-violet-500"
               />
-              Disable the owners' accounts
+              {t("admin.moderation.media.disableAccounts")}
             </label>
             <span className="ml-auto text-xs text-zinc-500">
-              {selected.size} selected · {fullCopyCount(files, selected)} affected copy(-ies)
+              {t("admin.moderation.media.selectionSummary", { selected: selected.size, copies: fullCopyCount(files, selected) })}
             </span>
           </div>
 
@@ -1074,7 +1073,7 @@ function MediaSearch({
                 onChange={(e) => setNote(e.target.value)}
                 maxLength={1000}
                 rows={2}
-                placeholder="Optional note recorded with the decision."
+                placeholder={t("admin.moderation.media.notePlaceholder")}
                 className="mt-3 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
               />
               <Button
@@ -1084,7 +1083,7 @@ function MediaSearch({
                 onClick={() => void execute()}
               >
                 {busy ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : <Gavel size={14} className="mr-1.5" aria-hidden />}
-                Execute takedown
+                {t("admin.moderation.media.execute")}
               </Button>
             </>
           )}
@@ -1108,72 +1107,72 @@ function MediaSearch({
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
               <Hash size={15} className="text-zinc-400" aria-hidden />
-              Ban a hash directly
+              {t("admin.moderation.manual.banHashTitle")}
             </h3>
             <p className="mt-1 text-xs text-zinc-500">
-              Blocks the bytes anywhere, with no report. A future upload with the same SHA-256 (or perceptual twin) is rejected.
+              {t("admin.moderation.manual.banHashBody")}
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <label className="sm:col-span-2">
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">SHA-256 (64 hex)</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.sha256Label")}</span>
                 <input
                   value={hashSha}
                   onChange={(e) => setHashSha(e.target.value)}
-                  placeholder="64 hexadecimal characters"
+                  placeholder={t("admin.moderation.manual.sha256Placeholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 font-mono text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
               <label>
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Perceptual hash (optional)</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.pHashLabel")}</span>
                 <input
                   value={hashPhash}
                   onChange={(e) => setHashPhash(e.target.value)}
-                  placeholder="16 hex"
+                  placeholder={t("admin.moderation.manual.pHashPlaceholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 font-mono text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
               <label>
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Note (optional)</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.noteLabel")}</span>
                 <input
                   value={hashNote}
                   onChange={(e) => setHashNote(e.target.value)}
                   maxLength={1000}
-                  placeholder="Why is this being banned?"
+                  placeholder={t("admin.moderation.manual.notePlaceholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
             </div>
             <Button size="sm" className="mt-3" disabled={hashBusy || locked} onClick={() => void banHashAction()}>
               {hashBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : <Ban size={14} className="mr-1.5" aria-hidden />}
-              Ban hash
+              {t("admin.moderation.manual.banHashButton")}
             </Button>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
               <Gavel size={15} className="text-zinc-400" aria-hidden />
-              Take down a whole profile
+              {t("admin.moderation.manual.profileTitle")}
             </h3>
             <p className="mt-1 text-xs text-zinc-500">
-              Removes every media file owned by the profile's owner and bans their hashes. Enter a profile slug or id.
+              {t("admin.moderation.manual.profileBody")}
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <label>
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Profile slug or id</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.profileRefLabel")}</span>
                 <input
                   value={profileRef}
                   onChange={(e) => setProfileRef(e.target.value)}
-                  placeholder="e.g. alice or a uuid"
+                  placeholder={t("admin.moderation.manual.profileRefPlaceholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
               <label>
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Note (optional)</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.noteLabel")}</span>
                 <input
                   value={profileNote}
                   onChange={(e) => setProfileNote(e.target.value)}
                   maxLength={1000}
-                  placeholder="Optional note recorded with the bans."
+                  placeholder={t("admin.moderation.manual.profileNotePlaceholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
@@ -1185,7 +1184,7 @@ function MediaSearch({
                 onChange={(e) => setProfileDisable(e.target.checked)}
                 className="accent-violet-500"
               />
-              Also disable the owner's account
+              {t("admin.moderation.manual.profileDisable")}
             </label>
             <Button
               size="sm"
@@ -1194,42 +1193,42 @@ function MediaSearch({
               onClick={() => void takeDownProfileForm()}
             >
               {profileBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : <Gavel size={14} className="mr-1.5" aria-hidden />}
-              Take down profile
+              {t("admin.moderation.manual.profileButton")}
             </Button>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
               <UserX size={15} className="text-zinc-400" aria-hidden />
-              Disable an account
+              {t("admin.moderation.manual.disableTitle")}
             </h3>
             <p className="mt-1 text-xs text-zinc-500">
-              Locks the account out (sign-in blocked) with a recorded reason. The user can appeal; it never deletes data.
+              {t("admin.moderation.manual.disableBody")}
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <label>
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Username or user id</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.accountRefLabel")}</span>
                 <input
                   value={accountRef}
                   onChange={(e) => setAccountRef(e.target.value)}
-                  placeholder="@alice or a uuid"
+                  placeholder={t("admin.moderation.manual.accountRefPlaceholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
               <label>
-                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Reason</span>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">{t("admin.moderation.manual.accountReasonLabel")}</span>
                 <input
                   value={accountReason}
                   onChange={(e) => setAccountReason(e.target.value)}
                   maxLength={1000}
-                  placeholder="Shown in the disabled queue."
+                  placeholder={t("admin.moderation.manual.accountReasonPlaceholder")}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
                 />
               </label>
             </div>
             <Button size="sm" className="mt-3 bg-red-600 hover:bg-red-500" disabled={accountBusy || locked} onClick={() => void disableAccountForm()}>
               {accountBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : <UserX size={14} className="mr-1.5" aria-hidden />}
-              Disable account
+              {t("admin.moderation.manual.accountButton")}
             </Button>
           </div>
         </div>
@@ -1261,6 +1260,7 @@ type HashRow = {
 };
 
 function HashesPanel({ locked }: { locked: boolean }) {
+  const { t } = useTranslation("admin");
   const [showActive, setShowActive] = useState(true);
   const [hashes, setHashes] = useState<HashRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -1275,28 +1275,24 @@ function HashesPanel({ locked }: { locked: boolean }) {
     try {
       const res = await api.getAdminDmcaHashes(showActive);
       if (!res.success || !res.data) {
-        setError(res.error ?? "Could not load hash bans");
+        setError(res.error ?? t("admin.moderation.hashes.loadFailed"));
         return;
       }
       setHashes(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch {
-      setError("Could not load hash bans");
+      setError(t("admin.moderation.hashes.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [showActive]);
+  }, [showActive, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const lift = async (id: string) => {
-    if (
-      !window.confirm(
-        "Lift this hash ban? Un-banning means the same bytes can be uploaded again by any account."
-      )
-    ) {
+    if (!window.confirm(t("admin.moderation.hashes.unbanConfirm"))) {
       return;
     }
     setBusyId(id);
@@ -1304,10 +1300,10 @@ function HashesPanel({ locked }: { locked: boolean }) {
     const res = await api.liftAdminDmcaHashBan(id);
     setBusyId(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not lift the ban" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.hashes.liftFailed") });
       return;
     }
-    setNotice({ tone: "ok", text: "Hash ban lifted." });
+    setNotice({ tone: "ok", text: t("admin.moderation.hashes.liftedNotice") });
     await load();
   };
 
@@ -1321,7 +1317,7 @@ function HashesPanel({ locked }: { locked: boolean }) {
             showActive ? "bg-red-500/15 text-red-400" : "bg-zinc-800/70 text-zinc-400 hover:text-zinc-200"
           }`}
         >
-          Active · {total}
+          {t("admin.moderation.hashes.activeTab", { total })}
         </button>
         <button
           type="button"
@@ -1330,7 +1326,7 @@ function HashesPanel({ locked }: { locked: boolean }) {
             !showActive ? "bg-zinc-700/60 text-zinc-200" : "bg-zinc-800/70 text-zinc-400 hover:text-zinc-200"
           }`}
         >
-          History
+          {t("admin.moderation.hashes.historyTab")}
         </button>
         <button
           type="button"
@@ -1339,7 +1335,7 @@ function HashesPanel({ locked }: { locked: boolean }) {
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-60"
         >
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} aria-hidden />
-          Refresh
+          {t("admin.moderation.hashes.refresh")}
         </button>
       </div>
 
@@ -1363,10 +1359,10 @@ function HashesPanel({ locked }: { locked: boolean }) {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading hash bans…</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.hashes.loading")}</p>
       ) : hashes.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          {showActive ? "No active hash bans." : "No previously un-banned hashes."}
+          {showActive ? t("admin.moderation.hashes.emptyActive") : t("admin.moderation.hashes.emptyHistory")}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -1377,20 +1373,20 @@ function HashesPanel({ locked }: { locked: boolean }) {
             >
               <span className="font-mono text-zinc-200">{h.sha256.slice(0, 20)}…</span>
               <span className={`rounded-full px-2 py-0.5 font-medium ${h.active ? "bg-red-500/15 text-red-400" : "bg-zinc-700/40 text-zinc-400"}`}>
-                {h.active ? "active" : "lifted"}
+                {h.active ? t("admin.moderation.hashes.activeLabel") : t("admin.moderation.hashes.lifted")}
               </span>
               <span className="text-zinc-500">
-                since {new Date(h.bannedAt).toLocaleString()}
-                {h.bannedBy ? ` by @${h.bannedBy.username}` : ""}
-                {h.unbannedAt ? ` · lifted ${new Date(h.unbannedAt).toLocaleString()}` : ""}
-                {h.unbannedBy ? ` by @${h.unbannedBy.username}` : ""}
+                {t("admin.moderation.hashes.since", { date: formatDateTime(h.bannedAt) })}
+                {h.bannedBy ? t("admin.moderation.hashes.byUser", { username: h.bannedBy.username }) : ""}
+                {h.unbannedAt ? t("admin.moderation.hashes.liftedAt", { date: formatDateTime(h.unbannedAt) }) : ""}
+                {h.unbannedBy ? t("admin.moderation.hashes.byUser", { username: h.unbannedBy.username }) : ""}
               </span>
               {h.reason && <span className="max-w-[280px] truncate text-zinc-600">· {h.reason}</span>}
               {h.active && (
                 <span className="ml-auto">
                   <Button size="sm" variant="outline" disabled={busyId === h.id || locked} onClick={() => void lift(h.id)}>
                     {busyId === h.id ? <Loader2 size={13} className="mr-1 animate-spin" aria-hidden /> : <Ban size={13} className="mr-1" aria-hidden />}
-                    Un-ban
+                    {t("admin.moderation.hashes.unban")}
                   </Button>
                 </span>
               )}
@@ -1401,8 +1397,7 @@ function HashesPanel({ locked }: { locked: boolean }) {
 
       <p className="flex items-start gap-2 text-xs text-zinc-500">
         <ShieldCheck size={13} className="mt-0.5 shrink-0" aria-hidden />
-        Un-banning restores the original files by bytes, not as stored copies. Use it for false
-        positives — lifting does not touch any account state.
+        {t("admin.moderation.hashes.footer")}
       </p>
     </div>
   );
@@ -1425,6 +1420,7 @@ type DisabledRow = {
 };
 
 function DisabledPanel({ locked }: { locked: boolean }) {
+  const { t } = useTranslation("admin");
   const [users, setUsers] = useState<DisabledRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1438,17 +1434,17 @@ function DisabledPanel({ locked }: { locked: boolean }) {
     try {
       const res = await api.getAdminDmcaDisabled();
       if (!res.success || !res.data) {
-        setError(res.error ?? "Could not load disabled accounts");
+        setError(res.error ?? t("admin.moderation.disabled.loadFailed"));
         return;
       }
       setUsers(res.data);
       setTotal(res.pagination?.total ?? 0);
     } catch {
-      setError("Could not load disabled accounts");
+      setError(t("admin.moderation.disabled.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -1456,11 +1452,11 @@ function DisabledPanel({ locked }: { locked: boolean }) {
 
   const reactivate = async (user: DisabledRow) => {
     const decision = window.prompt(
-      `Decision note for re-activating @${user.username}. This is recorded on the account and is never shown to the user.`
+      t("admin.moderation.disabled.reactivatePrompt", { username: user.username })
     );
     if (decision === null) return;
     if (!decision.trim()) {
-      setNotice({ tone: "err", text: "A decision note is required." });
+      setNotice({ tone: "err", text: t("admin.moderation.disabled.decisionRequired") });
       return;
     }
     setBusyId(user.id);
@@ -1468,10 +1464,10 @@ function DisabledPanel({ locked }: { locked: boolean }) {
     const res = await api.reactivateAdminDmcaUser(user.id, decision.trim());
     setBusyId(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not re-activate the account" });
+      setNotice({ tone: "err", text: res.error ?? t("admin.moderation.disabled.reactivateFailed") });
       return;
     }
-    setNotice({ tone: "ok", text: `@${user.username} re-activated.` });
+    setNotice({ tone: "ok", text: t("admin.moderation.disabled.reactivated", { username: user.username }) });
     await load();
   };
 
@@ -1479,7 +1475,7 @@ function DisabledPanel({ locked }: { locked: boolean }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-zinc-500">
-          {total} disabled account{total === 1 ? "" : "s"}
+          {t("admin.moderation.disabled.count", { count: total, s: total === 1 ? "" : "s" })}
         </span>
         <button
           type="button"
@@ -1488,7 +1484,7 @@ function DisabledPanel({ locked }: { locked: boolean }) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-60"
         >
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} aria-hidden />
-          Refresh
+          {t("admin.moderation.disabled.refresh")}
         </button>
       </div>
 
@@ -1512,9 +1508,9 @@ function DisabledPanel({ locked }: { locked: boolean }) {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading disabled accounts…</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.disabled.loading")}</p>
       ) : users.length === 0 ? (
-        <p className="text-sm text-zinc-500">No accounts are currently disabled.</p>
+        <p className="text-sm text-zinc-500">{t("admin.moderation.disabled.empty")}</p>
       ) : (
         <ul className="space-y-2">
           {users.map((u) => (
@@ -1526,23 +1522,27 @@ function DisabledPanel({ locked }: { locked: boolean }) {
                 <p className="flex flex-wrap items-center gap-2 text-sm text-white">
                   <span className="font-medium">@{u.username}</span>
                   <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
-                    {u.disabledReason ?? "unspecified"}
+                    {u.disabledReason ?? t("admin.moderation.disabled.unspecified")}
                   </span>
                   {u.appealSubmittedAt ? (
                     <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-400">
-                      has an appeal
+                      {t("admin.moderation.disabled.hasAppeal")}
                     </span>
                   ) : null}
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
-                  {u.email} · disabled {new Date(u.disabledAt).toLocaleString()} ·{" "}
-                  {u.reportsFiled} report{u.reportsFiled === 1 ? "" : "s"} filed against them
+                  {t("admin.moderation.disabled.meta", {
+                    email: u.email,
+                    date: formatDateTime(u.disabledAt),
+                    reports: u.reportsFiled,
+                    s: u.reportsFiled === 1 ? "" : "s",
+                  })}
                 </p>
                 {u.appealSubmittedAt ? (
                   <p className="mt-0.5 text-[11px] text-zinc-600">
-                    Appeal {new Date(u.appealSubmittedAt).toLocaleString()}
-                    {u.appealReviewedAt ? ` · reviewed ${new Date(u.appealReviewedAt).toLocaleString()}` : " · not yet reviewed"}
-                    {u.appealDecision ? ` · decision: ${u.appealDecision}` : ""}
+                    {t("admin.moderation.disabled.appeal", { date: formatDateTime(u.appealSubmittedAt) })}
+                    {u.appealReviewedAt ? ` · ${t("admin.moderation.disabled.appealReviewed", { date: formatDateTime(u.appealReviewedAt) })}` : ` · ${t("admin.moderation.disabled.appealNotReviewed")}`}
+                    {u.appealDecision ? ` · ${t("admin.moderation.disabled.appealDecision", { decision: u.appealDecision })}` : ""}
                   </p>
                 ) : null}
               </div>
@@ -1554,7 +1554,7 @@ function DisabledPanel({ locked }: { locked: boolean }) {
                 className="shrink-0"
               >
                 {busyId === u.id ? <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden /> : <UserX size={14} className="mr-1.5" aria-hidden />}
-                Re-activate
+                {t("admin.moderation.disabled.reactivate")}
               </Button>
             </li>
           ))}
@@ -1563,8 +1563,7 @@ function DisabledPanel({ locked }: { locked: boolean }) {
 
       <p className="flex items-start gap-2 text-xs text-zinc-500">
         <CheckCircle2 size={13} className="mt-0.5 shrink-0" aria-hidden />
-        Re-activation is always a manual operator decision. A counter-notice lifts the hash bans but
-        never turns an account back on by itself.
+        {t("admin.moderation.disabled.footer")}
       </p>
     </div>
   );

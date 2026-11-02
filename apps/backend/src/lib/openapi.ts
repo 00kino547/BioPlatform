@@ -339,16 +339,13 @@ export const openapi = {
     "/i18n/config": {
       get: {
         tags: ["I18n"],
-        summary: "Internationalization settings (structure scaffold)",
+        summary: "Internationalization settings",
         description:
-          "Returns the i18n configuration exposed by the instance: whether i18n is enabled, the default/fallback locale, and the locales the instance exposes. This route is a structure placeholder while the i18n pipeline is not implemented — it currently answers 503 with code `i18n_not_implemented` instead of a 200 payload so consumers can distinguish 'not implemented yet' from a real failure.",
+          "Returns the i18n configuration exposed by the instance: whether i18n is enabled, the default/fallback locale, and the locales the instance exposes. Mirrors the `public.i18n` block in config.yml — the same values also flow through `GET /api/config`. `enabled: false` is a valid 200 (the feature is off, not an error). Answered `no-store` because the block hot-reloads.",
         security: [],
         responses: {
-          "503": {
-            description: "Not implemented yet — `{ success:false, error, code:\"i18n_not_implemented\" }`",
-          },
           "200": {
-            description: "Planned contract: `{ success:true, data:{ enabled, defaultLocale, fallbackLocale, locales } }`",
+            description: "`{ success:true, data:{ enabled, defaultLocale, fallbackLocale, locales } }`",
           },
         },
       },
@@ -357,16 +354,13 @@ export const openapi = {
     "/i18n/locales": {
       get: {
         tags: ["I18n"],
-        summary: "Available locale metadata (structure scaffold)",
+        summary: "Available locale metadata",
         description:
-          "Returns metadata for the locales the instance exposes — intended to feed the frontend language picker once i18n is wired up (en + es ship first, Spanish as an English placeholder). Structure only: currently answers 503 with code `i18n_not_implemented` so consumers can distinguish 'not implemented yet' from a real failure.",
+          "Returns the locales the instance exposes — feeds the frontend language picker. Same `public.i18n` source as `/i18n/config`, minus the master switch. Translation files are frontend bundle assets (apps/frontend/src/locales/{lng}/*.json) and are never served by the backend. Answered `no-store`.",
         security: [],
         responses: {
-          "503": {
-            description: "Not implemented yet — `{ success:false, error, code:\"i18n_not_implemented\" }`",
-          },
           "200": {
-            description: "Planned contract: `{ success:true, data:{ defaultLocale, fallbackLocale, locales } }`",
+            description: "`{ success:true, data:{ defaultLocale, fallbackLocale, locales } }`",
           },
         },
       },
@@ -571,7 +565,7 @@ export const openapi = {
         summary: "Register a new passkey",
         requestBody: {
           required: true,
-          content: { "application/json": { schema: { type: "object", required: ["response"], properties: { response: { type: "object" }, name: { type: "string" }, residentKey: { type: "string" } } } } },
+          content: { "application/json": { schema: { type: "object", required: ["response", "currentPassword"], properties: { response: { type: "object" }, name: { type: "string" }, residentKey: { type: "string" }, currentPassword: { type: "string", format: "password" } } } } },
         },
         responses: { "201": { description: "Created passkey" } },
       },
@@ -595,6 +589,7 @@ export const openapi = {
       post: {
         tags: ["Auth"],
         summary: "Start TOTP enrollment (returns secret and otpauth URL)",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["currentPassword"], properties: { currentPassword: { type: "string", format: "password" } } } } } },
         responses: { "200": { description: "TOTP secret + otpauth URL" } },
       },
     },
@@ -3795,7 +3790,6 @@ export const openapi = {
         type: "object",
         properties: {
           id: { type: "string" },
-          userId: { type: "string" },
           slug: { type: "string", description: "Public URL slug" },
           isPrimary: { type: "boolean", description: "True for the account's primary profile" },
           badges: { type: "array", items: { type: "string", format: "uuid" }, description: "Badge ids; resolve via GET /badges" },
@@ -3827,7 +3821,6 @@ export const openapi = {
         description: "Public profile payload. requestedSlug echoes the slug/alias used to reach it; slug is the canonical profile slug.",
         properties: {
           id: { type: "string" },
-          userId: { type: "string" },
           username: { type: "string", description: "Owner username" },
           slug: { type: "string", description: "Canonical profile slug" },
           requestedSlug: { type: "string", description: "The slug or alias that was requested" },

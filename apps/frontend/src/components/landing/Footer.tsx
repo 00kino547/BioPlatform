@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { VersionBadge } from "@/components/updates/VersionBadge";
@@ -12,30 +13,34 @@ function GitHubIcon({ className }: { className?: string }) {
   );
 }
 
-const footerLinks = {
-  Product: [
-    { label: "Features", href: "#features" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "Showcase", href: "#showcase" },
-    { label: "Changelog", href: "https://github.com/00kino547/BioPlatform/blob/main/CHANGELOG.md" },
-  ],
-  Resources: [
-    { label: "Documentation", href: branding.docsUrl },
-    { label: "Status", href: branding.statusUrl || "#" },
-  ],
-  Legal: [
-    { label: "Privacy Policy", href: "/privacy" },
-    { label: "Terms of Service", href: "/terms" },
-    { label: "Contact", href: branding.contactUrl },
-  ],
-  Preferences: [{ label: "Cookie Preferences", action: "cookies" }],
-};
-
 export function Footer() {
+  const { t } = useTranslation("landing");
   const onCookiePrefs = () => window.dispatchEvent(new CustomEvent("bio:open-cookie-settings"));
   const instance = useInstanceConfig();
   // config.yml landing copy wins; branding.* is the zero-config fallback.
   const blurb = instance?.landing.footerAbout.trim() || instance?.landing.tagline.trim() || branding.tagline;
+
+  // Link labels are resolved through i18n at render time; the icon/href/action
+  // wiring stays static so only the copy is translated.
+  const footerLinks = {
+    [t("footer.categories.product")]: [
+      { label: t("footer.links.features"), href: "#features" },
+      { label: t("footer.links.pricing"), href: "#pricing" },
+      { label: t("common:nav.showcase"), href: "#showcase" },
+      { label: t("footer.links.changelog"), href: `${branding.githubUrl}/blob/main/CHANGELOG.md` },
+    ],
+    [t("footer.categories.resources")]: [
+      { label: t("footer.links.documentation"), href: branding.docsUrl },
+      { label: t("footer.links.status"), href: branding.statusUrl || "#" },
+    ],
+    [t("footer.categories.legal")]: [
+      { label: t("footer.links.privacyPolicy"), href: "/privacy" },
+      { label: t("footer.links.termsOfService"), href: "/terms" },
+      { label: t("footer.links.contact"), href: branding.contactUrl },
+    ],
+    [t("footer.categories.preferences")]: [{ label: t("footer.links.cookiePreferences"), action: "cookies" as const }],
+  };
+
   return (
     <footer className="relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
@@ -62,7 +67,7 @@ export function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800/50 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 transition-all"
-                    aria-label="GitHub"
+                    aria-label={t("footer.githubAria")}
                   >
                     <GitHubIcon className="h-4 w-4" />
                   </a>
@@ -111,7 +116,7 @@ export function Footer() {
 
         <div className="border-t border-zinc-800/60 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-zinc-600">
-            &copy; {new Date().getFullYear()} {branding.name}. All rights reserved.
+            {t("footer.copyright", { year: new Date().getFullYear(), name: branding.name })}
           </p>
           <div className="flex items-center gap-3">
             <VersionBadge />
@@ -121,7 +126,7 @@ export function Footer() {
               rel="noopener noreferrer"
               className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
             >
-              Powered by {branding.name}
+              {t("footer.poweredBy", { name: branding.name })}
             </a>
           </div>
         </div>

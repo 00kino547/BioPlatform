@@ -4,6 +4,7 @@ import { getEnv } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { requireCurrentConsent } from "./consent.js";
 import { dmcaAppealUrl } from "../lib/dmca.js";
+import { accountBlock } from "../lib/authGuard.js";
 
 export interface AuthPayload {
   userId: string;
@@ -109,6 +110,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({
         success: false,
         error: "Session expired — you signed in with a different set of credentials",
+      });
+    }
+
+    // Authentication lockouts also revoke existing sessions. Without this
+    // check, a stolen bearer token remains usable while the account is locked
+    // after repeated failed authentication attempts.
+    const block = await accountBlock(user.id);
+    if (block) {
+      if (block.retryAfterSeconds !== null) {
+        res.setHeader("Retry-After", String(block.retryAfterSeconds));
+      }
+      return res.status(423).json({
+        success: false,
+        code: "account_locked",
+        error: block.permanent ? "This account is locked." : "This account is temporarily locked.",
+        retryAfterSeconds: block.retryAfterSeconds,
       });
     }
 

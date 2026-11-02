@@ -3,6 +3,10 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
 import { getEnv } from "@/config/env";
+// Shared i18next instance for thrown download/export errors that reach the UI
+// verbatim (e.g. DataTab renders `err.message`). Explicit namespace prefix so
+// the extractor resolves the keys in their owning catalog.
+import i18n from "@/i18n";
 
 const API_URL = getEnv("VITE_API_URL") ?? "/api";
 
@@ -831,7 +835,6 @@ export interface PublicProfile {
   badges: string[];
   createdAt: string;
   id: string;
-  userId: string;
   displayName: string | null;
   bio: string | null;
   avatar: string | null;
@@ -1411,10 +1414,10 @@ export const api = {
       body: JSON.stringify({ residentKey }),
     }),
 
-  registerPasskey: (response: unknown, name: string, residentKey: "resident" | "nonResident") =>
+  registerPasskey: (response: unknown, name: string, residentKey: "resident" | "nonResident", currentPassword: string) =>
     request<{ passkey: Passkey }>("/auth/passkeys/register", {
       method: "POST",
-      body: JSON.stringify({ response, name, residentKey }),
+      body: JSON.stringify({ response, name, residentKey, currentPassword }),
     }),
 
   getPasskeys: () => request<Passkey[]>("/auth/passkeys"),
@@ -1422,7 +1425,11 @@ export const api = {
   deletePasskey: (id: string) =>
     request(`/auth/passkeys/${id}`, { method: "DELETE" }),
 
-  setupTotp: () => request<TotpSetupData>("/auth/totp/setup", { method: "POST" }),
+  setupTotp: (currentPassword: string) =>
+    request<TotpSetupData>("/auth/totp/setup", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword }),
+    }),
 
   enableTotp: (code: string) =>
     request<{ totpEnabled: boolean }>("/auth/totp/enable", {
@@ -1849,7 +1856,7 @@ export const api = {
     );
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(body?.error ?? "Export failed");
+      throw new Error(body?.error ?? i18n.t("dashboard:data.exportFailed"));
     }
     return res.blob();
   },
@@ -2417,7 +2424,7 @@ export const api = {
     const res = await fetch(`${API_URL}/shop/download/${purchaseId}`, { headers, credentials: "include" });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new Error(body?.error ?? "Download failed");
+      throw new Error(body?.error ?? i18n.t("profile:purchasesTab.downloadFailed"));
     }
     const disposition = res.headers.get("content-disposition") ?? "";
     const match = disposition.match(/filename\*=UTF-8''([^;]+)/);

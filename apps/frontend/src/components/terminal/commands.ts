@@ -1,3 +1,6 @@
+import { formatDateTime } from "@/lib/intl";
+import type { TFunction } from "i18next";
+
 export interface TerminalLink {
   platform: string;
   url: string;
@@ -34,18 +37,25 @@ export interface TerminalResult {
   matrixRain?: boolean;
 }
 
-export const HINT_TEXT = "Type \"help\" to see available commands.";
+// Terminal shell text is produced through the i18n `t` function so the whole
+// command surface can be translated. Constants cannot call the `t` hook, so
+// these helpers receive `t` from the calling component instead.
+export function getHintText(t: TFunction): string {
+  return t("interactiveTerminal.hint");
+}
 
-export const HELP_TEXT: TerminalLine[] = [
-  { text: "help               show this help", kind: "dim" },
-  { text: "whoami             print your identity", kind: "dim" },
-  { text: "ls                 list files and links", kind: "dim" },
-  { text: "cat <file>         read a file (whoami.txt, bio.txt)", kind: "dim" },
-  { text: "open <link> [i]     open a link by name / index (e.g. open github 0)", kind: "dim" },
-  { text: "date               print the current date", kind: "dim" },
-  { text: "echo <text>        echo text back", kind: "dim" },
-  { text: "clear              clear the terminal", kind: "dim" },
-];
+export function getHelpText(t: TFunction): TerminalLine[] {
+  return [
+    { text: t("interactiveTerminal.helpHelp"), kind: "dim" },
+    { text: t("interactiveTerminal.helpWhoami"), kind: "dim" },
+    { text: t("interactiveTerminal.helpLs"), kind: "dim" },
+    { text: t("interactiveTerminal.helpCat"), kind: "dim" },
+    { text: t("interactiveTerminal.helpOpen"), kind: "dim" },
+    { text: t("interactiveTerminal.helpDate"), kind: "dim" },
+    { text: t("interactiveTerminal.helpEcho"), kind: "dim" },
+    { text: t("interactiveTerminal.helpClear"), kind: "dim" },
+  ];
+}
 
 function prompt(text: string): TerminalLine {
   return { text, kind: "accent" };
@@ -89,7 +99,7 @@ const TRAIN_ART = [
   "   \\  o  o  o    o  o  o  o    o  o  o  o",
 ];
 
-export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
+export function runCommand(raw: string, ctx: TerminalContext, t: TFunction): TerminalResult {
   const trimmed = raw.trim();
   if (!trimmed) return { output: [] };
 
@@ -102,12 +112,12 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
     case "help":
       return {
         output: [
-          { text: "Available commands:", kind: "dim" },
-          ...HELP_TEXT,
+          { text: t("interactiveTerminal.helpTitle"), kind: "dim" },
+          ...getHelpText(t),
           ...(ctx.terminalCommands && ctx.terminalCommands.length > 0
             ? [
                 { text: "", kind: "dim" } as TerminalLine,
-                { text: "Custom commands:", kind: "dim" } as TerminalLine,
+                { text: t("interactiveTerminal.helpCustomTitle"), kind: "dim" } as TerminalLine,
                 ...ctx.terminalCommands.map((c): TerminalLine => ({
                   text: `${c.command.padEnd(20)} ${(c.description || c.output.split("\n")[0]).slice(0, 40)}`,
                   kind: "dim",
@@ -118,17 +128,30 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
       };
 
     case "whoami":
-      return { output: [prompt(`${ctx.displayName ?? ctx.username} @ ${ctx.username}`)] };
+      return {
+        output: [
+          prompt(
+            t("interactiveTerminal.whoami", {
+              name: ctx.displayName ?? ctx.username,
+              username: ctx.username,
+            }),
+          ),
+        ],
+      };
 
     case "ls": {
       const target = args[0]?.toLowerCase().replace(/\/+$/, "") || undefined;
-      const files: TerminalLine = { text: "whoami.txt   bio.txt", kind: "dim" };
+      const files: TerminalLine = { text: t("interactiveTerminal.lsFiles"), kind: "dim" };
       const linksRow: TerminalLine = {
-        text: `links/  ${printableLinks(ctx).map((l) => l.name).join("  ")}`,
+        text: t("interactiveTerminal.lsLinksRow", {
+          names: printableLinks(ctx).map((l) => l.name).join("  "),
+        }),
         kind: "dim",
       };
       const cmdsRow: TerminalLine = {
-        text: `cmds/  ${ctx.terminalCommands?.map((c) => c.command).join("  ") ?? ""}`,
+        text: t("interactiveTerminal.lsCmdsRow", {
+          cmds: ctx.terminalCommands?.map((c) => c.command).join("  ") ?? "",
+        }),
         kind: "dim",
       };
       if (!target || ["-a", "-l", "-la", "-al"].includes(target)) {
@@ -139,45 +162,51 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
       if (target === "links") return { output: [linksRow] };
       if (target === "cmds") {
         if (!ctx.terminalCommands?.length) {
-          return { output: [{ text: `ls: cannot access '${args[0]}': No such file or directory`, kind: "dim" }] };
+          return { output: [{ text: t("interactiveTerminal.lsNoSuchFile", { path: args[0] }), kind: "dim" }] };
         }
         return { output: [cmdsRow] };
       }
       if (target === "whoami.txt" || target === "bio.txt") return { output: [files] };
-      return { output: [{ text: `ls: cannot access '${args[0]}': No such file or directory`, kind: "dim" }] };
+      return { output: [{ text: t("interactiveTerminal.lsNoSuchFile", { path: args[0] }), kind: "dim" }] };
     }
 
     case "cat": {
       const file = args[0]?.toLowerCase();
-      if (!file) return { output: [{ text: `cat: missing file operand`, kind: "dim" }] };
+      if (!file) return { output: [{ text: t("interactiveTerminal.catMissingOperand"), kind: "dim" }] };
       if (file === "whoami.txt") {
         return {
           output: [
             prompt(`${ctx.displayName ?? ctx.username}`),
-            { text: `@ ${ctx.username}`, kind: "dim" },
+            { text: t("interactiveTerminal.whoamiHandle", { username: ctx.username }), kind: "dim" },
           ],
         };
       }
       if (file === "bio.txt") {
-        if (!ctx.bio) return { output: [{ text: "bio.txt is empty", kind: "dim" }] };
+        if (!ctx.bio) return { output: [{ text: t("interactiveTerminal.catEmptyBio"), kind: "dim" }] };
         return { output: [{ text: ctx.bio }] };
       }
-      return { output: [{ text: `cat: ${args[0]}: No such file or directory`, kind: "dim" }] };
+      return { output: [{ text: t("interactiveTerminal.catNoSuchFile", { path: args[0] }), kind: "dim" }] };
     }
 
     case "open": {
       const needle = args[0];
-      if (!needle) return { output: [{ text: "usage: open <link> [index]", kind: "dim" }] };
+      if (!needle) return { output: [{ text: t("interactiveTerminal.openUsage"), kind: "dim" }] };
       const matches = findLinks(ctx, needle);
       if (matches.length === 0) {
-        return { output: [{ text: `open: ${needle}: no such link`, kind: "dim" }] };
+        return { output: [{ text: t("interactiveTerminal.openNoSuchLink", { needle }), kind: "dim" }] };
       }
       if (matches.length > 1 && args.length < 2) {
         return {
           output: [
-            { text: `${matches.length} '${needle}' links found:`, kind: "dim" },
-            ...matches.map((m, i) => ({ text: `[${i}] ${m.name} — ${m.url}`, kind: "dim" }) as TerminalLine),
-            { text: `Run 'open ${needle} <index>' to pick one.`, kind: "dim" },
+            { text: t("interactiveTerminal.openMultipleFound", { num: matches.length, needle }), kind: "dim" },
+            ...matches.map(
+              (m, i) =>
+                ({
+                  text: t("interactiveTerminal.openMultipleItem", { index: i, name: m.name, url: m.url }),
+                  kind: "dim",
+                }) as TerminalLine,
+            ),
+            { text: t("interactiveTerminal.openPickOne", { needle }), kind: "dim" },
           ],
         };
       }
@@ -186,7 +215,16 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
         const idx = Number(args[1]);
         if (!Number.isInteger(idx) || idx < 0 || idx >= matches.length) {
           return {
-            output: [{ text: `open: ${needle}: invalid index '${args[1]}' (expected 0-${matches.length - 1})`, kind: "dim" }],
+            output: [
+              {
+                text: t("interactiveTerminal.openInvalidIndex", {
+                  needle,
+                  value: args[1],
+                  max: matches.length - 1,
+                }),
+                kind: "dim",
+              },
+            ],
           };
         }
         link = matches[idx];
@@ -194,15 +232,15 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
       const copy = !/^(https?:|mailto:)/i.test(link.url);
       const output: TerminalLine[] = [
         copy
-          ? { text: `Copied ${link.name} to clipboard.`, kind: "dim" }
-          : { text: `Opening ${link.name}...`, kind: "dim" },
+          ? { text: t("interactiveTerminal.openCopied", { name: link.name }), kind: "dim" }
+          : { text: t("interactiveTerminal.openOpening", { name: link.name }), kind: "dim" },
       ];
       if (!copy) output.push({ text: link.url, url: link.url });
       return { output, open: { url: link.url, copy } };
     }
 
     case "date":
-      return { output: [{ text: new Date().toLocaleString() }] };
+      return { output: [{ text: formatDateTime(new Date()) }] };
 
     case "echo":
       return rest ? { output: [{ text: rest }] } : { output: [] };
@@ -211,13 +249,13 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
       return { output: [], clear: true };
 
     case "cmatrix":
-      return { output: [{ text: "Entering the Matrix...", kind: "dim" }], matrixRain: true };
+      return { output: [{ text: t("interactiveTerminal.cmatrix"), kind: "dim" }], matrixRain: true };
 
     case "ed":
       return {
         output: [
-          { text: "ed is the standard text editor.", kind: "dim" },
-          { text: "This is not a joke. Only heroes use ed.", kind: "dim" },
+          { text: t("interactiveTerminal.edLine1"), kind: "dim" },
+          { text: t("interactiveTerminal.edLine2"), kind: "dim" },
         ],
       };
 
@@ -227,27 +265,28 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
           ...FACE_ART.map((l) => ({ text: l, kind: "dim" }) as TerminalLine),
           prompt(`${ctx.username}@${ctx.host}`),
           { text: "-".repeat(Math.max(ctx.username.length + ctx.host.length + 1, 12)), kind: "dim" },
-          { text: `OS:        ${ctx.brand} Web`, kind: "dim" },
-          { text: `Host:      ${ctx.displayName ?? ctx.username}'s PC`, kind: "dim" },
-          { text: "Kernel:    6.9.0-bio", kind: "dim" },
-          { text: "Uptime:    0 days (just booted)", kind: "dim" },
-          { text: "Shell:     zsh 5.9", kind: "dim" },
-          { text: "Resolution: 1920x1080", kind: "dim" },
-          { text: "WM:        None", kind: "dim" },
-          { text: "Terminal:  bio-term", kind: "dim" },
-          { text: `Theme:     ${ctx.username}`, kind: "dim" },
-          { text: "CPU:       1 core @ powered by will", kind: "dim" },
-          { text: "Memory:    plenty", kind: "dim" },
+          { text: t("interactiveTerminal.neofetchOs", { brand: ctx.brand }), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchHost", { name: ctx.displayName ?? ctx.username }), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchKernel"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchUptime"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchShell"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchResolution"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchWm"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchTerminal"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchTheme", { username: ctx.username }), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchCpu"), kind: "dim" },
+          { text: t("interactiveTerminal.neofetchMemory"), kind: "dim" },
         ],
       };
 
     case "matrix":
       return {
         output: [
-          { text: "Wake up, Neo...", kind: "accent" },
-          { text: "The Matrix has you...", kind: "accent" },
-          { text: "Follow the white rabbit.", kind: "accent" },
-          { text: "Knock, knock, Neo.", kind: "accent" },
+          { text: t("interactiveTerminal.matrixLine1"), kind: "accent" },
+          { text: t("interactiveTerminal.matrixLine2"), kind: "accent" },
+          { text: t("interactiveTerminal.matrixLine3"), kind: "accent" },
+          { text: t("interactiveTerminal.matrixLine4"), kind: "accent" },
+          // Binary signal line — intentionally not translated (it is not language).
           { text: "01001001 00100000 01101011 01101110 01101111 01110111", kind: "dim" },
         ],
       };
@@ -258,16 +297,16 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
     case "sudo":
       return {
         output: [
-          { text: `${ctx.username} is not in the sudoers file.`, kind: "dim" },
-          { text: "This incident will be reported. (to a real sysadmin)", kind: "dim" },
+          { text: t("interactiveTerminal.sudoNotInSudoers", { username: ctx.username }), kind: "dim" },
+          { text: t("interactiveTerminal.sudoReported"), kind: "dim" },
         ],
       };
 
     case "exit":
-      return { output: [{ text: "There is no escape from the terminal.", kind: "dim" }] };
+      return { output: [{ text: t("interactiveTerminal.exitNoEscape"), kind: "dim" }] };
 
     case "vim":
-      return { output: [{ text: "real programmers use ed.", kind: "dim" }] };
+      return { output: [{ text: t("interactiveTerminal.vimEd"), kind: "dim" }] };
 
     case "pwd":
       return { output: [{ text: `/home/${ctx.username}`, kind: "dim" }] };
@@ -288,8 +327,8 @@ export function runCommand(raw: string, ctx: TerminalContext): TerminalResult {
       }
       return {
         output: [
-          { text: `zsh: command not found: ${cmd}`, kind: "dim" },
-          { text: HINT_TEXT, kind: "dim" },
+          { text: t("interactiveTerminal.commandNotFound", { cmd }), kind: "dim" },
+          { text: getHintText(t), kind: "dim" },
         ],
       };
     }

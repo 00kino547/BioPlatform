@@ -54,6 +54,7 @@ Durante cada pasada de limpieza de huérfanos, tras la poda por antigüedad, se 
 | `S3_FORCE_PATH_STYLE` | `true` para MinIO. |
 | `B2_APPLICATION_KEY_ID` / `B2_APPLICATION_KEY` | Credenciales B2. |
 | `B2_BUCKET` | Contenedor B2 (se crea automáticamente si no existe). |
+| `B2_BUCKET_ID` | ID de contenedor preconocido opcional — necesario para claves de aplicación sin la capacidad `listBuckets`. |
 | `B2_PREFIX` | Prefijo de clave opcional. |
 | `B2_API_URL` | URL base de la API B2 (predeterminado `https://api.backblazeb2.com`). |
 | `STORAGE_COMPRESS_ENABLED` | gzip en reposo para proveedores de nube. |

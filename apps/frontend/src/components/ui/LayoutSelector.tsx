@@ -1,32 +1,27 @@
-import { LayoutGrid, LayoutList, Rows3, PanelLeft, AlignCenter, Sparkles, Minimize2, Columns3, GalleryVerticalEnd, SquareDashedBottom, SquareTerminal, Camera, PanelTop } from "lucide-react";
 import type { LayoutName } from "@/lib/api";
+import { useTranslation } from "react-i18next";
+import { LAYOUT_META } from "./layoutMeta";
 
-export const LAYOUT_META: { id: LayoutName; label: string; hint: string; icon: typeof LayoutGrid }[] = [
-  { id: "default", label: "Default", hint: "Simple centered card", icon: LayoutGrid },
-  { id: "grid", label: "Grid", hint: "2-column icon tiles", icon: Columns3 },
-  { id: "compact", label: "Compact", hint: "Tight single-column", icon: Minimize2 },
-  { id: "wide", label: "Wide", hint: "Full-width 3 columns", icon: Rows3 },
-  { id: "glassmorphism", label: "Glass", hint: "Frosted glass card", icon: Sparkles },
-  { id: "minimal", label: "Minimal", hint: "Clean, borderless", icon: AlignCenter },
-  { id: "sidebar", label: "Sidebar", hint: "Avatar beside content", icon: PanelLeft },
-  { id: "editorial", label: "Editorial", hint: "Masthead + hairlines", icon: LayoutList },
-  { id: "hero", label: "Hero", hint: "Big centered hero", icon: GalleryVerticalEnd },
-  { id: "bento", label: "Bento", hint: "Mixed-size tiles", icon: SquareDashedBottom },
-  { id: "terminal", label: "Terminal", hint: "Hacker monospace card", icon: SquareTerminal },
-  { id: "polaroid", label: "Polaroid", hint: "Tilted photo frame", icon: Camera },
-  { id: "topbar", label: "Topbar", hint: "Horizontal nav header", icon: PanelTop },
-];
-
+// Layout catalogue consumed outside this component (e.g. the landing showcase).
+// Labels/hints stay the English defaults; LayoutSelector below overlays the
+// translated values from the `common` namespace keyed by layout id.
 interface LayoutSelectorProps {
   value: LayoutName | null | undefined;
   onChange: (layout: LayoutName | null) => void;
 }
 
 export function LayoutSelector({ value, onChange }: LayoutSelectorProps) {
+  const { t } = useTranslation("common");
+  // Overlay translated label/hint on the shared catalogue, keyed by layout id.
+  const meta = LAYOUT_META.map((l) => ({
+    ...l,
+    label: t(`layoutSelector.${l.id}.label`),
+    hint: t(`layoutSelector.${l.id}.hint`),
+  }));
   const current = value ?? "default";
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {LAYOUT_META.map((l) => {
+      {meta.map((l) => {
         const Icon = l.icon;
         const selected = current === l.id;
         return (

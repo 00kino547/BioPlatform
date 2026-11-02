@@ -11,7 +11,7 @@
 import path from "path";
 import { prisma } from "./prisma.js";
 import { deleteUpload } from "./mediaStore.js";
-import { dispatchWebhookEvent, dispatchWebhookEventAsync } from "./webhook.js";
+import { dispatchWebhookEventAsync } from "./webhook.js";
 
 export interface DeleteAccountContext {
   /**
@@ -60,8 +60,14 @@ export async function deleteUserCompletely(userId: string, ctx: DeleteAccountCon
     throw new SelfDeletionError();
   }
 
-  // Fire-and-forget webhook BEFORE the row disappears (the async variant
-  // snapshots the payload immediately, so the delete cannot lose it).
+  // Deliver user.deleted BEFORE the row disappears. This is the ONLY dispatch:
+  // the async variant snapshots the payload immediately (so the user delete
+  // cannot lose it), and the user's webhook endpoints are cascade-deleted
+  // inside the transaction below — a dispatch after the commit would find no
+  // subscribers at all, so a former duplicate there only risked racing the
+  // first delivery into double sends. Transient delivery failures here mark
+  // the delivery for retry before the rows vanish; a permanently failed one is
+  // lost, which is the accepted cost of per-user webhooks dying with the user.
   await dispatchWebhookEventAsync(user.id, "user.deleted", {
     username: user.username,
     deletedAt: new Date().toISOString(),
@@ -97,9 +103,4 @@ export async function deleteUserCompletely(userId: string, ctx: DeleteAccountCon
       }
     }
   }
-
-  dispatchWebhookEvent(user.id, "user.deleted", {
-    username: user.username,
-    deletedAt: new Date().toISOString(),
-  });
 }

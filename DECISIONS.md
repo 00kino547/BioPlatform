@@ -43,6 +43,23 @@
 ## IntersectionObserver scroll-reveal
 
 - No external animation library needed
+
+## UI i18n: react-i18next + config gate + bundled locales
+
+- `i18next` + `react-i18next`; locale files (`locales/<lng>/<ns>.json`) bundled statically, no per-namespace lazy load
+- Activation gated by `config.yml public.i18n.enabled` (default `false`) via `GET /api/config`; switcher hidden unless enabled with >1 locale
+- Locale resolution: stored `localStorage` preference → `Accept-Language` → instance `defaultLocale`
+- English is the source of truth; Spanish ships as a byte-identical English placeholder until community translation
+- Brand names/trademarks are never translated; inline markup preserved with `<Trans>` tags (no `dangerouslySetInnerHTML`)
+- Active locale drives `<html lang/dir>` (RTL-ready), `og:locale`, and all dates/numbers/currency
+
+## Community translation: self-hosted Weblate
+
+- Opt-in `weblate` Docker Compose profile with dedicated, internal-only Postgres + Redis (no published ports)
+- Git source = repo origin; separate Weblate projects target `public-canary` and `main`, each component pushes only to its own `weblate_canary_<component>` or `weblate_main_<component>` branch, then opens a reviewable PR; direct pushes to target branches are forbidden
+- Machine translation is suggestion-only, never auto-committed
+- Locales are bundled at build time, so a merged translation needs a frontend rebuild to ship
+
 - CSS transitions for GPU-accelerated reveals
 - Staggered reveals via `delay` prop
 

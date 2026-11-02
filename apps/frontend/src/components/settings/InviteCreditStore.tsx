@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   api,
   type InvitePack,
@@ -6,6 +7,7 @@ import {
   type InvitePurchaseSummary,
 } from "@/lib/api";
 import { Check, Copy, CreditCard, Loader2, Mail, ShoppingBag, TriangleAlert } from "lucide-react";
+import { formatCurrency, formatDateTime } from "@/lib/intl";
 
 // The paid-invite storefront.
 //
@@ -15,15 +17,15 @@ import { Check, Copy, CreditCard, Loader2, Mail, ShoppingBag, TriangleAlert } fr
 // component rather than keeping two copies of the checkout logic.
 
 const METHODS = [
-  { value: "STRIPE", label: "Card" },
-  { value: "PAYPAL", label: "PayPal" },
-  { value: "CRYPTO", label: "Crypto" },
-  { value: "MANUAL", label: "Pay by hand" },
+  { value: "STRIPE" },
+  { value: "PAYPAL" },
+  { value: "CRYPTO" },
+  { value: "MANUAL" },
 ] as const;
 
 function money(cents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+    return formatCurrency(cents, currency);
   } catch {
     // A malformed currency must not take the whole checkout down.
     return `${(cents / 100).toFixed(2)} ${currency}`;
@@ -49,6 +51,8 @@ export function InviteCreditStore({
   defaultMethod?: (typeof METHODS)[number]["value"];
   onPurchased?: (order: InvitePurchaseSummary) => void;
 }) {
+  // All user-facing strings come from the `dashboard` namespace (inviteStore.* keys).
+  const { t } = useTranslation("dashboard");
   const [store, setStore] = useState<InvitePurchaseStore | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<InvitePack | null>(null);
@@ -71,11 +75,11 @@ export function InviteCreditStore({
         setSelected((current) => current ?? res.data!.packs[0] ?? null);
       }
     } catch {
-      setNotice({ tone: "err", text: "Could not load the invite store." });
+      setNotice({ tone: "err", text: t("inviteStore.toasts.loadFailed") });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -111,7 +115,7 @@ export function InviteCreditStore({
   const buy = async () => {
     if (!selected) return;
     if (showEmailField && !email.trim()) {
-      setNotice({ tone: "err", text: "Enter the email the codes should be sent to." });
+      setNotice({ tone: "err", text: t("inviteStore.toasts.enterEmail") });
       return;
     }
     setBusy(true);
@@ -124,7 +128,7 @@ export function InviteCreditStore({
     setBusy(false);
 
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not start the purchase." });
+      setNotice({ tone: "err", text: res.error ?? t("inviteStore.toasts.purchaseFailed") });
       return;
     }
 
@@ -139,8 +143,8 @@ export function InviteCreditStore({
       tone: "ok",
       text:
         method === "MANUAL"
-          ? "Order created. The operator will confirm it shortly."
-          : "Order created. Your codes arrive by email once it is confirmed.",
+          ? t("inviteStore.toasts.orderCreatedManual")
+          : t("inviteStore.toasts.orderCreatedEmail"),
     });
     // Kept as a separate, always-visible line rather than folded into the notice
     // above: "check spam" is the instruction that decides whether a buyer finds
@@ -152,7 +156,7 @@ export function InviteCreditStore({
   const copy = async (orderId: string) => {
     const res = await api.getOwnInviteClaimLink(orderId);
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not get the link." });
+      setNotice({ tone: "err", text: res.error ?? t("inviteStore.toasts.linkFailed") });
       return;
     }
     await navigator.clipboard.writeText(res.data.url);
@@ -163,7 +167,7 @@ export function InviteCreditStore({
   if (loading) {
     return (
       <p className="text-sm text-zinc-500" role="status">
-        Loading…
+        {t("inviteStore.loading")}
       </p>
     );
   }
@@ -172,7 +176,7 @@ export function InviteCreditStore({
     return (
       <p className="flex items-start gap-2 text-sm text-zinc-500">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        The invite store is unavailable right now.
+        {t("inviteStore.unavailable")}
       </p>
     );
   }
@@ -182,10 +186,7 @@ export function InviteCreditStore({
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
         <p className="flex items-start gap-2 text-sm text-zinc-400">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <span>
-            Invite credits are not for sale on this instance. If you have an invite code, you can
-            still use it to register.
-          </span>
+          <span>{t("inviteStore.notForSale")}</span>
         </p>
       </div>
     );
@@ -209,18 +210,18 @@ export function InviteCreditStore({
               }`}
             >
               <p className="text-sm text-zinc-400">
-                {pack.quantity} invite credit{pack.quantity === 1 ? "" : "s"}
+                {t("inviteStore.packCredits", { count: pack.quantity, s: pack.quantity === 1 ? "" : "s" })}
               </p>
               <p className="mt-1 text-2xl font-semibold text-white">
                 {money(pack.priceCents, store.currency)}
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                {money(pack.unitCents, store.currency)} each
+                {t("inviteStore.each", { amount: money(pack.unitCents, store.currency) })}
               </p>
               {pack.bestValue && (
                 <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                   <Check className="h-3 w-3" aria-hidden />
-                  Best value
+                  {t("inviteStore.bestValue")}
                 </p>
               )}
             </button>
@@ -232,7 +233,7 @@ export function InviteCreditStore({
         {showEmailField && (
           <div>
             <label htmlFor="invite-buy-email" className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Where should the codes go?
+              {t("inviteStore.emailLabel")}
             </label>
             <div className="relative">
               <Mail
@@ -245,28 +246,21 @@ export function InviteCreditStore({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={t("inviteStore.emailPlaceholder")}
                 className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 py-2.5 pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
               />
             </div>
-            <p className="mt-1.5 text-xs text-zinc-500">
-              You do not need an account to buy. Redeem one of the codes to register, and the
-              remaining codes are added to your new account automatically.
-            </p>
+            <p className="mt-1.5 text-xs text-zinc-500">{t("inviteStore.emailHint")}</p>
             {spamHint && (
               <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-                <strong>Check your spam folder.</strong> Your codes are delivered by email as soon
-                as the payment is confirmed, and automated mail from a new domain is often filed
-                straight into junk — it is not a sign that anything went wrong. If it has not
-                arrived, search for the sender address and mark it as "not spam" so future mail
-                reaches your inbox.
+                <strong>{t("inviteStore.spamTitle")}</strong> {t("inviteStore.spamBody")}
               </p>
             )}
           </div>
         )}
 
         <div>
-          <span className="mb-1.5 block text-sm font-medium text-zinc-300">Payment method</span>
+          <span className="mb-1.5 block text-sm font-medium text-zinc-300">{t("inviteStore.paymentMethod")}</span>
           <div className="flex flex-wrap gap-2">
             {offeredMethods.map((option) => (
               <button
@@ -280,7 +274,7 @@ export function InviteCreditStore({
                     : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-700 hover:text-white"
                 }`}
               >
-                {option.label}
+                {t(`inviteStore.methods.${option.value.toLowerCase()}`)}
               </button>
             ))}
           </div>
@@ -293,10 +287,15 @@ export function InviteCreditStore({
           {method === "MANUAL" && store.manualPayment.configured ? (
             <div className="mt-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
               <p className="text-xs text-zinc-500">
-                Send payment to{" "}
-                <span className="font-medium text-zinc-200">{store.manualPayment.value}</span>{" "}
-                <span className="capitalize">({store.manualPayment.method})</span>, then reference your order.
-                The operator confirms this by hand, so it is not instant.
+                <Trans
+                  ns="dashboard"
+                  i18nKey="inviteStore.sendPaymentTo"
+                  values={{ value: store.manualPayment.value, method: store.manualPayment.method }}
+                  components={{
+                    0: <span className="font-medium text-zinc-200" />,
+                    1: <span className="capitalize" />,
+                  }}
+                />
               </p>
             </div>
           ) : null}
@@ -327,23 +326,27 @@ export function InviteCreditStore({
             <ShoppingBag className="h-4 w-4" aria-hidden />
           )}
           {selected
-            ? `Buy ${selected.quantity} credit${selected.quantity === 1 ? "" : "s"} for ${money(selected.priceCents, store.currency)}`
-            : "Select a pack"}
+            ? t("inviteStore.buy", {
+                quantity: selected.quantity,
+                s: selected.quantity === 1 ? "" : "s",
+                amount: money(selected.priceCents, store.currency),
+              })
+            : t("inviteStore.selectPack")}
         </button>
 
         {store.resale.clause !== "none" && (
           <p className="text-xs text-zinc-500">
             <CreditCard className="mr-1 inline h-3.5 w-3.5" aria-hidden />
             {store.resale.clause === "prohibited"
-              ? "This instance does not permit invite codes to be resold. See the Terms."
-              : "Invite codes on this instance may be resold. See the Terms."}
+              ? t("inviteStore.resaleProhibited")
+              : t("inviteStore.resalePermitted")}
           </p>
         )}
       </div>
 
       {history.length > 0 && (
         <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
-          <h3 className="text-sm font-semibold text-white">Your purchases</h3>
+          <h3 className="text-sm font-semibold text-white">{t("inviteStore.yourPurchases")}</h3>
           <ul className="mt-3 space-y-2">
             {history.map((order) => (
               <li
@@ -352,11 +355,14 @@ export function InviteCreditStore({
               >
                 <div>
                   <p className="text-sm text-white">
-                    {order.quantity} credit{order.quantity === 1 ? "" : "s"} ·{" "}
-                    {money(order.priceCents, order.currency)}
+                    {t("inviteStore.orderLine", {
+                      quantity: order.quantity,
+                      s: order.quantity === 1 ? "" : "s",
+                      amount: money(order.priceCents, order.currency),
+                    })}
                   </p>
                   <p className="text-xs text-zinc-500">
-                    {order.status.toLowerCase()} · {new Date(order.createdAt).toLocaleString()}
+                    {order.status.toLowerCase()} · {formatDateTime(order.createdAt)}
                   </p>
                 </div>
                 {order.status === "PAID" && (
@@ -370,7 +376,7 @@ export function InviteCreditStore({
                     ) : (
                       <Copy className="h-3.5 w-3.5" aria-hidden />
                     )}
-                    {copied === order.id ? "Link copied" : "Copy claim link"}
+                    {copied === order.id ? t("inviteStore.linkCopied") : t("inviteStore.copyClaimLink")}
                   </button>
                 )}
               </li>

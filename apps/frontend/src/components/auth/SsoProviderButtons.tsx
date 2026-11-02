@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api, type EnterpriseSsoPublicConfig, type OAuthConfig, type OAuthProvider } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
@@ -30,7 +31,9 @@ function DiscordIcon() {
   );
 }
 
-const PROVIDER_LABEL: Record<OAuthProvider, string> = {
+// Brand names are trademarks and are never translated. This maps the provider
+// data key (used in API calls and lookups) to its raw, untranslated display label.
+const PROVIDER_BRANDS: Record<OAuthProvider, string> = {
   google: "Google",
   github: "GitHub",
   discord: "Discord",
@@ -45,6 +48,7 @@ interface SsoProviderButtonsProps {
 }
 
 export function SsoProviderButtons({ mode = "login", invite, className, dividerLabel }: SsoProviderButtonsProps) {
+  const { t } = useTranslation("auth");
   const [config, setConfig] = useState<OAuthConfig | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
@@ -62,17 +66,17 @@ export function SsoProviderButtons({ mode = "login", invite, className, dividerL
       try {
         const res = await api.ssoStart(provider, mode, invite);
         if (!res.success || !res.data?.redirectUrl) {
-          setError(res.error ?? "Could not start sign-in");
+          setError(res.error ?? t("sso.startFailed"));
           return;
         }
         window.location.href = res.data.redirectUrl;
       } catch {
-        setError("Could not start sign-in");
+        setError(t("sso.startFailed"));
       } finally {
         setBusy(null);
       }
     },
-    [mode, invite]
+    [mode, invite, t]
   );
 
   if (!config || config.providers.length === 0) return null;
@@ -98,7 +102,7 @@ export function SsoProviderButtons({ mode = "login", invite, className, dividerL
             disabled={busy !== null}
           >
             {ProviderIcon(provider)}
-            {busy === provider ? "Redirecting..." : `Continue with ${PROVIDER_LABEL[provider]}`}
+            {busy === provider ? t("sso.redirecting") : t("sso.continueWith", { provider: PROVIDER_BRANDS[provider] })}
           </Button>
         ))}
       </div>
@@ -132,6 +136,7 @@ function ProviderMark({ provider }: { provider: EnterpriseSsoPublicConfig }) {
 }
 
 export function EnterpriseSsoButtons({ className }: EnterpriseSsoButtonsProps) {
+  const { t } = useTranslation("auth");
   const [providers, setProviders] = useState<EnterpriseSsoPublicConfig[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -166,16 +171,16 @@ export function EnterpriseSsoButtons({ className }: EnterpriseSsoButtonsProps) {
     try {
       const res = await api.ssoEnterpriseStart(configId, "login");
       if (!res.success || !res.data?.redirectUrl) {
-        setError(res.error ?? "Could not start sign-in");
+        setError(res.error ?? t("sso.startFailed"));
         return;
       }
       window.location.href = res.data.redirectUrl;
     } catch {
-      setError("Could not start sign-in");
+      setError(t("sso.startFailed"));
     } finally {
       setBusy(null);
     }
-  }, []);
+  }, [t]);
 
   if (providers.length === 0) return null;
 
@@ -199,7 +204,7 @@ export function EnterpriseSsoButtons({ className }: EnterpriseSsoButtonsProps) {
             disabled={busy !== null}
           >
             <ProviderMark provider={provider} />
-            {busy === provider.id ? "Redirecting..." : `Continue with ${provider.displayName}`}
+            {busy === provider.id ? t("sso.redirecting") : t("sso.continueWith", { provider: provider.displayName })}
           </Button>
         </div>
       </div>
@@ -219,17 +224,17 @@ export function EnterpriseSsoButtons({ className }: EnterpriseSsoButtonsProps) {
           aria-expanded={open}
         >
           <Building2 className="h-4.5 w-4.5 text-zinc-300" />
-          Business SSO
+          {t("enterpriseSso.title")}
           <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`} />
         </Button>
         {open && (
           <div
             role="menu"
-            aria-label="Sign in with your organization"
+            aria-label={t("enterpriseSso.signInWithOrganization")}
             className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
           >
             <div className="border-b border-zinc-800/60 px-4 py-2 text-xs text-zinc-500">
-              Sign in with your organization
+              {t("enterpriseSso.signInWithOrganization")}
             </div>
             {providers.map((provider) => (
               <button

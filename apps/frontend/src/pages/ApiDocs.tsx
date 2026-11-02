@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { branding } from "@/config/branding";
@@ -27,27 +28,46 @@ const METHOD_COLORS: Record<string, string> = {
   delete: "bg-red-500/15 text-red-400",
 };
 
-function propertySummary(props: Record<string, { type?: string; enum?: string[]; format?: string; minLength?: number; maxLength?: number; description?: string }> | undefined): string {
+function propertySummary(
+  props: Record<string, { type?: string; enum?: string[]; format?: string; minLength?: number; maxLength?: number; description?: string }> | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
   if (!props) return "";
   const parts = Object.entries(props).map(([name, p]) => {
-    const type = p.type ?? "string";
-    const constraints = [p.format, p.enum ? p.enum.join("|") : undefined, p.minLength != null ? `min ${p.minLength}` : undefined, p.maxLength != null ? `max ${p.maxLength}` : undefined].filter(Boolean).join(", ");
-    return `${name} (${type}${constraints ? `: ${constraints}` : ""})`;
+    const type = p.type ?? t("apiDocs.typeDefault");
+    const constraints = [
+      p.format,
+      p.enum ? p.enum.join("|") : undefined,
+      p.minLength != null ? t("apiDocs.constraintMin", { min: p.minLength }) : undefined,
+      p.maxLength != null ? t("apiDocs.constraintMax", { max: p.maxLength }) : undefined,
+    ]
+      .filter(Boolean)
+      .join(t("apiDocs.constraintSeparator"));
+    return t("apiDocs.property", {
+      name,
+      type,
+      constraints: constraints ? t("apiDocs.propertyConstraints", { constraints }) : "",
+    });
   });
-  return parts.join(" · ");
+  return parts.join(t("apiDocs.listSeparator"));
 }
 
 export function ApiDocs() {
+  const { t } = useTranslation("legal");
   const [doc, setDoc] = useState<OpenApiDocument | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  usePageMeta({ title: "API Documentation", description: `Explore the ${branding.name} public API — endpoints, parameters, and examples.`, url: "/api-docs" });
+  usePageMeta({
+    title: t("apiDocs.metaTitle"),
+    description: t("apiDocs.metaDescription", { app: branding.name }),
+    url: "/api-docs",
+  });
 
   useEffect(() => {
     fetch("/api/openapi.json")
       .then((res) => {
-        if (!res.ok) throw new Error("Could not load API spec");
+        if (!res.ok) throw new Error(t("apiDocs.error"));
         return res.json() as Promise<OpenApiDocument>;
       })
       .then((data) => {
@@ -55,10 +75,10 @@ export function ApiDocs() {
         setLoading(false);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Could not load API spec");
+        setError(err instanceof Error ? err.message : t("apiDocs.error"));
         setLoading(false);
       });
-  }, []);
+  }, [t]);
 
   const paths = doc?.paths ?? {};
   const grouped = Object.entries(paths).map(([path, methods]) => ({
@@ -70,19 +90,20 @@ export function ApiDocs() {
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
-        <h1 className="text-3xl font-bold text-white">API Reference</h1>
+        <h1 className="text-3xl font-bold text-white">{t("apiDocs.heading")}</h1>
         <p className="text-sm text-zinc-400 mt-2">
-          {branding.name} REST API — OpenAPI 3.0. Raw spec available at{" "}
-          <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-300">/api/openapi.json</code>
+          {t("apiDocs.subtitle", { app: branding.name, specPath: t("apiDocs.specPath") })}
         </p>
         <p className="text-sm text-zinc-500 mt-4 leading-relaxed">
-          Most endpoints require an <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">Authorization: Bearer &lt;token&gt;</code> header.
-          Tokens are returned by <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">POST /api/auth/login</code> and{" "}
-          <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">POST /api/auth/register</code>. Errors use a consistent{" "}
-          <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{ success: false, error: string }"}</code> shape.
+          {t("apiDocs.authIntro", {
+            header: t("apiDocs.authHeader"),
+            login: t("apiDocs.loginEndpoint"),
+            register: t("apiDocs.registerEndpoint"),
+            shape: t("apiDocs.errorShape"),
+          })}
         </p>
 
-        {loading && <p className="text-sm text-zinc-500 mt-8">Loading API spec...</p>}
+        {loading && <p className="text-sm text-zinc-500 mt-8">{t("apiDocs.loading")}</p>}
         {error && (
           <div className="mt-8 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{error}</div>
         )}
@@ -105,7 +126,7 @@ export function ApiDocs() {
                         </span>
                         {op.summary && <span className="text-sm font-medium text-white">{op.summary}</span>}
                         {op.security === undefined && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">public</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">{t("apiDocs.public")}</span>
                         )}
                       </div>
 
@@ -113,7 +134,7 @@ export function ApiDocs() {
 
                       {op.parameters && op.parameters.length > 0 && (
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-zinc-400 mb-1">Parameters</p>
+                          <p className="text-xs font-medium text-zinc-400 mb-1">{t("apiDocs.parameters")}</p>
                           <div className="flex flex-wrap gap-2">
                             {op.parameters.map((p) => (
                               <span key={`${p.in}-${p.name}`} className="text-xs px-2.5 py-1 rounded-md bg-zinc-800/80 text-zinc-300">
@@ -127,7 +148,7 @@ export function ApiDocs() {
 
                       {op.requestBody && (
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-zinc-400 mb-1">Request body</p>
+                          <p className="text-xs font-medium text-zinc-400 mb-1">{t("apiDocs.requestBody")}</p>
                           <div className="rounded-lg bg-zinc-950/60 border border-zinc-800 px-3 py-2">
                             {Object.entries(op.requestBody.content ?? {}).map(([contentType, body]) => {
                               const props = body.schema?.type === "object" ? body.schema.properties : undefined;
@@ -137,9 +158,9 @@ export function ApiDocs() {
                                   <code className="text-xs text-zinc-500">{contentType}</code>
                                   {props && (
                                     <p className="text-xs text-zinc-300 mt-1">
-                                      {propertySummary(props)}
+                                      {propertySummary(props, t)}
                                       {required && required.length > 0 ? (
-                                        <span className="text-zinc-500"> — required: {required.join(", ")}</span>
+                                        <span className="text-zinc-500">{t("apiDocs.requiredList", { list: required.join(", ") })}</span>
                                       ) : (
                                         ""
                                       )}
@@ -155,7 +176,7 @@ export function ApiDocs() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         {Object.keys(op.responses ?? {}).map((status) => (
                           <span key={status} className="text-xs px-2.5 py-1 rounded-full bg-zinc-800/80 text-zinc-400">
-                            {status} {op.responses?.[status]?.description ?? ""}
+                            {t("apiDocs.responseStatus", { status, description: op.responses?.[status]?.description ?? "" })}
                           </span>
                         ))}
                       </div>

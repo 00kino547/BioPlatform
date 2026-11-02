@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Coins, Copy, CheckCircle2, X, ExternalLink } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -22,6 +23,7 @@ const COINS: { id: TipCoin; label: string; color: string }[] = [
 const AMOUNTS = ["0.001", "0.005", "0.01", "0.05", "0.1", "0.5"];
 
 export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, textColor, mutedColor }: TipBlockProps) {
+  const { t } = useTranslation("profile");
   const [open, setOpen] = useState(false);
   const [coin, setCoin] = useState<TipCoin>("BTC");
   const [amount, setAmount] = useState("0.01");
@@ -53,7 +55,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
     if (res.success && res.data) {
       setPayment(res.data.payment);
     } else {
-      setError(res.error ?? "Something went wrong. Please try again.");
+      setError(res.error ?? t("tipBlock.genericError"));
     }
     setSending(false);
   };
@@ -86,7 +88,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
         style={{ backgroundColor: `${accent}22`, color: accent, border: `1px solid ${accent}33` }}
       >
         <Coins className="h-4 w-4" />
-        {heading?.trim() || "Send a tip"}
+        {heading?.trim() || t("tipBlock.defaultHeading")}
       </button>
 
       {open && (
@@ -100,7 +102,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
               <X className="h-5 w-5" />
             </button>
 
-            <p className="text-sm font-semibold mb-3">{heading?.trim() || "Send a tip"}</p>
+            <p className="text-sm font-semibold mb-3">{heading?.trim() || t("tipBlock.defaultHeading")}</p>
 
             {hasBoth && (
               <div className="flex gap-1 mb-3 p-0.5 rounded-lg" style={{ backgroundColor: "#27272a" }}>
@@ -114,7 +116,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
                       color: coin === c.id ? "#18181b" : mutedColor,
                     }}
                   >
-                    {c.label}
+                    {c.id === "BTC" ? t("tipBlock.coinBitcoin") : t("tipBlock.coinLitecoin")}
                   </button>
                 ))}
               </div>
@@ -138,7 +140,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
               <input
                 type="text"
                 inputMode="decimal"
-                placeholder="Custom"
+                placeholder={t("tipBlock.custom")}
                 value={customAmount}
                 onChange={(e) => { setCustomAmount(e.target.value); setPayment(null); setError(""); }}
                 className="rounded-md px-2 py-1.5 text-xs font-medium outline-none"
@@ -148,7 +150,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
 
             <input
               type="text"
-              placeholder="Name (optional)"
+              placeholder={t("tipBlock.namePlaceholder")}
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
@@ -156,7 +158,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
               style={{ color: textColor }}
             />
             <textarea
-              placeholder="Message (optional)"
+              placeholder={t("tipBlock.messagePlaceholder")}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               maxLength={500}
@@ -179,7 +181,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
                       </button>
                     </div>
                     <p className="text-xs" style={{ color: mutedColor }}>
-                      Scan to send {finalAmount} {coin} or copy the address above
+                      {t("tipBlock.scanToSend", { amount: finalAmount, coin })}
                     </p>
                   </>
                 ) : payment.url ? (
@@ -190,11 +192,11 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
                     className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all hover:opacity-90"
                     style={{ backgroundColor: accent, color: "#18181b" }}
                   >
-                    Pay with {coin} via BTCPay
+                    {t("tipBlock.payWithBtcpay", { coin })}
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 ) : null}
-                <button onClick={reset} className="text-xs underline" style={{ color: mutedColor }}>Close</button>
+                <button onClick={reset} className="text-xs underline" style={{ color: mutedColor }}>{t("tipBlock.close")}</button>
               </div>
             ) : (
               <button
@@ -204,7 +206,7 @@ export function TipBlock({ profileId, heading, btcAddress, ltcAddress, accent, t
                 style={{ backgroundColor: accent, color: "#18181b" }}
               >
                 <Coins className="h-4 w-4" />
-                {sending ? "Sending…" : `Send ${finalAmount} ${coin}`}
+                {sending ? t("tipBlock.sending") : t("tipBlock.send", { amount: finalAmount, coin })}
               </button>
             )}
           </div>

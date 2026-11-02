@@ -67,6 +67,152 @@ services:
       timeout: 5s
       retries: 5
 
+  # Weblate — OPTIONAL self-hosted translation platform, behind an opt-in profile.
+  # It lets the community translate the UI's user-visible strings and opens a
+  # Pull Request against `main` with the translations. Start it with:
+  #   docker compose --profile weblate up -d
+  # It is fully isolated from the application stack: its OWN PostgreSQL and its
+  # OWN Redis (never the app's `postgres`/`redis`). It publishes one loopback
+  # port (WEBLATE_HOST_PORT, default 8080) so the `weblate` profile alone is
+  # usable without nginx. The operator can front that port with their own
+  # reverse proxy + TLS, or use the optional nginx vhost. See
+  # docs/en/translating.md (Spanish: docs/es/translating.md) for the full runbook.
+  #
+  # IMAGE TAGS ARE PINNED ON PURPOSE. `weblate/weblate:5` tracks the 5.x stable
+  # line; bump it deliberately after reviewing the Weblate upgrade notes
+  # (https://docs.weblate.org/en/latest/admin/upgrade.html) — a stray `latest`
+  # can pull a database-migrating release into a running instance.
+  weblate:
+    profiles: ["weblate"]
+    image: weblate/weblate:5
+    restart: unless-stopped
+    environment:
+      # Public hostname the operator's proxy serves Weblate on (host or host:port).
+      # Required by the image; drives absolute links in e-mails and the API.
+      WEBLATE_SITE_DOMAIN: ${WEBLATE_SITE_DOMAIN}
+      WEBLATE_SITE_TITLE: ${WEBLATE_SITE_TITLE:-BioPlatform translations}
+      # Admin account created on first boot. With WEBLATE_ADMIN_PASSWORD set the
+      # image creates/updates this account on every start, so keep the value in
+      # .env and change it there if you need to recover the login.
+      WEBLATE_ADMIN_NAME: ${WEBLATE_ADMIN_NAME}
+      WEBLATE_ADMIN_EMAIL: ${WEBLATE_ADMIN_EMAIL}
+      WEBLATE_ADMIN_PASSWORD: ${WEBLATE_ADMIN_PASSWORD}
+      # GitHub OAuth app so contributors sign in with their GitHub account
+      # (same provider they use to open the translation Pull Requests).
+      WEBLATE_SOCIAL_AUTH_GITHUB_KEY: ${WEBLATE_SOCIAL_AUTH_GITHUB_KEY}
+      WEBLATE_SOCIAL_AUTH_GITHUB_SECRET: ${WEBLATE_SOCIAL_AUTH_GITHUB_SECRET}
+      # Outgoing mail (registration, notifications, commit mail). Weblate's image
+      # reads these Django-style settings straight from the WEBLATE_* names.
+      WEBLATE_SERVER_EMAIL: ${WEBLATE_SERVER_EMAIL}
+      WEBLATE_DEFAULT_FROM_EMAIL: ${WEBLATE_DEFAULT_FROM_EMAIL}
+      WEBLATE_EMAIL_HOST: ${WEBLATE_EMAIL_HOST}
+      WEBLATE_EMAIL_PORT: ${WEBLATE_EMAIL_PORT}
+      WEBLATE_EMAIL_HOST_USER: ${WEBLATE_EMAIL_HOST_USER}
+      WEBLATE_EMAIL_HOST_PASSWORD: ${WEBLATE_EMAIL_HOST_PASSWORD}
+      WEBLATE_EMAIL_USE_TLS: ${WEBLATE_EMAIL_USE_TLS}
+      # Dedicated datastores — the service names below are only resolvable on the
+      # internal network, so Weblate can never reach the app's postgres/redis.
+      POSTGRES_HOST: weblate-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${WEBLATE_POSTGRES_DB:-weblate}
+      POSTGRES_USER: ${WEBLATE_POSTGRES_USER:-weblate}
+      POSTGRES_PASSWORD: ${WEBLATE_POSTGRES_PASSWORD}
+      REDIS_HOST: weblate-redis
+      REDIS_PORT: "6379"
+      # Operator terminates TLS in front of Weblate (no host port is published
+      # here). ENABLE_HTTPS makes Weblate emit https:// links and set secure
+      # cookies; without it Weblate 5.7+ refuses to start over WebAuthn checks.
+      WEBLATE_ENABLE_HTTPS: ${WEBLATE_ENABLE_HTTPS:-1}
+      WEBLATE_ALLOWED_HOSTS: ${WEBLATE_ALLOWED_HOSTS:-*}
+      # TLS terminates at the reverse proxy, so Weblate (5.13+ runs granian)
+      # MUST be told which header carries the client scheme, or it cannot know
+      # it is served over HTTPS and CSRF/origin checks fail. The header name
+      # and value are comma-separated and case-sensitive.
+      WEBLATE_SECURE_PROXY_SSL_HEADER: ${WEBLATE_SECURE_PROXY_SSL_HEADER:-HTTP_X_FORWARDED_PROTO,https}
+      # Public https origin(s) allowed to submit forms through the proxy.
+      WEBLATE_CSRF_TRUSTED_ORIGINS: ${WEBLATE_CSRF_TRUSTED_ORIGINS:-}
+      # Trust X-Forwarded-For only from our own proxy (the docker bridge range);
+      # the proxy overwrites the header, so a client cannot forge its address.
+      WEBLATE_IP_PROXY_HEADER: ${WEBLATE_IP_PROXY_HEADER:-HTTP_X_FORWARDED_FOR}
+      WEBLATE_TRUSTED_PROXY_ADDRESSES: ${WEBLATE_TRUSTED_PROXY_ADDRESSES:-172.16.0.0/12}
+      # Let contributors self-register; any language is welcome.
+      WEBLATE_REGISTRATION_OPEN: ${WEBLATE_REGISTRATION_OPEN:-1}
+      # Review-before-commit is the enforced workflow: new translations and source
+      # strings default to needing review/approval before they may be committed.
+      # Combined with the per-project review settings this is what keeps an
+      # unreviewed string out of a Pull Request. Machine translation is offered as
+      # SUGGESTIONS only — no automatic-translation add-on is enabled, so MT can
+      # never be committed on its own.
+      WEBLATE_DEFAULT_TRANSLATION_REVIEW: "1"
+      WEBLATE_DEFAULT_SOURCE_REVIEW: "1"
+      # Reference-only pass-through: the git remote used by both Weblate projects
+      # for translation Pull Requests (this repo's `origin`). Weblate reads
+      # project components' repo URLs from its database/UI, so configure it in
+      # each project; this variable keeps the value in .env, not in the image.
+      WEBLATE_GIT_REPO: ${WEBLATE_GIT_REPO}
+      # Credentials used to OPEN pull requests (the "GitHub" VCS). Configure
+      # GitHub VCS and a dedicated Push branch per component:
+      # weblate_canary_<component> -> public-canary; weblate_main_<component> -> main.
+      # Never use a target branch as Push branch. Use an SSH Push URL for each branch.
+      # Use a fine-grained PAT with contents:write and
+      # pull_requests:write on the target repo. Weblate 6 looks up credentials
+      # by GitHub API host.
+      WEBLATE_GITHUB_HOST: ${WEBLATE_GITHUB_HOST:-api.github.com}
+      WEBLATE_GITHUB_USERNAME: ${WEBLATE_GITHUB_USERNAME:-}
+      WEBLATE_GITHUB_TOKEN: ${WEBLATE_GITHUB_TOKEN:-}
+      WEBLATE_GPG_IDENTITY: ${WEBLATE_GPG_IDENTITY:-}
+      WEBLATE_DEFAULT_COMMITER_EMAIL: ${WEBLATE_DEFAULT_COMMITER_EMAIL:-noreply@weblate.org}
+      # Weblate's own CSP must allow its inline repository-page bootstrap.
+      # Cloudflare Insights is intentionally not allowed.
+      WEBLATE_CSP_SCRIPT_SRC: ${WEBLATE_CSP_SCRIPT_SRC:-'unsafe-inline'}
+    ports:
+      # Loopback-only, like every other host port in this file. Makes the
+      # `weblate` profile self-sufficient: `docker compose --profile weblate
+      # up -d` serves Weblate on http://127.0.0.1:${WEBLATE_HOST_PORT:-8080}
+      # without nginx. The nginx vhost (when enabled) keeps using the internal
+      # `weblate:8080` address, so exposing this port is optional for proxies.
+      - "127.0.0.1:${WEBLATE_HOST_PORT:-8080}:8080"
+      - "[::1]:${WEBLATE_HOST_PORT:-8080}:8080"
+    volumes:
+      # Weblate's DATA_DIR (cloned repos, uploaded screenshots, secrets, etc.).
+      - weblate_data:/app/data
+    depends_on:
+      weblate-postgres:
+        condition: service_healthy
+      weblate-redis:
+        condition: service_healthy
+
+  # Dedicated PostgreSQL for Weblate only. No host port, no shared volume with the
+  # application's database — a Weblate upgrade or restore can never touch app data.
+  weblate-postgres:
+    profiles: ["weblate"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${WEBLATE_POSTGRES_USER:-weblate}
+      POSTGRES_PASSWORD: ${WEBLATE_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${WEBLATE_POSTGRES_DB:-weblate}
+    volumes:
+      - weblate_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WEBLATE_POSTGRES_USER:-weblate} -d ${WEBLATE_POSTGRES_DB:-weblate}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Dedicated Redis for Weblate's cache and Celery broker only. Ephemeral by
+  # design (no persistence, no volume): a restart only loses transient cache.
+  weblate-redis:
+    profiles: ["weblate"]
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -140,6 +286,7 @@ services:
       B2_APPLICATION_KEY_ID: ${B2_APPLICATION_KEY_ID:-}
       B2_APPLICATION_KEY: ${B2_APPLICATION_KEY:-}
       B2_BUCKET: ${B2_BUCKET:-}
+      B2_BUCKET_ID: ${B2_BUCKET_ID:-}
       B2_PREFIX: ${B2_PREFIX:-}
       B2_API_URL: ${B2_API_URL:-https://api.backblazeb2.com}
       STORAGE_COMPRESS_ENABLED: ${STORAGE_COMPRESS_ENABLED:-true}
@@ -301,6 +448,10 @@ services:
       SEND_HSTS_ON_DEV: ${SEND_HSTS_ON_DEV:-false}
       CF_TRUSTED_IPS: ${CF_TRUSTED_IPS:-172.16.0.0/12,127.0.0.1,::1}
       APP_URL_HOST: ${APP_URL_HOST:-}
+      # When set, nginx generates a virtual host for this hostname that proxies
+      # to the (optional) weblate container:8080, so the same Cloudflare Tunnel
+      # that fronts the app also fronts Weblate. Empty = no Weblate vhost.
+      WEBLATE_SITE_DOMAIN: ${WEBLATE_SITE_DOMAIN:-}
     ports:
       - "127.0.0.1:${NGINX_PORT:-80}:80"
       - "[::1]:${NGINX_PORT:-80}:80"
@@ -324,6 +475,11 @@ volumes:
   postgres_data:
   uploads_data:
   pb_data:
+  # Weblate's own data (cloned repos, uploaded screenshots, generated secrets)
+  # and its dedicated database. Kept separate from the application volumes so a
+  # Weblate backup/restore is independent of the app's Postgres data.
+  weblate_data:
+  weblate_postgres_data:
 
 networks:
   default:

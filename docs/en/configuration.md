@@ -160,9 +160,18 @@ Behaviour and guarantees:
   once per session). It is gated per profile via `Profile.adblockDetectorEnabled`
   in the Dashboard: FREE profiles **always** show it (the API rejects disabling
   it for FREE), while PRO/Enterprise may turn it off while keeping the ads.
-- **CSP.** `nginx/site.conf` carries the static super-set of every registry
-  network's script/image/frame/connect hosts. If a network's real loader loads
-  from a host not listed there, add it to **both** the registry and the header.
+- **CSP.** The browser-facing policy is **generated** by the backend from
+  `config.yml` (`apps/backend/src/lib/csp.ts`) and written to the shared certs
+  volume at `certs/csp.conf`, which `nginx/site.conf` includes. Feature hosts
+  (media players, fonts, profile images) are always listed; ad-network hosts
+  appear **only** for the networks actually configured in `public.ads.slots`
+  (with ads disabled the header carries zero ad hosts). `network: raw`
+  snippets are automatically hash-pinned per inline script, plus every https
+  script host the snippet itself references. nginx reloads the header
+  automatically whenever the backend re-applies the config (entrypoint
+  watcher), so no manual header edits are needed. If a network's real loader
+  loads from a host not covered, add it to the `ads.ts` registry — the header
+  follows.
 - **Secrets stay server-side.** `private.ads` is validated at load but never
   serialized; `GET /api/config` only ever carries `public.ads`.
 

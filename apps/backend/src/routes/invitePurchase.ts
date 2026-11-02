@@ -117,15 +117,28 @@ setInterval(() => {
  * helper — the purchase itself never touches an account in that case, so there is
  * nothing for a bad token to escalate into.
  */
-function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+async function optionalAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) {
     try {
-      const payload = jwt.verify(header.slice(7), getEnv().JWT_SECRET) as {
+      const token = header.slice(7);
+      const payload = jwt.verify(token, getEnv().JWT_SECRET) as {
         userId: string;
         purpose?: string;
+        av?: number;
       };
-      if (payload.purpose === "auth") req.userId = payload.userId;
+      if (payload.purpose === "auth" && payload.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: payload.userId },
+          select: { id: true, authVersion: true, disabledAt: true },
+        });
+        if (user) {
+          const tokenVersion = payload.av ?? 0;
+          if (tokenVersion === user.authVersion && !user.disabledAt) {
+            req.userId = user.id;
+          }
+        }
+      }
     } catch {
       // fall through as anonymous
     }

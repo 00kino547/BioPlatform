@@ -8,6 +8,19 @@ export interface CryptoProvider {
   verifyWebhook(payload: Buffer, headers: Record<string, string | undefined>): unknown | null;
   eventKind(event: unknown): "paid" | "refunded" | "cancelled" | null;
   orderIdOf(event: unknown): string | null;
+  /**
+   * Stable identifier for ONE webhook event (not for the whole invoice).
+   * Crypto gateways send several distinct events per invoice (created, paid,
+   * expired, refunded...), so a key derived from the invoice id alone would
+   * mark the invoice as "already seen" on the first event and permanently
+   * suppress every later transition — including refunds and, worse, the
+   * settled event itself if an unmapped event type arrives first. The id
+   * therefore pairs the event discriminator (type/status code) with the
+   * invoice id. Returns null for unknown shapes: deduplication then stays
+   * off for that event (fail-open) and idempotency is left to the status
+   * transitions in the fulfilment layer.
+   */
+  eventIdOf(event: unknown): string | null;
 }
 
 export function cryptoEnabled(): boolean {
@@ -92,6 +105,16 @@ export class BtcPayServerProvider implements CryptoProvider {
     const metadata = (event as { metadata?: { orderId?: string } })?.metadata;
     return typeof metadata?.orderId === "string" && metadata.orderId ? metadata.orderId : null;
   }
+
+  eventIdOf(event: unknown): string | null {
+    // BTCPay webhook payloads have no per-event `id`; they carry the event
+    // `type` plus the `invoiceId`. Redeliveries repeat both, while different
+    // lifecycle events for the same invoice differ in `type`.
+    const type = (event as { type?: string })?.type ?? "";
+    const invoiceId = (event as { invoiceId?: string; id?: string })?.invoiceId ?? (event as { id?: string })?.id ?? "";
+    if (!type || !invoiceId) return null;
+    return `${type}:${invoiceId}`;
+  }
 }
 
 export class BitPayProvider implements CryptoProvider {
@@ -168,6 +191,19 @@ export class BitPayProvider implements CryptoProvider {
   orderIdOf(event: unknown): string | null {
     const orderId = (event as { data?: { orderId?: string } })?.data?.orderId;
     return typeof orderId === "string" && orderId ? orderId : null;
+  }
+
+  eventIdOf(event: unknown): string | null {
+    // BitPay IPNs are keyed by the invoice id (`data.id`) but the same invoice
+    // triggers several notifications (paid, confirmed, refunded, expired...).
+    // Pair the notification code with the invoice id so each status transition
+    // keeps its own dedup key while redeliveries stay deduplicated.
+    const code = (event as { event?: { code?: string; name?: string } })?.event?.code
+      ?? (event as { event?: { code?: string; name?: string } })?.event?.name
+      ?? "";
+    const invoiceId = (event as { data?: { id?: string } })?.data?.id ?? "";
+    if (!invoiceId) return null;
+    return `${code || "unknown"}:${invoiceId}`;
   }
 }
 

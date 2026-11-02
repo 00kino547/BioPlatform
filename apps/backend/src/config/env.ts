@@ -200,7 +200,18 @@ const envSchema = z.object({
   B2_APPLICATION_KEY_ID: z.string().default(""),
   B2_APPLICATION_KEY: z.string().default(""),
   B2_BUCKET: z.string().default(""),
-  B2_PREFIX: z.string().default(""),
+  // Optional pre-known Bucket ID (Backblaze dashboard → bucket → Bucket ID).
+  // Lets the provider skip b2_list_buckets, which application keys created
+  // without the listBuckets capability cannot call. When set, B2_BUCKET must
+  // still match the bucket that ID belongs to.
+  B2_BUCKET_ID: z.string().default(""),
+  B2_PREFIX: z
+    .string()
+    .default("")
+    .refine(
+      (v) => !v.includes("=") && !v.startsWith("http"),
+      "B2_PREFIX must be a plain object-key path prefix (e.g. \"prod\"), not a URL or env assignment. A value like \"B2_API_URL=https://...\" usually means two .env lines were merged."
+    ),
   B2_API_URL: z.string().url().default("https://api.backblazeb2.com"),
   STORAGE_COMPRESS_ENABLED: z.string().default("true").transform(boolFromEnv),
   MEDIA_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).default(2000),

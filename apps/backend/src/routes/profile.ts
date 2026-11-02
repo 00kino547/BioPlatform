@@ -51,7 +51,13 @@ function getViewerId(req: Request): string | undefined {
   if (!header?.startsWith("Bearer ")) return undefined;
   try {
     const payload = jwt.verify(header.slice(7), getEnv().JWT_SECRET) as { userId: string; purpose?: string };
-    if (payload.purpose !== undefined && payload.purpose !== "auth") return undefined;
+    // Strict: only an `auth`-purpose token counts. A mandatory check (not
+    // merely refusing non-`auth` purposes) closes the residual hole where a
+    // token with NO purpose claim at all — e.g. anything signed under the same
+    // key by another token type that does not set one — would be honoured as
+    // the viewer.
+    if (payload.purpose !== "auth") return undefined;
+    if (typeof payload.userId !== "string" || !payload.userId) return undefined;
     return payload.userId;
   } catch {
     return undefined;
@@ -1540,7 +1546,6 @@ router.get("/:identifier", publicRateLimit, async (req: Request<{ identifier: st
       username: profile.user.username,
       createdAt: profile.user.createdAt,
       id: profile.id,
-      userId: profile.userId,
       displayName: profile.displayName,
       bio: profile.bio,
       avatar: profile.avatar,

@@ -170,10 +170,19 @@ Comportamiento y garantías:
   `Profile.adblockDetectorEnabled` en el Dashboard: los perfiles FREE **siempre**
   lo muestran (la API rechaza desactivarlo para FREE), mientras que PRO/Enterprise
   pueden desactivarlo conservando los anuncios.
-- **CSP.** `nginx/site.conf` lleva el súper-conjunto estático de los hosts de
-  script/imagen/frame/connect de todas las redes del registro. Si el cargador
-  real de una red carga desde un host no listado, añádelo **tanto** al registro
-  como a la cabecera.
+- **CSP.** La política del navegador la **genera** el backend desde
+  `config.yml` (`apps/backend/src/lib/csp.ts`) y la escribe en el volumen
+  compartido de certificados en `certs/csp.conf`, que `nginx/site.conf`
+  incluye. Los hosts de funcionalidad (reproductores, fuentes, imágenes de
+  perfil) aparecen siempre; los hosts de redes publicitarias aparecen
+  **solo** para las redes realmente configuradas en `public.ads.slots` (con
+  ads deshabilitadas la cabecera no lleva ningún host de ads). Los snippets
+  `network: raw` se fijan automáticamente por hash según cada script inline,
+  más cada host https que el propio snippet referencie. nginx recarga la
+  cabecera automáticamente cuando el backend reaplica la config (watcher del
+  entrypoint), por lo que no hacen falta ediciones manuales. Si el loader
+  real de una red usa un host no cubierto, añádelo al registro de `ads.ts` —
+  la cabecera se actualiza sola.
 - **Los secretos se quedan en el servidor.** `private.ads` se valida al cargar
   pero nunca se serializa; `GET /api/config` solo lleva `public.ads`.
 

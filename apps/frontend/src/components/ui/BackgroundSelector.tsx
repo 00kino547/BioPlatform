@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Upload, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,19 @@ export const SEASONAL_BACKGROUND_PRESETS = [
   { id: "stpatrick", label: "St. Patrick", value: "linear-gradient(135deg, #052e16 0%, #16a34a 55%, #bef264 100%)" },
 ] as const;
 
+// Seasonal preset ids are hyphenated CSS-style slugs; map them to the camelCase
+// keys used in the `common` locale so labels can be translated.
+const SEASONAL_KEY_BY_ID: Record<string, string> = {
+  "spring-blossom": "springBlossom",
+  "autumn-leaves": "autumnLeaves",
+  "winter-snow": "winterSnow",
+  halloween: "halloween",
+  christmas: "christmas",
+  "ny-eve": "newYear",
+  valentine: "valentine",
+  stpatrick: "stPatrick",
+};
+
 interface BackgroundSelectorProps {
   value: string | null | undefined;
   onChange: (value: string | null) => void;
@@ -48,12 +62,19 @@ export function BackgroundSelector({
   disabled = false,
   className,
 }: BackgroundSelectorProps) {
+  const { t } = useTranslation("common");
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  // Overlay translated labels onto the preset catalogue, keyed by preset id.
+  const presets = BACKGROUND_PRESETS_DEF.map((p) => ({ ...p, label: t(`backgroundSelector.presets.${p.id}`) }));
+  const seasonalPresets = SEASONAL_BACKGROUND_PRESETS.map((p) => ({
+    ...p,
+    label: t(`backgroundSelector.seasonal.${SEASONAL_KEY_BY_ID[p.id] ?? p.id}`),
+  }));
 
   const applied = value ?? "";
-  const isCustom = applied && !BACKGROUND_PRESETS_DEF.some((p) => p.value === applied) &&
-    !SEASONAL_BACKGROUND_PRESETS.some((p) => p.value === applied);
+  const isCustom = applied && !presets.some((p) => p.value === applied) &&
+    !seasonalPresets.some((p) => p.value === applied);
 
   const pickPreset = (v: string) => onChange(v || null);
 
@@ -75,7 +96,7 @@ export function BackgroundSelector({
   return (
     <div className={cn("space-y-4", className)}>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {BACKGROUND_PRESETS_DEF.map((p) => {
+        {presets.map((p) => {
           const selected = applied === p.value;
           return (
             <button
@@ -91,9 +112,9 @@ export function BackgroundSelector({
               aria-label={p.label}
             >
               {!p.value && (
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-500">
-                  None
-                </span>
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-500">
+                {t("backgroundSelector.presets.none")}
+              </span>
               )}
               {selected && (
                 <span className="absolute top-1 right-1 h-3 w-3 rounded-full bg-violet-500 ring-2 ring-white/30" />
@@ -108,9 +129,9 @@ export function BackgroundSelector({
 
       {seasonal && (
         <div>
-          <p className="mb-2 text-xs text-zinc-400">Seasonal & Holiday</p>
+          <p className="mb-2 text-xs text-zinc-400">{t("backgroundSelector.seasonalTitle")}</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {SEASONAL_BACKGROUND_PRESETS.map((p) => {
+            {seasonalPresets.map((p) => {
               const selected = applied === p.value;
               return (
                 <button
@@ -164,7 +185,7 @@ export function BackgroundSelector({
             ) : (
               <Upload className="h-3.5 w-3.5" />
             )}
-            {valueBusy ? `Uploading ${valueBusy}…` : "Upload image / GIF"}
+            {valueBusy ? t("backgroundSelector.uploading", { name: valueBusy }) : t("backgroundSelector.upload")}
           </button>
           {isCustom && onRemoveUpload && (
             <button
@@ -178,14 +199,14 @@ export function BackgroundSelector({
               className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Remove custom
+              {t("backgroundSelector.removeCustom")}
             </button>
           )}
         </div>
       )}
 
       <label className="block">
-        <span className="text-xs text-zinc-400">Custom URL</span>
+        <span className="text-xs text-zinc-400">{t("backgroundSelector.customUrl")}</span>
         <input
           type="url"
           value={customUrl}
@@ -194,7 +215,7 @@ export function BackgroundSelector({
             setCustomUrl(e.target.value);
             onChange(e.target.value || null);
           }}
-          placeholder="https://… or /uploads/…"
+          placeholder={t("backgroundSelector.customUrlPlaceholder")}
           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-violet-500 focus:outline-none disabled:opacity-40"
         />
       </label>

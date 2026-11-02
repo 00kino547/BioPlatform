@@ -78,11 +78,16 @@ public:
     # true hides the pricing section from visitors.
     hidePricing: false
 
-  # Multi-language UI (i18n). STRUCTURE ONLY — the endpoints respond 503 and the
-  # frontend does not switch languages yet. This block already wins because it
-  # is served by GET /api/config; flipping `enabled` true is what the frontend
-  # will eventually honour. Translation files ship in the frontend bundle
-  # (apps/frontend/src/locales/{lng}/*.json); the backend never serves them.
+  # Multi-language UI (i18n). `enabled` is the activation gate: while false the
+  # UI stays on `defaultLocale` and the language switcher offers nothing. When
+  # true the frontend offers the installed `locales` and switches at runtime.
+  # This block wins because it is served by GET /api/config (and mirrored by
+  # GET /api/i18n/config + /api/i18n/locales). Translation files are BUNDLED
+  # INTO THE FRONTEND BUILD from apps/frontend/src/locales/{lng}/*.json and are
+  # never served by the backend — so a new locale or an updated translation only
+  # reaches users after its Pull Request is merged and the frontend is rebuilt.
+  # Translations are contributed through the self-hosted Weblate instance
+  # (opt-in `weblate` Docker Compose profile; see docs/en/translating.md).
   i18n:
     # Master switch — the whole multi-language UI is inert while false.
     enabled: false

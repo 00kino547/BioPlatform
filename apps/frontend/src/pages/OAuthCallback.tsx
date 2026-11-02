@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "@/contexts/useAuth";
 import { branding } from "@/config/branding";
 import { api } from "@/lib/api";
 import { OAUTH_SETUP_KEY, OAUTH_TF_KEY } from "@/lib/oauthStorage";
@@ -8,6 +9,7 @@ import { usePageMeta } from "@/lib/seo";
 import { AppFooter } from "@/components/layout/AppFooter";
 
 export function OAuthCallback() {
+  const { t } = useTranslation("auth");
   const { user, setAuth } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -27,13 +29,13 @@ export function OAuthCallback() {
 
     const code = searchParams.get("code");
     if (!code) {
-      setError("This sign-in link is missing a code.");
+      setError(t("oauthCallback.missingCode"));
       return;
     }
 
     api.oauthExchange(code).then(async (res) => {
       if (!res.success || !res.data) {
-        setError(res.error ?? "Sign-in failed");
+        setError(res.error ?? t("oauthCallback.signInFailed"));
         return;
       }
 
@@ -58,9 +60,9 @@ export function OAuthCallback() {
         navigate("/oauth/complete", { replace: true });
       }
     });
-  }, [searchParams, setAuth, navigate]);
+  }, [searchParams, setAuth, navigate, t]);
 
-  usePageMeta({ title: "Signing In", description: `Completing your sign-in to ${branding.name}.` });
+  usePageMeta({ title: t("oauthCallback.metaTitle"), description: t("oauthCallback.metaDescription", { name: branding.name }) });
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -77,11 +79,11 @@ export function OAuthCallback() {
                   to={user ? "/dashboard" : "/login"}
                   className="text-sm text-violet-400 hover:text-violet-300 transition-colors font-medium"
                 >
-                  {user ? "Back to dashboard" : "Back to sign in"}
+                  {user ? t("oauthCallback.backToDashboard") : t("oauthCallback.backToSignIn")}
                 </Link>
               </div>
             ) : (
-              <p className="text-sm text-zinc-400">Completing sign-in...</p>
+              <p className="text-sm text-zinc-400">{t("oauthCallback.completing")}</p>
             )}
           </div>
         </div>

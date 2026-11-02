@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { usePageMeta } from "@/lib/seo";
 import { branding } from "@/config/branding";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/lib/intl";
 import { Check, Copy, Loader2, Mail, TriangleAlert } from "lucide-react";
 
 // Guest claim page: shows the codes for a purchase made before registering.
@@ -24,13 +26,14 @@ type PurchaseCodes = {
 
 function money(cents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+    return formatCurrency(cents, currency);
   } catch {
     return `${(cents / 100).toFixed(2)} ${currency}`;
   }
 }
 
 export function InvitePurchaseStatus() {
+  const { t } = useTranslation("invite");
   const { orderId = "" } = useParams();
   const [params] = useSearchParams();
   const token = params.get("token") ?? "";
@@ -42,8 +45,8 @@ export function InvitePurchaseStatus() {
   const [resent, setResent] = useState(false);
 
   usePageMeta({
-    title: `Your invite codes — ${branding.name}`,
-    description: "View the invite codes from your purchase.",
+    title: t("invitePurchaseStatus.metaTitle", { name: branding.name }),
+    description: t("invitePurchaseStatus.metaDescription"),
   });
 
   const load = useCallback(async () => {
@@ -53,10 +56,10 @@ export function InvitePurchaseStatus() {
     if (res.success && res.data) {
       setData(res.data as PurchaseCodes);
     } else {
-      setError(res.error ?? "This purchase link is not valid.");
+      setError(res.error ?? t("invitePurchaseStatus.errorDefault"));
     }
     setLoading(false);
-  }, [orderId, token]);
+  }, [orderId, token, t]);
 
   useEffect(() => {
     void load();
@@ -78,7 +81,7 @@ export function InvitePurchaseStatus() {
       <main className="mx-auto w-full max-w-2xl px-4 py-24 text-center">
         <Loader2 className="mx-auto h-6 w-6 animate-spin text-zinc-500" aria-hidden />
         <p className="mt-3 text-sm text-zinc-500" role="status">
-          Loading your codes…
+          {t("invitePurchaseStatus.loading")}
         </p>
       </main>
     );
@@ -88,11 +91,10 @@ export function InvitePurchaseStatus() {
     return (
       <main className="mx-auto w-full max-w-2xl px-4 py-24 text-center">
         <TriangleAlert className="mx-auto h-6 w-6 text-amber-400" aria-hidden />
-        <h1 className="mt-4 text-xl font-semibold text-white">This link is not valid</h1>
+        <h1 className="mt-4 text-xl font-semibold text-white">{t("invitePurchaseStatus.invalidTitle")}</h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-zinc-400">{error}</p>
         <p className="mt-4 text-sm text-zinc-500">
-          The link expires. If it has expired, check your inbox for the original email, or contact
-          the operator.
+          {t("invitePurchaseStatus.invalidHint")}
         </p>
       </main>
     );
@@ -103,19 +105,21 @@ export function InvitePurchaseStatus() {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Your invite codes</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">{t("invitePurchaseStatus.heading")}</h1>
         <p className="mt-2 text-sm text-zinc-400">
-          {data.quantity} credit{data.quantity === 1 ? "" : "s"} ·{" "}
-          {money(data.priceCents, data.currency)} ·{" "}
-          {data.status === "PAID" ? "paid" : data.status.toLowerCase()}
+          {t("invitePurchaseStatus.summary", {
+            count: data.quantity,
+            plural: data.quantity === 1 ? "" : "s",
+            price: money(data.priceCents, data.currency),
+            status: data.status === "PAID" ? t("invitePurchaseStatus.paid") : data.status.toLowerCase(),
+          })}
         </p>
       </header>
 
       {data.status !== "PAID" ? (
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
           <p className="text-sm text-amber-200">
-            This order is {data.status.toLowerCase()}. Codes are issued once it is paid. Refresh
-            this page in a moment, or check your inbox for the confirmation.
+            {t("invitePurchaseStatus.orderNotPaid", { status: data.status.toLowerCase() })}
           </p>
         </div>
       ) : (
@@ -135,16 +139,16 @@ export function InvitePurchaseStatus() {
                   <span className="font-mono text-sm text-zinc-300">{code.code}</span>
                   <span className="flex items-center gap-3">
                     {code.used ? (
-                      <span className="text-xs text-zinc-500">used</span>
+                      <span className="text-xs text-zinc-500">{t("invitePurchaseStatus.used")}</span>
                     ) : code.revoked ? (
-                      <span className="text-xs text-red-400">revoked</span>
+                      <span className="text-xs text-red-400">{t("invitePurchaseStatus.revoked")}</span>
                     ) : (
                       <>
-                        <span className="text-xs text-emerald-400">available</span>
+                        <span className="text-xs text-emerald-400">{t("invitePurchaseStatus.available")}</span>
                         <button
                           type="button"
                           onClick={() => copy(code.code)}
-                          aria-label={`Copy ${code.code}`}
+                          aria-label={t("invitePurchaseStatus.copyAria", { code: code.code })}
                           className="text-violet-400 transition-colors hover:text-violet-300"
                         >
                           {copied === code.code ? (
@@ -163,12 +167,11 @@ export function InvitePurchaseStatus() {
 
           <div className="mt-6 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-6">
             <p className="text-sm text-zinc-300">
-              Use one code to{" "}
+              {t("invitePurchaseStatus.useOneCode")}{" "}
               <a href="/register" className="text-violet-400 hover:text-violet-300">
-                register
+                {t("invitePurchaseStatus.register")}
               </a>
-              . Once you have an account the remaining {Math.max(0, live.length - 1)} code(s) move to
-              it automatically, so you do not need to hand them out yourself.
+              . {t("invitePurchaseStatus.remainingCodes", { count: Math.max(0, live.length - 1) })}
             </p>
           </div>
         </>
@@ -181,7 +184,7 @@ export function InvitePurchaseStatus() {
           className="inline-flex items-center gap-2 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
         >
           <Mail className="h-3.5 w-3.5" aria-hidden />
-          {resent ? "Link sent — check your inbox" : "Email me this link again"}
+          {resent ? t("invitePurchaseStatus.resendSent") : t("invitePurchaseStatus.resend")}
         </button>
       </div>
     </main>

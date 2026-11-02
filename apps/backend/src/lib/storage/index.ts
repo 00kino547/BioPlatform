@@ -71,4 +71,11 @@ export function resetPrimaryStorageProviderForTests(): void {
   primary = null;
 }
 
+// Test-only injection point for the primary provider. `resetPrimaryStorageProviderForTests`
+// rebuilds from env; this lets tests plug a stub provider without touching env
+// vars. Always call the reset afterwards to avoid leaking the stub.
+export function __setPrimaryStorageProviderForTests(provider: StorageProvider | null): void {
+  primary = provider;
+}
+
 export type { MediaWriteOptions, StorageProvider, StorageProviderKind, StoredObject } from "./types.js";

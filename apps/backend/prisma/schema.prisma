@@ -406,6 +406,7 @@ model ProductPurchase {
   @@index([productId])
   @@index([buyerUserId])
   @@index([status])
+  @@index([gatewayTransactionId])
   @@map("product_purchases")
 }
 
@@ -549,6 +550,7 @@ model InvitePurchaseOrder {
 
   @@index([userId])
   @@index([status])
+  @@index([gatewayTransactionId])
   @@map("invite_purchase_orders")
 }
 
@@ -770,6 +772,7 @@ model Order {
 
   @@index([userId])
   @@index([status])
+  @@index([gatewayTransactionId])
   @@map("orders")
 }
 
@@ -1048,4 +1051,14 @@ model BannedHash {
   @@index([sha256])
   @@index([pHashHex])
   @@map("banned_hashes")
+}
+
+model ProcessedWebhookEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  gateway     String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@index([gateway, processedAt])
+  @@map("processed_webhook_events")
 }

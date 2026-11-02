@@ -165,7 +165,7 @@ export function isDiscordWebhookUrl(value: string): boolean {
   } catch {
     return false;
   }
-  return DISCORD_WEBHOOK_HOSTS.has(url.hostname) && DISCORD_WEBHOOK_PATH.test(url.pathname);
+  return url.protocol === "https:" && DISCORD_WEBHOOK_HOSTS.has(url.hostname) && DISCORD_WEBHOOK_PATH.test(url.pathname);
 }
 
 function isDiscordMessageShape(payload: unknown): boolean {

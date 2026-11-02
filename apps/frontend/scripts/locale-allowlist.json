@@ -1,0 +1,20 @@
+{
+  "comment": "English keys that scripts/check-locales.mjs is allowed to treat as 'unreferenced'. Entries are glob patterns (`*` matches anything) checked against `namespace:key.path`. Add a key here only when it is a real translation that the static scan cannot see (dynamic key, key consumed by a helper, or a surface that is not wired to i18n yet). Prefer the narrowest pattern that works and delete an entry as soon as the key becomes referenced, so the orphan scan keeps its value.",
+  "keys": [
+    "shared:*",
+    "profile:*",
+    "invite:*",
+    "dashboard:*",
+    "admin:*",
+    "legal:*",
+    "common:backgroundSelector.*",
+    "common:cookieConsent.*",
+    "common:dialog.*",
+    "common:errorBoundary.*",
+    "common:imageCropper.*",
+    "common:layoutSelector.*.hint",
+    "common:untranslatedNotice.*",
+    "landing:pricing.currencyStyle",
+    "landing:pricing.currencyFallback"
+  ]
+}

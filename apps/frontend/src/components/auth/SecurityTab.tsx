@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { startRegistration } from "@simplewebauthn/browser";
+import { useTranslation } from "react-i18next";
 import { api, type Passkey, type OAuthAccountsData, type OAuthConfig, type OAuthProvider } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { formatDate } from "@/lib/intl";
+import { useAuth } from "@/contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
 import { Fingerprint, KeyRound, Plus, Trash2, ShieldCheck, Info, Lock, Eye, EyeOff, ShieldAlert, Link2 } from "lucide-react";
 import { EnterpriseSsoCard } from "@/components/auth/EnterpriseSsoCard";
 
-const PROVIDER_LABEL: Record<OAuthProvider, string> = {
+// Brand names are trademarks and are never translated. This maps the provider
+// data key (used in API calls and lookups) to its raw, untranslated display label.
+const PROVIDER_BRANDS: Record<OAuthProvider, string> = {
   google: "Google",
   github: "GitHub",
   discord: "Discord",
@@ -16,6 +20,7 @@ const PROVIDER_LABEL: Record<OAuthProvider, string> = {
 };
 
 export function SecurityTab() {
+  const { t } = useTranslation("auth");
   const { user, refreshUser } = useAuth();
   const { locked, data } = useUpdateLockdown();
   const [passkeys, setPasskeys] = useState<Passkey[]>([]);
@@ -78,25 +83,30 @@ export function SecurityTab() {
 
   const handleAddPasskey = async () => {
     setMsg();
+    if (!currentPassword) {
+      setMsg(t("security.enterCurrentPassword"));
+      return;
+    }
     setPasskeyBusy(true);
     try {
       const optionsRes = await api.registerPasskeyOptions(residentKey);
       if (!optionsRes.success || !optionsRes.data) {
-        setMsg(optionsRes.error ?? "Could not start passkey registration");
+        setMsg(optionsRes.error ?? t("security.couldNotStartPasskey"));
         return;
       }
       const response = await startRegistration({ optionsJSON: optionsRes.data });
-      const verifyRes = await api.registerPasskey(response, passkeyName.trim() || "Passkey", residentKey);
+      const verifyRes = await api.registerPasskey(response, passkeyName.trim() || "Passkey", residentKey, currentPassword);
       if (!verifyRes.success) {
-        setMsg(verifyRes.error ?? "Passkey registration failed");
+        setMsg(verifyRes.error ?? t("security.passkeyRegistrationFailed"));
         return;
       }
-      setMsg(undefined, "Passkey registered.");
+      setMsg(undefined, t("security.passkeyRegistered"));
       setPasskeyName("");
       setAddingPasskey(false);
+      setCurrentPassword("");
       await loadPasskeys();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Passkey registration cancelled";
+      const msg = err instanceof Error ? err.message : t("security.passkeyRegistrationCancelled");
       setMsg(msg.toLowerCase().includes("cancel") ? undefined : msg);
     } finally {
       setPasskeyBusy(false);
@@ -108,22 +118,27 @@ export function SecurityTab() {
     const res = await api.deletePasskey(id);
     if (res.success) {
       setPasskeys(passkeys.filter((p) => p.id !== id));
-      setMsg(undefined, "Passkey removed.");
+      setMsg(undefined, t("security.passkeyRemoved"));
     } else {
-      setMsg(res.error ?? "Failed to remove passkey");
+      setMsg(res.error ?? t("security.failedToRemovePasskey"));
     }
   };
 
   const handleSetupTotp = async () => {
     setMsg();
+    if (!currentPassword) {
+      setMsg(t("security.enterCurrentPassword"));
+      return;
+    }
     setTotpBusy(true);
-    const res = await api.setupTotp();
+    const res = await api.setupTotp(currentPassword);
     setTotpBusy(false);
     if (res.success && res.data) {
       setTotpSecret(res.data.secret);
       setTotpUrl(res.data.otpauthUrl);
+      setCurrentPassword("");
     } else {
-      setMsg(res.error ?? "Failed to start TOTP setup");
+      setMsg(res.error ?? t("security.failedToStartTotp"));
     }
   };
 
@@ -134,14 +149,14 @@ export function SecurityTab() {
     const res = await api.enableTotp(totpCode.trim());
     setTotpBusy(false);
     if (res.success) {
-      setMsg(undefined, "Two-factor authentication enabled.");
+      setMsg(undefined, t("security.totpEnabled"));
       setTotpSecret(null);
       setTotpUrl(null);
       setTotpCode("");
       setTotpEnabled(true);
       await refreshUser();
     } else {
-      setMsg(res.error ?? "Invalid verification code");
+      setMsg(res.error ?? t("security.invalidCode"));
     }
   };
 
@@ -152,40 +167,40 @@ export function SecurityTab() {
     const res = await api.disableTotp(totpCode.trim());
     setTotpBusy(false);
     if (res.success) {
-      setMsg(undefined, "Two-factor authentication disabled.");
+      setMsg(undefined, t("security.totpDisabled"));
       setTotpCode("");
       setShowDisable(false);
       setTotpEnabled(false);
       await refreshUser();
     } else {
-      setMsg(res.error ?? "Invalid verification code");
+      setMsg(res.error ?? t("security.invalidCode"));
     }
   };
 
   const handleChangePassword = async () => {
     setMsg();
     if (!currentPassword) {
-      setMsg("Enter your current password.");
+      setMsg(t("security.enterCurrentPassword"));
       return;
     }
     if (newPassword.length < 8) {
-      setMsg("New password must be at least 8 characters.");
+      setMsg(t("security.newPasswordMin"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setMsg("New passwords do not match.");
+      setMsg(t("security.passwordsDoNotMatch"));
       return;
     }
     setPasswordBusy(true);
     const res = await api.changePassword(currentPassword, newPassword);
     setPasswordBusy(false);
     if (res.success) {
-      setMsg(undefined, "Password changed successfully.");
+      setMsg(undefined, t("security.passwordChanged"));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } else {
-      setMsg(res.error ?? "Failed to change password");
+      setMsg(res.error ?? t("security.failedToChangePassword"));
     }
   };
 
@@ -195,7 +210,7 @@ export function SecurityTab() {
     const res = await api.ssoStart(provider, "link");
     setOauthBusy(false);
     if (!res.success || !res.data?.redirectUrl) {
-      setMsg(res.error ?? "Could not start linking");
+      setMsg(res.error ?? t("security.couldNotStartLinking"));
       return;
     }
     window.location.href = res.data.redirectUrl;
@@ -213,9 +228,9 @@ export function SecurityTab() {
           ? { ...cur, accounts: cur.accounts.filter((a) => a.providerAccountId !== providerAccountId) }
           : cur
       );
-      setMsg(undefined, "Provider account removed.");
+      setMsg(undefined, t("security.providerRemoved"));
     } else {
-      setMsg(res.error ?? "Failed to remove provider account");
+      setMsg(res.error ?? t("security.failedToRemoveProvider"));
     }
   };
 
@@ -225,9 +240,9 @@ export function SecurityTab() {
     if (res.success && res.data) {
       const oauthBypass2fa = res.data.oauthBypass2fa;
       setOauthData((cur) => (cur ? { ...cur, oauthBypass2fa } : cur));
-      setMsg(undefined, "Two-factor bypass updated.");
+      setMsg(undefined, t("security.bypassUpdated"));
     } else {
-      setMsg(res.error ?? "Failed to update setting");
+      setMsg(res.error ?? t("security.failedToUpdateSetting"));
     }
   };
 
@@ -267,11 +282,10 @@ export function SecurityTab() {
           <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-red-300">
             <p className="font-semibold">
-              A critical or security update is required (v{data?.latest ?? "…"} available).
+              {t("security.lockdownRequired", { version: data?.latest ?? "…" })}
             </p>
             <p className="mt-0.5 text-red-300/80">
-              Changing your password, passkeys and two-factor authentication is locked until the app is
-              updated to protect your account.
+              {t("security.lockdownNotice")}
             </p>
           </div>
         </div>
@@ -282,16 +296,17 @@ export function SecurityTab() {
           <div className="flex items-center gap-3">
             <Fingerprint className="h-5 w-5 text-violet-400" />
             <div>
-              <h3 className="text-sm font-medium text-white">Passkeys</h3>
+              <h3 className="text-sm font-medium text-white">{t("security.passkeysTitle")}</h3>
               <p className="text-xs text-zinc-500">
-                Sign in passwordless or use a passkey as a second factor.
+                {t("security.passkeysDescription")}
               </p>
+              <p className="text-xs text-zinc-500 mt-1">{t("security.stepUpRequired")}</p>
             </div>
           </div>
           {!addingPasskey && (
             <Button size="sm" onClick={() => setAddingPasskey(true)} disabled={locked}>
               <Plus className="h-4 w-4" />
-              Add passkey
+              {t("security.addPasskey")}
             </Button>
           )}
         </div>
@@ -299,18 +314,18 @@ export function SecurityTab() {
         {addingPasskey && (
           <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3.5 space-y-3">
             <div>
-              <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Name</label>
+              <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("security.nameLabel")}</label>
               <input
                 type="text"
                 value={passkeyName}
                 onChange={(e) => setPasskeyName(e.target.value)}
-                placeholder="e.g. YubiKey, Phone"
+                placeholder={t("security.namePlaceholder")}
                 maxLength={64}
                 className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">Passkey type</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">{t("security.passkeyTypeLabel")}</label>
               <div className="space-y-2">
                 <button
                   type="button"
@@ -319,9 +334,9 @@ export function SecurityTab() {
                     residentKey === "nonResident" ? "border-violet-500 bg-violet-500/10" : "border-zinc-700 hover:border-zinc-600"
                   }`}
                 >
-                  <p className="text-sm font-medium text-white">Non-resident (2FA / security key)</p>
+                  <p className="text-sm font-medium text-white">{t("security.nonResidentTitle")}</p>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Classic security-key credential. Requires your username first and works as a strong second factor. Uses no on-device slots.
+                    {t("security.nonResidentDescription")}
                   </p>
                 </button>
                 <button
@@ -331,23 +346,23 @@ export function SecurityTab() {
                     residentKey === "resident" ? "border-violet-500 bg-violet-500/10" : "border-zinc-700 hover:border-zinc-600"
                   }`}
                 >
-                  <p className="text-sm font-medium text-white">Resident (Passwordless)</p>
+                  <p className="text-sm font-medium text-white">{t("security.residentTitle")}</p>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Discoverable passkey stored on the device. Enables sign-in without entering your username. Uses one of the limited on-device slots (e.g. YubiKey: 32).
+                    {t("security.residentDescription")}
                   </p>
                 </button>
               </div>
               <p className="flex items-center gap-1.5 text-xs text-zinc-500 mt-2">
                 <Info className="h-3 w-3" />
-                Falls back to a standard passkey automatically if your device can&apos;t create the chosen type.
+                {t("security.fallbackNote")}
               </p>
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={handleAddPasskey} disabled={passkeyBusy || locked}>
-                {passkeyBusy ? "Registering..." : "Register passkey"}
+                {passkeyBusy ? t("security.registering") : t("security.registerPasskey")}
               </Button>
               <Button size="sm" variant="secondary" onClick={() => setAddingPasskey(false)}>
-                Cancel
+                {t("security.cancel")}
               </Button>
             </div>
           </div>
@@ -355,7 +370,7 @@ export function SecurityTab() {
 
         {passkeys.length === 0 ? (
           <p className="text-sm text-zinc-500 text-center py-6">
-            No passkeys yet. Add one to sign in passwordless.
+            {t("security.noPasskeys")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -374,27 +389,27 @@ export function SecurityTab() {
                           : "bg-zinc-800 text-zinc-400 border border-zinc-700"
                       }`}
                     >
-                      {p.residentKey ? "Resident" : "Non-resident"}
+                      {p.residentKey ? t("security.resident") : t("security.nonResident")}
                     </span>
                     {p.authenticatorAttachment === "platform" ? (
                       <span className="text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-                        This device
+                        {t("security.thisDevice")}
                       </span>
                     ) : p.authenticatorAttachment === "cross-platform" ? (
                       <span className="text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-                        Security key
+                        {t("security.securityKey")}
                       </span>
                     ) : null}
                   </div>
                   <p className="text-xs text-zinc-500 mt-0.5">
                     {p.credentialDeviceType === "multiDevice"
-                      ? "Synced across devices"
+                      ? t("security.syncedAcrossDevices")
                       : p.credentialDeviceType === "singleDevice"
-                        ? "Device-bound"
+                        ? t("security.deviceBound")
                         : null}
                     {p.lastUsedAt ? (
                       <span className="text-zinc-600">
-                        {p.credentialDeviceType ? " · " : null}last used {new Date(p.lastUsedAt).toLocaleDateString()}
+                        {p.credentialDeviceType ? " · " : null}{t("security.lastUsed", { date: formatDate(p.lastUsedAt) })}
                       </span>
                     ) : null}
                   </p>
@@ -403,7 +418,7 @@ export function SecurityTab() {
                   onClick={() => handleDeletePasskey(p.id)}
                   disabled={locked}
                   className="text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={locked ? "Locked until the app is updated" : "Remove passkey"}
+                  title={locked ? t("security.lockedTooltip") : t("security.removePasskey")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -419,9 +434,9 @@ export function SecurityTab() {
         <div className="flex items-center gap-3 mb-4">
           <Link2 className="h-5 w-5 text-violet-400" />
           <div>
-            <h3 className="text-sm font-medium text-white">Sign-in Options</h3>
+            <h3 className="text-sm font-medium text-white">{t("security.signInOptionsTitle")}</h3>
             <p className="text-xs text-zinc-500">
-              Link a Google, GitHub, or Discord account to sign in with it.
+              {t("security.signInOptionsDescription")}
             </p>
           </div>
         </div>
@@ -435,7 +450,7 @@ export function SecurityTab() {
             <div className="space-y-2">
               {oauthData.accounts.length === 0 ? (
                 <p className="text-sm text-zinc-500 text-center py-4">
-                  No third-party accounts linked.
+                  {t("security.noThirdPartyAccounts")}
                 </p>
               ) : (
                 oauthData.accounts.map((account) => (
@@ -444,7 +459,7 @@ export function SecurityTab() {
                     className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-2.5"
                   >
                     <div>
-                      <p className="text-sm font-medium text-white">{PROVIDER_LABEL[account.provider]}</p>
+                      <p className="text-sm font-medium text-white">{PROVIDER_BRANDS[account.provider]}</p>
                       <p className="text-xs text-zinc-500 mt-0.5">
                         {account.displayName || account.email || account.providerAccountId}
                       </p>
@@ -457,13 +472,13 @@ export function SecurityTab() {
                           onClick={() => handleUnlink(account.provider, account.providerAccountId)}
                           disabled={oauthBusy || locked}
                         >
-                          {oauthBusy ? "Removing..." : "Confirm remove"}
+                          {oauthBusy ? t("security.removing") : t("security.confirmRemove")}
                         </Button>
                         <button
                           onClick={() => setConfirmingUnlink(null)}
                           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                         >
-                          Cancel
+                          {t("security.cancel")}
                         </button>
                       </div>
                     ) : (
@@ -473,10 +488,10 @@ export function SecurityTab() {
                         className="text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title={
                           remainingMethods <= 1
-                            ? "Cannot remove your only sign-in method"
+                            ? t("security.cannotRemoveOnlyMethod")
                             : locked
-                              ? "Locked until the app is updated"
-                              : "Remove"
+                              ? t("security.lockedTooltip")
+                              : t("security.remove")
                         }
                       >
                         <Trash2 className="h-4 w-4" />
@@ -497,7 +512,7 @@ export function SecurityTab() {
                     onClick={() => handleLinkProvider(provider)}
                     disabled={oauthBusy || locked}
                   >
-                    Link {PROVIDER_LABEL[provider]}
+                    {t("security.linkProvider", { provider: PROVIDER_BRANDS[provider] })}
                   </Button>
                 ))}
               </div>
@@ -506,9 +521,9 @@ export function SecurityTab() {
             {oauthData.twoFactorBypassAllowed && oauthData.accounts.length > 0 && (
               <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3.5 py-3">
                 <div>
-                  <p className="text-sm font-medium text-white">Skip 2FA on social sign-in</p>
+                  <p className="text-sm font-medium text-white">{t("security.skip2faTitle")}</p>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Sign in instantly with a linked account instead of entering a code.
+                    {t("security.skip2faDescription")}
                   </p>
                 </div>
                 <button
@@ -535,9 +550,9 @@ export function SecurityTab() {
           <div className="flex items-center gap-3">
             <Lock className="h-5 w-5 text-violet-400" />
             <div>
-              <h3 className="text-sm font-medium text-white">Password</h3>
+              <h3 className="text-sm font-medium text-white">{t("security.passwordTitle")}</h3>
               <p className="text-xs text-zinc-500">
-                Update the password used to sign in to your account.
+                {t("security.passwordDescription")}
               </p>
             </div>
           </div>
@@ -545,12 +560,12 @@ export function SecurityTab() {
 
         <div className="space-y-4">
           <div className="relative">
-            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Current password</label>
+            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("security.currentPasswordLabel")}</label>
             <input
               type={showPasswords ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={t("security.passwordPlaceholder")}
               autoComplete="current-password"
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
@@ -558,18 +573,18 @@ export function SecurityTab() {
               type="button"
               onClick={() => setShowPasswords((v) => !v)}
               className="absolute right-3 top-[38px] text-zinc-500 hover:text-zinc-300 transition-colors"
-              title={showPasswords ? "Hide passwords" : "Show passwords"}
+              title={showPasswords ? t("security.hidePasswords") : t("security.showPasswords")}
             >
               {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           <div className="relative">
-            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">New password</label>
+            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("security.newPasswordLabel")}</label>
             <input
               type={showPasswords ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder={t("security.newPasswordPlaceholder")}
               autoComplete="new-password"
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
@@ -577,18 +592,18 @@ export function SecurityTab() {
               type="button"
               onClick={() => setShowPasswords((v) => !v)}
               className="absolute right-3 top-[38px] text-zinc-500 hover:text-zinc-300 transition-colors"
-              title={showPasswords ? "Hide passwords" : "Show passwords"}
+              title={showPasswords ? t("security.hidePasswords") : t("security.showPasswords")}
             >
               {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           <div className="relative">
-            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Confirm new password</label>
+            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("security.confirmPasswordLabel")}</label>
             <input
               type={showPasswords ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repeat the new password"
+              placeholder={t("security.confirmPasswordPlaceholder")}
               autoComplete="new-password"
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
@@ -596,13 +611,13 @@ export function SecurityTab() {
               type="button"
               onClick={() => setShowPasswords((v) => !v)}
               className="absolute right-3 top-[38px] text-zinc-500 hover:text-zinc-300 transition-colors"
-              title={showPasswords ? "Hide passwords" : "Show passwords"}
+              title={showPasswords ? t("security.hidePasswords") : t("security.showPasswords")}
             >
               {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           <Button onClick={handleChangePassword} disabled={passwordBusy || locked}>
-            {passwordBusy ? "Updating..." : "Update password"}
+            {passwordBusy ? t("security.updating") : t("security.updatePassword")}
           </Button>
         </div>
       </div>
@@ -612,10 +627,11 @@ export function SecurityTab() {
           <div className="flex items-center gap-3">
             <KeyRound className="h-5 w-5 text-violet-400" />
             <div>
-              <h3 className="text-sm font-medium text-white">Authenticator App (TOTP)</h3>
+              <h3 className="text-sm font-medium text-white">{t("security.totpTitle")}</h3>
               <p className="text-xs text-zinc-500">
-                Use Google Authenticator, Authy, or any TOTP app for a second factor.
+                {t("security.totpDescription")}
               </p>
+            <p className="text-xs text-zinc-500 mt-1">{t("security.stepUpRequired")}</p>
             </div>
           </div>
           <span
@@ -626,13 +642,13 @@ export function SecurityTab() {
             }`}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
-            {totpEnabled ? "Enabled" : "Disabled"}
+            {totpEnabled ? t("security.enabled") : t("security.disabled")}
           </span>
         </div>
 
         {!totpEnabled && !totpSecret && (
           <Button variant="secondary" onClick={handleSetupTotp} disabled={totpBusy || locked}>
-            {totpBusy ? "Starting..." : "Set up"}
+            {totpBusy ? t("security.starting") : t("security.setUp")}
           </Button>
         )}
 
@@ -644,14 +660,14 @@ export function SecurityTab() {
               </div>
               <div className="flex-1 w-full">
                 <p className="text-sm text-zinc-300 mb-2">
-                  Scan the QR code with your authenticator app, or enter this code manually:
+                  {t("security.scanQr")}
                 </p>
                 <code className="block rounded-lg bg-zinc-800 px-3 py-2.5 text-sm font-mono text-violet-300 break-all select-all">
                   {totpSecret}
                 </code>
                 <div className="mt-4">
                   <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                    Enter the 6-digit code to confirm
+                    {t("security.enterSixDigit")}
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -659,11 +675,11 @@ export function SecurityTab() {
                       inputMode="numeric"
                       value={totpCode}
                       onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="••••••"
+                      placeholder={t("security.codePlaceholder")}
                       className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-center text-lg tracking-[0.4em] text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                     <Button onClick={handleEnableTotp} disabled={totpBusy || totpCode.length !== 6 || locked}>
-                      {totpBusy ? "Enabling..." : "Enable"}
+                      {totpBusy ? t("security.enabling") : t("security.enable")}
                     </Button>
                   </div>
                 </div>
@@ -677,7 +693,7 @@ export function SecurityTab() {
               }}
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
             >
-              Cancel
+              {t("security.cancel")}
             </button>
           </div>
         )}
@@ -686,7 +702,7 @@ export function SecurityTab() {
           <div>
             {!showDisable ? (
               <Button variant="outline" size="sm" onClick={() => setShowDisable(true)} disabled={locked}>
-                Disable two-factor
+                {t("security.disableTwoFactor")}
               </Button>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
@@ -695,11 +711,11 @@ export function SecurityTab() {
                   inputMode="numeric"
                   value={totpCode}
                   onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="Current code"
+                  placeholder={t("security.currentCodePlaceholder")}
                   className="w-32 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
                 <Button size="sm" variant="outline" onClick={handleDisableTotp} disabled={totpBusy || totpCode.length !== 6 || locked}>
-                  {totpBusy ? "Disabling..." : "Confirm disable"}
+                  {totpBusy ? t("security.disabling") : t("security.confirmDisable")}
                 </Button>
                 <button
                   onClick={() => {
@@ -708,7 +724,7 @@ export function SecurityTab() {
                   }}
                   className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  Cancel
+                  {t("security.cancel")}
                 </button>
               </div>
             )}

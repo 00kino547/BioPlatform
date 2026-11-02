@@ -141,4 +141,51 @@ export async function capturePayPalOrder(orderId: string): Promise<{ status: str
   return { status, captureId: typeof capture?.id === "string" ? capture.id : undefined };
 }
 
+export type PayPalRefundResult = { state: "refunded" } | { state: "failed"; message: string };
+
+/**
+ * Refunds a completed capture. `captureId` is the payment capture id stored in
+ * `gateway_transaction_id` when the capture call or the capture-completed
+ * webhook marked the order paid. A refund PayPal keeps in review (`PENDING`)
+ * still moves the money eventually, so it counts as refunded; only an explicit
+ * reflect-down verdict (`FAILED`) or a rejected request is a failure. A
+ * duplicate refund request is reported as `refunded` so an operator retry
+ * after a partial failure cannot double-issue.
+ */
+export async function refundPayPalCapture(captureId: string, amountCents: number, currency: string): Promise<PayPalRefundResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${paypalBase()}/v2/payments/captures/${encodeURIComponent(captureId)}/refund`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${await accessToken()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ amount: { value: (amountCents / 100).toFixed(2), currency } }),
+      signal: controller.signal,
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      status?: string;
+      message?: string;
+      details?: Array<{ issue?: string; description?: string }>;
+    };
+    if (res.ok) {
+      if (json.status === "FAILED") {
+        return { state: "failed", message: "PayPal refund FAILED" };
+      }
+      // COMPLETED moves the money now; PENDING keeps it in review while the
+      // request is still accepted. Both warrant recording the refund locally.
+      return { state: "refunded" };
+    }
+    const issue = json.details?.[0]?.issue ?? "";
+    if (/ALREADY_REFUNDED|REFUND.*ALREADY|DUPLICATE/i.test(issue)) return { state: "refunded" };
+    return { state: "failed", message: json.message ?? `PayPal ${res.status}` };
+  } catch (err) {
+    return { state: "failed", message: err instanceof Error ? err.message : "PayPal refund request failed" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export { accessToken as paypalAccessToken };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MessageSquare, Save, TriangleAlert } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -20,6 +21,8 @@ const CONTACT_METHODS = ["none", "email", "telegram", "discord", "whatsapp"] as 
  * operator to say where to send the money.
  */
 export function ManualPaymentInstructionsEditor() {
+  // All user-facing strings come from the `dashboard` namespace (manualPayment.* keys).
+  const { t } = useTranslation("dashboard");
   const [method, setMethod] = useState<string>("none");
   const [value, setValue] = useState<string>("");
   const [msg, setMsg] = useState("");
@@ -34,9 +37,9 @@ export function ManualPaymentInstructionsEditor() {
         setValue(res.data.value);
       }
     } catch {
-      setError("Could not load the manual payment instructions");
+      setError(t("manualPayment.loadFailed"));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -53,12 +56,12 @@ export function ManualPaymentInstructionsEditor() {
         // when the method is `none`, and the form must show that.
         setMethod(res.data.method);
         setValue(res.data.value);
-        setMsg("Saved");
+        setMsg(t("manualPayment.saved"));
       } else {
-        setError(res.error ?? "Could not save the instructions");
+        setError(res.error ?? t("manualPayment.saveFailed"));
       }
     } catch {
-      setError("Could not save the instructions");
+      setError(t("manualPayment.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -68,16 +71,14 @@ export function ManualPaymentInstructionsEditor() {
     <div>
       <div className="flex items-center gap-2">
         <MessageSquare className="h-4 w-4 text-violet-400" aria-hidden />
-        <h3 className="text-sm font-medium text-white">Pay-by-hand instructions</h3>
+        <h3 className="text-sm font-medium text-white">{t("manualPayment.title")}</h3>
       </div>
-      <p className="mt-1 text-xs text-zinc-500">
-        Shown to buyers who choose &quot;pay by hand&quot;, on both plan purchases and invite credits.
-      </p>
+      <p className="mt-1 text-xs text-zinc-500">{t("manualPayment.description")}</p>
 
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="manual-pay-method" className="mb-1.5 block text-xs text-zinc-400">
-            Method
+            {t("manualPayment.method")}
           </label>
           <select
             id="manual-pay-method"
@@ -87,14 +88,14 @@ export function ManualPaymentInstructionsEditor() {
           >
             {CONTACT_METHODS.map((m) => (
               <option key={m} value={m}>
-                {m === "none" ? "None (not configured)" : m[0].toUpperCase() + m.slice(1)}
+                {m === "none" ? t("manualPayment.methodNone") : m[0].toUpperCase() + m.slice(1)}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label htmlFor="manual-pay-value" className="mb-1.5 block text-xs text-zinc-400">
-            Contact details (email address, @handle, phone&hellip;)
+            {t("manualPayment.contactDetails")}
           </label>
           <input
             id="manual-pay-value"
@@ -102,7 +103,7 @@ export function ManualPaymentInstructionsEditor() {
             onChange={(e) => setValue(e.target.value)}
             maxLength={300}
             disabled={method === "none"}
-            placeholder="owner@example.com"
+            placeholder={t("manualPayment.contactPlaceholder")}
             className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
@@ -116,10 +117,7 @@ export function ManualPaymentInstructionsEditor() {
       {method === "none" || !value.trim() ? (
         <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span>
-            No instructions are published, so buyers cannot choose &quot;pay by hand&quot;. Choose a method and
-            enter the details to enable it.
-          </span>
+          <span>{t("manualPayment.notPublished")}</span>
         </p>
       ) : null}
 
@@ -141,7 +139,7 @@ export function ManualPaymentInstructionsEditor() {
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Save className="h-4 w-4" aria-hidden />
-        {saving ? "Saving…" : "Save instructions"}
+        {saving ? t("manualPayment.saving") : t("manualPayment.save")}
       </button>
     </div>
   );

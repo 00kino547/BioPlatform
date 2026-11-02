@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { MusicTrack } from "@/lib/api";
 import { Play, Music, ExternalLink, Radio, VolumeX, Volume2, ChevronDown } from "lucide-react";
 
@@ -165,6 +166,7 @@ function isYoutubeEmbed(url: string): boolean {
 }
 
 function FullVersionPlayer({ track, accent }: { track: MusicTrack; accent: string }) {
+  const { t } = useTranslation("profile");
   if (!track.fullUrl) return null;
 
   const url = track.fullUrl;
@@ -178,7 +180,7 @@ function FullVersionPlayer({ track, accent }: { track: MusicTrack; accent: strin
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowFullScreen
-        title={`${track.title ?? "Track"} (full version)`}
+        title={t("musicPlayer.fullVersionTitle", { title: track.title ?? t("musicPlayer.defaultTrackTitle") })}
         className="aspect-video w-full rounded-lg bg-black/20"
       />
     );
@@ -209,7 +211,7 @@ function FullVersionPlayer({ track, accent }: { track: MusicTrack; accent: strin
       }}
     >
       <Radio className="h-4 w-4" />
-      Play full version
+      {t("musicPlayer.playFullVersion")}
     </a>
   );
 }
@@ -242,6 +244,7 @@ function LocalAudioPlayer({ src, accent, started }: { src: string; accent: strin
 }
 
 function TrackPlayer({ track, accent, started }: { track: MusicTrack; accent: string; started: boolean }) {
+  const { t } = useTranslation("profile");
   if (track.provider === "local" && track.filePath) {
     return <LocalAudioPlayer src={track.filePath} accent={accent} started={started} />;
   }
@@ -258,7 +261,7 @@ function TrackPlayer({ track, accent, started }: { track: MusicTrack; accent: st
           frameBorder="0"
           allow={started ? "autoplay; encrypted-media" : "encrypted-media"}
           allowTransparency
-          title={track.title ?? "Spotify track"}
+          title={track.title ?? t("musicPlayer.spotifyTrackTitle")}
           className="rounded-lg bg-black/20"
         />
         <a
@@ -273,7 +276,7 @@ function TrackPlayer({ track, accent, started }: { track: MusicTrack; accent: st
           }}
         >
           <ExternalLink className="h-4 w-4" />
-          Open in Spotify
+          {t("musicPlayer.openInSpotify")}
         </a>
       </div>
     );
@@ -287,6 +290,7 @@ function TrackPlayer({ track, accent, started }: { track: MusicTrack; accent: st
 }
 
 function YouTubePlayer({ url, accent, started }: { url: string; accent: string; started: boolean }) {
+  const { t } = useTranslation("profile");
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YtPlayerInstance | null>(null);
   const startedRef = useRef(started);
@@ -454,15 +458,15 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
       <div className="mx-auto aspect-video w-full max-w-[34rem]" ref={containerRef} />
       {failed && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-6 text-center">
-          <span className="text-xs font-medium opacity-70">This video couldn&apos;t be loaded.</span>
-          <span className="text-[11px] opacity-50">It may be unavailable or the network blocked it.</span>
+          <span className="text-xs font-medium opacity-70">{t("musicPlayer.videoLoadFailed")}</span>
+          <span className="text-[11px] opacity-50">{t("musicPlayer.videoUnavailableHint")}</span>
         </div>
       )}
       {ready && (
         <button
           onClick={toggleMute}
-          title={muted ? "Unmute" : "Mute"}
-          aria-label={muted ? "Unmute" : "Mute"}
+          title={muted ? t("musicPlayer.unmute") : t("musicPlayer.mute")}
+          aria-label={muted ? t("musicPlayer.unmute") : t("musicPlayer.mute")}
           className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-colors"
           style={{
             backgroundColor: `${accent}cc`,
@@ -471,7 +475,7 @@ function YouTubePlayer({ url, accent, started }: { url: string; accent: string; 
           }}
         >
           {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-          {muted && "Tap to unmute"}
+          {muted && t("musicPlayer.tapToUnmute")}
         </button>
       )}
     </div>
@@ -487,6 +491,7 @@ export function MusicPlayer({
   accent: string;
   textColor: string;
 }) {
+  const { t } = useTranslation("profile");
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -517,7 +522,7 @@ export function MusicPlayer({
               <Play className="h-3.5 w-3.5 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />
               <div className="flex flex-col min-w-0">
                 <span className="text-xs font-medium truncate">
-                  {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
+                  {track.title ?? (track.provider === "local" ? t("musicPlayer.localTrack") : track.provider)}
                 </span>
                 {track.artist && (
                   <span className="text-[11px] opacity-60 truncate">{track.artist}</span>
@@ -536,7 +541,7 @@ export function MusicPlayer({
         <div className="flex items-center justify-between mb-2 px-1">
           <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider opacity-70">
             <Music className="h-3 w-3" />
-            {active.provider === "local" ? "Local" : active.provider}
+            {active.provider === "local" ? t("musicPlayer.local") : active.provider}
           </span>
           <span className="text-[11px] truncate max-w-[60%]" style={{ color: muted }}>
             {active.artist ? `${active.title ? `${active.title} — ` : ""}${active.artist}` : active.title}
@@ -560,6 +565,7 @@ export function FloatingMusicPlayer({
   textColor: string;
   started: boolean;
 }) {
+  const { t } = useTranslation("profile");
   const [open, setOpen] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -590,7 +596,7 @@ export function FloatingMusicPlayer({
         <div className="flex items-center justify-between gap-2 mb-2 px-1">
           <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>
             <Music className="h-3.5 w-3.5" />
-            Music
+            {t("musicPlayer.music")}
           </span>
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[11px] truncate max-w-[9rem]" style={{ color: muted }}>
@@ -599,8 +605,8 @@ export function FloatingMusicPlayer({
             <button
               onClick={() => setOpen(false)}
               className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors flex-shrink-0"
-              title="Minimize"
-              aria-label="Minimize music player"
+              title={t("musicPlayer.minimize")}
+              aria-label={t("musicPlayer.minimizePlayer")}
             >
               <ChevronDown className="h-4 w-4" />
             </button>
@@ -623,7 +629,7 @@ export function FloatingMusicPlayer({
                 <Play className="h-3 w-3 flex-shrink-0" style={{ color: i === activeIndex ? accent : muted }} />
                 <div className="flex flex-col min-w-0">
                   <span className="text-[11px] font-medium truncate">
-                    {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
+                    {track.title ?? (track.provider === "local" ? t("musicPlayer.localTrack") : track.provider)}
                   </span>
                   {track.artist && (
                     <span className="text-[10px] opacity-60 truncate">{track.artist}</span>
@@ -647,8 +653,8 @@ export function FloatingMusicPlayer({
             color: "#fff",
             boxShadow: `0 8px 28px -8px ${accent}aa`,
           }}
-          title="Open music player"
-          aria-label="Open music player"
+          title={t("musicPlayer.openPlayer")}
+          aria-label={t("musicPlayer.openPlayer")}
         >
           <Music className="h-6 w-6" />
           <span className="absolute top-0.5 right-0.5 flex h-3 w-3">

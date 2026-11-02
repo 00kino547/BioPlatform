@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import { FX_EFFECTS, type LayoutName } from "@/lib/api";
 import { SampleProfilePreview } from "@/components/landing/SampleProfilePreview";
@@ -66,14 +67,14 @@ export interface SeasonalThemesTabProps {
 }
 
 const KIND_LABELS: Record<string, string> = {
-  season: "Season",
-  holiday: "Holiday",
+  season: "admin.seasonalThemes.kindSeason",
+  holiday: "admin.seasonalThemes.kindHoliday",
 };
 
 const OVERRIDE_LABELS: Record<string, string> = {
-  on: "Forced on (manual override)",
-  off: "Forced off",
-  schedule: "Schedule",
+  on: "admin.seasonalThemes.overrideOn",
+  off: "admin.seasonalThemes.overrideOff",
+  schedule: "admin.seasonalThemes.overrideSchedule",
 };
 
 export function SeasonalThemesTab({
@@ -87,6 +88,10 @@ export function SeasonalThemesTab({
   onUploadBackground,
   onRemoveBackground,
 }: SeasonalThemesTabProps) {
+  // Admin tab for scheduling seasonal/holiday themes on user profiles.
+  const { t } = useTranslation("admin");
+  // Month labels live under admin.seasonalThemes.months.
+  const monthName = (m: number) => t(`admin.seasonalThemes.months.${MONTH_KEYS[m - 1]}`);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [bgUploading, setBgUploading] = useState<string | null>(null);
 
@@ -111,10 +116,9 @@ export function SeasonalThemesTab({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-        <h2 className="text-lg font-semibold text-white mb-1">Seasonal Themes</h2>
+        <h2 className="text-lg font-semibold text-white mb-1">{t("admin.seasonalThemes.title")}</h2>
         <p className="text-sm text-zinc-500 mb-5">
-          Schedule seasonal and holiday themes that are applied to user profiles. A globally active theme
-          overrides the user's custom appearance while it's live.
+          {t("admin.seasonalThemes.description")}
         </p>
 
         {themeError && (
@@ -122,30 +126,30 @@ export function SeasonalThemesTab({
         )}
         {themeSaved && (
           <p className="mb-4 flex items-center gap-1.5 text-sm text-emerald-400">
-            <Check className="h-4 w-4" /> Saved
+            <Check className="h-4 w-4" /> {t("admin.seasonalThemes.saved")}
           </p>
         )}
 
         <div className="grid gap-3 sm:grid-cols-3">
           <ToggleCard
-            label="Seasonal themes"
-            hint="Master switch for all seasonal features"
+            label={t("admin.seasonalThemes.toggleSeasonalThemes")}
+            hint={t("admin.seasonalThemes.toggleSeasonalThemesHint")}
             checked={config.enabled}
             disabled={saving}
             onChange={(v) => onSaveConfig({ ...config, enabled: v })}
             accent="violet"
           />
           <ToggleCard
-            label="Automatic scheduling"
-            hint="Apply themes automatically within their date windows"
+            label={t("admin.seasonalThemes.toggleAutoSchedule")}
+            hint={t("admin.seasonalThemes.toggleAutoScheduleHint")}
             checked={config.autoSchedule}
             disabled={saving || !config.enabled}
             onChange={(v) => onSaveConfig({ ...config, autoSchedule: v })}
             accent="blue"
           />
           <ToggleCard
-            label="Respect user preference"
-            hint="Let users disable seasonal decorations in Appearance"
+            label={t("admin.seasonalThemes.toggleRespectPreference")}
+            hint={t("admin.seasonalThemes.toggleRespectPreferenceHint")}
             checked={config.respectUserPreferences}
             disabled={saving || !config.enabled}
             onChange={(v) => onSaveConfig({ ...config, respectUserPreferences: v })}
@@ -165,7 +169,7 @@ export function SeasonalThemesTab({
       </div>
 
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
-        <h3 className="text-sm font-medium text-white mb-4">Themes</h3>
+        <h3 className="text-sm font-medium text-white mb-4">{t("admin.seasonalThemes.heading")}</h3>
         <div className="space-y-3">
           {themes.map((theme) => (
             <div key={theme.id} className="overflow-hidden rounded-xl border border-zinc-800/70 bg-zinc-900/40">
@@ -175,14 +179,14 @@ export function SeasonalThemesTab({
                   <p className="font-medium text-white">
                     {theme.label}
                     <span className="ml-2 rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                      {KIND_LABELS[theme.kind] ?? theme.kind}
+                      {KIND_LABELS[theme.kind] ? t(KIND_LABELS[theme.kind]) : theme.kind}
                     </span>
                   </p>
                   <p className="text-xs text-zinc-500">
                     {theme.startMonth != null
-                      ? `${MONTHS[theme.startMonth - 1]} ${theme.startDay} – ${MONTHS[(theme.endMonth ?? 1) - 1]} ${theme.endDay}`
-                      : "No schedule window"}
-                    {" · "}sort {theme.sortOrder}
+                      ? `${monthName(theme.startMonth)} ${theme.startDay} – ${monthName(theme.endMonth ?? 1)} ${theme.endDay}`
+                      : t("admin.seasonalThemes.noScheduleWindow")}
+                    {" "}{t("admin.seasonalThemes.sort", { order: theme.sortOrder })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -193,11 +197,11 @@ export function SeasonalThemesTab({
                       ? "bg-red-500/15 text-red-400"
                       : "bg-zinc-800 text-zinc-400"
                   }`}>
-                    {OVERRIDE_LABELS[theme.overrideState ?? "schedule"]}
+                    {t(OVERRIDE_LABELS[theme.overrideState ?? "schedule"])}
                   </span>
                   {theme.allowedByAdmin && (
-                    <span className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-300" title="Always allowed for users who opt in (e.g. Christmas)">
-                      always-on
+                    <span className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-300" title={t("admin.seasonalThemes.alwaysOnTitle")}>
+                      {t("admin.seasonalThemes.alwaysOn")}
                     </span>
                   )}
                   <button
@@ -205,7 +209,7 @@ export function SeasonalThemesTab({
                     onClick={() => setExpanded(expanded === theme.id ? null : theme.id)}
                     className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 transition-colors"
                   >
-                    {expanded === theme.id ? "Close" : "Edit"}
+                    {expanded === theme.id ? t("admin.seasonalThemes.close") : t("admin.seasonalThemes.edit")}
                   </button>
                 </div>
               </div>
@@ -214,7 +218,7 @@ export function SeasonalThemesTab({
                 <div className="border-t border-zinc-800/70 px-4 py-4 space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block">
-                      <span className="text-xs text-zinc-400">Label</span>
+                      <span className="text-xs text-zinc-400">{t("admin.seasonalThemes.label")}</span>
                       <input
                         value={theme.label}
                         onChange={(e) => onUpdateTheme(theme.id, { label: e.target.value })}
@@ -222,7 +226,7 @@ export function SeasonalThemesTab({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-zinc-400">Emoji</span>
+                      <span className="text-xs text-zinc-400">{t("admin.seasonalThemes.emoji")}</span>
                       <input
                         value={theme.emoji ?? ""}
                         onChange={(e) => onUpdateTheme(theme.id, { emoji: e.target.value || null })}
@@ -230,7 +234,7 @@ export function SeasonalThemesTab({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-zinc-400">Background color</span>
+                      <span className="text-xs text-zinc-400">{t("admin.seasonalThemes.backgroundColor")}</span>
                       <input
                         type="color"
                         value={theme.config.bg?.startsWith("#") ? theme.config.bg! : "#09090b"}
@@ -241,7 +245,7 @@ export function SeasonalThemesTab({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-zinc-400">Card background</span>
+                      <span className="text-xs text-zinc-400">{t("admin.seasonalThemes.cardBackground")}</span>
                       <input
                         value={theme.config.cardBg ?? ""}
                         onChange={(e) =>
@@ -251,7 +255,7 @@ export function SeasonalThemesTab({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-zinc-400">Text color</span>
+                      <span className="text-xs text-zinc-400">{t("admin.seasonalThemes.textColor")}</span>
                       <input
                         type="color"
                         value={theme.config.text?.startsWith("#") ? theme.config.text! : "#e4e4e7"}
@@ -262,7 +266,7 @@ export function SeasonalThemesTab({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-zinc-400">Accent color</span>
+                      <span className="text-xs text-zinc-400">{t("admin.seasonalThemes.accentColor")}</span>
                       <input
                         type="color"
                         value={theme.config.accent?.startsWith("#") ? theme.config.accent! : "#7c3aed"}
@@ -275,7 +279,7 @@ export function SeasonalThemesTab({
                   </div>
 
                   <div>
-                    <p className="text-xs text-zinc-400 mb-2">Animated background effect</p>
+                    <p className="text-xs text-zinc-400 mb-2">{t("admin.seasonalThemes.effectLabel")}</p>
                     <div className="grid grid-cols-4 gap-2">
                       {FX_EFFECTS.map((e) => (
                         <button
@@ -295,7 +299,7 @@ export function SeasonalThemesTab({
                   </div>
 
                   <div>
-                    <p className="text-xs text-zinc-400 mb-2">Background image</p>
+                    <p className="text-xs text-zinc-400 mb-2">{t("admin.seasonalThemes.backgroundImage")}</p>
                     <BackgroundSelector
                       value={theme.config.backgroundImage ?? null}
                       onChange={(v) => onUpdateTheme(theme.id, { config: { ...theme.config, backgroundImage: v } })}
@@ -328,7 +332,7 @@ export function SeasonalThemesTab({
                   </div>
 
                   <div>
-                    <p className="text-xs text-zinc-400 mb-2">Layout</p>
+                    <p className="text-xs text-zinc-400 mb-2">{t("admin.seasonalThemes.layout")}</p>
                     <LayoutSelector
                       value={(theme.config.layout as LayoutName | null | undefined) ?? "default"}
                       onChange={(l) => onUpdateTheme(theme.id, { config: { ...theme.config, layout: l } })}
@@ -337,12 +341,12 @@ export function SeasonalThemesTab({
 
                   <div className="flex flex-wrap gap-2">
                     <ToggleSwitch
-                      label={theme.enabled ? "Enabled" : "Disabled"}
+                      label={theme.enabled ? t("admin.seasonalThemes.enabled") : t("admin.seasonalThemes.disabled")}
                       checked={theme.enabled}
                       onChange={(v) => onUpdateTheme(theme.id, { enabled: v })}
                     />
                     <ToggleSwitch
-                      label={theme.allowedByAdmin ? "Always allow" : "Not always-on"}
+                      label={theme.allowedByAdmin ? t("admin.seasonalThemes.alwaysAllow") : t("admin.seasonalThemes.notAlwaysOn")}
                       checked={theme.allowedByAdmin}
                       onChange={(v) => onUpdateTheme(theme.id, { allowedByAdmin: v })}
                     />
@@ -360,13 +364,13 @@ export function SeasonalThemesTab({
                             : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                         }`}
                       >
-                        {OVERRIDE_LABELS[state]}
+                        {t(OVERRIDE_LABELS[state])}
                       </button>
                     ))}
                   </div>
 
                   <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-violet-300">Live preview</p>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-violet-300">{t("admin.seasonalThemes.livePreview")}</p>
                     <SampleProfilePreview theme={theme.config} badge={theme.label} showEditor={false} />
                   </div>
                 </div>
@@ -375,7 +379,7 @@ export function SeasonalThemesTab({
           ))}
 
           {themes.length === 0 && (
-            <p className="text-sm text-zinc-500">No seasonal themes yet.</p>
+            <p className="text-sm text-zinc-500">{t("admin.seasonalThemes.noThemes")}</p>
           )}
         </div>
       </div>
@@ -383,7 +387,7 @@ export function SeasonalThemesTab({
   );
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_KEYS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"] as const;
 
 function ToggleCard({
   label,

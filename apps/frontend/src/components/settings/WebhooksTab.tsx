@@ -1,30 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api, type Webhook, type WebhookEvent, type WebhookDelivery, WEBHOOK_EVENTS } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useUpdateLockdown } from "@/lib/useVersionCheck";
+import { formatDateTime } from "@/lib/intl";
 import { Plus, Trash2, Send, KeyRound, RefreshCw, Copy, CheckCircle, XCircle, ChevronDown, ChevronUp, History, Pencil, ShieldAlert } from "lucide-react";
 
-const EVENT_LABELS: Record<WebhookEvent, string> = {
-  "profile.viewed": "Profile viewed",
-  "link.clicked": "Link clicked",
-  "profile.updated": "Profile updated",
-  "profile.created": "Profile created",
-  "profile.deleted": "Profile deleted",
-  "user.registered": "Account registered",
-  "user.updated": "Account updated",
+// Stable translator type so module-level helpers can translate.
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+// Webhook event → i18n key segment under webhooks.events.* and
+// webhooks.eventDescriptions.* (labels/descriptions live in the locale files).
+const EVENT_KEYS: Record<WebhookEvent, string> = {
+  "profile.viewed": "profileViewed",
+  "link.clicked": "linkClicked",
+  "profile.updated": "profileUpdated",
+  "profile.created": "profileCreated",
+  "profile.deleted": "profileDeleted",
+  "user.registered": "userRegistered",
+  "user.updated": "userUpdated",
 };
 
-const EVENT_DESCS: Record<WebhookEvent, string> = {
-  "profile.viewed": "Fires when someone visits your public profile.",
-  "link.clicked": "Fires when someone clicks one of your social links.",
-  "profile.updated": "Fires when you update your profile.",
-  "profile.created": "Fires when you create a new profile.",
-  "profile.deleted": "Fires when you delete a profile.",
-  "user.registered": "Fires when a new account is registered.",
-  "user.updated": "Fires when your account changes (e.g. password) or an admin edits it.",
-};
+// Event chip label; unknown/legacy events fall back to the raw event name.
+function eventLabel(event: string, t: Translate): string {
+  const key = EVENT_KEYS[event as WebhookEvent];
+  return key ? t(`webhooks.events.${key}`) : event;
+}
 
 export function WebhooksTab() {
+  // All user-facing strings come from the `dashboard` namespace (webhooks.* keys).
+  const { t } = useTranslation("dashboard");
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const { locked, data } = useUpdateLockdown();
   const [loading, setLoading] = useState(true);
@@ -57,10 +62,10 @@ export function WebhooksTab() {
     if (res.success && res.data) {
       setWebhooks(res.data);
     } else {
-      setError(res.error ?? "Could not load webhooks");
+      setError(res.error ?? t("webhooks.toasts.loadFailed"));
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -92,16 +97,16 @@ export function WebhooksTab() {
       JSON.parse(sample);
       return null;
     } catch {
-      return "Template must be valid JSON after replacing {{placeholders}}.";
+      return t("webhooks.toasts.templateInvalid");
     }
   };
 
   const handleCreate = async () => {
     setError("");
     setSuccess("");
-    if (!name.trim()) return setError("Give the webhook a name.");
-    if (!url.trim()) return setError("Enter a destination URL.");
-    if (events.length === 0) return setError("Select at least one event.");
+    if (!name.trim()) return setError(t("webhooks.toasts.giveName"));
+    if (!url.trim()) return setError(t("webhooks.toasts.enterUrl"));
+    if (events.length === 0) return setError(t("webhooks.toasts.selectEvent"));
     const templateError = isValidTemplate(template);
     if (templateError) return setError(templateError);
     setBusy(true);
@@ -123,9 +128,9 @@ export function WebhooksTab() {
         setTemplate("");
         setActive(true);
         await load();
-        setSuccess("Webhook created. Copy your signing secret now — it is shown only once.");
+        setSuccess(t("webhooks.toasts.created"));
       } else {
-        setError(res.error ?? "Could not create webhook");
+        setError(res.error ?? t("webhooks.toasts.createFailed"));
       }
     } finally {
       setBusy(false);
@@ -137,7 +142,7 @@ export function WebhooksTab() {
     if (res.success) {
       setWebhooks((prev) => prev.map((x) => (x.id === w.id ? { ...x, active: !w.active } : x)));
     } else {
-      setError(res.error ?? "Could not update webhook");
+      setError(res.error ?? t("webhooks.toasts.updateFailed"));
     }
   };
 
@@ -153,9 +158,9 @@ export function WebhooksTab() {
 
   const handleSaveEdit = async () => {
     if (!editingId) return;
-    if (!editName.trim()) return setError("Name is required.");
-    if (!editUrl.trim()) return setError("URL is required.");
-    if (editEvents.length === 0) return setError("Select at least one event.");
+    if (!editName.trim()) return setError(t("webhooks.toasts.nameRequired"));
+    if (!editUrl.trim()) return setError(t("webhooks.toasts.urlRequired"));
+    if (editEvents.length === 0) return setError(t("webhooks.toasts.selectEvent"));
     const templateError = isValidTemplate(editTemplate);
     if (templateError) return setError(templateError);
     const res = await api.updateWebhook(editingId, {
@@ -167,9 +172,9 @@ export function WebhooksTab() {
     if (res.success) {
       setEditingId(null);
       await load();
-      setSuccess("Webhook updated.");
+      setSuccess(t("webhooks.toasts.updated"));
     } else {
-      setError(res.error ?? "Could not update webhook");
+      setError(res.error ?? t("webhooks.toasts.updateFailed"));
     }
   };
 
@@ -179,9 +184,9 @@ export function WebhooksTab() {
     if (res.success && res.data) {
       setRevealedSecret({ id, secret: res.data.secret });
       clearSecretLater(id);
-      setSuccess("Secret rotated. Copy it now — it is shown only once.");
+      setSuccess(t("webhooks.toasts.secretRotated"));
     } else {
-      setError(res.error ?? "Could not rotate secret");
+      setError(res.error ?? t("webhooks.toasts.secretRotateFailed"));
     }
   };
 
@@ -190,9 +195,9 @@ export function WebhooksTab() {
     const res = await api.testWebhook(id);
     setTestState((prev) => ({ ...prev, [id]: res.success ? "ok" : "err" }));
     if (res.success) {
-      setSuccess("Test delivery sent. Check your endpoint and the delivery log.");
+      setSuccess(t("webhooks.toasts.testSent"));
     } else {
-      setError(res.error ?? "Test delivery failed");
+      setError(res.error ?? t("webhooks.toasts.testFailed"));
     }
   };
 
@@ -213,34 +218,34 @@ export function WebhooksTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this webhook? Its delivery history will be removed.")) return;
+    if (!window.confirm(t("webhooks.toasts.deleteConfirm"))) return;
     const res = await api.deleteWebhook(id);
     if (res.success) {
       setWebhooks((prev) => prev.filter((x) => x.id !== id));
-      setSuccess("Webhook deleted.");
+      setSuccess(t("webhooks.toasts.deleted"));
     } else {
-      setError(res.error ?? "Could not delete webhook");
+      setError(res.error ?? t("webhooks.toasts.deleteFailed"));
     }
   };
 
   const deliveryStatusBadge = (status: string) =>
     status === "success" ? (
       <span className="text-emerald-400 text-xs flex items-center gap-1">
-        <CheckCircle className="h-3.5 w-3.5" /> Success
+        <CheckCircle className="h-3.5 w-3.5" /> {t("webhooks.status.success")}
       </span>
     ) : status === "failed" ? (
       <span className="text-red-400 text-xs flex items-center gap-1">
-        <XCircle className="h-3.5 w-3.5" /> Failed
+        <XCircle className="h-3.5 w-3.5" /> {t("webhooks.status.failed")}
       </span>
     ) : (
       <span className="text-amber-400 text-xs flex items-center gap-1">
-        <RefreshCw className="h-3.5 w-3.5" /> Pending
+        <RefreshCw className="h-3.5 w-3.5" /> {t("common:status.pending")}
       </span>
     );
 
   const copySecret = (id: string, secret: string) => {
     void navigator.clipboard?.writeText(secret).then(() => {
-      setSuccess("Secret copied to clipboard.");
+      setSuccess(t("webhooks.toasts.secretCopied"));
     });
     clearSecretLater(id);
   };
@@ -263,25 +268,23 @@ export function WebhooksTab() {
           <ShieldAlert className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-red-300">
             <p className="font-semibold">
-              A critical or security update is required (v{data?.latest ?? "…"} available).
+              {t("webhooks.lockdownWarning", { version: data?.latest ?? "…" })}
             </p>
             <p className="mt-0.5 text-red-300/80">
-              Creating, editing, pausing, rotating secrets or deleting webhooks is locked until the app is
-              updated. Test deliveries still work.
+              {t("webhooks.lockdownDescription")}
             </p>
           </div>
         </div>
       )}
 
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-        <h4 className="text-sm font-medium text-white">About webhooks</h4>
+        <h4 className="text-sm font-medium text-white">{t("webhooks.aboutTitle")}</h4>
         <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-          BioPlatform posts JSON to your endpoint whenever an event you subscribe to fires. Each request
-          includes a signature in the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">X-BioPlatform-Signature</code>{" "}
-          header (HMAC-SHA256 of the raw body using your signing secret) so you can verify it came from us.
-          Failed deliveries are retried up to 5 times with increasing backoff. Max 10 webhooks per account.
-          Discord webhook URLs (channel → Integrations → Webhooks) are supported automatically — deliveries are
-          sent as a formatted embed so Discord shows the event nicely instead of raw JSON.
+          <Trans
+            ns="dashboard"
+            i18nKey="webhooks.aboutBody"
+            components={{ 0: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" /> }}
+          />
         </p>
       </div>
 
@@ -290,16 +293,16 @@ export function WebhooksTab() {
           <div className="flex items-start gap-3">
             <KeyRound className="h-5 w-5 text-violet-400 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-violet-300">Signing secret</h4>
+              <h4 className="text-sm font-medium text-violet-300">{t("webhooks.signingSecret")}</h4>
               <p className="text-xs text-violet-300/70 mt-1">
-                This secret is shown only once. Store it in your endpoint's config. We cannot recover it later.
+                {t("webhooks.secretOnce")}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <code className="bg-zinc-900/80 border border-violet-500/30 rounded-lg px-3 py-2 text-xs text-violet-200 break-all">
                   {revealedSecret.secret}
                 </code>
                 <Button variant="secondary" size="sm" onClick={() => copySecret(revealedSecret.id, revealedSecret.secret)}>
-                  <Copy className="h-3.5 w-3.5" /> Copy
+                  <Copy className="h-3.5 w-3.5" /> {t("webhooks.copy")}
                 </Button>
               </div>
             </div>
@@ -309,31 +312,31 @@ export function WebhooksTab() {
 
       {!creating ? (
         <Button onClick={() => setCreating(true)} disabled={locked}>
-          <Plus className="h-4 w-4" /> New Webhook
+          <Plus className="h-4 w-4" /> {t("webhooks.newWebhook")}
         </Button>
       ) : (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 space-y-4">
-          <h4 className="text-sm font-medium text-white">Create webhook</h4>
+          <h4 className="text-sm font-medium text-white">{t("webhooks.createWebhook")}</h4>
           <div className="space-y-1">
-            <label className="text-xs text-zinc-400">Name</label>
+            <label className="text-xs text-zinc-400">{t("webhooks.name")}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="My Discord bot"
+              placeholder={t("webhooks.namePlaceholder")}
               className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500"
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-zinc-400">Endpoint URL</label>
+            <label className="text-xs text-zinc-400">{t("webhooks.endpointUrl")}</label>
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com/hooks/bioplatform"
+              placeholder={t("webhooks.endpointPlaceholder")}
               className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs text-zinc-400">Events</label>
+            <label className="text-xs text-zinc-400">{t("webhooks.eventsLabel")}</label>
             {WEBHOOK_EVENTS.map((e) => (
               <label key={e} className="flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 cursor-pointer hover:border-zinc-700 transition-colors">
                 <input
@@ -343,14 +346,14 @@ export function WebhooksTab() {
                   className="mt-0.5 h-4 w-4 accent-violet-500"
                 />
                 <div>
-                  <p className="text-sm text-white">{EVENT_LABELS[e]}</p>
-                  <p className="text-xs text-zinc-500">{EVENT_DESCS[e]}</p>
+                  <p className="text-sm text-white">{eventLabel(e, t)}</p>
+                  <p className="text-xs text-zinc-500">{t(`webhooks.eventDescriptions.${EVENT_KEYS[e]}`)}</p>
                 </div>
               </label>
             ))}
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-zinc-400">Payload template (optional)</label>
+            <label className="text-xs text-zinc-400">{t("webhooks.payloadTemplate")}</label>
             <textarea
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
@@ -360,19 +363,23 @@ export function WebhooksTab() {
               className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-violet-500 resize-y"
             />
             <p className="text-xs text-zinc-500">
-              Custom JSON sent instead of the default payload. Placeholders:{" "}
-              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{id}}"}</code>{" "}
-              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{event}}"}</code>{" "}
-              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{timestamp}}"}</code>{" "}
-              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data}}"}</code> and{" "}
-              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data.<field>}}"}</code>.
-              Leave empty to use the default payload.
+              <Trans
+                ns="dashboard"
+                i18nKey="webhooks.payloadTemplateDescription"
+                components={{
+                  0: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                  1: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                  2: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                  3: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                  4: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                }}
+              />
             </p>
           </div>
           <label className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
             <div>
-              <p className="text-sm text-white">Active</p>
-              <p className="text-xs text-zinc-500">Deliver immediately after creation.</p>
+              <p className="text-sm text-white">{t("webhooks.active")}</p>
+              <p className="text-xs text-zinc-500">{t("webhooks.activeHint")}</p>
             </div>
             <button
               onClick={() => setActive(!active)}
@@ -383,26 +390,26 @@ export function WebhooksTab() {
           </label>
           <div className="flex gap-3">
             <Button onClick={handleCreate} disabled={busy || locked}>
-              <Plus className="h-4 w-4" /> {busy ? "Creating..." : "Create"}
+              <Plus className="h-4 w-4" /> {busy ? t("webhooks.creating") : t("webhooks.create")}
             </Button>
             <Button variant="secondary" onClick={() => setCreating(false)}>
-              Cancel
+              {t("webhooks.cancel")}
             </Button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading webhooks...</p>
+        <p className="text-sm text-zinc-500">{t("webhooks.loading")}</p>
       ) : webhooks.length === 0 ? (
-        <p className="text-sm text-zinc-500">No webhooks yet. Create one to start receiving events.</p>
+        <p className="text-sm text-zinc-500">{t("webhooks.empty")}</p>
       ) : (
         <div className="space-y-4">
           {webhooks.map((w) => (
             <div key={w.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden">
               {editingId === w.id ? (
                 <div className="p-5 space-y-4">
-                  <h4 className="text-sm font-medium text-white">Edit webhook</h4>
+                  <h4 className="text-sm font-medium text-white">{t("webhooks.editWebhook")}</h4>
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
@@ -422,12 +429,12 @@ export function WebhooksTab() {
                           onChange={() => toggleEditEvent(e)}
                           className="h-4 w-4 accent-violet-500"
                         />
-                        <span className="text-sm text-white">{EVENT_LABELS[e]}</span>
+                        <span className="text-sm text-white">{eventLabel(e, t)}</span>
                       </label>
                     ))}
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Payload template (optional)</label>
+                    <label className="text-xs text-zinc-400">{t("webhooks.payloadTemplate")}</label>
                     <textarea
                       value={editTemplate}
                       onChange={(e) => setEditTemplate(e.target.value)}
@@ -437,18 +444,23 @@ export function WebhooksTab() {
                       className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-violet-500 resize-y"
                     />
                     <p className="text-xs text-zinc-500">
-                      Empty = default payload. Placeholders:{" "}
-                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{id}}"}</code>{" "}
-                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{event}}"}</code>{" "}
-                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{timestamp}}"}</code>{" "}
-                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data}}"}</code> and{" "}
-                      <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{"{{data.<field>}}"}</code>.
+                      <Trans
+                        ns="dashboard"
+                        i18nKey="webhooks.payloadEmptyDescription"
+                        components={{
+                          0: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                          1: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                          2: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                          3: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                          4: <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400" />,
+                        }}
+                      />
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <Button onClick={handleSaveEdit} disabled={locked}>Save</Button>
+                    <Button onClick={handleSaveEdit} disabled={locked}>{t("webhooks.save")}</Button>
                     <Button variant="secondary" onClick={() => setEditingId(null)}>
-                      Cancel
+                      {t("webhooks.cancel")}
                     </Button>
                   </div>
                 </div>
@@ -468,7 +480,7 @@ export function WebhooksTab() {
                       <button
                         onClick={() => handleToggleActive(w)}
                         disabled={locked}
-                        title={locked ? "Locked until the app is updated" : w.active ? "Active" : "Paused"}
+                        title={locked ? t("webhooks.lockedUntilUpdated") : w.active ? t("webhooks.activeLabel") : t("webhooks.pausedLabel")}
                         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${w.active ? "bg-violet-600" : "bg-zinc-700"}`}
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${w.active ? "translate-x-6" : "translate-x-1"}`} />
@@ -477,7 +489,7 @@ export function WebhooksTab() {
                         onClick={() => startEdit(w)}
                         disabled={locked}
                         className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title={locked ? "Locked until the app is updated" : "Edit"}
+                        title={locked ? t("webhooks.lockedUntilUpdated") : t("webhooks.edit")}
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -485,7 +497,7 @@ export function WebhooksTab() {
                         onClick={() => handleRotate(w.id)}
                         disabled={locked}
                         className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title={locked ? "Locked until the app is updated" : "Rotate signing secret"}
+                        title={locked ? t("webhooks.lockedUntilUpdated") : t("webhooks.rotateSecret")}
                       >
                         <KeyRound className="h-4 w-4" />
                       </button>
@@ -493,7 +505,7 @@ export function WebhooksTab() {
                         onClick={() => handleTest(w.id)}
                         disabled={testState[w.id] === "sending"}
                         className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-50"
-                        title="Send test delivery"
+                        title={t("webhooks.sendTestTitle")}
                       >
                         <Send className="h-4 w-4" />
                       </button>
@@ -501,7 +513,7 @@ export function WebhooksTab() {
                         onClick={() => handleDelete(w.id)}
                         disabled={locked}
                         className="p-2 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title={locked ? "Locked until the app is updated" : "Delete"}
+                        title={locked ? t("webhooks.lockedUntilUpdated") : t("webhooks.delete")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -511,15 +523,15 @@ export function WebhooksTab() {
                   <div className="flex flex-wrap items-center gap-2 mt-4">
                     {w.events.map((e) => (
                       <span key={e} className="text-xs px-2.5 py-1 rounded-full bg-zinc-800/80 text-zinc-300">
-                        {EVENT_LABELS[e as WebhookEvent] ?? e}
+                        {eventLabel(e, t)}
                       </span>
                     ))}
                     <span className="text-xs px-2.5 py-1 rounded-full bg-zinc-800/80 text-zinc-500">
-                      secret: {w.secretPrefix}...
+                      {t("webhooks.secretPrefix")} {w.secretPrefix}...
                     </span>
                     {w.template && (
                       <span className="text-xs px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20">
-                        custom template
+                        {t("webhooks.customTemplate")}
                       </span>
                     )}
                   </div>
@@ -530,27 +542,27 @@ export function WebhooksTab() {
                       className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
                     >
                       <History className="h-3.5 w-3.5" />
-                      Delivery history
+                      {t("webhooks.deliveryHistory")}
                       {deliveriesFor === w.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
 
                     {deliveriesFor === w.id && (
                       <div className="mt-3">
                         {deliveriesLoading ? (
-                          <p className="text-xs text-zinc-500">Loading deliveries...</p>
+                          <p className="text-xs text-zinc-500">{t("webhooks.loadingDeliveries")}</p>
                         ) : deliveries.length === 0 ? (
-                          <p className="text-xs text-zinc-500">No deliveries yet.</p>
+                          <p className="text-xs text-zinc-500">{t("webhooks.noDeliveries")}</p>
                         ) : (
                           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                             {deliveries.map((d) => (
                               <div key={d.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-4 py-2.5 text-xs">
                                 <div className="flex items-center justify-between gap-3">
-                                  <span className="text-zinc-300 font-medium">{EVENT_LABELS[d.event as WebhookEvent] ?? d.event}</span>
+                                  <span className="text-zinc-300 font-medium">{eventLabel(d.event, t)}</span>
                                   {deliveryStatusBadge(d.status)}
                                 </div>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-zinc-500">
-                                  <span>{new Date(d.createdAt).toLocaleString()}</span>
-                                  <span>{d.attempts} attempt{d.attempts === 1 ? "" : "s"}</span>
+                                  <span>{formatDateTime(d.createdAt)}</span>
+                                  <span>{d.attempts} {t("webhooks.attempt")}{d.attempts === 1 ? "" : "s"}</span>
                                   {d.lastStatusCode != null && <span>HTTP {d.lastStatusCode}</span>}
                                 </div>
                                 {d.lastError && <p className="mt-1 text-red-400/80 break-words">{d.lastError}</p>}

@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ShoppingCart, X, Loader2, CheckCircle2, AlertCircle, ExternalLink, Send } from "lucide-react";
 import { api } from "@/lib/api";
 import type { ShopAvailability, ShopProductPublic, PurchaseStatus } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { formatPrice } from "@/lib/format";
 
 interface ShopBlockProps {
@@ -57,6 +58,7 @@ function BuyDialog({
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { user } = useAuth();
+  const { t } = useTranslation("profile");
 
   const isFree = product.priceCents === 0;
   const isRequestType = product.type === "REQUEST";
@@ -119,7 +121,7 @@ function BuyDialog({
         requestText: isRequestType ? requestText.trim() : undefined,
       });
       if (!res.success || !res.data) {
-        setError(res.error ?? "Something went wrong.");
+        setError(res.error ?? t("shopBlock.genericError"));
         setLoading(false);
         return;
       }
@@ -134,7 +136,7 @@ function BuyDialog({
         setStatus(res.status);
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("shopBlock.networkError"));
     }
     setLoading(false);
   };
@@ -155,7 +157,7 @@ function BuyDialog({
         )}
         <p className="text-sm font-semibold mb-1 truncate">{product.title}</p>
         <p className="text-xs mb-4" style={{ color: mutedColor }}>
-          {isFree ? "Free" : formatPrice(product.priceCents, currency)}
+          {isFree ? t("shopBlock.free") : formatPrice(product.priceCents, currency)}
           {!isFree && hasDiscount && originalPrice !== null && (
             <span className="ml-2 line-through opacity-60">
               {formatPrice(originalPrice, currency)}
@@ -166,10 +168,10 @@ function BuyDialog({
         {status === "PAID" ? (
           <div className="flex flex-col items-center gap-3 py-2">
             <CheckCircle2 className="h-10 w-10" style={{ color: "#22c55e" }} />
-            <p className="text-sm font-medium">{isRequestType ? "Request received!" : "Payment received!"}</p>
+            <p className="text-sm font-medium">{isRequestType ? t("shopBlock.requestReceived") : t("shopBlock.paymentReceived")}</p>
             {isRequestType ? (
               <p className="text-xs text-center" style={{ color: mutedColor }}>
-                The seller has been notified and will get back to you at the email you provided.
+                {t("shopBlock.sellerNotified")}
               </p>
             ) : downloadUrl ? (
               <a
@@ -179,28 +181,28 @@ function BuyDialog({
                 className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all hover:opacity-90"
                 style={{ backgroundColor: accent, color: "#18181b" }}
               >
-                Download file
+                {t("shopBlock.downloadFile")}
                 <ExternalLink className="h-4 w-4" />
               </a>
             ) : (
-              <p className="text-xs" style={{ color: mutedColor }}>Check your email for the download link.</p>
+              <p className="text-xs" style={{ color: mutedColor }}>{t("shopBlock.checkEmail")}</p>
             )}
-            <button onClick={onClose} className="text-xs underline" style={{ color: mutedColor }}>Close</button>
+            <button onClick={onClose} className="text-xs underline" style={{ color: mutedColor }}>{t("shopBlock.close")}</button>
           </div>
         ) : status === "PENDING" ? (
           <div className="flex flex-col items-center gap-3 py-2">
             <Loader2 className="h-8 w-8 animate-spin" style={{ color: accent }} />
-            <p className="text-sm">Waiting for payment…</p>
+            <p className="text-sm">{t("shopBlock.waitingPayment")}</p>
             <p className="text-xs text-center" style={{ color: mutedColor }}>
-              A checkout page was opened in a new tab. Complete the payment there and this dialog will update automatically.
+              {t("shopBlock.checkoutHint")}
             </p>
-            <button onClick={onClose} className="text-xs underline" style={{ color: mutedColor }}>Close</button>
+            <button onClick={onClose} className="text-xs underline" style={{ color: mutedColor }}>{t("shopBlock.close")}</button>
           </div>
         ) : status === "CANCELLED" ? (
           <div className="flex flex-col items-center gap-3 py-2">
             <AlertCircle className="h-8 w-8 text-zinc-500" />
-            <p className="text-sm">Purchase was cancelled.</p>
-            <button onClick={onClose} className="text-xs underline" style={{ color: mutedColor }}>Close</button>
+            <p className="text-sm">{t("shopBlock.purchaseCancelled")}</p>
+            <button onClick={onClose} className="text-xs underline" style={{ color: mutedColor }}>{t("shopBlock.close")}</button>
           </div>
         ) : (
           <>
@@ -216,7 +218,7 @@ function BuyDialog({
                       color: method === m ? "#18181b" : mutedColor,
                     }}
                   >
-                    {m === "STRIPE" ? "Card" : m === "PAYPAL" ? "PayPal" : "Crypto"}
+                    {m === "STRIPE" ? t("shopBlock.methodCard") : m === "PAYPAL" ? t("shopBlock.methodPaypal") : t("shopBlock.methodCrypto")}
                   </button>
                 ))}
               </div>
@@ -242,7 +244,7 @@ function BuyDialog({
 
             <input
               type="email"
-              placeholder={isRequestType ? "Email (sellers reply here)" : "Email (for download link)"}
+              placeholder={isRequestType ? t("shopBlock.emailRequestPlaceholder") : t("shopBlock.emailDownloadPlaceholder")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm outline-none transition-colors focus:border-violet-500 mb-3"
@@ -251,7 +253,7 @@ function BuyDialog({
             {isRequestType ? (
               <>
                 <textarea
-                  placeholder="Describe what you need — details, reference links, quantities…"
+                  placeholder={t("shopBlock.requestPlaceholder")}
                   value={requestText}
                   maxLength={2000}
                   rows={4}
@@ -260,12 +262,12 @@ function BuyDialog({
                   style={{ color: textColor }}
                 />
                 <p className="text-xs mb-3 -mt-2" style={{ color: mutedColor }}>
-                  Your email and request are shared with the seller so they can deliver what you asked for.
+                  {t("shopBlock.requestShared")}
                 </p>
               </>
             ) : (
               <p className="text-xs mb-3 -mt-2" style={{ color: mutedColor }}>
-                Required so we can send you the download link when the payment is confirmed.
+                {t("shopBlock.emailRequired")}
               </p>
             )}
 
@@ -278,9 +280,9 @@ function BuyDialog({
               style={{ backgroundColor: accent, color: "#18181b" }}
             >
               {isRequestType ? <Send className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
-              {loading ? "Processing…" : isRequestType
-                ? (isFree ? "Submit request" : `Pay ${formatPrice(product.priceCents, currency)} and submit`)
-                : isFree ? "Get for free" : `Pay ${formatPrice(product.priceCents, currency)}`}
+              {loading ? t("shopBlock.processing") : isRequestType
+                ? (isFree ? t("shopBlock.submitRequest") : t("shopBlock.payAndSubmit", { price: formatPrice(product.priceCents, currency) }))
+                : isFree ? t("shopBlock.getForFree") : t("shopBlock.pay", { price: formatPrice(product.priceCents, currency) })}
             </button>
           </>
         )}
@@ -290,6 +292,7 @@ function BuyDialog({
 }
 
 export function ShopBlock({ products, discountPercent, accent, textColor, mutedColor }: ShopBlockProps) {
+  const { t } = useTranslation("profile");
   const [openId, setOpenId] = useState<string | null>(null);
   const [currency, setCurrency] = useState("USD");
   const [availability, setAvailability] = useState<ShopAvailability | null>(null);
@@ -333,7 +336,7 @@ export function ShopBlock({ products, discountPercent, accent, textColor, mutedC
                   <p className="text-xs mt-0.5 line-clamp-2" style={{ color: mutedColor }}>{product.description}</p>
                 )}
                 <p className="text-sm font-semibold mt-2" style={{ color: accent }}>
-                  {product.priceCents === 0 ? "Free" : formatPrice(product.priceCents, currency)}
+                  {product.priceCents === 0 ? t("shopBlock.free") : formatPrice(product.priceCents, currency)}
                   {hasDiscount && originalPrice !== null && (
                     <span className="ml-2 text-xs font-normal line-through opacity-60" style={{ color: mutedColor }}>
                       {formatPrice(originalPrice, currency)}
@@ -341,7 +344,7 @@ export function ShopBlock({ products, discountPercent, accent, textColor, mutedC
                   )}
                   {product.type === "REQUEST" && (
                     <span className="ml-2 text-xs font-normal" style={{ color: mutedColor }}>
-                      · request
+                      {t("shopBlock.requestTag")}
                     </span>
                   )}
                 </p>

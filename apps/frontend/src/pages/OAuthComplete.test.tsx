@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 // before switching to the "check your email" panel; when `setup` was re-read on
 // every render, that removal nulled it and the verification screen was replaced
 // by the "session expired" panel.
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@/contexts/useAuth", () => ({
   useAuth: () => ({ setAuth: vi.fn() }),
 }));
 vi.mock("@/lib/seo", () => ({ usePageMeta: () => {} }));

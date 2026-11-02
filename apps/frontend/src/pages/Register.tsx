@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 import { Mail as MailIcon } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { branding } from "@/config/branding";
 import { Button } from "@/components/ui/button";
 import { SsoProviderButtons, EnterpriseSsoButtons } from "@/components/auth/SsoProviderButtons";
@@ -17,11 +18,12 @@ type RegisterField = "username" | "email" | "password" | "inviteCode" | "accepte
 type RegisterFieldErrors = Partial<Record<RegisterField, string>>;
 
 export function Register() {
+  const { t } = useTranslation("auth");
   const { register } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  usePageMeta({ title: "Create Account", description: `Create a free account on ${branding.name} and get your own profile page.`, url: "/register" });
+  usePageMeta({ title: t("register.metaTitle"), description: t("register.metaDescription", { name: branding.name }), url: "/register" });
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
 
@@ -58,25 +60,25 @@ export function Register() {
 
   const validate = (): RegisterFieldErrors => {
     const errors: RegisterFieldErrors = {};
-    if (!username) errors.username = "Username is required.";
-    else if (username.length < 3) errors.username = "Username must be at least 3 characters.";
-    else if (username.length > 32) errors.username = "Username must be 32 characters or fewer.";
+    if (!username) errors.username = t("register.usernameRequired");
+    else if (username.length < 3) errors.username = t("register.usernameMin");
+    else if (username.length > 32) errors.username = t("register.usernameMax");
     else if (!/^[a-z0-9_-]+$/.test(username)) {
-      errors.username = "Username can only contain lowercase letters, numbers, underscores, and hyphens.";
+      errors.username = t("register.usernameInvalid");
     }
 
-    if (!email.trim()) errors.email = "Email is required.";
-    else if (email.length > 254) errors.email = "Email must be 254 characters or fewer.";
-    else if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = "Email must be a valid email address.";
+    if (!email.trim()) errors.email = t("register.emailRequired");
+    else if (email.length > 254) errors.email = t("register.emailMax");
+    else if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = t("register.emailInvalid");
 
-    if (!password) errors.password = "Password is required.";
-    else if (password.length < 8) errors.password = "Password must be at least 8 characters.";
-    else if (password.length > 128) errors.password = "Password must be 128 characters or fewer.";
+    if (!password) errors.password = t("register.passwordRequired");
+    else if (password.length < 8) errors.password = t("register.passwordMin");
+    else if (password.length > 128) errors.password = t("register.passwordMax");
 
-    if (!inviteCode.trim()) errors.inviteCode = "Invite code is required.";
-    else if (inviteCode.length > 128) errors.inviteCode = "Invite code must be 128 characters or fewer.";
+    if (!inviteCode.trim()) errors.inviteCode = t("register.inviteCodeRequired");
+    else if (inviteCode.length > 128) errors.inviteCode = t("register.inviteCodeMax");
 
-    if (!acceptedPolicies) errors.acceptedPolicies = "You must accept the Terms of Service and Privacy Policy.";
+    if (!acceptedPolicies) errors.acceptedPolicies = t("register.policiesRequired");
     return errors;
   };
 
@@ -101,7 +103,7 @@ export function Register() {
     }
 
     if (result.error || result.fieldErrors) {
-      setError(result.error ?? "Please fix the highlighted fields.");
+      setError(result.error ?? t("register.fixFields"));
       setFieldErrors(result.fieldErrors ?? {});
       if (captchaEnabled) {
         setCaptchaToken("");
@@ -120,7 +122,7 @@ export function Register() {
           <Link to="/" className="text-2xl font-bold text-white tracking-tight">
             {branding.name}
           </Link>
-          <p className="mt-2 text-sm text-zinc-400">Create your account</p>
+          <p className="mt-2 text-sm text-zinc-400">{t("register.subtitle")}</p>
         </div>
 
         {verificationPending ? (
@@ -128,19 +130,23 @@ export function Register() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-violet-500/10 border border-violet-500/30">
               <MailIcon className="h-6 w-6 text-violet-400" />
             </div>
-            <h1 className="text-lg font-semibold text-white">Check your email</h1>
+            <h1 className="text-lg font-semibold text-white">{t("register.checkEmailTitle")}</h1>
+            {/* register.checkEmailBody uses the <Trans> tag form so the email keeps its styled span. */}
             <p className="mt-2 text-sm text-zinc-400 leading-relaxed">
-              We sent a verification link to{" "}
-              <span className="text-zinc-200 font-medium">{email}</span>. Click it to activate your account, then sign in.
+              <Trans
+                i18nKey="register.checkEmailBody"
+                ns="auth"
+                values={{ email }}
+                components={[<span key="email" className="text-zinc-200 font-medium" />]}
+              />
             </p>
             {verificationEmailSent === false && (
               <p className="mt-3 text-xs text-amber-400/90">
-                The email could not be sent right now ({branding.name} email is not configured). Please try resending it from
-                the sign-in page after verifying your address later.
+                {t("register.emailNotConfigured", { name: branding.name })}
               </p>
             )}
             <Link to="/login" className="mt-6 inline-block w-full">
-              <Button className="w-full h-11">Go to Sign In</Button>
+              <Button className="w-full h-11">{t("register.goToSignIn")}</Button>
             </Link>
           </div>
         ) : (
@@ -151,15 +157,21 @@ export function Register() {
           >
             {purchasedOrder && (
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-                Invite bought. Your codes are on their way to{" "}
-                <span className="font-medium">{email}</span> &mdash; you can follow the order at{" "}
-                <a
-                  href={`/invites/purchased/${purchasedOrder}`}
-                  className="underline underline-offset-2 hover:text-emerald-300"
-                >
-                  this link
-                </a>
-                . Paste a code below to finish registering.
+                {/* register.inviteBought uses the <Trans> tag form so the email span and the
+                    order link keep their styling. */}
+                <Trans
+                  i18nKey="register.inviteBought"
+                  ns="auth"
+                  values={{ email }}
+                  components={[
+                    <span key="email" className="font-medium" />,
+                    <a
+                      key="order"
+                      href={`/invites/purchased/${purchasedOrder}`}
+                      className="underline underline-offset-2 hover:text-emerald-300"
+                    />,
+                  ]}
+                />
               </div>
             )}
           {error && (
@@ -171,7 +183,7 @@ export function Register() {
           <SsoProviderButtons
             mode="signup"
             invite={inviteCode.trim() || undefined}
-            dividerLabel="or register with email"
+            dividerLabel={t("register.registerWithEmail")}
           />
 
           <PocketBaseLoginButton mode="signup" invite={inviteCode.trim() || undefined} />
@@ -180,7 +192,7 @@ export function Register() {
 
           <div>
             <label htmlFor="inviteCode" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Invite Code
+              {t("register.inviteCodeLabel")}
             </label>
             <input
               id="inviteCode"
@@ -195,7 +207,7 @@ export function Register() {
               aria-invalid={Boolean(fieldErrors.inviteCode)}
               aria-describedby={fieldErrors.inviteCode ? "inviteCode-error" : undefined}
               className={`w-full rounded-lg border ${fieldErrors.inviteCode ? "border-red-500/70" : "border-zinc-800"} bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 font-mono`}
-              placeholder="Enter your invite code"
+              placeholder={t("register.inviteCodePlaceholder")}
             />
             {fieldErrors.inviteCode && <p id="inviteCode-error" className="mt-1.5 text-xs text-red-400">{fieldErrors.inviteCode}</p>}
             {/*
@@ -204,11 +216,11 @@ export function Register() {
               closed store.
             */}
             <p className="mt-1.5 text-xs text-zinc-500">
-              Registration is invite-only. Get a code from an existing member, or{" "}
+              {t("register.inviteOnlyHint")}
               {storeOpen ? (
                 <>
                   <a href={inviteHref} className="text-violet-400 transition-colors hover:text-violet-300">
-                    buy one here
+                    {t("register.buyOneHere")}
                   </a>
                   <span className="mx-2" aria-hidden>
                     &middot;
@@ -225,7 +237,7 @@ export function Register() {
 
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Username
+              {t("register.usernameLabel")}
             </label>
             <input
               id="username"
@@ -239,20 +251,26 @@ export function Register() {
               aria-invalid={Boolean(fieldErrors.username)}
               aria-describedby={fieldErrors.username ? "username-error" : undefined}
               className={`w-full rounded-lg border ${fieldErrors.username ? "border-red-500/70" : "border-zinc-800"} bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 font-mono`}
-              placeholder="your-username"
+              placeholder={t("register.usernamePlaceholder")}
               minLength={3}
               maxLength={32}
               pattern="[a-z0-9_-]+"
             />
             {fieldErrors.username && <p id="username-error" className="mt-1.5 text-xs text-red-400">{fieldErrors.username}</p>}
+            {/* register.profileWillBeAt uses the <Trans> tag form so the username keeps its styled span. */}
             <p className="mt-1.5 text-xs text-zinc-500">
-              Your profile will be at {new URL(branding.url).host}/<span className="text-zinc-400">{username || "username"}</span>
+              <Trans
+                i18nKey="register.profileWillBeAt"
+                ns="auth"
+                values={{ host: new URL(branding.url).host, username: username || "username" }}
+                components={[<span key="username" className="text-zinc-400" />]}
+              />
             </p>
           </div>
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Email
+              {t("register.emailLabel")}
             </label>
             <input
               id="email"
@@ -267,14 +285,14 @@ export function Register() {
               aria-invalid={Boolean(fieldErrors.email)}
               aria-describedby={fieldErrors.email ? "email-error" : undefined}
               className={`w-full rounded-lg border ${fieldErrors.email ? "border-red-500/70" : "border-zinc-800"} bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30`}
-              placeholder="you@example.com"
+              placeholder={t("register.emailPlaceholder")}
             />
             {fieldErrors.email && <p id="email-error" className="mt-1.5 text-xs text-red-400">{fieldErrors.email}</p>}
           </div>
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Password
+              {t("register.passwordLabel")}
             </label>
             <input
               id="password"
@@ -289,7 +307,7 @@ export function Register() {
               aria-invalid={Boolean(fieldErrors.password)}
               aria-describedby={fieldErrors.password ? "password-error" : undefined}
               className={`w-full rounded-lg border ${fieldErrors.password ? "border-red-500/70" : "border-zinc-800"} bg-zinc-900/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30`}
-              placeholder="Min. 8 characters"
+              placeholder={t("register.passwordPlaceholder")}
             />
             {fieldErrors.password && <p id="password-error" className="mt-1.5 text-xs text-red-400">{fieldErrors.password}</p>}
           </div>
@@ -321,23 +339,26 @@ export function Register() {
                 className="mt-0.5 accent-violet-500"
               />
               <span className="text-sm text-zinc-300 leading-relaxed">
-                I have read and agree to the{" "}
-                <Link
-                  to="/terms"
-                  target="_blank"
-                  className="text-violet-400 underline underline-offset-2 hover:text-violet-300"
-                >
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link
-                  to="/privacy"
-                  target="_blank"
-                  className="text-violet-400 underline underline-offset-2 hover:text-violet-300"
-                >
-                  Privacy Policy
-                </Link>
-                .
+                {/* register.agreePolicies uses the <Trans> tag form so the Terms and Privacy
+                    links keep pointing at their real routes. */}
+                <Trans
+                  i18nKey="register.agreePolicies"
+                  ns="auth"
+                  components={[
+                    <Link
+                      key="terms"
+                      to="/terms"
+                      target="_blank"
+                      className="text-violet-400 underline underline-offset-2 hover:text-violet-300"
+                    />,
+                    <Link
+                      key="privacy"
+                      to="/privacy"
+                      target="_blank"
+                      className="text-violet-400 underline underline-offset-2 hover:text-violet-300"
+                    />,
+                  ]}
+                />
               </span>
             </label>
             {fieldErrors.acceptedPolicies && (
@@ -354,22 +375,21 @@ export function Register() {
                 className="mt-0.5 accent-violet-500"
               />
               <span className="text-sm text-zinc-400 leading-relaxed">
-                Subscribe to occasional news and product announcements from {branding.name}. You can unsubscribe at any time
-                from your account settings.
+                {t("register.newsletterOptIn", { name: branding.name })}
               </span>
             </label>
           </div>
 
           <Button type="submit" className="w-full h-11" disabled={loading || (captchaEnabled && !captchaToken)}>
-            {loading ? "Creating account..." : "Create account"}
+            {loading ? t("register.creatingAccount") : t("register.createAccount")}
           </Button>
         </form>
         )}
 
         <p className="mt-6 text-center text-sm text-zinc-500">
-          Already have an account?{" "}
+          {t("register.alreadyHaveAccount")}{" "}
           <Link to="/login" className="text-violet-400 hover:text-violet-300 transition-colors font-medium">
-            Sign in
+            {t("register.signInLink")}
           </Link>
         </p>
       </div>

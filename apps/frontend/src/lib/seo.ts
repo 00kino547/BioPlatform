@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { branding } from "@/config/branding";
+import i18n from "@/i18n";
 
 function setMeta(attr: "name" | "property", key: string, content: string) {
   let el = document.head.querySelector(`meta[${attr}="${key}"]`);
@@ -82,6 +83,8 @@ export function usePageMeta({ title, description, url, image, baseUrl }: PageMet
     setMeta("property", "og:title", fullTitle);
     setMeta("property", "og:description", desc);
     setMeta("property", "og:url", canonical);
+    // og:locale uses an underscore tag (en_GB, es_MX); i18n.language is BCP-47.
+    setMeta("property", "og:locale", i18n.language.replace("-", "_"));
     setMeta("name", "twitter:card", "summary_large_image");
     setMeta("name", "twitter:title", fullTitle);
     setMeta("name", "twitter:description", desc);
@@ -99,5 +102,5 @@ export function usePageMeta({ title, description, url, image, baseUrl }: PageMet
       document.head.appendChild(canonicalLink);
     }
     canonicalLink.href = canonical;
-  }, [title, description, url, image]);
+  }, [title, description, url, image, baseUrl]);
 }

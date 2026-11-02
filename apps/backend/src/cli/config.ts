@@ -22,8 +22,9 @@ import {
   resolveConfigPath,
   reloadSentinelPath,
 } from "../lib/instanceConfig.js";
+import { buildCspHeader, writeNginxCspConf } from "../lib/csp.js";
 
-const CONFIG_HELP = `bioplatform config <validate|reload> [<path>] [--json]
+const CONFIG_HELP = `bioplatform config <validate|reload|csp> [<path>] [--json]
 
 Manage the human-editable instance configuration (config.yml).
 
@@ -34,17 +35,24 @@ Manage the human-editable instance configuration (config.yml).
   reload  [<path>]   Validate first, then signal the RUNNING server to re-read
                       it (bumps config.yml's mtime and touches config.yml.reload).
                       Exit 0 = change requested; 1 = invalid file, nothing done.
+  csp     [<path>]   Validate first, then regenerate the nginx CSP include file
+                      (locates via the same parse). Offline helper for boot-time
+                      use; the running server rewrites it on every load/reload
+                      anyway. Never prints the parsed config.
 
 <path> defaults to CONFIG_FILE env (config.yml). Relative paths resolve against
 the backend working directory. The file (and its mount) must be writable so the
 reload signal can be sent.`;
 
 export interface ConfigOutcome {
-  command: "validate" | "reload";
+  command: "validate" | "reload" | "csp";
   path: string;
   valid: boolean;
   source?: "file" | "absent";
   requested?: boolean;
+  /** `csp` only: include file written and its byte size. */
+  cspPath?: string;
+  cspBytes?: number;
   errors?: string[];
 }
 
@@ -67,6 +75,8 @@ function printOutcome(outcome: ConfigOutcome, json: boolean): void {
       }
       process.exitCode = 1;
     }
+  } else if (outcome.command === "csp") {
+    console.log(`csp: nginx header written to ${outcome.cspPath} (${outcome.cspBytes} bytes, entrypoint watcher reloads nginx)`);
   } else if (outcome.valid) {
     console.log(`config: reload requested for ${outcome.path} — server applies on next poll`);
   } else {
@@ -92,8 +102,8 @@ export function runConfig(argv: string[]): void {
   // Optional explicit path, or CONFIG_FILE, or the default.
   const path = positional[0] ?? resolveConfigPath();
 
-  if (sub !== "validate" && sub !== "reload") {
-    die(`unknown config subcommand "${sub}" (expected validate or reload)`);
+  if (sub !== "validate" && sub !== "reload" && sub !== "csp") {
+    die(`unknown config subcommand "${sub}" (expected validate, reload or csp)`);
   }
 
   const result = parseInstanceConfig(path);
@@ -107,6 +117,35 @@ export function runConfig(argv: string[]): void {
         valid: result.ok,
         source: result.ok ? result.source : undefined,
         errors: result.ok ? undefined : [result.error],
+      },
+      json
+    );
+    return;
+  }
+
+  // csp: offline regeneration of the nginx CSP include file from `public.ads`.
+  // Admission check first — a broken file must never influence what the
+  // browser is allowed to load.
+  if (sub === "csp") {
+    if (!result.ok) {
+      printOutcome({
+        command: "csp",
+        path,
+        valid: false,
+        errors: [result.error],
+      }, json);
+      return;
+    }
+    const written = writeNginxCspConf(buildCspHeader(result.config.public.ads));
+    printOutcome(
+      {
+        command: "csp",
+        path,
+        valid: true,
+        source: result.source,
+        requested: true,
+        cspPath: written.path,
+        cspBytes: written.bytes,
       },
       json
     );

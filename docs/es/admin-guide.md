@@ -128,7 +128,7 @@ Mientras no haya instrucciones publicadas, la tienda **oculta** la opción "paga
 La tabla bajo la tarjeta lista las compras recientes con el comprador, el método y el estado:
 
 - **Confirmar** — marca como pagada una orden **MANUAL** y concede los créditos o envía los códigos.
-- **Marcar reembolsada** — registra el reembolso y revoca lo que la orden aún tiene: sus créditos sin usar se eliminan y sus códigos de invitado sin usar se revocan. **No devuelve ningún dinero**: hazlo antes en la pasarela de pago y luego márcalo aquí. El crédito ya canjeado nunca se revoca, porque revocarlo implicaría borrar una cuenta real.
+- **Marcar reembolsada** — registra el reembolso y revoca lo que la orden aún tiene: sus créditos sin usar se eliminan y sus códigos de invitado sin usar se revocan. Para las compras con **Tarjeta (Stripe)** y **PayPal** la plataforma ahora mueve el dinero ella misma: la solicitud de reembolso se emite en la pasarela **antes** de cambiar nuestros registros, y una pasarela inalcanzable responde con un error en lugar de registrar un reembolso que nunca ocurrió. **Las facturas cripto siguen siendo dinero que tú mueves** — los fondos están en tu propia billetera de la tienda — así que devuélvelos primero con la herramienta de reembolsos de tu pasarela y después marca la orden aquí; la vía «no devuelve ningún dinero» también cubre instancias con la pasarela de tarjeta desactivada. El crédito ya canjeado nunca se revoca, porque revocarlo implicaría borrar una cuenta real.
 - **Cancelar** — anula una orden de pasarela pendiente que nunca se pagó.
 
 ### Cuando el correo no está configurado
@@ -145,8 +145,8 @@ Se avisa a los invitados que revisen su carpeta de correo no deseado tras una co
 
 ### Reembolsar, en orden
 
-1. Devuelve el dinero en la pasarela de pago.
-2. Pulsa **Marcar reembolsada** para que nuestros registros y el acceso del comprador coincidan.
+1. Devuelve el dinero en la pasarela de pago — para pedidos con Tarjeta y PayPal, pulsar **Marcar reembolsada** lo hace por ti automáticamente (el registro local solo se escribe cuando la pasarela acepta el reembolso).
+2. Pulsa **Marcar reembolsada** para que nuestros registros y el acceso del comprador coincidan. Para pagos cripto y manuales, devuelve el dinero desde tu propia billetera o panel del proveedor primero; el clic solo concilia los registros.
 
 Si te saltas el paso 2, el comprador conserva los créditos y no queda registro de que la orden se reembolsó.
 
@@ -334,7 +334,7 @@ La pestaña **Pedidos** (requiere el permiso `orders.manage`) es el lado de cump
 2. **Procesa los pedidos** — la lista muestra todos los pedidos (los más recientes primero) con el comprador (usuario, email, plan), el plan solicitado, el método de pago (Contactar propietario / Tarjeta / PayPal / Cripto), la moneda + precio base, el % de descuento del comprador y el precio final pedido, los datos de la pasarela (id de transacción, estado del proveedor, moneda cripto + cantidad cotizada) cuando aplica, la nota del usuario, su estado y cualquier nota de administrador. Filtra por estado y pagina según necesites.
    - **Marcar pagado** — aprueba un pedido **Pendiente** cuando hayas recibido el pago. La cuenta se mejora automáticamente al plan solicitado si es superior a su plan actual (Gratuito → PRO → Enterprise).
    - **Cancelar** — rechaza un pedido **Pendiente** (el usuario puede pedir de nuevo).
-   - **Reembolsar** — revierte un pedido **Pagado** (por ejemplo, un error); la cuenta **no** se degrada.
+   - **Reembolsar** — revierte un pedido **Pagado** (por ejemplo, un error); la cuenta **no** se degrada. Para pedidos con **Tarjeta** y **PayPal** el reembolso se emite en la pasarela automáticamente **antes** de marcar el pedido como reembolsado — si la pasarela es inalcanzable, el pedido sigue **Pagado** y el panel muestra un error, así que no puedes registrar un reembolso que el proveedor no emitió. Los pagos cripto conservan el flujo manual (devuelve los fondos desde tu billetera de la tienda, luego marca reembolsado).
    - **Pendiente de nuevo** — reabre un pedido cancelado.
    - Cada cambio de estado puede incluir una **nota de administrador** (máx. 500 caracteres) que se muestra en el historial de pedidos de la pestaña Facturación del comprador.
 

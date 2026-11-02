@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
 import { QRCodeCanvas } from "qrcode.react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { branding } from "@/config/branding";
 import { usePageMeta } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
-import { PlatformIcon, platformDisplayNames } from "@/components/ui/PlatformIcon";
+import { PlatformIcon } from "@/components/ui/PlatformIcon";
+import { platformDisplayNames } from "@/components/ui/platformMeta";
 import { SecurityTab } from "@/components/auth/SecurityTab";
 import { WebhooksTab } from "@/components/settings/WebhooksTab";
 import { DiscordTab } from "@/components/settings/DiscordTab";
@@ -19,7 +21,9 @@ import { TipsTab } from "@/components/tips/TipsTab";
 import { ShopTab } from "@/components/shop/ShopTab";
 import { PurchasesTab } from "@/components/shop/PurchasesTab";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
 import { useInstanceConfig } from "@/lib/useInstanceConfig";
+import { formatDate, formatTime, formatNumber, formatDateTime } from "@/lib/intl";
 import { api, FX_EFFECTS, type Profile, type AnalyticsData, type EmailNotificationSettings, type MusicSettings, type MusicProvider, type MusicTrack, type Badge, type SocialLink, type TerminalCommand, type LayoutName, type FeatureFlags } from "@/lib/api";
 import { BadgePill } from "@/components/ui/BadgePill";
 import { ImageCropper } from "@/components/ui/ImageCropper";
@@ -243,7 +247,7 @@ function buildDayChart(
     const dateStr = d.toISOString().split("T")[0];
     days.push({
       date: dateStr,
-      label: new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      label: formatDate(`${dateStr}T00:00:00`, { month: "short", day: "numeric" }),
       total: series.find((v) => v.date === dateStr)?.count ?? 0,
       unique: uniqueSeries.find((v) => v.date === dateStr)?.count ?? 0,
     });
@@ -264,7 +268,7 @@ function buildHourChart(
     const hourStr = d.toISOString().slice(0, 13) + ":00:00";
     hours.push({
       hour: hourStr,
-      label: d.toLocaleTimeString("en-US", { hour: "numeric", hour12: false }),
+      label: formatTime(d, { hour: "numeric", hour12: false }),
       total: series.find((v) => v.hour && v.hour.startsWith(hourStr.slice(0, 13)))?.count ?? 0,
       unique: uniqueSeries.find((v) => v.hour && v.hour.startsWith(hourStr.slice(0, 13)))?.count ?? 0,
     });
@@ -317,13 +321,26 @@ const DASHBOARD_TABS: DashboardTab[] = [
 
 export function Dashboard() {
   const { user, logout, refreshUser } = useAuth();
+  // Single namespace for every string rendered by this page component.
+  const { t } = useTranslation("dashboard");
   const isAdmin = user?.isAdmin === true;
   const apiLevel = user?.apiLevel ?? "basic";
   const hasAdvanced = apiLevel === "advanced" || apiLevel === "enterprise";
   const hasEnterprise = apiLevel === "enterprise";
   const hasCustomDomain = (user?.tier === "PRO" || user?.tier === "ENTERPRISE") && user?.permissions?.includes("profiles.customDomain");
 
-  usePageMeta({ title: "Dashboard", description: `Manage your ${branding.name} profiles, links, appearance, and settings.`, url: "/dashboard" });
+  // Prefer the localized platform name; fall back to the shared display-name map
+  // (and finally the raw value) for platforms the locale file does not cover.
+  const platformLabel = (p: string): string => {
+    const key = `dashboard.platforms.${p.toLowerCase()}`;
+    const localized = t(key);
+    return localized === key ? (platformDisplayNames[p.toLowerCase()] ?? p) : localized;
+  };
+
+  // Theme preset identity stays the English name; only the rendered label is localized.
+  const themeLabel = (name: string): string => t(`common:themes.${name.toLowerCase()}`);
+
+  usePageMeta({ title: t("dashboard.meta.title"), description: t("dashboard.meta.description", { name: branding.name }), url: "/dashboard" });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [badgeCatalog, setBadgeCatalog] = useState<Badge[]>([]);
   const [limits, setLimits] = useState<{ profiles: number; aliases: number }>({ profiles: 1, aliases: 0 });
@@ -389,19 +406,19 @@ export function Dashboard() {
   const adsOptOutLocked =
     adsEnabled && user?.tier === "FREE" && !(instance?.ads?.freeOptOutAllowed ?? false) && !hideAds;
   const adsOptOutHint = adsOptOutLocked
-    ? "Hiding instance ads requires PRO or Enterprise on this instance."
+    ? t("dashboard.editor.adsHints.locked")
     : user?.tier === "FREE"
-      ? "Free plan: hiding ads is allowed by the instance operator."
-      : "Ads are hidden on this profile's public page.";
+      ? t("dashboard.editor.adsHints.freeAllowed")
+      : t("dashboard.editor.adsHints.hidden");
 
   // The adblock notice accompanies rendered ads. FREE always shows it; paid
   // plans may turn it off while keeping the ads themselves.
   const adblockNoticeHint =
     user?.tier === "FREE"
-      ? "Free plan always shows the adblock notice. Upgrade to PRO/Enterprise to disable it."
+      ? t("dashboard.editor.adsHints.freeAdblock")
       : adblockDetectorEnabled
-        ? "Visitors blocking ads on this profile see an adblock notice."
-        : "No adblock notice is shown on this profile.";
+        ? t("dashboard.editor.adsHints.adblockShown")
+        : t("dashboard.editor.adsHints.adblockHidden");
 
   const [newPlatform, setNewPlatform] = useState("Twitter");
   const [newUrl, setNewUrl] = useState("");
@@ -616,8 +633,8 @@ export function Dashboard() {
 
   const handleResetAnalytics = async (slug?: string) => {
     if (!profile) return;
-    if ((slug && !confirm(`Reset all click analytics for "${slug}"? This cannot be undone.`)) ||
-        (!slug && !confirm("Reset ALL click analytics for this profile? This cannot be undone."))) {
+    if ((slug && !confirm(t("dashboard.analytics.resetConfirm", { slug }))) ||
+        (!slug && !confirm(t("dashboard.analytics.resetConfirmAll")))) {
       return;
     }
     setAnalyticsResetting(slug ?? "*");
@@ -630,10 +647,10 @@ export function Dashboard() {
       const fresh = await api.getAnalytics(profile.id);
       if (fresh.success && fresh.data) setAnalytics(fresh.data);
       setAnalyticsLoading(false);
-      setAnalyticsResetMsg(slug ? `Reset "${slug}"` : "All click analytics reset");
+      setAnalyticsResetMsg(slug ? t("dashboard.analytics.resetDoneSlug", { slug }) : t("dashboard.analytics.resetDone"));
       setTimeout(() => setAnalyticsResetMsg(""), 2500);
     } else {
-      setAnalyticsResetMsg(res.error ?? "Reset failed");
+      setAnalyticsResetMsg(res.error ?? t("dashboard.analytics.resetFailed"));
     }
   };
 
@@ -732,7 +749,7 @@ export function Dashboard() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } else {
-      setSaveError(res.error ?? "Failed to save profile");
+      setSaveError(res.error ?? t("dashboard.toasts.profileSaveFailed"));
     }
   };
 
@@ -765,7 +782,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         prev.map((p) => (p.id === profile.id ? { ...p, avatar: res.data!.avatar } : p))
       );
     } else {
-      setUploadError(res.error ?? "Failed to upload avatar");
+      setUploadError(res.error ?? t("dashboard.toasts.avatarUploadFailed"));
     }
   };
 
@@ -779,7 +796,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         prev.map((p) => (p.id === profile.id ? { ...p, banner: res.data!.banner } : p))
       );
     } else {
-      setUploadError(res.error ?? "Failed to upload banner");
+      setUploadError(res.error ?? t("dashboard.toasts.bannerUploadFailed"));
     }
   };
 
@@ -792,7 +809,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         prev.map((p) => (p.id === profile.id ? { ...p, avatar: null } : p))
       );
     } else {
-      setUploadError(res.error ?? "Failed to remove avatar");
+      setUploadError(res.error ?? t("dashboard.toasts.avatarRemoveFailed"));
     }
   };
 
@@ -805,7 +822,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         prev.map((p) => (p.id === profile.id ? { ...p, banner: null } : p))
       );
     } else {
-      setUploadError(res.error ?? "Failed to remove banner");
+      setUploadError(res.error ?? t("dashboard.toasts.bannerRemoveFailed"));
     }
   };
 
@@ -830,15 +847,15 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
             (/^\/invite\/.+/.test(parsed.pathname) ||
               (h === "discord.gg" && /^\/.+/.test(parsed.pathname) && !parsed.pathname.startsWith("/invite")));
           if (!isInvite) {
-            return { error: "Invalid Discord link. Use a discord.gg invite or a username." };
+            return { error: t("dashboard.links.errors.invalidDiscordLink") };
           }
           url = candidate;
         } catch {
-          return { error: "Invalid Discord URL." };
+          return { error: t("dashboard.links.errors.invalidDiscordUrl") };
         }
       } else {
         if (!/^[a-z0-9_.]{2,32}$/i.test(url) || /\.\./.test(url) || /^\./.test(url) || /\.$/.test(url)) {
-          return { error: "Invalid Discord username. Use 2-32 characters: letters, numbers, underscores, or periods." };
+          return { error: t("dashboard.links.errors.invalidDiscordUsername") };
         }
       }
 } else if (!/^https?:\/\//i.test(url)) {
@@ -861,7 +878,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
       setEditImage(res.data.image);
       setUploadError("");
     } else {
-      setUploadError(res.error ?? "Upload failed");
+      setUploadError(res.error ?? t("dashboard.toasts.uploadFailed"));
     }
   };
 
@@ -997,7 +1014,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
     if (!music) return;
 
     if (music.tracks.length >= music.limit) {
-      setMusicError(`Track limit reached (${music.limit}). Upgrade your tier to add more tracks.`);
+      setMusicError(t("dashboard.toasts.trackLimitReached", { limit: music.limit }));
       return;
     }
 
@@ -1005,14 +1022,14 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
     let res;
     if (musicProvider === "local") {
       if (!musicFile) {
-        setMusicError("Choose an audio file to upload.");
+        setMusicError(t("dashboard.toasts.chooseAudioFile"));
         setMusicBusy(false);
         return;
       }
       res = await api.uploadMusicTrack(musicFile, musicTitle || undefined, musicArtist || undefined, musicFullUrl || undefined, profile.id);
     } else {
       if (!musicUrl.trim()) {
-        setMusicError(`Enter a ${musicProvider} URL.`);
+        setMusicError(t("dashboard.toasts.enterProviderUrl", { provider: musicProvider }));
         setMusicBusy(false);
         return;
       }
@@ -1039,7 +1056,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
       const fileInput = document.getElementById("music-file-input") as HTMLInputElement | null;
       if (fileInput) fileInput.value = "";
     } else {
-      setMusicError(res.error ?? "Failed to add track");
+      setMusicError(res.error ?? t("dashboard.toasts.trackAddFailed"));
     }
   };
 
@@ -1061,7 +1078,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
     if (res.success) {
       setMusic({ ...music, tracks: music.tracks.filter((t) => t.id !== id) });
     } else {
-      setMusicError(res.error ?? "Failed to remove track");
+      setMusicError(res.error ?? t("dashboard.toasts.trackRemoveFailed"));
     }
   };
 
@@ -1085,7 +1102,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         tracks: music.tracks.map((t) => (t.id === id ? res.data as MusicTrack : t)),
       });
     } else {
-      setMusicError(res.error ?? "Failed to update track");
+      setMusicError(res.error ?? t("dashboard.toasts.trackUpdateFailed"));
     }
     setEditingTrackId(null);
   };
@@ -1093,11 +1110,11 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
   const handleCreateProfile = async () => {
     const slug = profileSlug.trim().toLowerCase();
     if (!slug) {
-      setProfileMsg("Enter a slug for the new profile.");
+      setProfileMsg(t("dashboard.toasts.enterProfileSlug"));
       return;
     }
     if (profiles.length >= limits.profiles) {
-      setProfileMsg(`Profile limit reached (${limits.profiles}). Upgrade your tier to add more profiles.`);
+      setProfileMsg(t("dashboard.profiles.limitReached", { limit: limits.profiles }));
       return;
     }
     setProfileBusy(true);
@@ -1105,23 +1122,23 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
     const res = await api.createProfile({ slug, isPublic: true });
     setProfileBusy(false);
     if (res.success && res.data) {
-      setProfileMsg("Profile created.");
+      setProfileMsg(t("dashboard.toasts.profileCreated"));
       setProfileSlug("");
       await refreshProfiles();
       if (res.data) setSelectedProfileId(res.data.id);
     } else {
-      setProfileMsg(res.error ?? "Failed to create profile");
+      setProfileMsg(res.error ?? t("dashboard.toasts.profileCreateFailed"));
     }
   };
 
   const handleDeleteProfile = async (id: string) => {
-    if (!window.confirm("Delete this profile? This cannot be undone.")) return;
+    if (!window.confirm(t("dashboard.toasts.profileDeleteConfirm"))) return;
     const res = await api.deleteProfile(id);
     if (res.success) {
       setSelectedProfileId((prev) => (prev === id ? null : prev));
       await refreshProfiles();
     } else {
-      setProfileMsg(res.error ?? "Failed to delete profile");
+      setProfileMsg(res.error ?? t("dashboard.toasts.profileDeleteFailed"));
     }
   };
 
@@ -1131,7 +1148,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
       setPrimaryId(id);
       await refreshProfiles();
     } else {
-      setProfileMsg(res.error ?? "Failed to set primary profile");
+      setProfileMsg(res.error ?? t("dashboard.toasts.setPrimaryFailed"));
     }
   };
 
@@ -1143,7 +1160,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         prev.map((p) => (p.id === profileId ? { ...p, badges: res.data!.badges } : p))
       );
     } else {
-      setProfileMsg(res.error ?? "Failed to update badge");
+      setProfileMsg(res.error ?? t("dashboard.toasts.badgeUpdateFailed"));
     }
   };
 
@@ -1199,9 +1216,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
       setProfiles((prev) =>
         prev.map((p) => (p.id === profile.id ? { ...p, badges: res.data!.badges } : p))
       );
-      setBadgeOrderMsg({ type: "success", text: "Badge order saved" });
+      setBadgeOrderMsg({ type: "success", text: t("dashboard.toasts.badgeOrderSaved") });
     } else {
-      setBadgeOrderMsg({ type: "error", text: res.error ?? "Failed to save badge order" });
+      setBadgeOrderMsg({ type: "error", text: res.error ?? t("dashboard.toasts.badgeOrderFailed") });
     }
   };
 
@@ -1227,7 +1244,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
   const handleAddAlias = async (profileId: string) => {
     const slug = newAliasSlug.trim().toLowerCase();
     if (!slug) {
-      setAliasMsg("Enter a slug for the alias.");
+      setAliasMsg(t("dashboard.toasts.aliasSlugRequired"));
       return;
     }
     setAliasBusy(true);
@@ -1238,7 +1255,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
       setNewAliasSlug("");
       await loadAliases(profileId);
     } else {
-      setAliasMsg(res.error ?? "Failed to add alias");
+      setAliasMsg(res.error ?? t("dashboard.toasts.aliasAddFailed"));
     }
   };
 
@@ -1247,7 +1264,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
     if (res.success) {
       await loadAliases(profileId);
     } else {
-      setAliasMsg(res.error ?? "Failed to remove alias");
+      setAliasMsg(res.error ?? t("dashboard.toasts.aliasRemoveFailed"));
     }
   };
 
@@ -1287,9 +1304,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
         prev.map((p) => (p.isPrimary ? { ...p, slug: res.data!.slug } : p))
       );
       setUsernameAvailability(null);
-      setUsernameMsg({ kind: "success", text: `Your @username is now @${res.data.username}. Your profile moved to /${res.data.slug}.` });
+      setUsernameMsg({ kind: "success", text: t("dashboard.toasts.usernameChanged", { username: res.data.username, slug: res.data.slug }) });
     } else {
-      setUsernameMsg({ kind: "error", text: res.error ?? "Failed to change username" });
+      setUsernameMsg({ kind: "error", text: res.error ?? t("dashboard.toasts.usernameChangeFailed") });
     }
   };
 
@@ -1309,25 +1326,26 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
             {branding.name}
           </Link>
           <div className="flex items-center gap-2.5">
+            <LanguageSwitcher />
             <a
               href={`/${profile?.slug ?? user?.username}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-[13px] text-zinc-400 hover:text-violet-400 transition-colors"
             >
-              View Profile
+              {t("dashboard.header.viewProfile")}
             </a>
             {isAdmin && (
               <Link
                 to="/admin"
                 className="text-[13px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
               >
-                Admin Panel
+                {t("dashboard.header.adminPanel")}
               </Link>
             )}
             <span className="text-[13px] text-zinc-400">{user?.username}</span>
             <Button variant="secondary" size="sm" onClick={logout}>
-              Sign out
+              {t("dashboard.header.signOut")}
             </Button>
           </div>
         </div>
@@ -1336,7 +1354,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
       <main className="mx-auto max-w-3xl px-4 py-8 sm:py-10">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-white">Edit Profile</h1>
+            <h1 className="text-xl font-bold text-white">{t("dashboard.page.title")}</h1>
             <p className="mt-1 text-sm text-zinc-400">
               {new URL(branding.url).host}/{profile?.slug ?? user?.username}
             </p>
@@ -1360,32 +1378,32 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
             >
               {isPublic ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              {isPublic ? "Public" : "Private"}
+              {isPublic ? t("dashboard.page.public") : t("dashboard.page.private")}
             </button>
             <Button onClick={handleSave} disabled={saving}>
               <Save className="h-4 w-4" />
-              {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+              {saving ? t("dashboard.page.saving") : saved ? t("dashboard.page.saved") : t("dashboard.page.save")}
             </Button>
           </div>
         </div>
 
         <div className="mb-5 flex gap-1 overflow-x-auto border-b border-zinc-800/80">
-          {DASHBOARD_TABS.map((t) => {
+          {DASHBOARD_TABS.map((tabId) => {
             const locked =
-              (t === "analytics" || t === "data" || t === "discord") && !hasAdvanced
+              (tabId === "analytics" || tabId === "data" || tabId === "discord") && !hasAdvanced
                 ? true
-                : t === "webhooks" && !hasEnterprise
+                : tabId === "webhooks" && !hasEnterprise
                   ? true
-                  : t === "enterprise" && !hasEnterprise
+                  : tabId === "enterprise" && !hasEnterprise
                     ? true
-                    : t === "domain" && !hasCustomDomain;
+                    : tabId === "domain" && !hasCustomDomain;
             return (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={tabBtn(tab === t)}
+              key={tabId}
+              onClick={() => setTab(tabId)}
+              className={tabBtn(tab === tabId)}
             >
-              {t === "profiles" ? "Profiles" : t === "profile" ? "Profile" : t === "links" ? "Links" : t === "appearance" ? "Appearance" : t === "analytics" ? "Analytics" : t === "email" ? "Email" : t === "tips" ? "Tips" : t === "shop" ? "Shop" : t === "purchases" ? "Purchases" : t === "music" ? "Music" : t === "billing" ? "Billing" : t === "webhooks" ? "Webhooks" : t === "data" ? "Data" : t === "discord" ? "Discord" : t === "invites" ? "Invites" : t === "enterprise" ? "Enterprise" : t === "domain" ? "Domain" : t === "affiliate" ? "Affiliate" : "Security"}
+              {t(`dashboard.tabs.${tabId}`)}
               {locked && <Lock className="h-3 w-3 opacity-70" />}
             </button>
             );
@@ -1410,9 +1428,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               <div className="flex items-center gap-2.5 mb-3">
                 <Layers className="h-5 w-5 text-violet-400" />
                 <div>
-                  <h3 className="text-sm font-medium text-white">Profiles</h3>
+                  <h3 className="text-sm font-medium text-white">{t("dashboard.profiles.title")}</h3>
                   <p className="text-xs text-zinc-500">
-                    {profiles.length}/{limits.profiles} profiles used · {primaryId ? "Primary: " + (profiles.find((p) => p.id === primaryId)?.slug ?? "") : "No primary"}
+                    {t("dashboard.page.profilesUsed", { used: profiles.length, limit: limits.profiles })} · {primaryId ? t("dashboard.page.primary", { slug: profiles.find((p) => p.id === primaryId)?.slug ?? "" }) : t("dashboard.page.noPrimary")}
                   </p>
                 </div>
               </div>
@@ -1423,18 +1441,18 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     type="text"
                     value={profileSlug}
                     onChange={(e) => setProfileSlug(e.target.value)}
-                    placeholder="new-profile-slug"
+                    placeholder={t("dashboard.profiles.createPlaceholder")}
                     className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                   <Button onClick={handleCreateProfile} disabled={profileBusy}>
                     <Plus className="h-4 w-4" />
-                    {profileBusy ? "Creating..." : "Create Profile"}
+                    {profileBusy ? t("dashboard.profiles.creating") : t("dashboard.profiles.create")}
                   </Button>
                 </div>
               )}
               {profiles.length >= limits.profiles && (
                 <p className="text-xs text-zinc-500 text-center py-2">
-                  Profile limit reached ({limits.profiles}). Upgrade your tier to add more profiles.
+                  {t("dashboard.profiles.limitReached", { limit: limits.profiles })}
                 </p>
               )}
             </div>
@@ -1470,7 +1488,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     <div className="flex items-center gap-2 shrink-0">
                       {!p.isPrimary && (
                         <Button variant="secondary" size="sm" onClick={() => handleSetPrimary(p.id)}>
-                          <Star className="h-3.5 w-3.5" /> Set Primary
+                          <Star className="h-3.5 w-3.5" /> {t("dashboard.profiles.setPrimary")}
                         </Button>
                       )}
                       <Button
@@ -1478,13 +1496,13 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         size="sm"
                         onClick={() => setSelectedProfileId(p.id)}
                       >
-                        Edit
+                        {t("dashboard.profiles.edit")}
                       </Button>
                       {profiles.length > 1 && (
                         <button
                           onClick={() => handleDeleteProfile(p.id)}
                           className="text-zinc-500 hover:text-red-400 transition-colors"
-                          title="Delete profile"
+                          title={t("dashboard.profiles.deleteTitle")}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -1493,7 +1511,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   </div>
 
                   <div className="mt-4">
-                    <p className="text-xs font-medium text-zinc-400 mb-2">Badges</p>
+                    <p className="text-xs font-medium text-zinc-400 mb-2">{t("dashboard.profiles.badges")}</p>
                     <div className="flex flex-wrap gap-2">
                       {badgeCatalog.map((badge) => {
                         const owned = ownedBadges.includes(badge.id);
@@ -1502,7 +1520,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           <button
                             key={badge.id}
                             onClick={() => handleToggleBadge(p.id, badge.id)}
-                            title={active ? `Remove ${badge.label} badge` : `Add ${badge.label} badge`}
+                            title={active ? t("dashboard.profiles.removeBadge", { label: badge.label }) : t("dashboard.profiles.addBadge", { label: badge.label })}
                             className={`rounded-full transition-all duration-200 ${
                               active
                                 ? "scale-105 ring-2 ring-offset-1 ring-offset-zinc-900"
@@ -1517,7 +1535,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             key={badge.id}
                             className="relative inline-flex cursor-not-allowed rounded-full opacity-40 grayscale"
                             style={{ border: `1px solid ${badge.color}40` }}
-                            title="Badge not earned — it must be granted by an admin"
+                            title={t("dashboard.profiles.badgeNotEarned")}
                           >
                             <BadgePill badge={badge} />
                             <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-800 ring-1 ring-zinc-600">
@@ -1527,7 +1545,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         );
                       })}
                       {badgeCatalog.length === 0 && (
-                        <span className="text-xs text-zinc-500">No badges available</span>
+                        <span className="text-xs text-zinc-500">{t("dashboard.profiles.noBadges")}</span>
                       )}
                     </div>
                   </div>
@@ -1538,7 +1556,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       className="flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
                     >
                       <Link2 className="h-3.5 w-3.5" />
-                      Aliases ({p.aliases?.length ?? 0} / {limits.aliases})
+                      {t("dashboard.profiles.aliases", { count: p.aliases?.length ?? 0, limit: limits.aliases })}
                       {expandedAliasesFor === p.id ? (
                         <ChevronUp className="h-3.5 w-3.5" />
                       ) : (
@@ -1556,7 +1574,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                                 <button
                                   onClick={() => handleDeleteAlias(p.id, a.id)}
                                   className="text-zinc-500 hover:text-red-400 transition-colors"
-                                  title="Remove alias"
+                                  title={t("dashboard.profiles.removeAlias")}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -1570,16 +1588,16 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                               type="text"
                               value={newAliasSlug}
                               onChange={(e) => setNewAliasSlug(e.target.value)}
-                              placeholder="alias-slug"
+                              placeholder={t("dashboard.profiles.aliasPlaceholder")}
                               className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                             <Button variant="secondary" size="sm" onClick={() => handleAddAlias(p.id)} disabled={aliasBusy}>
                               <Plus className="h-3.5 w-3.5" />
-                              Add
+                              {t("dashboard.profiles.add")}
                             </Button>
                           </div>
                         ) : (
-                           <p className="text-xs text-zinc-500">Alias limit reached ({limits.aliases}).</p>
+                           <p className="text-xs text-zinc-500">{t("dashboard.profiles.aliasLimitReached", { limit: limits.aliases })}</p>
                         )}
                         {aliasMsg && <p className="text-xs text-red-400">{aliasMsg}</p>}
                       </div>
@@ -1597,9 +1615,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               <div className="flex items-center gap-2.5 mb-3">
                 <AtSign className="h-5 w-5 text-violet-400" />
                 <div>
-                  <h3 className="text-sm font-medium text-white">Your @username</h3>
+                  <h3 className="text-sm font-medium text-white">{t("dashboard.username.title")}</h3>
                   <p className="text-xs text-zinc-500">
-                    Renames your handle and moves your main profile to /@username — old links redirect to the new one.
+                    {t("dashboard.username.description")}
                   </p>
                 </div>
               </div>
@@ -1614,7 +1632,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     setUsernameMsg(null);
                     checkUsername(value);
                   }}
-                  placeholder="username"
+                  placeholder={t("dashboard.username.placeholder")}
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
                 <Button
@@ -1626,22 +1644,22 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   }
                 >
                   {usernameBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <AtSign className="h-4 w-4" />}
-                  {usernameBusy ? "Saving..." : "Change"}
+                  {usernameBusy ? t("dashboard.username.saving") : t("dashboard.username.change")}
                 </Button>
               </div>
 
               <div className="mt-3 min-h-[18px]">
-                {usernameChecking && <p className="text-xs text-zinc-500">Checking availability…</p>}
+                {usernameChecking && <p className="text-xs text-zinc-500">{t("dashboard.username.checking")}</p>}
                 {!usernameChecking && usernameAvailability && usernameInput && (
                   usernameAvailability.available ? (
                     <p className="text-xs text-emerald-400 flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5" /> @{usernameInput.trim().toLowerCase()} is available.
+                      <Check className="h-3.5 w-3.5" /> {t("dashboard.username.available", { username: usernameInput.trim().toLowerCase() })}
                     </p>
                   ) : (
                     <p className="text-xs text-amber-400 flex items-center gap-1.5">
-                      {usernameAvailability.reason === "reserved" && <>@{usernameInput.trim().toLowerCase()} is reserved and cannot be claimed.</>}
-                      {usernameAvailability.reason === "taken" && <>@{usernameInput.trim().toLowerCase()} is already taken.</>}
-                      {usernameAvailability.reason === "current" && <>That is your current @username.</>}
+                      {usernameAvailability.reason === "reserved" && <>{t("dashboard.username.reserved", { username: usernameInput.trim().toLowerCase() })}</>}
+                      {usernameAvailability.reason === "taken" && <>{t("dashboard.username.taken", { username: usernameInput.trim().toLowerCase() })}</>}
+                      {usernameAvailability.reason === "current" && <>{t("dashboard.username.current")}</>}
                     </p>
                   )
                 )}
@@ -1658,7 +1676,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 )}
               </div>
               <p className="text-xs text-zinc-500 mt-1">
-                Lowercase letters, numbers, underscores and hyphens. One rename every 30 days.
+                {t("dashboard.username.rules")}
               </p>
             </div>
 
@@ -1678,7 +1696,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   {profile?.avatar ? (
                     <img
                       src={profile.avatar}
-                      alt="Avatar"
+                      alt={t("dashboard.editor.avatarAlt")}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -1695,7 +1713,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     onClick={handleRemoveAvatar}
                     className="mt-2 w-full text-xs text-red-400/70 hover:text-red-400 transition-colors"
                   >
-                    Remove
+                    {t("dashboard.editor.remove")}
                   </button>
                 )}
               </div>
@@ -1703,7 +1721,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               <div className="flex-1 space-y-4">
                 <div>
                   <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                    Display Name
+                    {t("dashboard.editor.displayName")}
                   </label>
                   <input
                     type="text"
@@ -1714,16 +1732,16 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Bio</label>
+                  <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("dashboard.editor.bio")}</label>
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Tell the world about yourself..."
+                    placeholder={t("dashboard.editor.bioPlaceholder")}
                     rows={3}
                     maxLength={500}
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                   />
-                  <p className="text-xs text-zinc-500 mt-1">{bio.length}/500</p>
+                  <p className="text-xs text-zinc-500 mt-1">{t("dashboard.editor.bioCount", { count: bio.length })}</p>
                 </div>
               </div>
             </div>
@@ -1733,14 +1751,14 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" />
-                    Location
+                    {t("dashboard.editor.location")}
                   </span>
                 </label>
                 <input
                   type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Earth"
+                  placeholder={t("dashboard.editor.locationPlaceholder")}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
@@ -1748,14 +1766,14 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5" />
-                    Website
+                    {t("dashboard.editor.website")}
                   </span>
                 </label>
                 <input
                   type="url"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
-                  placeholder="https://example.com"
+                  placeholder={t("dashboard.editor.websitePlaceholder")}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
@@ -1766,7 +1784,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <CircleDot className="h-3.5 w-3.5" />
-                    Presence status
+                    {t("dashboard.editor.presenceStatus")}
                   </span>
                 </label>
                 <select
@@ -1774,25 +1792,25 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   onChange={(e) => setPresenceStatus(e.target.value === "" ? null : (e.target.value as "online" | "idle" | "offline"))}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
-                  <option value="">Off (hidden)</option>
-                  <option value="online">Online</option>
-                  <option value="idle">Away</option>
-                  <option value="offline">Offline</option>
+                  <option value="">{t("dashboard.editor.presenceOff")}</option>
+                  <option value="online">{t("dashboard.editor.presenceOnline")}</option>
+                  <option value="idle">{t("dashboard.editor.presenceAway")}</option>
+                  <option value="offline">{t("dashboard.editor.presenceOffline")}</option>
                 </select>
-                <p className="text-xs text-zinc-500 mt-1">Shows a static status dot on your public profile.</p>
+                <p className="text-xs text-zinc-500 mt-1">{t("dashboard.editor.presenceHint")}</p>
               </div>
               <div>
                 <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5" />
-                    Countdown label
+                    {t("dashboard.editor.countdownLabel")}
                   </span>
                 </label>
                 <input
                   type="text"
                   value={countdownLabel}
                   onChange={(e) => setCountdownLabel(e.target.value)}
-                  placeholder="e.g. Launch in"
+                  placeholder={t("dashboard.editor.countdownLabelPlaceholder")}
                   maxLength={60}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
@@ -1803,7 +1821,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
                 <span className="flex items-center gap-1.5">
                   <Timer className="h-3.5 w-3.5" />
-                  Countdown target
+                  {t("dashboard.editor.countdownTarget")}
                 </span>
               </label>
               <input
@@ -1812,7 +1830,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 onChange={(e) => setCountdownDate(e.target.value)}
                 className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
-              <p className="text-xs text-zinc-500 mt-1">Leave empty to hide the countdown. Shown on your public profile with a live ticking timer.</p>
+              <p className="text-xs text-zinc-500 mt-1">{t("dashboard.editor.countdownHint")}</p>
             </div>
 
             {adsEnabled && (
@@ -1820,7 +1838,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 <label className="flex cursor-pointer items-center justify-between gap-3">
                   <span>
                     <span className="block text-[13px] font-medium text-zinc-200">
-                      Hide instance ads on this profile
+                      {t("dashboard.editor.hideAds")}
                     </span>
                     <span className="block text-xs text-zinc-500 mt-0.5">{adsOptOutHint}</span>
                   </span>
@@ -1836,7 +1854,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   <label className="flex cursor-pointer items-center justify-between gap-3 mt-4 pt-4 border-t border-zinc-800/70">
                     <span>
                       <span className="block text-[13px] font-medium text-zinc-200">
-                        Show the adblock notice on this profile
+                        {t("dashboard.editor.showAdblockNotice")}
                       </span>
                       <span className="block text-xs text-zinc-500 mt-0.5">{adblockNoticeHint}</span>
                     </span>
@@ -1866,14 +1884,14 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 {profile?.banner ? (
                   <img
                     src={profile.banner}
-                    alt="Banner"
+                    alt={t("dashboard.editor.bannerAlt")}
                     className="w-full h-32 object-cover rounded-xl mb-3"
                   />
                 ) : null}
                 <Camera className="h-5 w-5 text-zinc-500 group-hover:text-violet-400 mx-auto mb-2 transition-colors" />
                 <p className="text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                  {profile?.banner ? "Change Banner" : "Upload Banner"}{" "}
-                  <span className="text-zinc-600">(16:9 recommended)</span>
+                  {profile?.banner ? t("dashboard.editor.changeBanner") : t("dashboard.editor.uploadBanner")}{" "}
+                  <span className="text-zinc-600">{t("dashboard.editor.bannerRecommended")}</span>
                 </p>
               </button>
               {profile?.banner && (
@@ -1881,7 +1899,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   onClick={handleRemoveBanner}
                   className="mt-2 w-full text-xs text-red-400/70 hover:text-red-400 transition-colors"
                 >
-                  Remove Banner
+                  {t("dashboard.editor.removeBanner")}
                 </button>
               )}
             </div>
@@ -1898,7 +1916,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               >
                 {platforms.map((p) => (
                   <option key={p} value={p}>
-                    {platformDisplayNames[p.toLowerCase()] ?? p}
+                    {platformLabel(p)}
                   </option>
                 ))}
               </select>
@@ -1907,9 +1925,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 value={newUrl}
                 onChange={(e) => setNewUrl(e.target.value)}
                 placeholder={
-                  newPlatform.toLowerCase() === "email" ? "user@example.com"
-                    : newPlatform.toLowerCase() === "discord" ? "username or discord.gg/invite"
-                    : "https://..."
+                  newPlatform.toLowerCase() === "email" ? t("dashboard.links.placeholderEmail")
+                    : newPlatform.toLowerCase() === "discord" ? t("dashboard.links.placeholderDiscord")
+                    : t("dashboard.links.placeholderUrl")
                 }
                 className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
@@ -1927,13 +1945,13 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   addLink();
                 }
               }}
-              placeholder="Label (optional) — e.g. My Discord Server"
+              placeholder={t("dashboard.links.labelPlaceholder")}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
 
             {socialLinks.length === 0 && (
               <p className="text-sm text-zinc-500 text-center py-8">
-                No links yet. Add your social links above.
+                {t("dashboard.links.noLinks")}
               </p>
             )}
 
@@ -1951,7 +1969,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     >
                       {platforms.map((p) => (
                         <option key={p} value={p}>
-                          {platformDisplayNames[p.toLowerCase()] ?? p}
+                          {platformLabel(p)}
                         </option>
                       ))}
                     </select>
@@ -1960,9 +1978,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       value={editUrl}
                       onChange={(e) => setEditUrl(e.target.value)}
                       placeholder={
-                        editPlatform.toLowerCase() === "email" ? "user@example.com"
-                          : editPlatform.toLowerCase() === "discord" ? "username or discord.gg/invite"
-                          : "https://..."
+                        editPlatform.toLowerCase() === "email" ? t("dashboard.links.placeholderEmail")
+                          : editPlatform.toLowerCase() === "discord" ? t("dashboard.links.placeholderDiscord")
+                          : t("dashboard.links.placeholderUrl")
                       }
                       className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
@@ -1978,7 +1996,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           saveEditLink();
                         }
                       }}
-                      placeholder="Label (optional)"
+                      placeholder={t("dashboard.links.labelOptional")}
                       className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                     <Button onClick={saveEditLink} size="icon">
@@ -1993,7 +2011,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       type="text"
                       value={editHeading}
                       onChange={(e) => setEditHeading(e.target.value)}
-                      placeholder="Section heading (optional) — e.g. Socials"
+                      placeholder={t("dashboard.links.headingPlaceholder")}
                       className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                   )}
@@ -2023,7 +2041,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             }}
                             className="ml-auto text-xs text-zinc-500 hover:text-red-400 transition-colors"
                           >
-                            Clear icon
+                            {t("dashboard.links.clearIcon")}
                           </button>
                         )}
                       </div>
@@ -2031,7 +2049,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         <div className="flex items-center gap-2">
                           <img src={editImage} alt="" className="h-8 w-8 rounded object-contain bg-zinc-800" />
                           {editIcon ? (
-                            <span className="text-xs text-zinc-500">Custom emoji: {editIcon}</span>
+                            <span className="text-xs text-zinc-500">{t("dashboard.links.customEmoji", { emoji: editIcon })}</span>
                           ) : null}
                         </div>
                       ) : null}
@@ -2040,7 +2058,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           type="text"
                           value={editIcon}
                           onChange={(e) => setEditIcon(e.target.value.slice(0, 24))}
-                          placeholder="Custom emoji (optional)"
+                          placeholder={t("dashboard.links.customEmojiPlaceholder")}
                           className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                         />
                         <input
@@ -2060,7 +2078,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           variant="secondary"
                         >
                           <Upload className="h-3.5 w-3.5" />
-                          <span className="ml-1.5">Image</span>
+                          <span className="ml-1.5">{t("dashboard.links.image")}</span>
                         </Button>
                       </div>
                     </div>
@@ -2074,7 +2092,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         className="accent-violet-500"
                       />
                       <span className="text-xs text-zinc-400">
-                        Show a QR code on my profile for this link
+                        {t("dashboard.links.showQr")}
                       </span>
                     </label>
                   )}
@@ -2089,7 +2107,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       <button
                         onClick={() => moveLink(i, -1)}
                         disabled={editingIndex !== null || i === 0}
-                        title="Move link up"
+                        title={t("dashboard.links.moveUp")}
                         className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"
                       >
                         <ChevronUp className="h-3.5 w-3.5" />
@@ -2097,7 +2115,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       <button
                         onClick={() => moveLink(i, 1)}
                         disabled={editingIndex !== null || i === socialLinks.length - 1}
-                        title="Move link down"
+                        title={t("dashboard.links.moveDown")}
                         className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"
                       >
                         <ChevronDown className="h-3.5 w-3.5" />
@@ -2115,11 +2133,11 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       )}
                       <div>
                         <p className="text-sm font-medium text-white">
-                          {link.label || (platformDisplayNames[link.platform.toLowerCase()] ?? link.platform)}
+                          {link.label || platformLabel(link.platform)}
                         </p>
                         <p className="text-xs text-zinc-400 truncate max-w-xs">
                           {link.heading ? <span className="text-violet-400">{link.heading} · </span> : null}
-                          {platformDisplayNames[link.platform.toLowerCase()] ?? link.platform}
+                          {platformLabel(link.platform)}
                           {" · "}
                           {link.url.startsWith("mailto:") ? link.url.slice(7) : link.url}
                         </p>
@@ -2131,7 +2149,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       <button
                         onClick={() => setQrLink(link)}
                         disabled={!resolveQrValue(link)}
-                        title={resolveQrValue(link) ? "Generate QR code" : "This link has no scannable URL"}
+                        title={resolveQrValue(link) ? t("dashboard.links.generateQr") : t("dashboard.links.noScannableUrl")}
                         className={resolveQrValue(link) ? "text-zinc-500 hover:text-violet-400 transition-colors" : "text-zinc-700 cursor-not-allowed"}
                       >
                         <QrCode className="h-4 w-4" />
@@ -2160,9 +2178,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
           <div className="space-y-4">
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-semibold text-white">Themes</h4>
+                <h4 className="text-sm font-semibold text-white">{t("dashboard.appearance.themesTitle")}</h4>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Choose a theme for your public profile page.
+                  {t("dashboard.appearance.themesDescription")}
                 </p>
               </div>
 
@@ -2190,7 +2208,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             : "bg-violet-400/15 text-violet-300"
                         }`}
                       >
-                        {preset.tier === "enterprise" ? "Enterprise" : "Premium"}
+                        {preset.tier === "enterprise" ? t("common:tiers.enterprise") : t("common:tiers.premium")}
                       </span>
                     )}
                     <div className="flex items-center gap-2.5 mb-3">
@@ -2202,7 +2220,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         className="text-sm font-medium"
                         style={{ color: preset.text }}
                       >
-                        {preset.name}
+                        {themeLabel(preset.name)}
                       </span>
                     </div>
 
@@ -2241,22 +2259,22 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
               {selectedTheme && (
                 <p className="text-xs text-zinc-500 text-center">
-                  Selected: {selectedTheme} — click Save to apply
+                  {t("dashboard.appearance.selected", { theme: themeLabel(selectedTheme) })}
                 </p>
               )}
             </div>
 
             <SectionCard
               icon={<Sparkles className="h-4 w-4 text-violet-400" />}
-              title="Seasonal Decorations"
-              desc="Decorate your profile with the platform's active seasonal theme."
+              title={t("dashboard.appearance.seasonalTitle")}
+              desc={t("dashboard.appearance.seasonalDescription")}
             >
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">Enable seasonal decorations</p>
+                    <p className="text-sm font-medium text-white">{t("dashboard.appearance.enableSeasonal")}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      When on, your profile follows the currently active seasonal theme.
+                      {t("dashboard.appearance.enableSeasonalHint")}
                     </p>
                   </div>
                   <Toggle on={seasonalDecorations} onChange={() => setSeasonalDecorations((v) => !v)} />
@@ -2264,9 +2282,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">Always allow Christmas</p>
+                    <p className="text-sm font-medium text-white">{t("dashboard.appearance.alwaysAllowChristmas")}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      Keeps the Christmas theme on your profile year-round, even if the platform disables seasonal themes.
+                      {t("dashboard.appearance.alwaysAllowChristmasHint")}
                     </p>
                   </div>
                   <Toggle
@@ -2278,18 +2296,18 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">Animated background effects</p>
+                    <p className="text-sm font-medium text-white">{t("dashboard.appearance.animatedTitle")}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      Add a lightweight animated effect (snow, hearts, leaves, confetti, …) behind your profile.
+                      {t("dashboard.appearance.animatedDescription")}
                     </p>
                   </div>
                   <Toggle on={animatedFx} onChange={() => setAnimatedFx((v) => !v)} onColorClass="bg-cyan-500" />
                 </div>
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
-                  <p className="text-sm font-medium text-white">Effect</p>
+                  <p className="text-sm font-medium text-white">{t("dashboard.appearance.effect")}</p>
                   <p className="text-xs text-zinc-500 mt-0.5 mb-3">
-                    Choose which animated effect to show. When the platform has an active theme, its effect takes over.
+                    {t("dashboard.appearance.effectDescription")}
                   </p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {FX_EFFECTS.filter((e) => e !== "none").map((e) => (
@@ -2298,13 +2316,13 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         type="button"
                         onClick={() => setFxEffect(e)}
                         disabled={!animatedFx}
-                        className={`rounded-lg px-3 py-2 text-xs font-medium capitalize transition-colors disabled:opacity-40 ${
+                        className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:opacity-40 ${
                           fxEffect === e
                             ? "bg-cyan-500 text-white"
                             : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                         }`}
                       >
-                        {e}
+                        {t(`dashboard.appearance.effects.${e}`)}
                       </button>
                     ))}
                   </div>
@@ -2314,8 +2332,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
             <SectionCard
               icon={<Layers className="h-4 w-4 text-violet-400" />}
-              title="Layout"
-              desc="Choose how your profile is arranged."
+              title={t("dashboard.appearance.layoutTitle")}
+              desc={t("dashboard.appearance.layoutDescription")}
             >
               <LayoutSelector value={layout} onChange={(l) => setLayout(l ?? "default")} />
             </SectionCard>
@@ -2324,8 +2342,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
               <SectionCard
                 dataTestId="terminal-commands-editor"
                 icon={<TerminalIcon className="h-4 w-4 text-violet-400" />}
-                title="Terminal commands"
-                desc="Custom commands visitors can run on your profile terminal."
+                title={t("dashboard.appearance.terminalTitle")}
+                desc={t("dashboard.appearance.terminalDescription")}
               >
                 {user?.tier !== "FREE" ? (
                   <>
@@ -2338,35 +2356,35 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           <input
                             value={cmd.command}
                             onChange={(e) => updateTerminalCommand(idx, "command", e.target.value)}
-                            placeholder="command"
-                            aria-label={`Command name ${idx + 1}`}
+                            placeholder={t("dashboard.appearance.commandPlaceholder")}
+                            aria-label={t("dashboard.appearance.commandNameAria", { index: idx + 1 })}
                             className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
                           />
                           <input
                             value={cmd.output}
                             onChange={(e) => updateTerminalCommand(idx, "output", e.target.value)}
-                            placeholder="Output text"
-                            aria-label={`Command output ${idx + 1}`}
+                            placeholder={t("dashboard.appearance.outputPlaceholder")}
+                            aria-label={t("dashboard.appearance.commandOutputAria", { index: idx + 1 })}
                             className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
                           />
                           <input
                             value={cmd.description ?? ""}
                             onChange={(e) => updateTerminalCommand(idx, "description", e.target.value)}
-                            placeholder="Description (shown in help)"
-                            aria-label={`Command description ${idx + 1}`}
+                            placeholder={t("dashboard.appearance.descriptionPlaceholder")}
+                            aria-label={t("dashboard.appearance.commandDescriptionAria", { index: idx + 1 })}
                             className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
                           />
                           <input
                             value={cmd.url ?? ""}
                             onChange={(e) => updateTerminalCommand(idx, "url", e.target.value)}
-                            placeholder="Optional link"
-                            aria-label={`Command link ${idx + 1}`}
+                            placeholder={t("dashboard.appearance.linkPlaceholder")}
+                            aria-label={t("dashboard.appearance.commandLinkAria", { index: idx + 1 })}
                             className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-violet-500"
                           />
                           <button
                             type="button"
                             onClick={() => removeTerminalCommand(idx)}
-                            aria-label={`Remove command ${idx + 1}`}
+                            aria-label={t("dashboard.appearance.removeCommandAria", { index: idx + 1 })}
                             className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition-colors hover:border-red-500/50 hover:text-red-400"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -2382,23 +2400,20 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       className="mt-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-violet-500 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Plus className="h-4 w-4" />
-                      Add command
+                      {t("dashboard.appearance.addCommand")}
                     </button>
 
                     <p className="mt-4 text-xs text-zinc-500">
-                      Up to 12 commands. The description is shown in the terminal's help listing; the output is
-                      printed when the command is run. Built-in commands (help, ls, open, cmatrix…) always take
-                      priority. A link opens like the open command; non-URL values (e.g. @freecodecamp) are copied
-                      to the visitor's clipboard.
+                      {t("dashboard.appearance.terminalHelp")}
                     </p>
                   </>
                 ) : (
                   <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 px-4 py-3">
                     <Crown className="h-5 w-5 shrink-0 text-violet-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Custom commands are a Premium feature</p>
+                      <p className="text-sm font-medium text-white">{t("dashboard.appearance.premiumTitle")}</p>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Upgrade to PRO or Enterprise to add your own terminal commands.
+                        {t("dashboard.appearance.premiumDescription")}
                       </p>
                     </div>
                   </div>
@@ -2408,15 +2423,15 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 <SectionCard
                 icon={<Medal className="h-4 w-4 text-zinc-500" />}
-                title="Badge Order"
-                desc="Drag badges to set the order they appear on your public profile."
+                title={t("dashboard.appearance.badgeOrderTitle")}
+                desc={t("dashboard.appearance.badgeOrderDescription")}
               >
                 {profileBadgeIds && profileBadgeIds.length > 0 ? (
                   <>
                     {badgeCatalog.length === 0 ? (
                       <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-6 text-center">
                         <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
-                        <p className="text-sm text-zinc-500">Loading badges…</p>
+                        <p className="text-sm text-zinc-500">{t("dashboard.appearance.loadingBadges")}</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -2449,12 +2464,12 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           {badgeOrderBusy ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              Saving…
+                              {t("dashboard.appearance.badgeOrderSaving")}
                             </>
                           ) : (
                             <>
                               <Save className="h-4 w-4" />
-                              Save
+                              {t("dashboard.appearance.save")}
                             </>
                           )}
                         </Button>
@@ -2476,17 +2491,17 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         )}
                       </div>
                       <p className="mt-2 text-xs text-zinc-500">
-                        Badges earned later automatically appear after the ones you ordered.
+                        {t("dashboard.appearance.badgeOrderNote")}
                       </p>
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-8 text-center">
                       <Medal className="h-8 w-8 text-zinc-600" />
                       <p className="mt-4 text-sm font-medium text-zinc-400">
-                        No active badges on this profile yet
+                        {t("dashboard.appearance.noActiveBadges")}
                       </p>
                       <p className="mt-1.5 text-xs text-zinc-600">
-                        Enable badges from the Profiles tab to start reordering them.
+                        {t("dashboard.appearance.noActiveBadgesHint")}
                       </p>
                     </div>
                   )}
@@ -2494,8 +2509,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 <SectionCard
                   icon={<Image className="h-4 w-4 text-violet-400" />}
-                  title="Background"
-                  desc="Customize the background of your public profile."
+                  title={t("dashboard.appearance.backgroundTitle")}
+                  desc={t("dashboard.appearance.backgroundDescription")}
                 >
                   <BackgroundSelector
                   value={backgroundImage}
@@ -2528,7 +2543,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
             ) : analytics ? (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-zinc-500">Per-link click analytics powered by visitor dedupe hashes — no personal data stored.</p>
+                  <p className="text-xs text-zinc-500">{t("dashboard.analytics.dedupeNote")}</p>
                   <div className="flex items-center gap-2">
                     {analyticsResetMsg && <span className="text-xs text-zinc-400">{analyticsResetMsg}</span>}
                     <Button
@@ -2542,24 +2557,24 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
-                      Reset all clicks
+                      {t("dashboard.analytics.resetAll")}
                     </Button>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: "Total Views", sub: `${analytics.total.uniqueViews} unique`, value: analytics.total.views, icon: EyeIcon },
-                    { label: "Total Clicks", sub: `${analytics.total.uniqueClicks} unique`, value: analytics.total.clicks, icon: MousePointerClick },
-                    { label: "Views (7d)", sub: `${analytics.last7d.uniqueViews} unique`, value: analytics.last7d.views, icon: BarChart3 },
-                    { label: "Clicks (7d)", sub: `${analytics.last7d.uniqueClicks} unique`, value: analytics.last7d.clicks, icon: BarChart3 },
+                    { label: t("dashboard.analytics.statTotalViews"), sub: t("dashboard.analytics.uniqueCount", { count: analytics.total.uniqueViews }), value: analytics.total.views, icon: EyeIcon },
+                    { label: t("dashboard.analytics.statTotalClicks"), sub: t("dashboard.analytics.uniqueCount", { count: analytics.total.uniqueClicks }), value: analytics.total.clicks, icon: MousePointerClick },
+                    { label: t("dashboard.analytics.statViews7d"), sub: t("dashboard.analytics.uniqueCount", { count: analytics.last7d.uniqueViews }), value: analytics.last7d.views, icon: BarChart3 },
+                    { label: t("dashboard.analytics.statClicks7d"), sub: t("dashboard.analytics.uniqueCount", { count: analytics.last7d.uniqueClicks }), value: analytics.last7d.clicks, icon: BarChart3 },
                   ].map((stat) => (
                     <div key={stat.label} className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 group hover:border-zinc-700 transition-colors">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{stat.label}</span>
                         <stat.icon className="h-4 w-4 text-violet-400/80 group-hover:text-violet-400 transition-colors" />
                       </div>
-                      <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{stat.value.toLocaleString()}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{formatNumber(stat.value)}</p>
                       <p className="text-xs text-zinc-500 mt-1.5">{stat.sub}</p>
                     </div>
                   ))}
@@ -2567,10 +2582,10 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-sm font-medium text-white">Views — Last 30 Days</h3>
+                    <h3 className="text-sm font-medium text-white">{t("dashboard.analytics.views30Title")}</h3>
                     <div className="flex items-center gap-3 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />Total</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-sky-400" />Unique</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />{t("dashboard.analytics.legendTotal")}</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-sky-400" />{t("dashboard.analytics.legendUnique")}</span>
                     </div>
                   </div>
                   {analytics.viewsByDay.length > 0 || analytics.uniqueViewsByDay.length > 0 ? (
@@ -2588,8 +2603,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
                                 <p className="text-xs font-semibold text-white">{day.label}</p>
-                                <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
-                                <p className="text-xs"><span className="text-sky-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
+                                <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{day.total}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipTotal")}</span></p>
+                                <p className="text-xs"><span className="text-sky-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipUnique")}</span></p>
                               </div>
                               <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
                             </div>
@@ -2624,13 +2639,13 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-500 text-center py-8">No views yet</p>
+                    <p className="text-sm text-zinc-500 text-center py-8">{t("dashboard.analytics.noViews")}</p>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-                    <h3 className="text-sm font-medium text-white mb-3">Clicks by Platform</h3>
+                    <h3 className="text-sm font-medium text-white mb-3">{t("dashboard.analytics.clicksByPlatform")}</h3>
                     {analytics.clicksByPlatform.length > 0 ? (
                       <div className="space-y-3">
                         {analytics.clicksByPlatform.map((item, idx) => {
@@ -2643,9 +2658,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                               <div className="flex items-center justify-between mb-2">
                                 <span className="flex items-center gap-2.5 text-sm text-zinc-200 font-medium">
                                   <PlatformIcon platform={item.platform} className="h-5 w-5" color={barColor} />
-                                  {platformDisplayNames[item.platform.toLowerCase()] ?? item.platform}
+                                  {platformLabel(item.platform)}
                                 </span>
-                                <span className="text-sm text-zinc-300">{item.count} <span className="text-zinc-600">· {unique} unique</span></span>
+                                <span className="text-sm text-zinc-300">{item.count} <span className="text-zinc-600">· {t("dashboard.analytics.uniqueCount", { count: unique })}</span></span>
                               </div>
                               <div className="h-4 rounded-full bg-zinc-800 overflow-hidden">
                                 <div
@@ -2658,12 +2673,12 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         })}
                       </div>
                     ) : (
-                      <p className="text-sm text-zinc-500 text-center py-4">No clicks yet</p>
+                      <p className="text-sm text-zinc-500 text-center py-4">{t("dashboard.analytics.noClicks")}</p>
                     )}
                   </div>
 
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-                    <h3 className="text-sm font-medium text-white mb-3">Top Referrers</h3>
+                    <h3 className="text-sm font-medium text-white mb-3">{t("dashboard.analytics.topReferrers")}</h3>
                     {analytics.topReferrers.length > 0 ? (
                       <div className="space-y-2.5">
                         {analytics.topReferrers.map((item) => (
@@ -2674,17 +2689,17 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-zinc-500 text-center py-4">No referrers yet</p>
+                      <p className="text-sm text-zinc-500 text-center py-4">{t("dashboard.analytics.noReferrers")}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-sm font-medium text-white">Clicks — Last 30 Days</h3>
+                    <h3 className="text-sm font-medium text-white">{t("dashboard.analytics.clicks30Title")}</h3>
                     <div className="flex items-center gap-3 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />Total</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400" />Unique</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />{t("dashboard.analytics.legendTotal")}</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400" />{t("dashboard.analytics.legendUnique")}</span>
                     </div>
                   </div>
                   {analytics.clicksByDay.length > 0 || analytics.uniqueClicksByDay.length > 0 ? (
@@ -2702,8 +2717,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
                                 <p className="text-xs font-semibold text-white">{day.label}</p>
-                                <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{day.total}</span> <span className="text-zinc-500">total</span></p>
-                                <p className="text-xs"><span className="text-amber-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">unique</span></p>
+                                <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{day.total}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipTotal")}</span></p>
+                                <p className="text-xs"><span className="text-amber-400 font-semibold">{day.unique}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipUnique")}</span></p>
                               </div>
                               <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
                             </div>
@@ -2738,16 +2753,16 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-500 text-center py-8">No clicks yet</p>
+                    <p className="text-sm text-zinc-500 text-center py-8">{t("dashboard.analytics.noClicks")}</p>
                   )}
                 </div>
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-sm font-medium text-white">Views — Last 24 Hours</h3>
+                    <h3 className="text-sm font-medium text-white">{t("dashboard.analytics.views24Title")}</h3>
                     <div className="flex items-center gap-3 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />Total</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-sky-400" />Unique</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />{t("dashboard.analytics.legendTotal")}</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-sky-400" />{t("dashboard.analytics.legendUnique")}</span>
                     </div>
                   </div>
                   {hourlyViewsChart && (hourlyViewsChart.hours.some((h) => h.total > 0) || hourlyViewsChart.hours.some((h) => h.unique > 0)) ? (
@@ -2762,8 +2777,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           <div className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
                               <p className="text-xs font-semibold text-white">{h.label}</p>
-                              <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{h.total}</span> <span className="text-zinc-500">total</span></p>
-                              <p className="text-xs"><span className="text-sky-400 font-semibold">{h.unique}</span> <span className="text-zinc-500">unique</span></p>
+                              <p className="text-xs mt-1"><span className="text-violet-400 font-semibold">{h.total}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipTotal")}</span></p>
+                              <p className="text-xs"><span className="text-sky-400 font-semibold">{h.unique}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipUnique")}</span></p>
                             </div>
                             <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
                           </div>
@@ -2791,16 +2806,16 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-500 text-center py-8">No views in the last 24 hours</p>
+                    <p className="text-sm text-zinc-500 text-center py-8">{t("dashboard.analytics.noViews24")}</p>
                   )}
                 </div>
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                   <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-sm font-medium text-white">Clicks — Last 24 Hours</h3>
+                    <h3 className="text-sm font-medium text-white">{t("dashboard.analytics.clicks24Title")}</h3>
                     <div className="flex items-center gap-3 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />Total</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400" />Unique</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" />{t("dashboard.analytics.legendTotal")}</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-sm bg-amber-400" />{t("dashboard.analytics.legendUnique")}</span>
                     </div>
                   </div>
                   {hourlyClicksChart && (hourlyClicksChart.hours.some((h) => h.total > 0) || hourlyClicksChart.hours.some((h) => h.unique > 0)) ? (
@@ -2815,8 +2830,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                           <div className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl text-center whitespace-nowrap">
                               <p className="text-xs font-semibold text-white">{h.label}</p>
-                              <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{h.total}</span> <span className="text-zinc-500">total</span></p>
-                              <p className="text-xs"><span className="text-amber-400 font-semibold">{h.unique}</span> <span className="text-zinc-500">unique</span></p>
+                              <p className="text-xs mt-1"><span className="text-emerald-400 font-semibold">{h.total}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipTotal")}</span></p>
+                              <p className="text-xs"><span className="text-amber-400 font-semibold">{h.unique}</span> <span className="text-zinc-500">{t("dashboard.analytics.tooltipUnique")}</span></p>
                             </div>
                             <div className="mx-auto w-2 h-2 bg-zinc-800 border-b border-r border-zinc-700 -mt-1 rotate-45" />
                           </div>
@@ -2844,12 +2859,12 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-500 text-center py-8">No clicks in the last 24 hours</p>
+                    <p className="text-sm text-zinc-500 text-center py-8">{t("dashboard.analytics.noClicks24")}</p>
                   )}
                 </div>
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-                  <h3 className="text-sm font-medium text-white mb-4">Clicks by Link — Last 30 Days</h3>
+                  <h3 className="text-sm font-medium text-white mb-4">{t("dashboard.analytics.clicksByLink")}</h3>
                   {analytics.clicksByLink.length > 0 ? (
                     <div className="space-y-3">
                       {analytics.clicksByLink.map((item) => {
@@ -2862,18 +2877,18 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             <div className="min-w-0 flex-1">
                               <p className="text-sm text-zinc-200 font-medium truncate">{item.slug}</p>
                               <p className="text-xs text-zinc-500">
-                                {platformDisplayNames[item.platform.toLowerCase()] ?? item.platform}
-                                {item.lastClickedAt ? ` · last ${new Date(item.lastClickedAt).toLocaleString()}` : ""}
+                                {platformLabel(item.platform)}
+                                {item.lastClickedAt ? ` · ${t("dashboard.analytics.lastClicked", { date: formatDateTime(item.lastClickedAt) })}` : ""}
                               </p>
                             </div>
                             <div className="flex items-center gap-4 text-sm">
-                              <span className="text-zinc-300"><span className="text-emerald-400 font-semibold">{item.count}</span> <span className="text-zinc-600">clicks</span></span>
-                              <span className="text-zinc-400"><span className="text-amber-400 font-semibold">{unique}</span> <span className="text-zinc-600">unique</span></span>
+                              <span className="text-zinc-300"><span className="text-emerald-400 font-semibold">{item.count}</span> <span className="text-zinc-600">{t("dashboard.analytics.clicks")}</span></span>
+                              <span className="text-zinc-400"><span className="text-amber-400 font-semibold">{unique}</span> <span className="text-zinc-600">{t("dashboard.analytics.tooltipUnique")}</span></span>
                             </div>
                             <Button
                               variant="ghost"
                               size="icon"
-                              title={`Reset "${item.slug}"`}
+                              title={t("dashboard.analytics.resetLabel", { slug: item.slug })}
                               disabled={analyticsResetting !== null}
                               onClick={() => void handleResetAnalytics(item.slug)}
                             >
@@ -2888,12 +2903,12 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-500 text-center py-4">No clicks yet</p>
+                    <p className="text-sm text-zinc-500 text-center py-4">{t("dashboard.analytics.noClicks")}</p>
                   )}
                 </div>
               </>
             ) : (
-              <p className="text-sm text-zinc-500 text-center py-12">No analytics data available</p>
+              <p className="text-sm text-zinc-500 text-center py-12">{t("dashboard.analytics.noData")}</p>
             )}
             </div>
           ) : (
@@ -2914,9 +2929,9 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     <div className="flex items-center gap-2.5">
                       <Music className="h-5 w-5 text-violet-400" />
                       <div>
-                        <h3 className="text-sm font-medium text-white">Music Player</h3>
+                        <h3 className="text-sm font-medium text-white">{t("dashboard.music.title")}</h3>
                         <p className="text-xs text-zinc-500">
-                          {music.tracks.length}/{music.limit} tracks used · {music.tier} tier
+                          {t("dashboard.music.tracksUsed", { used: music.tracks.length, limit: music.limit, tier: music.tier })}
                         </p>
                       </div>
                     </div>
@@ -2924,7 +2939,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                   {music.tracks.length === 0 ? (
                     <p className="text-sm text-zinc-500 text-center py-8">
-                      No tracks yet. Add local files, Spotify, or YouTube tracks below.
+                      {t("dashboard.music.noTracks")}
                     </p>
                   ) : (
                     <div className="space-y-2">
@@ -2957,21 +2972,21 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                                   type="text"
                                   value={editTitle}
                                   onChange={(e) => setEditTitle(e.target.value)}
-                                  placeholder="Title"
+                                  placeholder={t("dashboard.music.editTitlePlaceholder")}
                                   className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                                 />
                                 <input
                                   type="text"
                                   value={editArtist}
                                   onChange={(e) => setEditArtist(e.target.value)}
-                                  placeholder="Artist"
+                                  placeholder={t("dashboard.music.editArtistPlaceholder")}
                                   className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                                 />
                                 <input
                                   type="text"
                                   value={editFullUrl}
                                   onChange={(e) => setEditFullUrl(e.target.value)}
-                                  placeholder="Full version URL (optional)"
+                                  placeholder={t("dashboard.music.editFullUrlPlaceholder")}
                                   className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                                 />
                                   <div className="flex gap-2">
@@ -2979,23 +2994,23 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                                       onClick={() => saveEditTrack(track.id)}
                                     className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
                                   >
-                                    Save
+                                    {t("dashboard.music.save")}
                                   </button>
                                   <button
                                     onClick={() => setEditingTrackId(null)}
                                     className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                                   >
-                                    Cancel
+                                    {t("dashboard.music.cancel")}
                                   </button>
                                 </div>
                               </div>
                             ) : (
                               <>
                                 <p className="text-sm font-medium text-white truncate">
-                                  {track.title ?? (track.provider === "local" ? "Local track" : track.provider)}
+                                  {track.title ?? (track.provider === "local" ? t("dashboard.music.localTrack") : track.provider)}
                                 </p>
                                 <p className="text-xs text-zinc-500 truncate">
-                                  {track.artist ? `${track.artist} · ` : ""}
+                                  {track.artist ? t("dashboard.music.artistWithSeparator", { artist: track.artist }) : ""}
                                   <span className="uppercase text-[10px]">{track.provider}</span>
                                 </p>
                               </>
@@ -3007,7 +3022,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                               <button
                                 onClick={() => startEditTrack(track)}
                                 className="text-zinc-500 hover:text-violet-400 transition-colors"
-                                title="Edit"
+                                title={t("dashboard.music.edit")}
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
@@ -3016,14 +3031,14 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                                 target={track.provider === "local" ? undefined : "_blank"}
                                 rel="noopener noreferrer"
                                 className="text-zinc-500 hover:text-violet-400 transition-colors"
-                                title="Open"
+                                title={t("dashboard.music.open")}
                               >
                                 <ExternalLink className="h-4 w-4" />
                               </a>
                               <button
                                 onClick={() => handleDeleteTrack(track.id)}
                                 className="text-zinc-500 hover:text-red-400 transition-colors"
-                                title="Remove"
+                                title={t("dashboard.music.remove")}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -3037,7 +3052,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 {music.tracks.length < music.limit && (
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
-                    <h3 className="text-sm font-medium text-white mb-3">Add Track</h3>
+                    <h3 className="text-sm font-medium text-white mb-3">{t("dashboard.music.addTrackTitle")}</h3>
 
                     <div className="flex gap-2 mb-4">
                       {(["local", "spotify", "youtube"] as const).map((p) => (
@@ -3062,7 +3077,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       <div className="space-y-4">
                         <div>
                           <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                            Audio File <span className="text-zinc-500">(MP3, OGG, OPUS, WAV, M4A, FLAC, AAC — max 25MB)</span>
+                            {t("dashboard.music.audioFile")} <span className="text-zinc-500">{t("dashboard.music.audioFileHint")}</span>
                           </label>
                           <input
                             id="music-file-input"
@@ -3074,41 +3089,39 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Title</label>
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("dashboard.music.titleLabel")}</label>
                             <input
                               type="text"
                               value={musicTitle}
                               onChange={(e) => setMusicTitle(e.target.value)}
-                              placeholder="Track title"
+                              placeholder={t("dashboard.music.titlePlaceholder")}
                               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                           <div>
-                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Artist</label>
+                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">{t("dashboard.music.artistLabel")}</label>
                             <input
                               type="text"
                               value={musicArtist}
                               onChange={(e) => setMusicArtist(e.target.value)}
-                              placeholder="Artist name"
+                              placeholder={t("dashboard.music.artistPlaceholder")}
                               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                         </div>
                         <div>
                           <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                            Full version URL <span className="text-zinc-500">(optional)</span>
+                            {t("dashboard.music.fullVersionUrl")} <span className="text-zinc-500">{t("dashboard.music.optional")}</span>
                           </label>
                           <input
                             type="url"
                             value={musicFullUrl}
                             onChange={(e) => setMusicFullUrl(e.target.value)}
-                            placeholder="https://... (audio file, YouTube, or other stream)"
+                            placeholder={t("dashboard.music.fullUrlPlaceholder")}
                             className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                           />
                           <p className="mt-1 text-xs text-zinc-500">
-                            Optional full streaming source for visitors. You are solely responsible for the content and any
-                            terms of service of the source you link. See the{" "}
-                            <a href="/terms" className="text-violet-400 hover:text-violet-300">Terms of Service</a>.
+                            <Trans ns="dashboard" i18nKey="dashboard.music.fullUrlNote" components={{ 0: <a href="/terms" className="text-violet-400 hover:text-violet-300" /> }} />
                           </p>
                         </div>
                       </div>
@@ -3116,7 +3129,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                       <div className="space-y-4">
                         <div>
                           <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                            {musicProvider === "spotify" ? "Spotify URL" : "YouTube / YouTube Music URL"}
+                            {musicProvider === "spotify" ? t("dashboard.music.spotifyUrl") : t("dashboard.music.youtubeUrl")}
                           </label>
                           <input
                             type="url"
@@ -3124,8 +3137,8 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                             onChange={(e) => setMusicUrl(e.target.value)}
                             placeholder={
                               musicProvider === "spotify"
-                                ? "https://open.spotify.com/track/..."
-                                : "https://www.youtube.com/watch?v=... or https://music.youtube.com/watch?v=..."
+                                ? t("dashboard.music.spotifyPlaceholder")
+                                : t("dashboard.music.youtubePlaceholder")
                             }
                             className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                           />
@@ -3133,25 +3146,25 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div>
                             <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                              Title <span className="text-zinc-500">(optional)</span>
+                              {t("dashboard.music.titleLabel")} <span className="text-zinc-500">{t("dashboard.music.optional")}</span>
                             </label>
                             <input
                               type="text"
                               value={musicTitle}
                               onChange={(e) => setMusicTitle(e.target.value)}
-                              placeholder="Track title"
+                              placeholder={t("dashboard.music.titlePlaceholder")}
                               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
                           <div>
                             <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                              Artist <span className="text-zinc-500">(optional)</span>
+                              {t("dashboard.music.artistLabel")} <span className="text-zinc-500">{t("dashboard.music.optional")}</span>
                             </label>
                             <input
                               type="text"
                               value={musicArtist}
                               onChange={(e) => setMusicArtist(e.target.value)}
-                              placeholder="Artist name"
+                              placeholder={t("dashboard.music.artistPlaceholder")}
                               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                           </div>
@@ -3159,19 +3172,17 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                         {musicProvider === "spotify" && (
                           <div>
                             <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
-                              Full version URL <span className="text-zinc-500">(optional)</span>
+                              {t("dashboard.music.fullVersionUrl")} <span className="text-zinc-500">{t("dashboard.music.optional")}</span>
                             </label>
                             <input
                               type="url"
                               value={musicFullUrl}
                               onChange={(e) => setMusicFullUrl(e.target.value)}
-                              placeholder="https://... (audio file, YouTube, or other stream)"
+                              placeholder={t("dashboard.music.fullUrlPlaceholder")}
                               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                             />
                             <p className="mt-1 text-xs text-zinc-500">
-                              Spotify embeds only play previews. Provide an optional full streaming source here — you are
-                              solely responsible for the content and any terms of service of the source. See the{" "}
-                              <a href="/terms" className="text-violet-400 hover:text-violet-300">Terms of Service</a>.
+                              <Trans ns="dashboard" i18nKey="dashboard.music.spotifyNote" components={{ 0: <a href="/terms" className="text-violet-400 hover:text-violet-300" /> }} />
                             </p>
                           </div>
                         )}
@@ -3181,7 +3192,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                     <div className="mt-4">
                       <Button onClick={handleAddMusic} disabled={musicBusy}>
                         <Upload className="h-4 w-4" />
-                        {musicBusy ? "Adding..." : "Add Track"}
+                        {musicBusy ? t("dashboard.music.adding") : t("dashboard.music.add")}
                       </Button>
                     </div>
                   </div>
@@ -3189,12 +3200,12 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 {music.tracks.length >= music.limit && (
                   <p className="text-xs text-zinc-500 text-center">
-                    Track limit reached ({music.limit}). Upgrade to a higher tier for more tracks.
+                    {t("dashboard.music.limitReached", { limit: music.limit })}
                   </p>
                 )}
               </>
             ) : (
-              <p className="text-sm text-zinc-500 text-center py-12">No music settings available</p>
+              <p className="text-sm text-zinc-500 text-center py-12">{t("dashboard.music.noSettings")}</p>
             )}
 
             {musicError && (
@@ -3241,17 +3252,17 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
           hasEnterprise ? (
             <SectionCard
               icon={<Building2 className="h-4 w-4" />}
-              title="Enterprise dashboard"
-              desc="A centralized workspace for your organization."
+              title={t("dashboard.enterprise.title")}
+              desc={t("dashboard.enterprise.description")}
             >
               <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 px-6 py-12 text-center">
                 <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-violet-500/10 text-violet-400">
                   <Construction className="h-6 w-6" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-white">Coming soon</p>
+                  <p className="text-sm font-semibold text-white">{t("dashboard.enterprise.comingSoon")}</p>
                   <p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">
-                    Team management, seat overview and centralized controls for your organization are on the way. In the meantime, seat limits are available in the Invites tab and business SSO can be configured in Security.
+                    {t("dashboard.enterprise.comingSoonDescription")}
                   </p>
                 </div>
               </div>
@@ -3276,32 +3287,32 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 emailSettings.smtpConfigured ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Active
+                    {t("dashboard.email.active")}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
-                    Unavailable
+                    {t("dashboard.email.unavailable")}
                   </span>
                 )
               }
-              title="Email Notifications"
+              title={t("dashboard.email.title")}
               desc={
                 emailSettings.smtpConfigured
-                  ? `Emails are sent from ${emailSettings.fromEmail}`
-                  : "Email notifications are not enabled on this instance. Contact the instance owner to activate them."
+                  ? t("dashboard.email.configuredFrom", { email: emailSettings.fromEmail ?? "" })
+                  : t("dashboard.email.notConfigured")
               }
             >
               <div className="space-y-3">
                 <div>
-                  <h4 className="text-sm font-medium text-white">Notification Preferences</h4>
+                  <h4 className="text-sm font-medium text-white">{t("dashboard.email.preferencesTitle")}</h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Choose which events trigger an email notification.
+                    {t("dashboard.email.preferencesDescription")}
                   </p>
                 </div>
 
                 {[
-                  { key: "notifyOnView" as const, label: "Profile Views", desc: "Get notified when someone visits your profile page." },
-                  { key: "notifyOnClick" as const, label: "Link Clicks", desc: "Get notified when someone clicks one of your social links." },
+                  { key: "notifyOnView" as const, label: t("dashboard.email.profileViews"), desc: t("dashboard.email.profileViewsDescription") },
+                  { key: "notifyOnClick" as const, label: t("dashboard.email.linkClicks"), desc: t("dashboard.email.linkClicksDescription") },
                 ].map((item) => (
                   <div
                     key={item.key}
@@ -3320,11 +3331,11 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
 
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3.5 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">Platform announcements</p>
+                    <p className="text-sm font-medium text-white">{t("dashboard.email.announcements")}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       {platformAnnouncements
-                        ? "You're subscribed to news and product announcements from the platform."
-                        : "Opt in to receive occasional news and product announcements from the platform."}
+                        ? t("dashboard.email.subscribed")
+                        : t("dashboard.email.optIn")}
                     </p>
                   </div>
                   <Toggle
@@ -3333,21 +3344,21 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   />
                 </div>
                 {optInMsg === "saved" && (
-                  <p className="text-xs text-emerald-400">Preference saved.</p>
+                  <p className="text-xs text-emerald-400">{t("dashboard.email.preferenceSaved")}</p>
                 )}
                 {optInMsg === "error" && (
-                  <p className="text-xs text-red-400">Could not save this preference. Try again.</p>
+                  <p className="text-xs text-red-400">{t("dashboard.email.preferenceError")}</p>
                 )}
 
                 <div className="flex gap-2.5">
                   <Button onClick={handleSaveEmail} disabled={emailSaving}>
                     <Save className="h-4 w-4" />
-                    {emailSaving ? "Saving..." : emailSaved ? "Saved!" : "Save Preferences"}
+                    {emailSaving ? t("dashboard.email.saving") : emailSaved ? t("dashboard.email.saved") : t("dashboard.email.savePreferences")}
                   </Button>
                   {emailSettings.smtpConfigured && (
                     <Button variant="secondary" onClick={handleTestEmail} disabled={emailTesting}>
                       <Send className="h-4 w-4" />
-                      {emailTesting ? "Sending..." : "Send Test Email"}
+                      {emailTesting ? t("dashboard.email.sending") : t("dashboard.email.sendTest")}
                     </Button>
                   )}
                 </div>
@@ -3355,13 +3366,13 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                 {emailTestResult === "success" && (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-400">
                     <CheckCircle className="h-4 w-4" />
-                    Test email sent successfully!
+                    {t("dashboard.email.testSuccess")}
                   </div>
                 )}
                 {emailTestResult === "error" && (
                   <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-400">
                     <XCircle className="h-4 w-4" />
-                    Failed to send test email. Check the server SMTP configuration.
+                    {t("dashboard.email.testError")}
                   </div>
                 )}
               </div>
@@ -3441,7 +3452,7 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">QR code</h3>
+              <h3 className="text-sm font-semibold text-white">{t("dashboard.qr.title")}</h3>
               <button
                 onClick={() => setQrLink(null)}
                 className="text-zinc-500 hover:text-white transition-colors"
@@ -3455,16 +3466,16 @@ setTerminalCommands((prev) => [...prev, { command: "", output: "", description: 
                   <QRCodeCanvas ref={qrCanvasRef} value={resolveQrValue(qrLink)} size={208} level="M" />
                 </div>
                 <p className="mb-4 text-center text-xs text-zinc-500 break-all">
-                  {qrLink.label || (platformDisplayNames[qrLink.platform.toLowerCase()] ?? qrLink.platform)} —{" "}
+                  {qrLink.label || platformLabel(qrLink.platform)} —{" "}
                   {resolveQrValue(qrLink)}
                 </p>
                 <Button onClick={handleQrDownload} className="w-full">
                   <Download className="h-4 w-4" />
-                  <span className="ml-2">Download PNG</span>
+                  <span className="ml-2">{t("dashboard.qr.download")}</span>
                 </Button>
               </>
             ) : (
-              <p className="text-center text-sm text-zinc-500">This link has no scannable URL.</p>
+              <p className="text-center text-sm text-zinc-500">{t("dashboard.qr.noUrl")}</p>
             )}
           </div>
         </div>

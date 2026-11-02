@@ -1,19 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
-
-export interface DomainInfo {
-  active: boolean;
-  host: string;
-  slug: string | null;
-  canonical: string | null;
-}
-
-interface DomainContextValue {
-  info: DomainInfo | null;
-  loading: boolean;
-}
-
-const DomainContext = createContext<DomainContextValue>({ info: null, loading: true });
+import { domainContext } from "./domainContext";
+import type { DomainInfo } from "./domainContext";
 
 export function DomainProvider({ children }: { children: ReactNode }) {
   const [info, setInfo] = useState<DomainInfo | null>(null);
@@ -36,9 +24,5 @@ export function DomainProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return <DomainContext.Provider value={{ info, loading }}>{children}</DomainContext.Provider>;
-}
-
-export function useDomain(): DomainContextValue {
-  return useContext(DomainContext);
+  return <domainContext.Provider value={{ info, loading }}>{children}</domainContext.Provider>;
 }

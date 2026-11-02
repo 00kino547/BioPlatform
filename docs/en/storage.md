@@ -54,6 +54,7 @@ During each orphan-cleanup pass, after the age-based prune, the oldest files (by
 | `S3_FORCE_PATH_STYLE` | `true` for MinIO. |
 | `B2_APPLICATION_KEY_ID` / `B2_APPLICATION_KEY` | B2 credentials. |
 | `B2_BUCKET` | B2 bucket (auto-created if missing). |
+| `B2_BUCKET_ID` | Optional pre-known Bucket ID — required for application keys without the `listBuckets` capability. |
 | `B2_PREFIX` | Optional key prefix. |
 | `B2_API_URL` | B2 API base URL (default `https://api.backblazeb2.com`). |
 | `STORAGE_COMPRESS_ENABLED` | gzip at rest for cloud providers. |

@@ -13,6 +13,10 @@ Thank you for considering a contribution to BioPlatform. This guide defines the 
 
 Spanish documentation lives in `docs/es/` and is a translation of the English version — never the other way around. `docs/es/` must keep the same set of files and the same structure as `docs/en/`.
 
+### Localization Exception
+
+English remains the source of truth and the mandatory language for code, comments, commit messages, and pull requests. User-facing strings are the one exception: the community translates them through the self-hosted Weblate instance. You do not need a second language to contribute, and you must not translate strings by hand — add or edit the English string as usual and let translators work through Weblate. See [Translating](translating.md) for the workflow (review before commit, machine translation as suggestions only, adding a new language, and how merged translations reach the app after a rebuild).
+
 ## Getting Started
 
 Prerequisites: Node.js 20+, `corepack enabled` for pnpm, and a PostgreSQL instance (local or via Docker Compose).

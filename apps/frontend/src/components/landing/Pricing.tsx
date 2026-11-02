@@ -1,83 +1,64 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "@/contexts/useAuth";
 import { api, type OrderConfig } from "@/lib/api";
 import { useInstanceConfig } from "@/lib/useInstanceConfig";
 import { Container } from "@/components/layout/Container";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { branding } from "@/config/branding";
 
-function money(cents: number, currency: string): string {
+function money(cents: number, currency: string, locale: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
   } catch {
     return `$${(cents / 100).toFixed(2)}`;
   }
 }
 
-const plans = [
+// Structural plan metadata. All copy (name, price label, description, feature
+// bullets, CTA) comes from landing.pricing.plans.<id>.* so it can be translated
+// (the plan *name* is the shared tier label in common.tiers.<id>); only the tier
+// key, destination and visual accent stay in code.
+const PLAN_META = [
   {
     key: "FREE" as const,
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    description: "Perfect for getting started with your first profile.",
-    features: [
-      "1 profile page",
-      "Basic themes",
-      "Up to 2 music tracks",
-      "Social sign-in (Google, GitHub, Discord)",
-      "Community support",
-    ],
-    cta: "Get Started",
+    id: "free",
     ctaTo: "/register",
     highlighted: false,
+    fallbackPriceCents: 0,
+    featureCount: 5,
   },
   {
     key: "PRO" as const,
-    name: "Premium",
-    price: "$5",
-    period: "/month",
-    description: "For creators who want the full experience.",
-    badge: "Most Popular",
-    inherits: "Everything in Free, plus:",
-    features: [
-      "3 profiles & 5 aliases",
-      "Up to 5 music tracks",
-      "Premium themes",
-      "Analytics",
-      "Discord presence",
-      "Priority support",
-    ],
-    cta: "Upgrade to Premium",
+    id: "premium",
     ctaTo: "/dashboard?tab=billing",
     highlighted: true,
+    fallbackPriceCents: 500,
+    featureCount: 6,
   },
   {
     key: "ENTERPRISE" as const,
-    name: "Enterprise",
-    price: "$29",
-    period: "/month",
-    description: "For teams and organizations at scale.",
-    inherits: "Everything in Premium, plus:",
-    features: [
-      "10 profiles & 25 aliases",
-      "Up to 10 music tracks",
-      "Badges",
-      "Team management",
-      "API access",
-      "Business SSO (OIDC)",
-      "Dedicated support",
-      "Custom limits on request",
-    ],
-    cta: "Contact Sales",
+    id: "enterprise",
     ctaTo: branding.contactUrl,
     highlighted: false,
+    fallbackPriceCents: 2900,
+    featureCount: 8,
   },
 ];
 
-function PricingButton({ plan }: { plan: (typeof plans)[number] }) {
+function PricingButton({
+  plan,
+}: {
+  plan: {
+    key: string;
+    highlighted: boolean;
+    ctaTo: string;
+    cta: string;
+  };
+}) {
+  const { t } = useTranslation("landing");
   const { user } = useAuth();
   const btnClasses = `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-200 w-full h-11 ${
     plan.highlighted
@@ -85,7 +66,7 @@ function PricingButton({ plan }: { plan: (typeof plans)[number] }) {
       : "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700"
   }`;
   const ctaTo = user && plan.key !== "FREE" ? "/dashboard?tab=billing" : plan.ctaTo;
-  const ctaLabel = user && plan.key !== "FREE" ? (user?.tier === plan.key ? "Current plan" : plan.cta) : plan.cta;
+  const ctaLabel = user && plan.key !== "FREE" ? (user?.tier === plan.key ? t("pricing.currentPlan") : plan.cta) : plan.cta;
   const isExternal = !ctaTo.startsWith("/");
   if (isExternal) {
     return (
@@ -102,6 +83,7 @@ function PricingButton({ plan }: { plan: (typeof plans)[number] }) {
 }
 
 export function Pricing() {
+  const { t, i18n } = useTranslation("landing");
   const [config, setConfig] = useState<OrderConfig | null>(null);
   const instance = useInstanceConfig();
 
@@ -124,14 +106,41 @@ export function Pricing() {
   // Kept after every hook so the Rules of Hooks stay satisfied.
   if (instance?.operational.hidePricing) return null;
 
-  const priced = plans.map((plan) => {
-    const envPlan = config?.plans.find((p) => p.plan === plan.key);
-    const priceCents = envPlan?.priceCents ?? (plan.key === "PRO" ? 500 : plan.key === "ENTERPRISE" ? 2900 : 0);
-const currency = config?.currency ?? "USD";
-  const mode = config?.billingMode ?? "one-time";
-  const periodLabel = mode === "one-time" ? "one-time" : mode === "fixed-term" ? "per term" : "/month";
-  const modeLabel = mode === "one-time" ? "Pay once, keep the plan" : mode === "subscription" ? "Billed monthly, cancel anytime" : "Billed per term";
-  return { ...plan, priceCents, currency, periodLabel, modeLabel };
+  const priced = PLAN_META.map((meta) => {
+    const envPlan = config?.plans.find((p) => p.plan === meta.key);
+    const priceCents = envPlan?.priceCents ?? meta.fallbackPriceCents;
+    const currency = config?.currency ?? "USD";
+    const mode = config?.billingMode ?? "one-time";
+    const periodLabel =
+      mode === "one-time"
+        ? t("pricing.periodOneTime")
+        : mode === "fixed-term"
+          ? t("pricing.periodPerTerm")
+          : t("pricing.periodMonth");
+    const modeLabel =
+      mode === "one-time"
+        ? t("pricing.modePayOnce")
+        : mode === "subscription"
+          ? t("pricing.modeBilledMonthly")
+          : t("pricing.modeBilledPerTerm");
+    const features = Array.from({ length: meta.featureCount }, (_, i) =>
+      t(`pricing.plans.${meta.id}.features.item${i + 1}`)
+    );
+    return {
+      ...meta,
+      priceCents,
+      currency,
+      periodLabel,
+      modeLabel,
+      features,
+      name: t(`common:tiers.${meta.id}`),
+      price: t(`pricing.plans.${meta.id}.price`),
+      period: t(`pricing.plans.${meta.id}.period`),
+      description: t(`pricing.plans.${meta.id}.description`),
+      badge: meta.id === "premium" ? t("pricing.plans.premium.badge") : undefined,
+      inherits: meta.id !== "free" ? t(`pricing.plans.${meta.id}.inherits`) : undefined,
+      cta: t(`pricing.plans.${meta.id}.cta`),
+    };
   });
 
   return (
@@ -140,20 +149,20 @@ const currency = config?.currency ?? "USD";
         <ScrollReveal>
           <div className="text-center max-w-2xl mx-auto mb-16 sm:mb-20">
             <p className="text-sm font-semibold uppercase tracking-widest text-violet-400 mb-4">
-              Pricing
+              {t("pricing.eyebrow")}
             </p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
-              Simple, transparent pricing.
+              {t("pricing.heading")}
             </h2>
             <p className="mt-5 text-lg text-zinc-400 max-w-xl mx-auto">
-              No hidden fees. No surprises. Start free, upgrade when you&apos;re ready.
+              {t("pricing.subtitle")}
             </p>
           </div>
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-5xl mx-auto items-start">
           {priced.map((plan, i) => (
-            <ScrollReveal key={plan.name} delay={i * 100}>
+            <ScrollReveal key={plan.key} delay={i * 100}>
               <div
                 className={`relative rounded-2xl transition-all duration-300 ${
                   plan.highlighted
@@ -165,7 +174,7 @@ const currency = config?.currency ?? "USD";
                   <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
                   <div className="mt-3 flex items-baseline gap-1">
                     <span className="text-4xl sm:text-5xl font-bold text-white tracking-tight">
-                      {plan.priceCents > 0 ? money(plan.priceCents, plan.currency) : plan.price}
+                      {plan.priceCents > 0 ? money(plan.priceCents, plan.currency, i18n.resolvedLanguage ?? "en") : plan.price}
                     </span>
                     {plan.priceCents > 0 ? <span className="text-sm text-zinc-500 font-medium">{plan.periodLabel}</span> : <span className="text-sm text-zinc-500 font-medium">{plan.period}</span>}
                   </div>
@@ -194,8 +203,8 @@ const currency = config?.currency ?? "USD";
                 )}
 
                 <ul className="space-y-3.5 mb-8">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3 text-sm text-zinc-300">
+                  {plan.features.map((feature, fi) => (
+                    <li key={fi} className="flex items-center gap-3 text-sm text-zinc-300">
                       <div
                         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                           plan.highlighted ? "bg-violet-500/20" : "bg-zinc-800"
@@ -219,11 +228,11 @@ const currency = config?.currency ?? "USD";
         </div>
 
         <p className="text-center text-sm text-zinc-500 mt-8">
-          Higher limits negotiable for Enterprise.{" "}
+          {t("pricing.enterpriseNote")}{" "}
           <a href={branding.contactUrl} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 transition-colors">
-            Contact us
+            {t("pricing.contactUs")}
           </a>{" "}
-          for custom plans.
+          {t("pricing.forCustomPlans")}
         </p>
       </Container>
     </section>

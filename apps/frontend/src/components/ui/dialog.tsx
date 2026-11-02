@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,7 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onClose, title, children, maxWidth = "max-w-lg" }: DialogProps) {
+  const { t } = useTranslation("common");
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function Dialog({ open, onClose, title, children, maxWidth = "max-w-lg" }
           <button
             onClick={onClose}
             className="ml-auto text-zinc-400 hover:text-white transition-colors"
-            aria-label="Close"
+            aria-label={t("dialog.close")}
           >
             <X className="h-5 w-5" />
           </button>

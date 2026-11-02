@@ -3,6 +3,7 @@ import { verifyStripeWebhook, STRIPE_EVENT_ORDER_ID } from "../lib/payments/stri
 import { verifyPayPalWebhook, paypalEventHandler, shouldCapturePayPalOrder, capturePayPalOrder } from "../lib/payments/paypal.js";
 import { getCryptoProvider, cryptoProviderIds } from "../lib/payments/crypto.js";
 import { handleGatewayEvent } from "../lib/payments/handleGatewayEvent.js";
+import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
@@ -17,11 +18,34 @@ function reqHeadersAsRecord(req: Request): Record<string, string | undefined> {
   return out;
 }
 
+async function isEventProcessed(key: string): Promise<boolean> {
+  try {
+    const existing = await prisma.processedWebhookEvent.findUnique({ where: { key } });
+    return Boolean(existing);
+  } catch {
+    return false;
+  }
+}
+
+async function markEventProcessed(gateway: string, key: string): Promise<void> {
+  try {
+    await prisma.processedWebhookEvent.create({ data: { key, gateway } });
+  } catch {
+    // A concurrent delivery of the same event already inserted the marker
+    // (unique violation); the event therefore need not be marked again.
+  }
+}
+
 router.post("/stripe", async (req, res) => {
   const body = rawBody(req);
   const sig = reqHeader(req, "stripe-signature");
-  const event = verifyStripeWebhook(body, sig ?? "");
+  const event = verifyStripeWebhook(body, sig ?? "") as { id?: string; type: string; data: { object: Record<string, unknown> } } | null;
   if (!event) return res.status(400).json({ received: false, error: "Invalid signature" });
+
+  const eventKey = event.id ? `stripe:${event.id}` : null;
+  if (eventKey && (await isEventProcessed(eventKey))) {
+    return res.json({ received: true });
+  }
 
   const type = event.type;
   const orderId = STRIPE_EVENT_ORDER_ID(event);
@@ -42,13 +66,14 @@ router.post("/stripe", async (req, res) => {
   } else if (type === "checkout.session.async_payment_failed" || type === "checkout.session.expired") {
     await handleGatewayEvent(orderId, "cancelled");
   }
+  if (eventKey) await markEventProcessed("stripe", eventKey);
   res.json({ received: true });
 });
 
 router.post("/paypal", async (req, res) => {
   const body = rawBody(req);
   const headers = reqHeadersAsRecord(req);
-  let parsed: { event_type?: string; resource?: { id?: string; custom_id?: string } };
+  let parsed: { id?: string; event_type?: string; resource?: { id?: string; custom_id?: string } };
   try {
     parsed = JSON.parse(body.toString());
   } catch {
@@ -56,6 +81,11 @@ router.post("/paypal", async (req, res) => {
   }
   const ok = await verifyPayPalWebhook(headers, parsed).catch(() => false);
   if (!ok) return res.status(400).json({ received: false, error: "Invalid signature" });
+
+  const eventKey = parsed.id ? `paypal:${parsed.id}` : null;
+  if (eventKey && (await isEventProcessed(eventKey))) {
+    return res.json({ received: true });
+  }
 
   const kind = paypalEventHandler(parsed.event_type ?? "");
   const orderId = parsed.resource?.custom_id ?? null;
@@ -72,10 +102,12 @@ router.post("/paypal", async (req, res) => {
     } catch {
       await handleGatewayEvent(orderId, "cancelled");
     }
+    if (eventKey) await markEventProcessed("paypal", eventKey);
     return res.json({ received: true });
   }
 
   await handleGatewayEvent(orderId, kind, parsed.resource?.id);
+  if (eventKey) await markEventProcessed("paypal", eventKey);
   res.json({ received: true });
 });
 
@@ -88,12 +120,23 @@ router.post("/crypto/:provider", async (req, res) => {
   if (!provider) return res.status(503).json({ received: false, error: "Provider not configured" });
 
   const body = rawBody(req);
-  const event = provider.verifyWebhook(body, reqHeadersAsRecord(req));
+  const event = provider.verifyWebhook(body, reqHeadersAsRecord(req)) as Record<string, unknown> | null;
   if (!event) return res.status(400).json({ received: false, error: "Invalid signature" });
+
+  // Per-event dedup key: the provider derives a stable id for THIS event
+  // (not for the whole invoice — see CryptoProvider.eventIdOf). A null id
+  // leaves the event unmarked (fail-open); idempotency then rests on the
+  // status transitions in the fulfilment layer.
+  const eventKey = provider.eventIdOf(event);
+  const key = eventKey ? `crypto:${providerId}:${eventKey}` : null;
+  if (key && (await isEventProcessed(key))) {
+    return res.json({ received: true });
+  }
 
   const kind = provider.eventKind(event);
   const orderId = provider.orderIdOf(event);
   await handleGatewayEvent(orderId, kind);
+  if (key) await markEventProcessed("crypto", key);
   res.json({ received: true });
 });
 

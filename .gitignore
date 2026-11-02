@@ -48,6 +48,10 @@ certs/*
 # Local verification tooling
 checks/
 
+# Local audit workspace: evidence, TODO ledger and disposable rig notes.
+# Never committed — it records run-by-run findings, not shipped behaviour.
+audit-local/
+
 # Uploads (user-generated files, e.g. avatars/banners; LOCAL_STORAGE_PATH)
 uploads/
 

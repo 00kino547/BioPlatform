@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Building2, Crown, Lock } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 
 const TIER_RANK: Record<string, number> = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
 const TIER_LABEL: Record<string, string> = { FREE: "Free", PRO: "Premium", ENTERPRISE: "Enterprise" };
@@ -23,6 +24,7 @@ interface LockedFeatureProps {
 }
 
 export function LockedFeature({ feature, required, title, description, note, icon, onAction }: LockedFeatureProps) {
+  const { t } = useTranslation("common");
   const { user } = useAuth();
   const tier = (user?.tier ?? "FREE") as string;
   const req = REQUIRED[required];
@@ -35,10 +37,10 @@ export function LockedFeature({ feature, required, title, description, note, ico
 
   const { verb, ActionIcon } =
     rank > req.rank
-      ? { verb: `Downgrade to ${req.label}`, ActionIcon: ArrowDownLeft }
+      ? { verb: t("lockedFeature.downgradeTo", { tier: req.label }), ActionIcon: ArrowDownLeft }
       : rank < req.rank
-        ? { verb: `Upgrade to ${req.label}`, ActionIcon: ArrowUpRight }
-        : { verb: `Move to ${req.label}`, ActionIcon: ArrowRight };
+        ? { verb: t("lockedFeature.upgradeTo", { tier: req.label }), ActionIcon: ArrowUpRight }
+        : { verb: t("lockedFeature.moveTo", { tier: req.label }), ActionIcon: ArrowRight };
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 sm:p-10 text-center">
@@ -52,12 +54,12 @@ export function LockedFeature({ feature, required, title, description, note, ico
         {icon ??
           (isEnterprise ? <Building2 className="h-6 w-6 text-amber-300" /> : <Crown className="h-6 w-6 text-violet-300" />)}
       </div>
-      <h3 className="text-lg font-semibold text-white">{title ?? `${feature} is a ${req.label} feature`}</h3>
+      <h3 className="text-lg font-semibold text-white">{title ?? t("lockedFeature.featureIsTierFeature", { feature, tier: req.label })}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm text-zinc-400">
         {overridden ? (
-          `Your role already unlocks this — ask an admin to grant your role the ${isEnterprise ? "api.enterprise" : "api.advanced"} permission.`
+          t("lockedFeature.overriddenHelp", { permission: isEnterprise ? "api.enterprise" : "api.advanced" })
         ) : (
-          description ?? `Your account is on the ${label} tier. ${verb} to unlock ${feature.toLowerCase()}.`
+          description ?? t("lockedFeature.tierDescription", { tier: label, verb, feature: feature.toLowerCase() })
         )}
       </p>
       {onAction && (
@@ -74,7 +76,7 @@ export function LockedFeature({ feature, required, title, description, note, ico
       )}
       <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1 text-xs text-zinc-500">
         <Lock className="h-3.5 w-3.5" />
-        {note ?? `Requires ${req.label} · API level “${isEnterprise ? "enterprise" : "advanced"}”`}
+        {note ?? t("lockedFeature.requires", { tier: req.label, level: isEnterprise ? "enterprise" : "advanced" })}
       </div>
     </div>
   );

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "@/contexts/useAuth";
 import { api } from "@/lib/api";
+import { formatDate as formatIntlDate } from "@/lib/intl";
 import { branding } from "@/config/branding";
 
 /**
@@ -32,6 +34,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation("legal");
 
   // Only signed-in accounts can be out of date; anonymous visitors are unaffected.
   if (loading || !user || user.consent?.current !== false) {
@@ -47,8 +50,8 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
 
   const behind = user.consent.behind;
   const documents = [
-    behind.tos ? { label: "Terms of Service", href: "/terms" } : null,
-    behind.privacy ? { label: "Privacy Policy", href: "/privacy" } : null,
+    behind.tos ? { label: t("consentGate.termsLabel"), href: "/terms" } : null,
+    behind.privacy ? { label: t("consentGate.privacyLabel"), href: "/privacy" } : null,
   ].filter((d): d is { label: string; href: string } => d !== null);
 
   const accept = async () => {
@@ -57,7 +60,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.acceptPolicies();
       if (!res.success) {
-        setError(res.error ?? "Could not record your acceptance");
+        setError(res.error ?? t("consentGate.acceptError"));
         return;
       }
       // Re-read the account so `consent.current` flips and the gate releases.
@@ -70,12 +73,10 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#0b0b0f] text-zinc-100 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl">
-        <h1 className="text-xl font-semibold text-white">Our legal documents have changed</h1>
+        <h1 className="text-xl font-semibold text-white">{t("consentGate.title")}</h1>
 
         <p className="mt-4 text-sm leading-relaxed text-zinc-400">
-          To keep using {branding.name}, please review and accept the updated{" "}
-          {documents.length > 1 ? "documents" : "document"}. Nothing about your account,
-          profile or content changes.
+          {t("consentGate.intro", { app: branding.name, count: documents.length })}
         </p>
 
         <ul className="mt-4 space-y-2">
@@ -87,7 +88,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
                 rel="noopener noreferrer"
                 className="text-sm text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-4"
               >
-                Read the updated {doc.label}
+                {t("consentGate.readUpdated", { label: doc.label })}
               </Link>
             </li>
           ))}
@@ -106,7 +107,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
             disabled={busy}
             className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {busy ? "Saving…" : "I accept"}
+            {busy ? t("consentGate.saving") : t("consentGate.accept")}
           </button>
           <button
             type="button"
@@ -114,12 +115,12 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
             disabled={busy}
             className="text-sm text-zinc-500 transition-colors hover:text-zinc-300 disabled:opacity-60"
           >
-            Sign out
+            {t("consentGate.signOut")}
           </button>
         </div>
 
         <p className="mt-6 text-xs text-zinc-600">
-          Version {user.consent.versions.tos} · {formatDate(user.consent.versions.tos)}
+          {t("consentGate.version", { version: user.consent.versions.tos, date: formatDate(user.consent.versions.tos) })}
         </p>
       </div>
     </div>
@@ -130,7 +131,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
 function formatDate(iso: string): string {
   const parsed = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("en-GB", {
+  return formatIntlDate(parsed, {
     day: "numeric",
     month: "long",
     year: "numeric",

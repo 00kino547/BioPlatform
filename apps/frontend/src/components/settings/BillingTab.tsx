@@ -1,31 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { CreditCard, Receipt, RefreshCw, MessageSquare, Check, Clock, Ban, RotateCcw, Sparkles, ExternalLink, Wallet, Landmark, TrendingDown } from "lucide-react";
 import { api, type MyOrders, type OrderConfig, type OrderInfo } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/lib/intl";
 import { Dialog } from "@/components/ui/dialog";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 
-// Tier ordering + labels, kept in sync with the backend (`routes/orders.ts`).
+// Stable translator type so helpers outside components can translate.
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+// Tier ordering, kept in sync with the backend (`routes/orders.ts`).
+// Tier *labels* come from t("common:tiers.*") via tierLabel().
 const TIER_RANK: Record<string, number> = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
-const TIER_LABELS: Record<string, string> = { FREE: "Free", PRO: "Premium", ENTERPRISE: "Enterprise" };
 
-// Human-readable description of what a given target plan locks. Shown in the
-// downgrade confirmation so the move is never a surprise; nothing is deleted.
-const DOWNGRADE_IMPACT: Record<"PRO" | "FREE", string[]> = {
-  PRO: [
-    "Enterprise-only features become locked: business SSO, team seats and the enterprise webhooks API.",
-    "Limits change to 3 profiles, 5 aliases and 5 music tracks.",
-    "Custom domains stay enabled (Premium keeps them).",
-  ],
-  FREE: [
-    "Premium-only features become locked: custom domains, advanced analytics, Discord integration, data export and the webhooks API.",
-    "Limits change to 1 profile, 0 aliases, 2 music tracks and 3 shop products.",
-    "Existing profiles, aliases, tracks and products are kept — they just can't grow past the new limits.",
-  ],
-};
+// Downgrade impact bullets (PRO / FREE) live under t("billing.impact.*") in
+// the locale files and are rendered as string arrays (returnObjects).
 
 function money(cents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+    return formatCurrency(cents, currency);
   } catch {
     return `${(cents / 100).toFixed(2)} ${currency}`;
   }
@@ -33,24 +26,55 @@ function money(cents: number, currency: string): string {
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  PENDING: { label: "Pending", cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
-  PAID: { label: "Paid", cls: "bg-green-500/10 text-green-400 border-green-500/20" },
-  CANCELLED: { label: "Cancelled", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
-  REFUNDED: { label: "Refunded", cls: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" },
+// Status → CSS classes only; the visible label comes from t("common:status.*").
+const STATUS_META: Record<string, { cls: string }> = {
+  PENDING: { cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  PAID: { cls: "bg-green-500/10 text-green-400 border-green-500/20" },
+  CANCELLED: { cls: "bg-red-500/10 text-red-400 border-red-500/20" },
+  REFUNDED: { cls: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" },
 };
 
-const METHOD_LABELS: Record<string, string> = {
-  MANUAL: "Contact owner",
-  STRIPE: "Card",
-  PAYPAL: "PayPal",
-  CRYPTO: "Crypto",
-};
+// Order status → i18n key under common.status.*; unknown statuses fall back
+// to the raw server value (same as before the i18n pass).
+function statusLabel(status: string, t: Translate): string {
+  switch (status) {
+    case "PENDING": return t("common:status.pending");
+    case "PAID": return t("common:status.paid");
+    case "CANCELLED": return t("common:status.cancelled");
+    case "REFUNDED": return t("common:status.refunded");
+    default: return status;
+  }
+}
+
+// Payment method → i18n key under billing.methods.*; unknown methods fall back
+// to the raw server value.
+function methodLabel(method: string, t: Translate): string {
+  switch (method) {
+    case "MANUAL": return t("billing.methods.manual");
+    case "STRIPE": return t("billing.methods.stripe");
+    case "PAYPAL": return t("billing.methods.paypal");
+    case "CRYPTO": return t("billing.methods.crypto");
+    default: return method;
+  }
+}
+
+// Plan tier → i18n key under common.tiers.*; unknown tiers fall back to the
+// raw server value.
+function tierLabel(tier: string, t: Translate): string {
+  switch (tier) {
+    case "FREE": return t("common:tiers.free");
+    case "PRO": return t("common:tiers.premium");
+    case "ENTERPRISE": return t("common:tiers.enterprise");
+    default: return tier;
+  }
+}
 
 export function BillingTab({ currentTier }: { currentTier: string }) {
+  // All user-facing strings come from the `dashboard` namespace (billing.* keys).
+  const { t } = useTranslation("dashboard");
   const { refreshUser } = useAuth();
   const [data, setData] = useState<MyOrders | null>(null);
   const [config, setConfig] = useState<OrderConfig | null>(null);
@@ -70,10 +94,10 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
       if (ordersRes.success && ordersRes.data) setData(ordersRes.data);
       if (configRes.success && configRes.data) setConfig(configRes.data);
     } catch {
-      setError("Could not load billing information");
+      setError(t("billing.toasts.loadFailed"));
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -113,10 +137,10 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
         }
         await load();
       } else {
-        setError(res.error ?? "Could not create the order");
+        setError(res.error ?? t("billing.toasts.createFailed"));
       }
     } catch {
-      setError("Could not create the order");
+      setError(t("billing.toasts.createFailed"));
     }
     setBusyPlan(null);
   };
@@ -135,20 +159,20 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
     try {
       const res = await api.downgradeTier(downgradeTarget);
       if (res.success && res.data) {
-        setNotice(`You're now on the ${TIER_LABELS[res.data.tier] ?? res.data.tier} plan.`);
+        setNotice(t("billing.nowOnPlan", { tier: tierLabel(res.data.tier, t) }));
         setDowngradeTarget(null);
         await Promise.all([load(), refreshUser()]);
       } else {
-        setError(res.error ?? "Could not downgrade the plan");
+        setError(res.error ?? t("billing.toasts.downgradeFailed"));
       }
     } catch {
-      setError("Could not downgrade the plan");
+      setError(t("billing.toasts.downgradeFailed"));
     }
     setDowngrading(false);
   };
 
   if (loading) {
-    return <p className="text-sm text-zinc-500 text-center py-12">Loading billing…</p>;
+    return <p className="text-sm text-zinc-500 text-center py-12">{t("billing.loading")}</p>;
   }
 
   const currency = config?.currency ?? data?.billing.currency ?? "USD";
@@ -176,9 +200,9 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
   // paid `plans` list, so it is offered here explicitly).
   const downgradeOptions: Array<{ tier: "PRO" | "FREE"; label: string }> =
     currentTier === "ENTERPRISE"
-      ? [{ tier: "PRO", label: "Premium" }, { tier: "FREE", label: "Free" }]
+      ? [{ tier: "PRO", label: tierLabel("PRO", t) }, { tier: "FREE", label: tierLabel("FREE", t) }]
       : currentTier === "PRO"
-        ? [{ tier: "FREE", label: "Free" }]
+        ? [{ tier: "FREE", label: tierLabel("FREE", t) }]
         : [];
 
   return (
@@ -194,25 +218,25 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <CreditCard className="h-4 w-4 text-violet-400" />
-            <h4 className="text-sm font-medium text-white">Current plan</h4>
+            <h4 className="text-sm font-medium text-white">{t("billing.currentPlan")}</h4>
           </div>
           <p className="text-2xl font-bold text-white capitalize">{currentTier.toLowerCase()}</p>
           <p className="text-xs text-zinc-500 mt-1">
-            {data?.billing.billingMode === "one-time" ? "Billed as a one-time payment" : `Billing: ${data?.billing.billingMode}`}
+            {data?.billing.billingMode === "one-time" ? t("billing.billedOnceTime") : t("billing.billingMode", { mode: data?.billing.billingMode })}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-4 w-4 text-violet-400" />
-            <h4 className="text-sm font-medium text-white">Your discount</h4>
+            <h4 className="text-sm font-medium text-white">{t("billing.yourDiscount")}</h4>
           </div>
           <p className="text-2xl font-bold text-white">{discount}%</p>
-          <p className="text-xs text-zinc-500 mt-1">Applied automatically at checkout</p>
+          <p className="text-xs text-zinc-500 mt-1">{t("billing.discountAuto")}</p>
         </div>
       </div>
 
       <div>
-        <h4 className="text-sm font-medium text-white mb-3">Plans</h4>
+        <h4 className="text-sm font-medium text-white mb-3">{t("billing.plansTitle")}</h4>
         <div className="grid gap-4 sm:grid-cols-2">
           {proposals.map((p) => {
             const isCurrent = currentTier === p.plan;
@@ -223,7 +247,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
               <div key={p.plan} className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
                 <div className="flex items-center justify-between mb-2">
                   <h5 className="text-sm font-semibold text-white">{p.label}</h5>
-                  {isCurrent && <span className="text-xs text-zinc-500">Current</span>}
+                  {isCurrent && <span className="text-xs text-zinc-500">{t("billing.current")}</span>}
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold text-white">{money(p.final, currency)}</span>
@@ -232,7 +256,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                   )}
                 </div>
                 <p className="text-xs text-zinc-500 mt-1 mb-3">
-                  {data?.billing.billingMode === "one-time" ? "One-time payment · includes your discount" : p.label}
+                  {data?.billing.billingMode === "one-time" ? t("billing.oneTimeIncludes") : p.label}
                 </p>
 
                 {pending && pending.method !== "MANUAL" ? (
@@ -241,7 +265,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                     onClick={() => payPending(pending)}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/30 bg-violet-600/20 px-4 py-2 text-sm font-medium text-violet-300 hover:bg-violet-600/30 transition-all"
                   >
-                    <ExternalLink className="h-4 w-4" /> Finish payment ({METHOD_LABELS[pending.method] ?? pending.method})
+                    <ExternalLink className="h-4 w-4" /> {t("billing.finishPayment", { method: methodLabel(pending.method, t) })}
                   </button>
                 ) : pending ? (
                   <button
@@ -249,7 +273,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                     disabled
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-400"
                   >
-                    <Clock className="h-4 w-4" /> Awaiting owner
+                    <Clock className="h-4 w-4" /> {t("billing.awaitingOwner")}
                   </button>
                 ) : (
                   <>
@@ -268,7 +292,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                               }`}
                             >
                               {m === "STRIPE" ? <Landmark className="h-3 w-3" /> : m === "CRYPTO" ? <Wallet className="h-3 w-3" /> : null}
-                              {METHOD_LABELS[m] ?? m}
+                              {methodLabel(m, t)}
                             </button>
                           ))}
                         </div>
@@ -296,7 +320,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                           onClick={() => createOrder(p.plan)}
                           className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-all disabled:opacity-60"
                         >
-                          {busyPlan === p.plan ? "Creating…" : `Upgrade to ${p.label}`}
+                          {busyPlan === p.plan ? t("billing.creating") : t("billing.upgradeTo", { label: p.label })}
                         </button>
                       </div>
                     ) : isDowngrade ? (
@@ -305,7 +329,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                         onClick={() => setDowngradeTarget(p.plan as "PRO")}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
                       >
-                        <TrendingDown className="h-4 w-4" /> Downgrade to {p.label}
+                        <TrendingDown className="h-4 w-4" /> {t("billing.downgradeTo", { label: p.label })}
                       </button>
                     ) : (
                       <button
@@ -313,7 +337,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                         disabled
                         className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium cursor-not-allowed border border-zinc-700 text-zinc-500"
                       >
-                        {isCurrent ? "Already on this plan" : "Not available"}
+                        {isCurrent ? t("billing.alreadyOnPlan") : t("billing.notAvailable")}
                       </button>
                     )}
                   </>
@@ -328,12 +352,10 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <TrendingDown className="h-4 w-4 text-amber-400" />
-            <h4 className="text-sm font-medium text-white">Downgrade plan</h4>
+            <h4 className="text-sm font-medium text-white">{t("billing.downgradeHeading")}</h4>
           </div>
           <p className="text-xs text-zinc-500 mb-3">
-            Move to a lower plan at any time. Nothing is deleted — your extra profiles, aliases, tracks and products stay in
-            your account (they just can&apos;t grow past the new plan&apos;s limits) and premium-only features lock until you
-            upgrade again. Any pending order is cancelled.
+            {t("billing.downgradeDescription")}
           </p>
           <div className="flex flex-wrap gap-2">
             {downgradeOptions.map((o) => (
@@ -343,7 +365,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                 onClick={() => setDowngradeTarget(o.tier)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
               >
-                <TrendingDown className="h-3.5 w-3.5" /> Down to {o.label}
+                <TrendingDown className="h-3.5 w-3.5" /> {t("billing.downTo", { label: o.label })}
               </button>
             ))}
           </div>
@@ -353,15 +375,18 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3.5">
         <div className="flex items-center gap-2 mb-2">
           <MessageSquare className="h-4 w-4 text-violet-400" />
-          <h4 className="text-sm font-medium text-white">Pay manually</h4>
+          <h4 className="text-sm font-medium text-white">{t("billing.payManually")}</h4>
         </div>
         <p className="text-xs text-zinc-500 mb-3">
-          The <span className="text-zinc-300">Contact owner</span> option creates a pending order that the platform owner
-          fulfills after you pay out of band — add a message about your payment method if you&apos;d like.
+          <Trans
+            ns="dashboard"
+            i18nKey="billing.manualPayBody"
+            components={{ 0: <span className="text-zinc-300" /> }}
+          />
           {contactLabel ? (
-            <> Reach them at: <span className="text-violet-400">{contactLabel}</span></>
+            <> {t("billing.reachThem")} <span className="text-violet-400">{contactLabel}</span></>
           ) : (
-            <> The instance owner hasn&apos;t set a contact method yet — the note you leave helps them reach you.</>
+            <> {t("billing.noContactYet")}</>
           )}
         </p>
         <textarea
@@ -369,7 +394,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
           onChange={(e) => setNote(e.target.value)}
           rows={2}
           maxLength={500}
-          placeholder="Optional note (e.g. preferred way to pay)…"
+          placeholder={t("billing.notePlaceholder")}
           className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
         />
       </div>
@@ -378,14 +403,14 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Receipt className="h-4 w-4 text-violet-400" />
-            <h4 className="text-sm font-medium text-white">Order history</h4>
+            <h4 className="text-sm font-medium text-white">{t("billing.orderHistory")}</h4>
           </div>
           <button onClick={load} className="text-xs text-zinc-400 hover:text-white transition-colors flex items-center gap-1">
-            <RefreshCw className="h-3 w-3" /> Refresh
+            <RefreshCw className="h-3 w-3" /> {t("billing.refresh")}
           </button>
         </div>
         {(data?.orders.length ?? 0) === 0 ? (
-          <p className="text-sm text-zinc-500 py-2">No orders yet.</p>
+          <p className="text-sm text-zinc-500 py-2">{t("billing.noOrders")}</p>
         ) : (
           <div className="space-y-2">
             {data?.orders.map((o) => (
@@ -396,14 +421,14 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                     {o.method !== "MANUAL" && o.method !== "CRYPTO" ? "" : null}
                     {o.method !== "MANUAL" ? (
                       <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] ${o.method === "CRYPTO" ? "border-violet-500/30 bg-violet-500/10 text-violet-300" : "border-zinc-700 bg-zinc-800 text-zinc-400"}`}>
-                        {METHOD_LABELS[o.method] ?? o.method}
+                        {methodLabel(o.method, t)}
                         {o.method === "CRYPTO" && o.cryptoCoin && o.cryptoAmount ? ` · ${o.cryptoAmount} ${o.cryptoCoin}` : ""}
                       </span>
                     ) : null}
                   </p>
                   <p className="text-xs text-zinc-500">
-                    Created {fmtDate(o.createdAt)}
-                    {o.discountPercent > 0 ? ` · ${o.discountPercent}% discount` : ""}
+                    {t("billing.created", { date: fmtDate(o.createdAt) })}
+                    {o.discountPercent > 0 ? t("billing.discountSuffix", { percent: o.discountPercent }) : ""}
                     {o.adminNote ? ` · ${o.adminNote}` : ""}
                   </p>
                 </div>
@@ -413,12 +438,12 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                       onClick={() => payPending(o)}
                       className="inline-flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-600/20 px-2.5 py-1 text-xs font-medium text-violet-300 hover:bg-violet-600/30 transition-all"
                     >
-                      <ExternalLink className="h-3 w-3" /> Pay now
+                      <ExternalLink className="h-3 w-3" /> {t("billing.payNow")}
                     </button>
                   )}
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_META[o.status]?.cls ?? ""}`}>
                     {o.status === "PAID" ? <Check className="h-3 w-3" /> : o.status === "PENDING" ? <Clock className="h-3 w-3" /> : o.status === "CANCELLED" ? <Ban className="h-3 w-3" /> : <RotateCcw className="h-3 w-3" />}
-                    {STATUS_META[o.status]?.label ?? o.status}
+                    {statusLabel(o.status, t)}
                   </span>
                 </div>
               </div>
@@ -432,22 +457,39 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
         onClose={() => {
           if (!downgrading) setDowngradeTarget(null);
         }}
-        title={downgradeTarget ? `Downgrade to ${TIER_LABELS[downgradeTarget]}?` : "Downgrade plan"}
+        title={
+          downgradeTarget
+            ? t("billing.downgradeConfirmTitle", { tier: tierLabel(downgradeTarget, t) })
+            : t("billing.downgradeHeading")
+        }
       >
         {downgradeTarget && (
           <div>
             <p className="text-sm text-zinc-400">
-              Your account will move from{" "}
-              <span className="font-medium text-white">{TIER_LABELS[currentTier] ?? currentTier}</span> to{" "}
-              <span className="font-medium text-white">{TIER_LABELS[downgradeTarget]}</span> immediately.
+              <Trans
+                ns="dashboard"
+                i18nKey="billing.downgradeMoves"
+                values={{
+                  from: tierLabel(currentTier, t),
+                  to: tierLabel(downgradeTarget, t),
+                }}
+                components={{
+                  0: <span className="font-medium text-white" />,
+                  1: <span className="font-medium text-white" />,
+                }}
+              />
             </p>
             <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-zinc-400">
-              {DOWNGRADE_IMPACT[downgradeTarget].map((line) => (
+              {(
+                (downgradeTarget === "PRO"
+                  ? t("billing.impact.PRO", { returnObjects: true })
+                  : t("billing.impact.FREE", { returnObjects: true })) as string[]
+              ).map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
             <p className="mt-3 text-xs text-zinc-500">
-              Nothing is deleted, and you can upgrade again at any time. Any pending order is cancelled.
+              {t("billing.downgradeNote")}
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -456,7 +498,7 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                 disabled={downgrading}
                 className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-all disabled:opacity-60"
               >
-                Cancel
+                {t("billing.cancel")}
               </button>
               <button
                 type="button"
@@ -465,7 +507,9 @@ export function BillingTab({ currentTier }: { currentTier: string }) {
                 className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-all disabled:opacity-60"
               >
                 <TrendingDown className="h-4 w-4" />
-                {downgrading ? "Downgrading…" : `Downgrade to ${TIER_LABELS[downgradeTarget]}`}
+                {downgrading
+                  ? t("billing.downgrading")
+                  : t("billing.downgradeTo", { label: tierLabel(downgradeTarget, t) })}
               </button>
             </div>
           </div>

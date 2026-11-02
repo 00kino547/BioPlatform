@@ -25,7 +25,7 @@
 
 set -eu
 
-UNINSTALL_SH_VERSION="2.0.0-canary.3"
+UNINSTALL_SH_VERSION="2.0.0-dev-alpha.1"
 
 # ------------------------------------------------------------------- usage ---
 

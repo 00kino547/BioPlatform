@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ShoppingCart, Loader2, Download, RefreshCw } from "lucide-react";
 import { api, type Purchase } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { SectionCard } from "@/components/ui/dashboard";
 import { formatPrice, fileSize } from "@/lib/format";
+import { formatDate } from "@/lib/intl";
 
 export function PurchasesTab() {
+  const { t } = useTranslation("profile");
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export function PurchasesTab() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setDownloadError(e instanceof Error ? e.message : "Download failed.");
+      setDownloadError(e instanceof Error ? e.message : t("purchasesTab.downloadFailed"));
     }
     setDownloadingId(null);
   };
@@ -45,21 +48,21 @@ export function PurchasesTab() {
     <div className="space-y-4">
       <SectionCard
         icon={<ShoppingCart className="h-4 w-4" />}
-        title="My purchases"
-        desc="Download the digital products you bought on this instance."
+        title={t("purchasesTab.title")}
+        desc={t("purchasesTab.description")}
       >
         <div className="flex items-center gap-2 mb-3">
           {loading && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            {t("purchasesTab.refresh")}
           </Button>
         </div>
 
         {downloadError && <p className="text-xs mb-2 text-red-400">{downloadError}</p>}
 
         {purchases.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-6">You haven't purchased anything yet.</p>
+          <p className="text-sm text-zinc-500 py-6">{t("purchasesTab.empty")}</p>
         ) : (
           <div className="space-y-2">
             {purchases.map((p) => (
@@ -72,9 +75,9 @@ export function PurchasesTab() {
                   <p className="text-xs text-zinc-500">
                     {[
                       p.productType === "REQUEST"
-                        ? "Request product"
+                        ? t("purchasesTab.requestProduct")
                         : `${p.fileName} · ${fileSize(p.fileSize)}`,
-                      p.method === "FREE" ? "Free" : `${formatPrice(p.finalPriceCents, p.currency)}${p.discountPercent > 0 ? ` (-${p.discountPercent}%)` : ""}`,
+                      p.method === "FREE" ? t("purchasesTab.free") : `${formatPrice(p.finalPriceCents, p.currency)}${p.discountPercent > 0 ? t("purchasesTab.discountSuffix", { percent: p.discountPercent }) : ""}`,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -96,16 +99,16 @@ export function PurchasesTab() {
                 >
                   {p.status}
                 </span>
-                <span className="text-xs text-zinc-500">{new Date(p.createdAt).toLocaleDateString()}</span>
+                <span className="text-xs text-zinc-500">{formatDate(p.createdAt)}</span>
                 {p.productType === "REQUEST" ? (
-                  <span className="text-xs text-zinc-500">Delivered by the seller</span>
+                  <span className="text-xs text-zinc-500">{t("purchasesTab.deliveredBySeller")}</span>
                 ) : (
                   <Button
                     onClick={() => void download(p)}
                     disabled={downloadingId === p.id || p.status !== "PAID"}
                   >
                     <Download className="h-4 w-4" />
-                    {downloadingId === p.id ? "Preparing…" : "Download"}
+                    {downloadingId === p.id ? t("purchasesTab.preparing") : t("purchasesTab.download")}
                   </Button>
                 )}
               </div>

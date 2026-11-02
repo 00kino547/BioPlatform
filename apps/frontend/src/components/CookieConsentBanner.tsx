@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Cookie } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { branding } from "@/config/branding";
@@ -52,6 +53,7 @@ async function recordDecision(decision: "accept" | "essential"): Promise<Consent
 const COUNTDOWN_SECONDS = 20;
 
 export function CookieConsentBanner() {
+  const { t } = useTranslation("common");
   const [consent, setConsent] = useState<ConsentValue | null>(null);
   const [dnt, setDnt] = useState(false);
   const [forceOpen, setForceOpen] = useState(false);
@@ -153,14 +155,14 @@ export function CookieConsentBanner() {
       // dropping the choice silently, and let them try again.
       setDismissed(false);
       setForceOpen(true);
-      setError("Your choice could not be saved. Please try again.");
+      setError(t("cookieConsent.error"));
     }
   };
 
   return (
     <div
       role="dialog"
-      aria-label="Cookie consent"
+      aria-label={t("cookieConsent.ariaLabel")}
       className="fixed inset-x-0 bottom-0 z-50 p-4 sm:p-6"
     >
       {error && (
@@ -175,14 +177,13 @@ export function CookieConsentBanner() {
           </span>
           <div className="text-sm text-zinc-300">
             <p className="font-medium text-white">
-              {consent === "unknown" ? "We value your privacy" : "Cookie preferences"}
+              {consent === "unknown" ? t("cookieConsent.titleNew") : t("cookieConsent.titlePreferences")}
             </p>
             <p className="mt-1">
-              {branding.name} uses essential cookies (authentication, security) that are always active,
-              and optional anonymous analytics cookies that only load when you accept.
+              {t("cookieConsent.description", { name: branding.name })}
             </p>
             <Link to="/privacy" className="mt-1 inline-block text-xs text-violet-400 hover:text-violet-300 transition-colors">
-              Learn more in the Privacy Policy
+              {t("cookieConsent.learnMore")}
             </Link>
             {/*
               Only in the panel the visitor asked for: DNT has already hidden the
@@ -191,15 +192,14 @@ export function CookieConsentBanner() {
             */}
             {dnt && (
               <p className="mt-1 text-xs text-zinc-500">
-                Your browser sends Do Not Track, so analytics cookies are off. Accept all below to turn
-                them on for this site.
+                {t("cookieConsent.dntNotice")}
               </p>
             )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:flex-col lg:flex-row">
           <Button size="sm" onClick={() => decide("accept")}>
-            Accept all
+            {t("cookieConsent.acceptAll")}
           </Button>
           <Button
             size="sm"
@@ -208,7 +208,7 @@ export function CookieConsentBanner() {
             onClick={() => decide("essential")}
             className="min-w-[140px] text-center tabular-nums"
           >
-            {essentialReady ? "Essential only" : `Essential only (${essentialRemaining}s)`}
+            {essentialReady ? t("cookieConsent.essentialOnly") : t("cookieConsent.essentialOnlyCountdown", { seconds: essentialRemaining })}
           </Button>
           {consent !== "unknown" && (
             <Button
@@ -219,7 +219,7 @@ export function CookieConsentBanner() {
                 setDismissed(true);
               }}
             >
-              Close
+              {t("cookieConsent.close")}
             </Button>
           )}
         </div>

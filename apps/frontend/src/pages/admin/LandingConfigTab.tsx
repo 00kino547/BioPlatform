@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Check, Link2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { branding } from "@/config/branding";
 
 export function LandingConfigTab() {
+  // Admin tab that links the marketing landing page to a live profile.
+  const { t } = useTranslation("admin");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -17,10 +20,10 @@ export function LandingConfigTab() {
       .then((res) => {
         if (!live) return;
         if (res.success) setUsername(res.data?.featuredProfileUsername ?? "");
-        else setError(res.error ?? "Failed to load landing settings");
+        else setError(res.error ?? t("admin.landingConfig.loadFailed"));
       })
       .catch(() => {
-        if (live) setError("Failed to load landing settings");
+        if (live) setError(t("admin.landingConfig.loadFailed"));
       })
       .finally(() => {
         if (live) setLoading(false);
@@ -28,7 +31,7 @@ export function LandingConfigTab() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [t]);
 
   const save = async () => {
     setSaving(true);
@@ -41,7 +44,7 @@ export function LandingConfigTab() {
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2000);
     } else {
-      setError(res.error ?? "Failed to save landing settings");
+      setError(res.error ?? t("admin.landingConfig.saveFailed"));
     }
   };
 
@@ -49,22 +52,28 @@ export function LandingConfigTab() {
     <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8">
       <div className="flex items-center gap-2 mb-1">
         <Link2 className="h-5 w-5 text-violet-400" />
-        <h2 className="text-lg font-semibold text-white">Landing settings</h2>
+        <h2 className="text-lg font-semibold text-white">{t("admin.landingConfig.title")}</h2>
       </div>
       <p className="text-sm text-zinc-500 mb-6">
-        Link a live profile from the marketing landing page. When set, the hero and the showcase preview editor
-        show a <span className="text-zinc-300">View live profile</span> button pointing to{" "}
-        <span className="text-zinc-300">/{username || "username"}</span>. Leave empty to hide the button.
+        <Trans
+          ns="admin"
+          i18nKey="admin.landingConfig.description"
+          values={{ username: username || "username" }}
+          components={{ code: <span className="text-zinc-300" /> }}
+        >
+          Link a live profile from the marketing landing page. When set, the hero and the showcase preview editor
+          show a <code>View live profile</code> button pointing to <code>/{username}</code>. Leave empty to hide the button.
+        </Trans>
       </p>
 
       <label className="block max-w-md">
-        <span className="text-xs text-zinc-400">Featured profile username</span>
+        <span className="text-xs text-zinc-400">{t("admin.landingConfig.featuredUsername")}</span>
         <div className="mt-1 flex items-center gap-2">
           <span className="text-sm text-zinc-500">/</span>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="username"
+            placeholder={t("admin.landingConfig.usernamePlaceholder")}
             disabled={loading}
             autoComplete="off"
             autoCorrect="off"
@@ -81,7 +90,7 @@ export function LandingConfigTab() {
           disabled={loading || saving}
           className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-400 transition-colors disabled:opacity-40"
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("admin.landingConfig.saving") : t("admin.landingConfig.save")}
         </button>
         {username && (
           <a
@@ -90,12 +99,12 @@ export function LandingConfigTab() {
             rel="noreferrer"
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
           >
-            View /{username.replace(/^@/, "")}
+            {t("admin.landingConfig.viewProfile", { username: username.replace(/^@/, "") })}
           </a>
         )}
         {saved && (
           <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">
-            <Check className="h-4 w-4" /> Saved
+            <Check className="h-4 w-4" /> {t("admin.landingConfig.saved")}
           </span>
         )}
       </div>
@@ -105,11 +114,17 @@ export function LandingConfigTab() {
       {username && (
         <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-400">
           <p>
-            The landing page now links to <span className="font-semibold text-violet-400">/{username.replace(/^@/, "")}</span>.
+            <Trans
+              ns="admin"
+              i18nKey="admin.landingConfig.linkedTo"
+              values={{ username: username.replace(/^@/, "") }}
+              components={{ strong: <span className="font-semibold text-violet-400" /> }}
+            >
+              The landing page now links to <strong>/{username}</strong>.
+            </Trans>
           </p>
           <p className="mt-1 text-xs text-zinc-600">
-            The button appears on the {branding.name} hero and in the showcase preview editor, and uses your
-            origin host by default.
+            {t("admin.landingConfig.hostedNote", { name: branding.name })}
           </p>
         </div>
       )}

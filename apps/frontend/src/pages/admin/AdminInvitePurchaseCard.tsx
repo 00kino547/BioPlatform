@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, type InvitePack, type InviteResaleMode } from "@/lib/api";
+import { formatCurrency, formatDateTime } from "@/lib/intl";
 import { Button } from "@/components/ui/button";
 import { ManualPaymentInstructionsEditor } from "@/components/settings/ManualPaymentInstructionsEditor";
 import { BadgeCheck, Ban, Check, Link2, Loader2, RefreshCw, ShoppingBag, TriangleAlert } from "lucide-react";
@@ -18,23 +20,23 @@ import { BadgeCheck, Ban, Check, Link2, Loader2, RefreshCw, ShoppingBag, Triangl
 const RESALE_MODES: Array<{ value: InviteResaleMode; label: string; help: string }> = [
   {
     value: "off",
-    label: "Not addressed",
-    help: "The Terms say nothing about selling invite codes onwards.",
+    label: "admin.invitePurchase.resaleModes.off",
+    help: "admin.invitePurchase.resaleModes.offHelp",
   },
   {
     value: "permitted",
-    label: "Permitted in the Terms",
-    help: "Publishes an explicit resale permission, so a member selling their codes is acting on the Terms. Nothing is blocked or tracked.",
+    label: "admin.invitePurchase.resaleModes.permitted",
+    help: "admin.invitePurchase.resaleModes.permittedHelp",
   },
   {
     value: "legal",
-    label: "Prohibited in the Terms",
-    help: "An explicit resale prohibition is published. Codes are not tracked by origin.",
+    label: "admin.invitePurchase.resaleModes.legal",
+    help: "admin.invitePurchase.resaleModes.legalHelp",
   },
   {
     value: "enforced",
-    label: "Prohibited and tracked",
-    help: "Publishes the prohibition and records where purchased codes came from, so the platform can answer that question.",
+    label: "admin.invitePurchase.resaleModes.enforced",
+    help: "admin.invitePurchase.resaleModes.enforcedHelp",
   },
 ];
 
@@ -54,7 +56,7 @@ type AdminPurchase = {
 };
 
 function money(cents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+  return formatCurrency(cents, currency);
 }
 
 function toggleClass(on: boolean): string {
@@ -70,6 +72,11 @@ function knobClass(on: boolean): string {
 }
 
 export function AdminInvitePurchaseCard() {
+  // Admin card for selling invite credits (settings + recent purchases).
+  const { t } = useTranslation("admin");
+  // Lowercase enum values map to translation keys, e.g. PAID -> statusPaid.
+  const statusLabel = (s: string) => t(`admin.invitePurchase.status${s.charAt(0)}${s.slice(1).toLowerCase()}`);
+  const methodLabel = (m: string) => t(`admin.invitePurchase.method${m.charAt(0)}${m.slice(1).toLowerCase()}`);
   const [purchaseEnabled, setPurchaseEnabled] = useState(false);
   const [resaleMode, setResaleMode] = useState<InviteResaleMode>("off");
   const [packs, setPacks] = useState<InvitePack[]>([]);
@@ -97,11 +104,11 @@ export function AdminInvitePurchaseCard() {
         setEmailConfigured(res.data.emailConfigured ?? true);
       }
     } catch {
-      setNotice({ tone: "err", text: "Could not load invite purchase settings." });
+      setNotice({ tone: "err", text: t("admin.invitePurchase.loadFailed") });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadPurchases = useCallback(async () => {
     try {
@@ -126,12 +133,12 @@ export function AdminInvitePurchaseCard() {
     });
     setSaving(false);
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not save." });
+      setNotice({ tone: "err", text: res.error ?? t("admin.invitePurchase.saveFailed") });
       return;
     }
     setPurchaseEnabled(res.data.purchaseEnabled);
     setResaleMode(res.data.resaleMode);
-    setNotice({ tone: "ok", text: "Saved." });
+    setNotice({ tone: "ok", text: t("admin.invitePurchase.saved") });
   };
 
   const act = async (orderId: string, action: "confirm" | "refund" | "cancel") => {
@@ -145,17 +152,17 @@ export function AdminInvitePurchaseCard() {
           : await api.cancelInvitePurchase(orderId);
     setBusyOrder(null);
     if (!res.success) {
-      setNotice({ tone: "err", text: res.error ?? "Could not update the purchase." });
+      setNotice({ tone: "err", text: res.error ?? t("admin.invitePurchase.updateFailed") });
       return;
     }
     setNotice({
       tone: "ok",
       text:
         action === "confirm"
-          ? "Credits granted."
+          ? t("admin.invitePurchase.creditsGranted")
           : action === "refund"
-            ? "Recorded as refunded. Unspent credits and codes from that purchase were revoked — remember to return the money at the payment provider."
-            : "Purchase cancelled.",
+            ? t("admin.invitePurchase.recordedRefunded")
+            : t("admin.invitePurchase.purchaseCancelled"),
     });
     void loadPurchases();
   };
@@ -169,7 +176,7 @@ export function AdminInvitePurchaseCard() {
     const res = await api.getAdminInviteClaimLink(orderId);
     setBusyOrder(null);
     if (!res.success || !res.data) {
-      setNotice({ tone: "err", text: res.error ?? "Could not create a claim link." });
+      setNotice({ tone: "err", text: res.error ?? t("admin.invitePurchase.claimLinkFailed") });
       return;
     }
     try {
@@ -177,21 +184,20 @@ export function AdminInvitePurchaseCard() {
       setNotice({
         tone: "ok",
         text: res.data.emailed
-          ? "Claim link copied. They were already emailed one — this is a fresh link for the same codes, valid "
-            + res.data.expiresInDays + " days."
-          : "Claim link copied. Send it to the buyer yourself — they were never emailed one.",
+          ? t("admin.invitePurchase.claimLinkCopiedEmailed", { days: res.data.expiresInDays })
+          : t("admin.invitePurchase.claimLinkCopied"),
       });
     } catch {
       // Clipboard access is refused in plenty of contexts (insecure origin, no
       // permission). Showing the link is better than pretending it was copied.
-      setNotice({ tone: "err", text: "Copy this link manually: " + res.data.url });
+      setNotice({ tone: "err", text: t("admin.invitePurchase.copyManually", { url: res.data.url }) });
     }
   };
 
   if (loading) {
     return (
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-7 sm:p-8 mb-8">
-        <p className="text-sm text-zinc-500">Loading paid invite settings…</p>
+        <p className="text-sm text-zinc-500">{t("admin.invitePurchase.loading")}</p>
       </div>
     );
   }
@@ -202,16 +208,15 @@ export function AdminInvitePurchaseCard() {
         <div>
           <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-violet-400" aria-hidden />
-            Paid invite credits
+            {t("admin.invitePurchase.title")}
           </h2>
           <p className="text-sm text-zinc-500">
-            Let people buy invite credits. Purchased credits land on the buyer's balance and never
-            expire; a guest who buys before registering gets codes by email instead.
+            {t("admin.invitePurchase.description")}
           </p>
         </div>
         <button
           type="button"
-          aria-label="Toggle paid invite credits"
+          aria-label={t("admin.invitePurchase.toggleAria")}
           aria-pressed={purchaseEnabled}
           disabled={saving}
           onClick={() => save({ purchaseEnabled: !purchaseEnabled })}
@@ -225,10 +230,7 @@ export function AdminInvitePurchaseCard() {
         <p className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span>
-            No packs are priced, so nothing can be sold yet. Set{" "}
-            <code className="font-mono">INVITE_PRICE_PACKS</code> (for example{" "}
-            <code className="font-mono">1:100,3:200,10:600</code>) and restart the backend. An
-            empty pack list keeps the store closed whatever this switch says.
+            {t("admin.invitePurchase.noPacksPriced")}
           </span>
         </p>
       )}
@@ -245,33 +247,23 @@ export function AdminInvitePurchaseCard() {
         >
           <p className="flex items-center gap-2 text-base font-semibold text-red-300">
             <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden />
-            Mail is not configured — guest buyers cannot be delivered
+            {t("admin.invitePurchase.mailNotConfiguredTitle")}
           </p>
           <p className="mt-2">
-            The store is <strong>on</strong>, so you are taking money right now, but this instance
-            has no working outbound mail. A guest who buys before registering receives their invite
-            codes <em>by email only</em>, and that email cannot be sent: confirm one of their orders
-            and they will have paid for something they cannot reach.
+            {t("admin.invitePurchase.mailNotConfiguredBody")}
           </p>
           <p className="mt-2">
-            Configure a real mailbox before you take another order — a Gmail address with an app
-            password is the quickest route. Set <code className="font-mono">SMTP_HOST</code>,{" "}
-            <code className="font-mono">SMTP_PORT</code>, <code className="font-mono">SMTP_USER</code>,{" "}
-            <code className="font-mono">SMTP_PASS</code>, <code className="font-mono">SMTP_FROM_EMAIL</code>{" "}
-            and <code className="font-mono">SMTP_ENABLED=true</code>, then recreate the backend.
+            {t("admin.invitePurchase.mailConfigHint")}
           </p>
           <p className="mt-2 text-red-300/90">
-            Until then you can still fulfil by hand: use <strong>Copy claim link</strong> on any paid
-            guest order below and send the buyer that link over whatever channel you already have
-            with them. That link is the only thing you need — it does not reveal the codes
-            themselves.
+            {t("admin.invitePurchase.mailConfigFulfil")}
           </p>
         </div>
       )}
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         {packs.length === 0 ? (
-          <p className="text-sm text-zinc-500">No packs configured.</p>
+          <p className="text-sm text-zinc-500">{t("admin.invitePurchase.noPacks")}</p>
         ) : (
           packs.map((pack) => (
             <div
@@ -279,14 +271,14 @@ export function AdminInvitePurchaseCard() {
               className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
             >
               <p className="text-sm font-medium text-white">
-                {pack.quantity} credit{pack.quantity === 1 ? "" : "s"}
+                {t("admin.invitePurchase.credits", { count: pack.quantity, s: pack.quantity === 1 ? "" : "s" })}
               </p>
               <p className="text-sm text-zinc-400">
                 {money(pack.priceCents, currency)}
-                <span className="text-zinc-600"> · {money(pack.unitCents, currency)} each</span>
+                <span className="text-zinc-600"> · {t("admin.invitePurchase.eachPrice", { amount: money(pack.unitCents, currency) })}</span>
               </p>
               {pack.bestValue && (
-                <p className="mt-1 text-xs font-medium text-emerald-400">Best value</p>
+                <p className="mt-1 text-xs font-medium text-emerald-400">{t("admin.invitePurchase.bestValue")}</p>
               )}
             </div>
           ))
@@ -294,10 +286,9 @@ export function AdminInvitePurchaseCard() {
       </div>
 
       <div className="mt-6 border-t border-zinc-800/70 pt-5">
-        <h3 className="text-sm font-semibold text-white mb-1">Resale</h3>
+        <h3 className="text-sm font-semibold text-white mb-1">{t("admin.invitePurchase.resale")}</h3>
         <p className="text-sm text-zinc-500 mb-3">
-          Whether the Terms let a member sell an invite code onwards. This is a published legal
-          position, so it is not tied to the store switch above.
+          {t("admin.invitePurchase.resaleDescription")}
         </p>
         <div className="grid gap-2">
           {RESALE_MODES.map((mode) => (
@@ -318,8 +309,8 @@ export function AdminInvitePurchaseCard() {
                 onChange={() => save({ resaleMode: mode.value })}
               />
               <span>
-                <span className="block text-sm font-medium text-white">{mode.label}</span>
-                <span className="block text-xs text-zinc-500">{mode.help}</span>
+                <span className="block text-sm font-medium text-white">{t(mode.label)}</span>
+                <span className="block text-xs text-zinc-500">{t(mode.help)}</span>
               </span>
             </label>
           ))}
@@ -350,19 +341,19 @@ export function AdminInvitePurchaseCard() {
 
       <div className="mt-6 border-t border-zinc-800/70 pt-5">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">Recent purchases</h3>
+          <h3 className="text-sm font-semibold text-white">{t("admin.invitePurchase.recentPurchases")}</h3>
           <button
             type="button"
             onClick={() => void loadPurchases()}
             className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            Refresh
+            {t("admin.invitePurchase.refresh")}
           </button>
         </div>
 
         {purchases.length === 0 ? (
-          <p className="text-sm text-zinc-500">No invite credits have been bought yet.</p>
+          <p className="text-sm text-zinc-500">{t("admin.invitePurchase.noPurchases")}</p>
         ) : (
           <ul className="space-y-2">
             {purchases.map((purchase) => (
@@ -382,20 +373,20 @@ export function AdminInvitePurchaseCard() {
                             : "bg-zinc-700/40 text-zinc-400"
                       }`}
                     >
-                      {purchase.status.toLowerCase()}
+                      {statusLabel(purchase.status)}
                     </span>
                     <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
-                      {purchase.method.toLowerCase()}
+                      {methodLabel(purchase.method)}
                     </span>
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {purchase.quantity} credit{purchase.quantity === 1 ? "" : "s"} ·{" "}
+                    {t("admin.invitePurchase.credits", { count: purchase.quantity, s: purchase.quantity === 1 ? "" : "s" })} ·{" "}
                     {money(purchase.priceCents, purchase.currency)} ·{" "}
-                    {new Date(purchase.createdAt).toLocaleString()}
+                    {formatDateTime(purchase.createdAt)}
                     {purchase.userId === null && purchase.status === "PAID"
-                      ? " · guest codes by email"
+                      ? t("admin.invitePurchase.guestCodesByEmail")
                       : ""}
-                    {purchase.claimedById ? " · adopted by an account" : ""}
+                    {purchase.claimedById ? t("admin.invitePurchase.adoptedByAccount") : ""}
                   </p>
                 </div>
 
@@ -412,7 +403,7 @@ export function AdminInvitePurchaseCard() {
                       ) : (
                         <Check className="h-4 w-4" aria-hidden />
                       )}
-                      Confirm
+                      {t("admin.invitePurchase.confirm")}
                     </Button>
                   )}
                   {purchase.status === "PAID" && purchase.userId === null && (
@@ -421,14 +412,14 @@ export function AdminInvitePurchaseCard() {
                       variant="outline"
                       disabled={busyOrder === purchase.id}
                       onClick={() => void copyClaimLink(purchase.id)}
-                      title="Re-issues this buyer's claim link so you can deliver it yourself. Does not reveal the codes."
+                      title={t("admin.invitePurchase.copyClaimLinkTitle")}
                     >
                       {busyOrder === purchase.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       ) : (
                         <Link2 className="h-4 w-4" aria-hidden />
                       )}
-                      Copy claim link
+                      {t("admin.invitePurchase.copyClaimLink")}
                     </Button>
                   )}
                   {purchase.status === "PAID" && (
@@ -442,17 +433,19 @@ export function AdminInvitePurchaseCard() {
                         // on its own would read as though charging had been undone,
                         // and an admin would reasonably click it expecting that.
                         const paid = window.confirm(
-                          "Return the money at " +
-                            (purchase.method === "MANUAL" ? "the payment provider" : purchase.method) +
-                            " first.\n\nThis only records the refund here and revokes the unspent credits " +
-                            "and codes from this purchase. Anything already redeemed stays valid.\n\nContinue?"
+                          t("admin.invitePurchase.refundConfirm", {
+                            provider:
+                              purchase.method === "MANUAL"
+                                ? t("admin.invitePurchase.paymentProvider")
+                                : purchase.method,
+                          })
                         );
                         if (paid) void act(purchase.id, "refund");
                       }}
-                      title="Records the refund and revokes unspent credits. Does not refund at the payment provider."
+                      title={t("admin.invitePurchase.markRefundedTitle")}
                     >
                       <Ban className="h-4 w-4" aria-hidden />
-                      Mark refunded
+                      {t("admin.invitePurchase.markRefunded")}
                     </Button>
                   )}
                   {purchase.status === "PENDING" && purchase.method !== "MANUAL" && (
@@ -462,7 +455,7 @@ export function AdminInvitePurchaseCard() {
                       disabled={busyOrder === purchase.id}
                       onClick={() => act(purchase.id, "cancel")}
                     >
-                      Cancel
+                      {t("admin.invitePurchase.cancel")}
                     </Button>
                   )}
                 </div>
@@ -475,8 +468,7 @@ export function AdminInvitePurchaseCard() {
       <p className="mt-4 flex items-start gap-2 text-xs text-zinc-500">
         <BadgeCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
-          Refunding revokes the unspent codes and credits from that purchase. Codes someone has
-          already redeemed stay valid — that person has joined.
+          {t("admin.invitePurchase.refundFooter")}
         </span>
       </p>
     </div>

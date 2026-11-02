@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { usePageMeta } from "@/lib/seo";
 import { branding } from "@/config/branding";
 import { InviteCreditStore } from "@/components/settings/InviteCreditStore";
@@ -12,9 +13,10 @@ import { asEmailHint } from "@/lib/emailHint";
 // store and a way back to login.
 
 export function InviteStore() {
+  const { t } = useTranslation("invite");
   usePageMeta({
-    title: `Get an invite — ${branding.name}`,
-    description: `Buy an invite for ${branding.name}. Use your code to register; the rest come with your account.`,
+    title: t("inviteStore.metaTitle", { name: branding.name }),
+    description: t("inviteStore.metaDescription", { name: branding.name }),
   });
 
   /*
@@ -29,25 +31,23 @@ export function InviteStore() {
     <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6 sm:py-24">
       <header className="mb-10 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          Get an invite
+          {t("inviteStore.heading")}
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-400">
-          {branding.name} is invite-only. Buy an invite credit below, then use one of the codes to
-          register — anything you bought beyond the code you register with is added to your new
-          account automatically.
+          {t("inviteStore.description", { name: branding.name })}
         </p>
       </header>
 
       <InviteCreditStore showEmailField initialEmail={initialEmail} />
 
       <p className="mt-10 text-center text-sm text-zinc-500">
-        Already have a code?{" "}
+        {t("inviteStore.alreadyHaveCode")}{" "}
         <a href="/register" className="text-violet-400 transition-colors hover:text-violet-300">
-          Register with it
+          {t("inviteStore.registerWithIt")}
         </a>{" "}
-        or{" "}
+        {t("inviteStore.or")}{" "}
         <a href="/login" className="text-violet-400 transition-colors hover:text-violet-300">
-          sign in
+          {t("inviteStore.signIn")}
         </a>
         .
       </p>

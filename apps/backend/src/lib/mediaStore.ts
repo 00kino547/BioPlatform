@@ -84,8 +84,29 @@ export async function materializeUpload(relative: string): Promise<string | null
   const cached = await fs.promises.stat(cacheFile).catch(() => null);
   if (cached?.isFile() && cached.mtimeMs > Date.now() - maxAgeMs) return cacheFile;
 
-  const data = await provider.readObject(rel);
-  if (!data) return null;
+  let data: Buffer | null = null;
+  try {
+    data = await provider.readObject(rel);
+  } catch (error) {
+    // A provider outage (invalid/expired cloud credentials, network failure)
+    // used to bubble up and turn into a silent 404 — the root cause never
+    // appeared in the logs. Log the storage failure, then fall through to the
+    // stale-cache fallback below so profiles keep serving their media until
+    // storage recovers.
+    console.error(
+      `Media storage read failed for "${rel}" via provider "${provider.kind}"; falling back to stale cache if present:`,
+      error
+    );
+    data = null;
+  }
+  if (!data) {
+    // Stale fallback: an expired cache entry is better than a hard 404 when
+    // the origin is unreachable. Only returned when the origin is broken;
+    // fresh reads always win (see the maxAge check above).
+    const stale = await fs.promises.stat(cacheFile).catch(() => null);
+    if (stale?.isFile()) return cacheFile;
+    return null;
+  }
   await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true });
   await fs.promises.writeFile(cacheFile, data);
   return cacheFile;

@@ -1,21 +1,23 @@
 import { ArrowRight, Sparkles, Shield, Zap, Globe, Users, Eye, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Container } from "@/components/layout/Container";
 import { branding } from "@/config/branding";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { useLandingConfig } from "@/lib/useLandingConfig";
 import { useInstanceConfig } from "@/lib/useInstanceConfig";
 import { BuyInviteModal } from "@/components/invites/BuyInviteModal";
 import { usePolicyContext } from "@/lib/usePolicyContext";
 
 const stats = [
-  { icon: Users, value: "2,400+", label: "Early Access Users" },
-  { icon: Eye, value: "50k+", label: "Page Views" },
-  { icon: Zap, value: "<50ms", label: "Load Time" },
+  { icon: Users, id: "earlyAccessUsers" },
+  { icon: Eye, id: "pageViews" },
+  { icon: Zap, id: "loadTime" },
 ];
 
 export function Hero() {
+  const { t } = useTranslation("landing");
   const { user } = useAuth();
   const landingConfig = useLandingConfig();
   const instance = useInstanceConfig();
@@ -41,7 +43,7 @@ export function Hero() {
           <div className="animate-fade-in">
             <Badge variant="violet" className="mb-8 inline-flex items-center gap-1.5 px-4 py-1.5">
               <Sparkles className="h-3.5 w-3.5" />
-              Now in Early Access
+              {t("hero.badge")}
             </Badge>
           </div>
 
@@ -61,7 +63,7 @@ export function Hero() {
             style={{ animationDelay: "200ms" }}
           >
             {heroSubheading ||
-              `${branding.description}. Links, themes, and analytics — all in one beautifully designed page.`}
+              `${branding.description}. ${t("hero.subheadingSuffix")}`}
           </p>
 
           <div
@@ -74,7 +76,7 @@ export function Hero() {
                 className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-xl shadow-violet-600/25 hover:shadow-violet-600/40 transition-all duration-200 group"
               >
                 <LayoutDashboard className="h-4 w-4" />
-                Go to Dashboard
+                {t("hero.cta.dashboard")}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             ) : (
@@ -82,7 +84,7 @@ export function Hero() {
                 to="/register"
                 className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 shadow-xl shadow-violet-600/25 hover:shadow-violet-600/40 transition-all duration-200 group"
               >
-                Get Early Access
+                {t("hero.cta.earlyAccess")}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             )}
@@ -94,14 +96,14 @@ export function Hero() {
             {storeOpen ? (
               <BuyInviteModal
                 className="h-13 px-8 text-base"
-                label="Buy an invite"
+                label={t("hero.cta.buyInvite")}
               />
             ) : null}
             <a
               href="#showcase"
               className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"
             >
-              View Showcase
+              {t("hero.cta.viewShowcase")}
             </a>
             {landingConfig?.featuredProfileUsername && (
               <Link
@@ -109,7 +111,7 @@ export function Hero() {
                 className="inline-flex items-center justify-center gap-2 h-13 px-8 text-base rounded-lg font-medium border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all duration-200"
               >
                 <Eye className="h-4 w-4" />
-                View live profile
+                {t("hero.cta.viewLiveProfile")}
               </Link>
             )}
           </div>
@@ -119,13 +121,13 @@ export function Hero() {
             style={{ animationDelay: "600ms" }}
           >
             {stats.map((stat) => (
-              <div key={stat.label} className="flex items-center gap-3">
+              <div key={stat.id} className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800/50 border border-zinc-700/50">
                   <stat.icon className="h-4.5 w-4.5 text-zinc-400" />
                 </div>
                 <div className="text-left">
-                  <p className="text-lg font-semibold text-white leading-tight">{stat.value}</p>
-                  <p className="text-xs text-zinc-500">{stat.label}</p>
+                  <p className="text-lg font-semibold text-white leading-tight">{t(`hero.stats.${stat.id}.value`)}</p>
+                  <p className="text-xs text-zinc-500">{t(`hero.stats.${stat.id}.label`)}</p>
                 </div>
               </div>
             ))}
@@ -136,16 +138,16 @@ export function Hero() {
             style={{ animationDelay: "800ms" }}
           >
             {[
-              { icon: Shield, label: "Open Source" },
-              { icon: Zap, label: "Lightning Fast" },
-              { icon: Globe, label: "Self-Hostable" },
+              { icon: Shield, id: "openSource" },
+              { icon: Zap, id: "lightningFast" },
+              { icon: Globe, id: "selfHostable" },
             ].map((badge) => (
               <div
-                key={badge.label}
+                key={badge.id}
                 className="flex items-center gap-2 text-sm text-zinc-500"
               >
                 <badge.icon className="h-4 w-4 text-zinc-600" />
-                {badge.label}
+                {t(`hero.badges.${badge.id}`)}
               </div>
             ))}
           </div>

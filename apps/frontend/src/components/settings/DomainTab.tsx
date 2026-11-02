@@ -1,26 +1,33 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api, type Profile, type ProfileDomain } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { formatDate } from "@/lib/intl";
+import { useAuth } from "@/contexts/useAuth";
 import { LockedFeature } from "@/components/ui/LockedFeature";
 import { Button } from "@/components/ui/button";
 import { Globe, ShieldCheck, ShieldAlert, CheckCircle2, RefreshCw, Trash2, Loader2 } from "lucide-react";
 
 const HOSTNAME_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-function statusBadge(status: ProfileDomain["status"]) {
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+// Status pill label per server status; classes stay visual-only.
+function statusBadge(status: ProfileDomain["status"], t: Translate) {
   switch (status) {
     case "PENDING_VERIFICATION":
-      return { label: "Pending verification", className: "bg-amber-500/10 text-amber-400 border-amber-500/30" };
+      return { label: t("domain.statusPendingVerification"), className: "bg-amber-500/10 text-amber-400 border-amber-500/30" };
     case "VERIFIED":
-      return { label: "Verified · awaiting approval", className: "bg-blue-500/10 text-blue-400 border-blue-500/30" };
+      return { label: t("domain.statusVerified"), className: "bg-blue-500/10 text-blue-400 border-blue-500/30" };
     case "ACTIVE":
-      return { label: "Active", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
+      return { label: t("domain.statusActive"), className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
     case "REJECTED":
-      return { label: "Rejected", className: "bg-red-500/10 text-red-400 border-red-500/30" };
+      return { label: t("domain.statusRejected"), className: "bg-red-500/10 text-red-400 border-red-500/30" };
   }
 }
 
 export function DomainTab({ profileId, profiles }: { profileId?: string; profiles: Profile[] }) {
+  // All user-facing strings come from the `dashboard` namespace (domain.* keys).
+  const { t } = useTranslation("dashboard");
   const { user } = useAuth();
   const [domain, setDomain] = useState<ProfileDomain | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,10 +48,10 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
       setDomain(res.data ?? null);
       setRootTarget(res.data?.rootTarget ?? "");
     } else {
-      setError(res.error ?? "Could not load domain settings");
+      setError(res.error ?? t("domain.toasts.loadFailed"));
     }
     setLoading(false);
-  }, [profileId]);
+  }, [profileId, t]);
 
   useEffect(() => {
     load();
@@ -57,14 +64,14 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
     setMessage("");
     const value = input.trim().toLowerCase();
     if (!HOSTNAME_RE.test(value) || value.startsWith("www.")) {
-      setError("Enter a plain hostname like example.com (no scheme, path, port, or www).");
+      setError(t("domain.toasts.invalidHostname"));
       return;
     }
     setBusy(true);
     const res = await api.requestProfileDomain(profileId, value);
     setBusy(false);
     if (!res.success) {
-      setError(res.error ?? "Could not request domain");
+      setError(res.error ?? t("domain.toasts.requestFailed"));
       return;
     }
     setDomain(res.data ?? null);
@@ -79,11 +86,11 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
     const res = await api.verifyProfileDomain(profileId);
     setVerifying(false);
     if (!res.success) {
-      setError(res.error ?? "Verification failed");
+      setError(res.error ?? t("domain.toasts.verificationFailed"));
       return;
     }
     setDomain(res.data ?? null);
-    setMessage("Domain verified! An admin will review and activate it.");
+    setMessage(t("domain.toasts.verified"));
     setTimeout(() => setMessage(""), 4000);
   };
 
@@ -92,12 +99,12 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
     setError("");
     const res = await api.setProfileDomainRoot(profileId, target || null);
     if (!res.success) {
-      setError(res.error ?? "Could not update root target");
+      setError(res.error ?? t("domain.toasts.rootUpdateFailed"));
       return;
     }
     setDomain(res.data ?? null);
     setRootTarget(res.data?.rootTarget ?? "");
-    setMessage("Root behavior updated.");
+    setMessage(t("domain.toasts.rootUpdated"));
     setTimeout(() => setMessage(""), 2500);
   };
 
@@ -106,7 +113,7 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
     setError("");
     const res = await api.removeProfileDomain(profileId);
     if (!res.success) {
-      setError(res.error ?? "Could not remove domain");
+      setError(res.error ?? t("domain.toasts.removeFailed"));
       return;
     }
     setDomain(null);
@@ -114,17 +121,17 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
   };
 
   if (loading) {
-    return <p className="text-sm text-zinc-500 text-center py-12">Loading domain settings…</p>;
+    return <p className="text-sm text-zinc-500 text-center py-12">{t("domain.loading")}</p>;
   }
 
   if (!hasAccess) {
     return (
       <LockedFeature
-        feature="Custom domains"
+        feature={t("domain.feature")}
         required="premium"
-        title="Custom domains are a Premium feature"
-        description="Custom domains require the PRO or Enterprise tier plus the profiles.customDomain permission on your role — ask an admin to grant it."
-        note='Requires Premium · permission "profiles.customDomain"'
+        title={t("domain.featureTitle")}
+        description={t("domain.featureDescription")}
+        note={t("domain.featureNote")}
       />
     );
   }
@@ -145,22 +152,20 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
           <div className="flex items-center gap-3 mb-4">
             <Globe className="h-5 w-5 text-violet-400" />
             <div>
-              <h3 className="text-sm font-medium text-white">Connect a custom domain</h3>
-              <p className="text-xs text-zinc-500">
-                Use your own domain, like example.com. We'll give you a TXT record to prove you own it.
-              </p>
+              <h3 className="text-sm font-medium text-white">{t("domain.connectTitle")}</h3>
+              <p className="text-xs text-zinc-500">{t("domain.connectDescription")}</p>
             </div>
           </div>
           <form onSubmit={submitRequest} className="flex flex-col sm:flex-row gap-3">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="example.com"
+              placeholder={t("domain.placeholder")}
               className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
             />
             <Button type="submit" disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Request domain
+              {t("domain.requestDomain")}
             </Button>
           </form>
         </div>
@@ -171,8 +176,8 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <Globe className="h-5 w-5 text-violet-400" />
             <span className="text-sm font-semibold text-white">{domain.domain}</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadge(domain.status).className}`}>
-              {statusBadge(domain.status).label}
+            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadge(domain.status, t).className}`}>
+              {statusBadge(domain.status, t).label}
             </span>
           </div>
 
@@ -180,24 +185,24 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
             <div className="space-y-4">
               <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
                 <p className="text-xs text-zinc-400">
-                  Add a <span className="text-zinc-200">TXT record</span> to your DNS provider, then click verify below. DNS can take a few minutes to propagate.
+                  {t("domain.addRecord")} <span className="text-zinc-200">{t("domain.txtRecord")}</span> {t("domain.addRecordSuffix")}
                 </p>
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Record name (host)</p>
+                  <p className="text-xs text-zinc-500 mb-1">{t("domain.recordName")}</p>
                   <code className="block rounded bg-zinc-800/70 px-3 py-2 text-xs text-emerald-400 break-all">_bioplatform.{domain.domain}</code>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Value</p>
+                  <p className="text-xs text-zinc-500 mb-1">{t("domain.value")}</p>
                   <code className="block rounded bg-zinc-800/70 px-3 py-2 text-xs text-emerald-400 break-all">{domain.verificationToken}</code>
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button onClick={handleVerify} disabled={verifying}>
                   {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {verifying ? "Checking DNS…" : "I've added the record — Verify now"}
+                  {verifying ? t("domain.checkingDns") : t("domain.verifyNow")}
                 </Button>
                 <Button variant="ghost" onClick={handleRemove}>
-                  <Trash2 className="h-4 w-4" /> Remove request
+                  <Trash2 className="h-4 w-4" /> {t("domain.removeRequest")}
                 </Button>
               </div>
             </div>
@@ -207,12 +212,10 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
             <div className="space-y-4">
               <div className="flex items-start gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
                 <ShieldCheck className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                <p className="text-sm text-zinc-300">
-                  Your TXT record was verified. An admin will now review and activate your domain — you'll see it go live here.
-                </p>
+                <p className="text-sm text-zinc-300">{t("domain.verifiedNotice")}</p>
               </div>
               <Button variant="ghost" onClick={handleRemove}>
-                <Trash2 className="h-4 w-4" /> Remove request
+                <Trash2 className="h-4 w-4" /> {t("domain.removeRequest")}
               </Button>
             </div>
           )}
@@ -222,52 +225,61 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
               <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
                 <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
                 <p className="text-sm text-zinc-300">
-                  Your custom domain is live at <span className="text-white font-medium">https://{domain.domain}</span>. Once DNS/SSL are configured, visitors will be redirected here.
+                  <Trans
+                    ns="dashboard"
+                    i18nKey="domain.liveAt"
+                    values={{ domain: domain.domain }}
+                    components={{ 0: <span className="text-white font-medium" /> }}
+                  />
                 </p>
               </div>
               {domain.tlsStatus === "ISSUED" && (
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-400">
                   <ShieldCheck className="h-4 w-4 shrink-0" />
                   <span>
-                    HTTPS certificate active
-                    {domain.tlsExpiresAt ? ` · renews ${new Date(domain.tlsExpiresAt).toLocaleDateString()}` : ""}.
+                    {t("domain.certActive")}
+                    {domain.tlsExpiresAt ? t("domain.certRenews", { date: formatDate(domain.tlsExpiresAt) }) : ""}.
                   </span>
                 </div>
               )}
               {domain.tlsStatus === "PENDING" && (
                 <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-400">
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                  <span>HTTPS certificate is being issued…</span>
+                  <span>{t("domain.certIssuing")}</span>
                 </div>
               )}
               {domain.tlsStatus === "FAILED" && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
                   <ShieldAlert className="h-4 w-4 shrink-0" />
                   <span>
-                    Automatic HTTPS failed{domain.tlsError ? `: ${domain.tlsError}` : ""}. Contact an admin to check DNS and port 80.
+                    {t("domain.certFailed")}{domain.tlsError ? `: ${domain.tlsError}` : ""}{t("domain.certFailedSuffix")}
                   </span>
                 </div>
               )}
               <div>
-                <p className="text-xs text-zinc-500 mb-2">Root of your domain (https://{domain.domain}/)</p>
+                <p className="text-xs text-zinc-500 mb-2">{t("domain.rootOfDomain", { domain: domain.domain })}</p>
                 <select
                   value={rootTarget}
                   onChange={(e) => handleRoot(e.target.value)}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
-                  <option value="">Landing page</option>
+                  <option value="">{t("domain.rootLandingPage")}</option>
                   {publicProfiles.map((p) => (
                     <option key={p.id} value={p.slug}>
-                      Profile “{p.displayName || p.slug}” ({p.slug})
+                      {t("domain.rootProfile", { name: p.displayName || p.slug, slug: p.slug })}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-zinc-500 mt-2">
-                  {rootTarget ? `Landing at the root shows the profile ${rootTarget}.` : "Landing at the root shows the landing page; your profile stays at /" + profiles.find((p) => p.id === profileId)?.slug + "."}
+                  {rootTarget
+                    ? t("domain.rootProfileNotice", { slug: rootTarget })
+                    : t("domain.rootLandingNotice", {
+                        slug: profiles.find((p) => p.id === profileId)?.slug ?? "",
+                      })}
                 </p>
               </div>
               <Button variant="ghost" onClick={handleRemove}>
-                <Trash2 className="h-4 w-4" /> Disconnect domain
+                <Trash2 className="h-4 w-4" /> {t("domain.disconnect")}
               </Button>
             </div>
           )}
@@ -276,20 +288,18 @@ export function DomainTab({ profileId, profiles }: { profileId?: string; profile
             <div className="space-y-4">
               <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-4">
                 <ShieldAlert className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-sm text-zinc-300">
-                  This domain request was rejected. You can submit a new request with a different domain.
-                </p>
+                <p className="text-sm text-zinc-300">{t("domain.rejectedNotice")}</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="example.com"
+                  placeholder={t("domain.placeholder")}
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
                 <Button onClick={submitRequest} disabled={busy}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Request new domain
+                  {t("domain.requestNew")}
                 </Button>
               </div>
             </div>
