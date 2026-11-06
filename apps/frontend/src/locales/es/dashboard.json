@@ -25,9 +25,9 @@
             "links": "Enlaces",
             "appearance": "Apariencia",
             "analytics": "Analíticas",
-            "email": "Email",
-            "tips": "Tips",
-            "shop": "Shop",
+            "email": "E-mail",
+            "tips": "Propinas",
+            "shop": "Tienda",
             "purchases": "Purchases",
             "music": "Music",
             "billing": "Billing",
@@ -703,6 +703,7 @@
         "reached": "Reached",
         "upNext": "Up next",
         "credits_one": "+{{count}} invite credit",
+        "credits_many": "",
         "credits_other": "+{{count}} invite credits",
         "badge": "Badge \"{{value}}\"",
         "toasts": {
@@ -753,8 +754,16 @@
             "crypto": "Crypto"
         },
         "impact": {
-            "PRO": ["Enterprise-only features become locked: business SSO, team seats and the enterprise webhooks API.","Limits change to 3 profiles, 5 aliases and 5 music tracks.","Custom domains stay enabled (Premium keeps them)."],
-            "FREE": ["Premium-only features become locked: custom domains, advanced analytics, Discord integration, data export and the webhooks API.","Limits change to 1 profile, 0 aliases, 2 music tracks and 3 shop products.","Existing profiles, aliases, tracks and products are kept — they just can't grow past the new limits."]
+            "PRO": [
+                "Enterprise-only features become locked: business SSO, team seats and the enterprise webhooks API.",
+                "Limits change to 3 profiles, 5 aliases and 5 music tracks.",
+                "Custom domains stay enabled (Premium keeps them)."
+            ],
+            "FREE": [
+                "Premium-only features become locked: custom domains, advanced analytics, Discord integration, data export and the webhooks API.",
+                "Limits change to 1 profile, 0 aliases, 2 music tracks and 3 shop products.",
+                "Existing profiles, aliases, tracks and products are kept — they just can't grow past the new limits."
+            ]
         },
         "toasts": {
             "loadFailed": "Could not load billing information",
