@@ -1,26 +1,26 @@
 {
     "consentGate": {
         "title": "Nuestros documentos legales han cambiado",
-        "intro": "To keep using {{app}}, please review and accept the updated {count, plural, one {document} other {documents}}. Nothing about your account, profile or content changes.",
-        "readUpdated": "Read the updated {{label}}",
-        "privacyLabel": "Privacy Policy",
-        "acceptError": "Could not record your acceptance",
-        "saving": "Saving…",
-        "accept": "I accept",
-        "version": "Version {{version}} · {{date}}"
+        "intro": "Para seguir utilizando {{app}}, revisa y acepta {count, plural, one {el documento actualizado} other {los documentos actualizados}}. Nada cambiará en tu cuenta, perfil ni contenido.",
+        "readUpdated": "Lee la {{label}} actualizada",
+        "privacyLabel": "Política de Privacidad",
+        "acceptError": "No se pudo guardar tu consentimiento",
+        "saving": "Guardando…",
+        "accept": "Acepto",
+        "version": "Versión {{version}} · {{date}}"
     },
     "policyShell": {
-        "backToHome": "Back to home",
-        "lastUpdated": "Last updated: {{date}}",
+        "backToHome": "Volver al inicio",
+        "lastUpdated": "Última actualización: {{date}}",
         "sectionHeading": "{{number}}. {{title}}",
         "subsectionHeading": "5.{{number}}. {{title}}"
     },
     "terms": {
-        "metaDescription": "Read the terms of service governing use of {{app}}.",
-        "fallbackVersion": "October 12, 2026",
-        "contactPrefix": "For questions about these Terms, please ",
+        "metaDescription": "Lee los términos de servicio de uso para {{app}}.",
+        "fallbackVersion": "12 de Octubre, 2026",
+        "contactPrefix": "Para preguntas sobre estos Términos, por favor ",
         "contactNamed": "contact {{name}}",
-        "contactUs": "contact us",
+        "contactUs": "contáctanos",
         "letsEncryptTerms": "Let’s Encrypt Terms of Service",
         "sections": {
             "acceptance": {
