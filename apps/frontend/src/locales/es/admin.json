@@ -726,7 +726,7 @@
             "cancelTitle": "Cancel the order",
             "cancel": "Cancel",
             "refundTitle": "Refund the order",
-      "refundConfirm": "For Crypto or Manual orders, return the money through the provider or wallet first. Card and PayPal refunds are attempted automatically when configured. This action records the local refund and revokes unspent access. Continue?",
+            "refundConfirm": "For Crypto or Manual orders, return the money through the provider or wallet first. Card and PayPal refunds are attempted automatically when configured. This action records the local refund and revokes unspent access. Continue?",
             "refund": "Refund",
             "note": "Note: {{note}}",
             "paid": "Paid {{date}}",
