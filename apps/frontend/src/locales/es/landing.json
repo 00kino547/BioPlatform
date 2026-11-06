@@ -1,5 +1,4 @@
 {
-    "announcementBanner": {},
     "faq": {
         "eyebrow": "Preguntas Frecuentes",
         "heading": "Preguntas frecuentes.",
@@ -93,7 +92,6 @@
         },
         "poweredBy": "Potenciado por {{name}}"
     },
-    "globalThemeOverlay": {},
     "hero": {
         "badge": "Ahora en Acceso Temprano",
         "badges": {
