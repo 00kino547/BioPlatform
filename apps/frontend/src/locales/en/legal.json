@@ -3,12 +3,10 @@
     "title": "Our legal documents have changed",
     "intro": "To keep using {{app}}, please review and accept the updated {count, plural, one {document} other {documents}}. Nothing about your account, profile or content changes.",
     "readUpdated": "Read the updated {{label}}",
-    "termsLabel": "Terms of Service",
     "privacyLabel": "Privacy Policy",
     "acceptError": "Could not record your acceptance",
     "saving": "Saving…",
     "accept": "I accept",
-    "signOut": "Sign out",
     "version": "Version {{version}} · {{date}}"
   },
   "policyShell": {
@@ -18,9 +16,7 @@
     "subsectionHeading": "5.{{number}}. {{title}}"
   },
   "terms": {
-    "metaTitle": "Terms of Service",
     "metaDescription": "Read the terms of service governing use of {{app}}.",
-    "shellTitle": "Terms of Service",
     "fallbackVersion": "October 12, 2026",
     "contactPrefix": "For questions about these Terms, please ",
     "contactNamed": "contact {{name}}",

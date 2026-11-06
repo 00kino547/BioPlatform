@@ -5,7 +5,6 @@
       "prereleaseAvailable": "Pre-release v{{version}} available",
       "prereleaseNotice": "Pre-release v{{version}} is available. It is shown here only and does not count as a required update.",
       "updates": "Updates",
-      "signOut": "Sign out",
       "title": "Admin Dashboard",
       "subtitle": "Manage invite codes, users, roles, badges and security.",
       "criticalRequired": "A critical or security update is required.",

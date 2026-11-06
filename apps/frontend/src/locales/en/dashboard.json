@@ -6,8 +6,7 @@
     },
     "header": {
       "viewProfile": "View Profile",
-      "adminPanel": "Admin Panel",
-      "signOut": "Sign out"
+      "adminPanel": "Admin Panel"
     },
     "page": {
       "title": "Edit Profile",
@@ -577,7 +576,7 @@
     "certFailedSuffix": ". Contact an admin to check DNS and port 80.",
     "rootOfDomain": "Root of your domain (https://{{domain}}/)",
     "rootLandingPage": "Landing page",
-    "rootProfile": "Profile \u201c{{name}}\u201d ({{slug}})",
+    "rootProfile": "Profile “{{name}}” ({{slug}})",
     "rootProfileNotice": "Landing at the root shows the profile {{slug}}.",
     "rootLandingNotice": "Landing at the root shows the landing page; your profile stays at /{{slug}}.",
     "disconnect": "Disconnect domain",
@@ -589,7 +588,7 @@
     "verifyNow": "I've added the record — Verify now",
     "checkingDns": "Checking DNS…",
     "statusPendingVerification": "Pending verification",
-    "statusVerified": "Verified \u00b7 awaiting approval",
+    "statusVerified": "Verified · awaiting approval",
     "statusActive": "Active",
     "statusRejected": "Rejected",
     "toasts": {
@@ -619,7 +618,7 @@
     "presenceLive": "Live",
     "presenceConnecting": "Connecting…",
     "presenceOff": "Presence off",
-    "presenceUpdated": "Updated {{seconds}}s ago \u00b7 refreshes every {{interval}}s",
+    "presenceUpdated": "Updated {{seconds}}s ago · refreshes every {{interval}}s",
     "presenceWaiting": "Waiting for presence data from Discord… make sure you are in a server with the instance bot.",
     "presenceRequiresBot": "Presence requires the instance bot (DISCORD_BOT_TOKEN).",
     "presenceHidden": "Presence is currently hidden on your profile.",
@@ -729,7 +728,7 @@
     "downgradeDescription": "Move to a lower plan at any time. Nothing is deleted — your extra profiles, aliases, tracks and products stay in your account (they just can't grow past the new plan's limits) and premium-only features lock until you upgrade again. Any pending order is cancelled.",
     "downTo": "Down to {{label}}",
     "payManually": "Pay manually",
-    "manualPayBody": "The <0>Contact owner</0> option creates a pending order that the platform owner fulfills after you pay out of band — add a message about your payment method if you'd like.",
+    "manualPayBody": "The <0>Contact owner</0> option creates a pending order that the platform owner fulfils after you pay out of band — add a message about your payment method if you'd like.",
     "reachThem": "Reach them at:",
     "noContactYet": "The instance owner hasn't set a contact method yet — the note you leave helps them reach you.",
     "notePlaceholder": "Optional note (e.g. preferred way to pay)…",
@@ -807,7 +806,7 @@
     "domainUnverified": "Domain not verified",
     "testSent": "Test email sent",
     "testMissing": "Test email not sent",
-    "dnsHint": "Add the TXT record <0>{{record}}</0> with the value <1>{{token}}</1> on your DNS <2/>, then click Verify.",
+    "dnsHint": "Add the TXT record <0>{{record}}</0> with the value <1>{{token}}</1> on your DNS provider <2/>, then click Verify.",
     "saveSender": "Save Sender",
     "verifying": "Verifying...",
     "verifyDomain": "Verify Domain",

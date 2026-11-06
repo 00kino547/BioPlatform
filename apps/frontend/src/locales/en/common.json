@@ -43,8 +43,17 @@
     "titleNew": "We value your privacy",
     "titlePreferences": "Cookie preferences"
   },
-  "dialog": {
-    "close": "Close"
+  "actions": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "continue": "Continue",
+    "delete": "Delete",
+    "loading": "Loading",
+    "save": "Save",
+    "search": "Search",
+    "signOut": "Sign out"
   },
   "errorBoundary": {
     "heading": "Something went wrong loading this page.",
@@ -58,6 +67,9 @@
     "github": "GitHub",
     "privacy": "Privacy",
     "terms": "Terms"
+  },
+  "legal": {
+    "termsOfService": "Terms of Service"
   },
   "imageCropper": {
     "cancel": "Cancel",
@@ -177,8 +189,7 @@
   },
   "tiers": {
     "free": "Free",
-    "pro": "Pro",
-    "premium": "Premium",
+    "pro": "Premium",
     "enterprise": "Enterprise"
   },
   "status": {

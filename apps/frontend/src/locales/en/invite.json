@@ -1,18 +1,14 @@
 {
   "buyInviteModal": {
-    "triggerLabel": "Buy an invite",
-    "dialogLabel": "Buy an invite",
     "heading": "Get an invite",
     "description": "Buy an invite credit, then use one of the codes to register.",
     "close": "Close",
-    "deliveringTo": "Delivering to {{email}}. Change it below if that is not the address you want the codes at.",
+    "deliveringTo": "Delivering to {{email}}.",
     "preferBrowse": "Prefer to browse first?",
     "openFullPage": "Open the full invite page",
-    "button": "Buy an invite",
-    "changeBelow": "Change it below if that is not the address you want the codes at."
+    "button": "Buy an invite"
   },
   "enterGate": {
-    "pressToEnter": "Press to enter",
     "orPressKey": "or press any key",
     "pressStart": "Press to enter"
   },

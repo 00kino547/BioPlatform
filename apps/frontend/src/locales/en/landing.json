@@ -89,8 +89,7 @@
       "features": "Features",
       "pricing": "Pricing",
       "privacyPolicy": "Privacy Policy",
-      "status": "Status",
-      "termsOfService": "Terms of Service"
+      "status": "Status"
     },
     "poweredBy": "Powered by {{name}}"
   },

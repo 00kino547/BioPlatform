@@ -43,9 +43,18 @@
         "titleNew": "Valoramos tu privacidad",
         "titlePreferences": "Preferencias para cookies"
     },
-    "dialog": {
-        "close": "Cerrar"
-    },
+  "actions": {
+    "back": "Atrás",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "continue": "Continuar",
+    "delete": "Eliminar",
+    "loading": "Cargando",
+    "save": "Guardar",
+    "search": "Buscar",
+    "signOut": "Cerrar sesión"
+  },
     "errorBoundary": {
         "heading": "Algo fué mal cargando esta página.",
         "tryAgain": "Intentar de nuevo",
@@ -58,6 +67,9 @@
         "github": "GitHub",
         "privacy": "Privacidad",
         "terms": "Terminos"
+    },
+    "legal": {
+        "termsOfService": "Terminos de Servicio"
     },
     "imageCropper": {
         "cancel": "Cancelar",
