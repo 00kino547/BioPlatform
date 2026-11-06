@@ -1,4 +1,16 @@
 {
+    "actions": {
+        "back": "Back",
+        "cancel": "Cancel",
+        "close": "Close",
+        "confirm": "Confirm",
+        "continue": "Continue",
+        "delete": "Delete",
+        "loading": "Loading...",
+        "save": "Save",
+        "search": "Search",
+        "signOut": "Sign out"
+    },
     "backgroundSelector": {
         "customUrl": "URL Personalizada",
         "customUrlPlaceholder": "https://… or /uploads/…",
@@ -43,18 +55,6 @@
         "titleNew": "Valoramos tu privacidad",
         "titlePreferences": "Preferencias para cookies"
     },
-  "actions": {
-    "back": "Atrás",
-    "cancel": "Cancelar",
-    "close": "Cerrar",
-    "confirm": "Confirmar",
-    "continue": "Continuar",
-    "delete": "Eliminar",
-    "loading": "Cargando",
-    "save": "Guardar",
-    "search": "Buscar",
-    "signOut": "Cerrar sesión"
-  },
     "errorBoundary": {
         "heading": "Algo fué mal cargando esta página.",
         "tryAgain": "Intentar de nuevo",
@@ -67,9 +67,6 @@
         "github": "GitHub",
         "privacy": "Privacidad",
         "terms": "Terminos"
-    },
-    "legal": {
-        "termsOfService": "Terminos de Servicio"
     },
     "imageCropper": {
         "cancel": "Cancelar",
@@ -190,8 +187,10 @@
     "tiers": {
         "free": "Gratuito",
         "pro": "Pro",
-        "premium": "Premium",
         "enterprise": "Empresarial"
+    },
+    "legal": {
+        "termsOfService": "Terms of Service"
     },
     "status": {
         "pending": "Pending",
